@@ -139,14 +139,7 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
     autoUpdater.quitAndInstall(false, true)
   })
 
-  // Sprawdź aktualizacje przy starcie (tylko w produkcji, 4s opóźnienia)
-  if (app.isPackaged) {
-    setTimeout(() => {
-      autoUpdater.checkForUpdates().catch((err) => {
-        console.warn('[AutoUpdater] startup check failed:', err.message)
-      })
-    }, 4000)
-  }
+  // Startup check przeniesiony do UpdateBanner (odpala się po zalogowaniu usera)
 }
 
 // ---------------------------------------------------------------------------
