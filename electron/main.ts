@@ -104,8 +104,10 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
   ipcMain.handle('updater:check', async () => {
     try {
       const result = await autoUpdater.checkForUpdates()
-      if (result?.updateInfo?.version) {
-        return { status: 'available', version: result.updateInfo.version }
+      const newVersion = result?.updateInfo?.version
+      // Porównaj z aktualną wersją — nie raportuj "dostępna" jeśli ta sama
+      if (newVersion && newVersion !== app.getVersion()) {
+        return { status: 'available', version: newVersion }
       }
       return { status: 'uptodate' }
     } catch (err) {
