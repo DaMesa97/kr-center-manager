@@ -1,0 +1,57 @@
+// @see - https://www.electron.build/configuration/configuration
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "pl.krcenter.manager",
+  "asar": true,
+  "productName": "KR Center",
+  "icon": "public/icon.ico",
+  "directories": {
+    "output": "release/${version}"
+  },
+  // GitHub Releases — ustaw owner/repo przed pierwszym `npm run release`
+  // GH_TOKEN musi być w .env (token z prawem write:packages + repo)
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "DaMesa97",
+      "repo": "kr-center-manager",
+      "releaseType": "release"
+    }
+  ],
+  "files": [
+    "dist",
+    "dist-electron"
+  ],
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "public/icon.ico",
+    "artifactName": "${productName}-${version}-Setup.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "installerIcon": "public/icon.ico",
+    "uninstallerIcon": "public/icon.ico"
+  },
+  "linux": {
+    "target": [
+      "AppImage"
+    ],
+    "artifactName": "${productName}-Linux-${version}.${ext}"
+  }
+}

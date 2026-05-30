@@ -1,0 +1,7 @@
+﻿release/
+dist/
+dist-electron/
+node_modules/
+*.asar
+*.exe
+.env*
