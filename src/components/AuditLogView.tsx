@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { AuditFilters, AuditLogRow } from '../types'
+import Spinner from './Spinner'
 
 type AuditLogViewProps = {
   rows: AuditLogRow[]
@@ -216,7 +217,7 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
       </div>
 
       {loading ? (
-        <p className="no-results">Ładowanie historii zmian...</p>
+        <Spinner center label="Ładowanie historii zmian…" />
       ) : (
         <div className="table-wrapper">
           <table className="orders-table audit-table">

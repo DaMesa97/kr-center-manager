@@ -237,6 +237,7 @@ export type DbProfileRow = {
   initials: string
   role: string
   department: string
+  categories?: string[]
 }
 
 export type Profile = DbProfileRow
@@ -267,8 +268,9 @@ export type UserFormState = {
   full_name: string
   initials: string
   password: string
-  role: 'worker' | 'manager' | 'sprzedawca'
+  role: string
   department: 'all' | 'bastion' | 'stalowe' | 'magazyn'
+  categories: string[]
 }
 
 export type CurrentUser = {
@@ -278,6 +280,7 @@ export type CurrentUser = {
   full_name: string
   role: string
   department: ProfileDepartment
+  categories?: string[]
 }
 
 export type ConfigFormCategory = 'STA' | 'Disting' | 'ST' | 'Techniczne' | 'Bastion' | 'Wewnetrzne'
@@ -296,6 +299,21 @@ export type ConfigSubTab =
   | 'Naddatki szyb (naświetla)'
   | 'Dostawcy'
   | 'Dane firmy'
+  | 'Terminy realizacji'
+
+export type LeadTimeRule = {
+  id: number
+  name: string
+  match_category: string | null
+  match_has_glass_extra: boolean | null
+  match_bastion_frame_type: string | null
+  warning_days: number
+  overdue_days: number
+  priority: number
+  is_active: boolean
+}
+
+export type OrderAgeStatus = 'ok' | 'warning' | 'overdue'
 
 export type CompanySettings = {
   id: number
@@ -333,6 +351,9 @@ export type OrderExtraFields = {
   cancelled?: boolean
   cancelled_at?: string
   cancelled_by?: string
+  wykonawca?: string
+  ready_to_invoice?: boolean
+  [key: string]: unknown
 }
 
 export type NewOrderFormData = {
@@ -427,6 +448,7 @@ export type StaOrderFormData = {
   quantity: number
   notes: string
   client_order_number: string
+  wykonawca: string
 }
 
 export type StaConfigRow = {
@@ -682,6 +704,30 @@ export type StatsSubTab =
   | 'Bastion'
   | 'DrzwiWewnetrzne'
   | 'Reklamacje'
+  | 'Produktywność'
+  | 'Czas realizacji'
+
+export type OrderPhoto = {
+  id: number
+  order_id: number
+  storage_path: string
+  public_url: string
+  uploaded_by: string | null
+  uploaded_by_initials: string | null
+  created_at: string
+}
+
+export type AppNotification = {
+  id: number
+  user_id: string
+  type: string
+  title: string
+  body: string | null
+  link_tab: string | null
+  link_order_id: number | null
+  is_read: boolean
+  created_at: string
+}
 
 export type AuditLogRow = {
   id: number
@@ -774,6 +820,31 @@ export type WarehouseSubTab =
   | 'Alerty'
   | 'Zamówienia'
   | 'Zamawianie'
+  | 'Inwentaryzacja'
+
+export type InventorySession = {
+  id: number
+  status: 'open' | 'closed'
+  counted_date: string
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  closed_by: string | null
+  closed_at: string | null
+}
+
+export type InventoryLine = {
+  id: number
+  session_id: number
+  component_id: number
+  system_qty: number
+  counted_qty: number | null
+  notes: string | null
+  // joined from warehouse_components
+  component_name?: string
+  component_unit?: string
+  component_code?: string | null
+}
 
 export type ShoppingListItem = {
   component_id: number

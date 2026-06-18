@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { INITIAL_CONTRACTOR_FORM } from '../constants'
 import type { Company, ContractorFormData, CurrentUser, DeleteConfirmState } from '../types'
 import type { ToastVariant } from '../types'
+import { isManagerRole } from '../lib/permissions'
 
 type UseCompaniesParams = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -22,7 +23,7 @@ export function useCompanies({ pushToast, touchSession, setDeleteConfirm, curren
   const [contractorSearchTerm, setContractorSearchTerm] = useState('')
   const [contractorFormData, setContractorFormData] = useState<ContractorFormData>(INITIAL_CONTRACTOR_FORM)
 
-  const isManager = currentUser?.role === 'manager'
+  const isManager = isManagerRole(currentUser?.role)
 
   const fetchCompanies = useCallback(async () => {
     touchSession()
@@ -91,6 +92,11 @@ export function useCompanies({ pushToast, touchSession, setDeleteConfirm, curren
       pushToast('Brak uprawnień do edycji kontrahenta', 'error')
       return
     }
+    if (!contractorFormData.name?.trim()) {
+      pushToast('Wpisz nazwę kontrahenta', 'error')
+      return
+    }
+    if (isContractorSaving) return
     setIsContractorSaving(true)
     const payload = {
       name: contractorFormData.name,

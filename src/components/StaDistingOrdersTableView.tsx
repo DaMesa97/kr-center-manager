@@ -2,7 +2,6 @@ import type { MouseEvent, MutableRefObject } from 'react'
 import ProductionStageCell from './ProductionStageCell'
 import type { GlassAllowance, Order, StageDef, ToastVariant } from '../types'
 import StockStatusBadge from './StockStatusBadge'
-import { BotBadge } from './BotBadge'
 import { TopScrollTableWrapper } from './TopScrollTableWrapper'
 import {
   distingPlusMirrorTitle,
@@ -16,8 +15,6 @@ import {
   parseProductionStages,
   staDistingPlusMirrorStorageKey,
   staDistingPlusMirrorTitle,
-  staTitanMirrorStorageKey,
-  staTitanMirrorTitle,
 } from '../utils'
 
 type StaDistingOrdersTableViewProps = {
@@ -26,6 +23,7 @@ type StaDistingOrdersTableViewProps = {
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
   orderStageColumnDefs: StageDef[]
   isManager: boolean
+  canSeePrices?: boolean
   productionStageUpdating: string | null
   releaseDateUpdating: number | null
   rushUpdatingOrderId: number | null
@@ -39,6 +37,7 @@ type StaDistingOrdersTableViewProps = {
   markProductionStageWithProfileInitials: (orderId: number, stageKey: string) => void | Promise<void>
   setStageRevertTarget: (target: { orderId: number; stageKey: string }) => void
   applyReleaseDateUpdate: (orderId: number, date: string | null) => void | Promise<void>
+  onToggleOscReceived?: (order: Order) => void | Promise<void>
   setReleaseClearTarget: (target: { orderId: number }) => void
   handleDistingStaSheetNavigate: (staVal: string, event: MouseEvent<HTMLButtonElement>) => void
   handleStaDistingSheetNavigate: (distingVal: string, event: MouseEvent<HTMLButtonElement>) => void
@@ -54,6 +53,7 @@ export default function StaDistingOrdersTableView({
   tableWrapperRef,
   orderStageColumnDefs,
   isManager,
+  canSeePrices = true,
   productionStageUpdating,
   releaseDateUpdating,
   rushUpdatingOrderId,
@@ -67,6 +67,7 @@ export default function StaDistingOrdersTableView({
   markProductionStageWithProfileInitials,
   setStageRevertTarget,
   applyReleaseDateUpdate,
+  onToggleOscReceived,
   setReleaseClearTarget,
   handleDistingStaSheetNavigate,
   handleStaDistingSheetNavigate,
@@ -177,6 +178,14 @@ export default function StaDistingOrdersTableView({
               OŚC.
             </th>
           )}
+          {activeTab === 'STA' && (
+            <th
+              className="production-stage-th sta-osc-pack-th col-osc-pack"
+              title="Ościeżnica odebrana na Marklowickiej (ręcznie, kierownik) — DISTING PLUS"
+            >
+              ODBIÓR
+            </th>
+          )}
           <th className="col-order-text release-date-th" title="WYDANIE">
             WYDANIE
           </th>
@@ -198,9 +207,11 @@ export default function StaDistingOrdersTableView({
           <th className="col-order-text" title="WPISAŁ">
             WPISAŁ
           </th>
-          <th className="col-order-text" title="WARTOŚĆ KONFIGURATOR">
-            WARTOŚĆ KONFIGURATOR
-          </th>
+          {canSeePrices && (
+            <th className="col-order-text" title="WARTOŚĆ KONFIGURATOR">
+              WARTOŚĆ KONFIGURATOR
+            </th>
+          )}
           <th className="col-order-text" title="INFO">
             INFO
           </th>
@@ -300,7 +311,16 @@ export default function StaDistingOrdersTableView({
                 ) : null}
                 <span className="order-number-wrapper">
                   <span className="order-num-value order-number-value">{order.order_number}</span>
-                  <BotBadge order={order} />
+                  {(() => {
+                    const wyk = (order.extra_fields as Record<string, unknown> | null)?.wykonawca as string | undefined
+                    if (!wyk) return null
+                    const colorMap: Record<string, string> = { Center: '#9b1c1c', Profil: '#16a34a', WZ: '#0369a1' }
+                    return (
+                      <span className="wykonawca-badge" style={{ background: colorMap[wyk] ?? '#475569' }}>
+                        {wyk}
+                      </span>
+                    )
+                  })()}
                   {(() => {
                     const counts = order.id !== undefined ? orderCommentsCounts.get(order.id) : undefined
                     const total = counts?.total ?? 0
@@ -442,12 +462,16 @@ export default function StaDistingOrdersTableView({
                   order.category === 'Disting' && linkedPlus && (def.key === 'e3' || def.key === 'e4')
 
                 if (isTitanLinked) {
-                  const titanMirrorKey = staTitanMirrorStorageKey(def.key)
-                  if (titanMirrorKey !== null) {
-                    const stPartner = linkedOrders.find((o) => o.id === order.linked_order_id)
-                    const stStages = stPartner ? parseProductionStages(stPartner.production_stages, 'ST') : {}
-                    const mirrorVal = String(stStages[titanMirrorKey] ?? '').trim()
-                    const filled = Boolean(mirrorVal)
+                  // STA Titan robi TYLKO skrzydło (E3 frezowanie, E5 pakowanie).
+                  // Ościeżnica (E1) = ST, dostawka (E2.1) n/d, okuwanie (E4) = Bastion → zablokowane.
+                  const titanBlocked: Record<string, string> = {
+                    e1: 'Ościeżnica — realizowana w ST',
+                    e2_1: 'Dostawka — nie dotyczy Titana',
+                    e4: 'Okuwanie skrzydła — realizowane na Bastionie',
+                  }
+                  if (titanBlocked[def.key]) {
+                    const v = String(rowStages[def.key] ?? '').trim()
+                    const filled = Boolean(v)
                     return (
                       <td key={def.key} className="production-stage-td col-stage" onClick={(e) => e.stopPropagation()}>
                         <span
@@ -455,9 +479,9 @@ export default function StaDistingOrdersTableView({
                             'production-stage-readonly',
                             filled ? 'production-stage-readonly--linked-done' : 'production-stage-readonly--linked-empty',
                           ].join(' ')}
-                          title={staTitanMirrorTitle(def.key)}
+                          title={titanBlocked[def.key]}
                         >
-                          {filled ? mirrorVal : '—'}
+                          {filled ? v : '—'}
                         </span>
                       </td>
                     )
@@ -606,6 +630,31 @@ export default function StaDistingOrdersTableView({
                   )}
                 </td>
               )}
+              {activeTab === 'STA' && (
+                <td className="production-stage-td sta-osc-pack-td col-osc-pack" onClick={(e) => e.stopPropagation()}>
+                  {order.linked_order_id != null && !isTitanLinked ? (
+                    (() => {
+                      const recv = String((order.extra_fields as Record<string, unknown> | null)?.osc_received ?? '').trim()
+                      const done = Boolean(recv)
+                      const clickable = isManager && !!onToggleOscReceived && rowOrderId !== undefined
+                      return (
+                        <button
+                          type="button"
+                          className={done ? 'sta-osc-badge sta-osc-badge--done' : 'sta-osc-badge sta-osc-badge--wait'}
+                          style={{ cursor: clickable ? 'pointer' : 'default', border: 'none' }}
+                          disabled={!clickable}
+                          title={done ? `Ościeżnica odebrana na Marklowickiej (${recv})` : 'Oznacz odbiór ościeżnicy na Marklowickiej'}
+                          onClick={() => { if (clickable && onToggleOscReceived) void onToggleOscReceived(order) }}
+                        >
+                          {done ? (<>ODB ✓ <span className="sta-osc-badge-initials">{recv}</span></>) : 'ODB —'}
+                        </button>
+                      )
+                    })()
+                  ) : (
+                    ' '
+                  )}
+                </td>
+              )}
               <td
                 className="release-date-td col-order-text"
                 title={
@@ -708,9 +757,11 @@ export default function StaDistingOrdersTableView({
               <td className="col-order-text" title={orderCellTooltip(order.entered_by)}>
                 {order.entered_by}
               </td>
-              <td className="col-order-text" title={orderCellTooltip(order.configurator_value)}>
-                {order.configurator_value}
-              </td>
+              {canSeePrices && (
+                <td className="col-order-text" title={orderCellTooltip(order.configurator_value)}>
+                  {order.configurator_value}
+                </td>
+              )}
               <td className="col-order-text" title={orderCellTooltip(order.info)}>
                 {order.info}
               </td>

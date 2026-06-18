@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { INITIAL_COMPLAINT_FORM_DATA, TABS } from '../constants'
 import { generateComplaintNumber } from '../utils'
+import { isManagerRole } from '../lib/permissions'
 import type {
   ArchivedOrder,
   Complaint,
@@ -42,7 +43,7 @@ export function useComplaints({
   const [complaintFormLoading, setComplaintFormLoading] = useState(false)
   const [linkedComplaints, setLinkedComplaints] = useState<Complaint[]>([])
 
-  const isManager = currentUser?.role === 'manager'
+  const isManager = isManagerRole(currentUser?.role)
 
   const fetchComplaints = useCallback(async () => {
     touchSession()
@@ -179,6 +180,14 @@ export function useComplaints({
   const handleSaveComplaint = useCallback(async () => {
     touchSession()
     if (!complaintFormData.order_id && !complaintFormData.order_number.trim()) return
+    if (!complaintFormData.what_complained?.trim()) {
+      pushToast('Wybierz co jest reklamowane', 'error')
+      return
+    }
+    if (!complaintFormData.reason?.trim()) {
+      pushToast('Wpisz powód reklamacji', 'error')
+      return
+    }
     setComplaintFormLoading(true)
 
     const complaint_number = await generateComplaintNumber()
@@ -503,6 +512,8 @@ export function useComplaints({
                 ? ((linkedRow as { extra_fields?: unknown }).extra_fields as Record<string, unknown>)
                 : {}),
               cancelled: true,
+              cancelled_at: cancelledAt,
+              cancelled_by: cancelledBy,
             }
             const { error: linkErr } = await supabase
               .from('complaints')

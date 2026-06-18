@@ -145,7 +145,7 @@ export default function PurchaseOrderDetailsModal({
   }
 
   const saveDraftItems = async () => {
-    if (!purchaseOrder) return
+    if (!purchaseOrder || saving) return
     setSaving(true)
     for (const item of items) {
       const qty = Math.max(1, Number(draftQtyByItem[item.id] ?? item.quantity_ordered))

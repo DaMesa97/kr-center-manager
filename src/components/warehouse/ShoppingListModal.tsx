@@ -47,8 +47,20 @@ export default function ShoppingListModal({
   const [generatingSupplierId, setGeneratingSupplierId] = useState<number | null>(null)
   const [generatingAll, setGeneratingAll] = useState(false)
   const [suggestedQuantities, setSuggestedQuantities] = useState<Record<number, number>>({})
+  const [quickSearch, setQuickSearch] = useState('')
+  const [quickQty, setQuickQty] = useState<Record<number, string>>({})
 
   const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers])
+
+  const quickResults = useMemo(() => {
+    const q = quickSearch.trim().toLowerCase()
+    if (!q) return []
+    return components
+      .filter((c) => c.is_active)
+      .filter((c) => !shoppingList.some((s) => s.component_id === c.id))
+      .filter((c) => c.name.toLowerCase().includes(q) || (c.code ?? '').toLowerCase().includes(q))
+      .slice(0, 8)
+  }, [quickSearch, components, shoppingList])
   const stockByComponentId = useMemo(() => {
     const map = new Map<number, number>()
     for (const s of stock) {
@@ -143,6 +155,26 @@ export default function ShoppingListModal({
     })
   }
 
+  const handleQuickAdd = (component: WarehouseComponent) => {
+    const supplier = component.supplier_id ? supplierById.get(component.supplier_id) ?? null : null
+    const currentStock = stockByComponentId.get(component.id) ?? 0
+    const qty = parseInt(quickQty[component.id] ?? '') || Math.max(component.units_per_pallet ?? 1, 1)
+    onAddToShoppingList({
+      component_id: component.id,
+      component_name: component.name,
+      component_code: component.code ?? '',
+      supplier_id: component.supplier_id ?? null,
+      supplier_name: supplier?.name ?? null,
+      quantity: Math.max(1, qty),
+      units_per_pallet: component.units_per_pallet ?? null,
+      pallets_per_full_tir: component.pallets_per_full_tir ?? null,
+      current_stock: currentStock,
+      min_stock_level: component.min_stock_level ?? null,
+      target_stock_level: component.target_stock_level ?? null,
+    })
+    setQuickQty((prev) => ({ ...prev, [component.id]: '' }))
+  }
+
   const generateForGroup = async (group: Group) => {
     setGeneratingSupplierId(group.supplier.id)
     const payload = group.items.map((item) => ({
@@ -167,7 +199,11 @@ export default function ShoppingListModal({
 
   const generateAll = async () => {
     setGeneratingAll(true)
-    for (const group of groups) {
+    // Snapshot grup — chroni przed zmianą danych (realtime) w trakcie pętli
+    const groupsSnapshot = [...groups]
+    let okCount = 0
+    let failCount = 0
+    for (const group of groupsSnapshot) {
       const payload = group.items.map((item) => ({
         component_id: item.component_id,
         quantity_ordered: item.quantity,
@@ -179,14 +215,24 @@ export default function ShoppingListModal({
         p_notes: notesBySupplier[group.supplier.id]?.trim() || null,
       })
       if (error) {
+        // Nie przerywaj całości — pomiń tego dostawcę, kontynuuj resztę
         pushToast(`Błąd generowania dla ${group.supplier.name}: ${error.message}`, 'error')
-        setGeneratingAll(false)
-        return
+        failCount++
+        continue
       }
+      // Usuń z listy tylko pozycje pomyślnie wygenerowane
       group.items.forEach((item) => onRemove(item.component_id))
+      okCount++
     }
     setGeneratingAll(false)
-    pushToast('Wygenerowano zamówienia dla wszystkich dostawców', 'success')
+    if (okCount > 0) {
+      pushToast(
+        failCount > 0
+          ? `Wygenerowano ${okCount} zamówień, ${failCount} nieudanych — sprawdź listę`
+          : 'Wygenerowano zamówienia dla wszystkich dostawców',
+        failCount > 0 ? 'info' : 'success',
+      )
+    }
     onGenerated()
   }
 
@@ -212,6 +258,54 @@ export default function ShoppingListModal({
               X
             </button>
           </div>
+        </div>
+
+        {/* Szybkie dodawanie */}
+        <div className="shopping-quick-add">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="🔍 Szybkie dodawanie — wpisz nazwę komponentu..."
+            value={quickSearch}
+            onChange={(e) => setQuickSearch(e.target.value)}
+          />
+          {quickResults.length > 0 && (
+            <div className="shopping-quick-results">
+              {quickResults.map((c) => {
+                const supplier = c.supplier_id ? supplierById.get(c.supplier_id) : null
+                const currentStock = stockByComponentId.get(c.id) ?? 0
+                const defaultQty = Math.max(c.units_per_pallet ?? 1, 1)
+                return (
+                  <div key={c.id} className="shopping-quick-row">
+                    <div className="shopping-quick-info">
+                      <strong>{c.name}</strong>
+                      <span className="shopping-quick-meta">
+                        Stock: {currentStock}
+                        {supplier ? ` · ${supplier.name}` : ' · ⚠️ brak dostawcy'}
+                      </span>
+                    </div>
+                    <div className="shopping-quick-actions">
+                      <input
+                        type="number"
+                        min={1}
+                        className="reorder-qty-input"
+                        placeholder={String(defaultQty)}
+                        value={quickQty[c.id] ?? ''}
+                        onChange={(e) => setQuickQty((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => handleQuickAdd(c)}
+                      >
+                        + Dodaj
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {orphanItems.length > 0 && (

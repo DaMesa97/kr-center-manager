@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Settings } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
+import Spinner from '../Spinner'
 
 type SeasonalFactor = {
   id: number
@@ -89,7 +90,7 @@ function SeasonalFactorsEditor({ isManager, onSaved }: Props) {
       </p>
 
       {loading ? (
-        <div>Ładowanie...</div>
+        <Spinner center label="Ładowanie…" />
       ) : (
         <table className="seasonal-factors-table">
           <thead>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Copy, Check, Key, Plus, Power, PowerOff } from 'lucide-react'
 import type { ApiKey } from '../types'
+import Spinner from './Spinner'
 
 type Filter = 'all' | 'active' | 'inactive'
 
@@ -115,7 +116,7 @@ export default function ApiKeysView({
 
       {/* Tabela */}
       {loading ? (
-        <p className="no-results">Ładowanie kluczy API...</p>
+        <Spinner center label="Ładowanie kluczy API…" />
       ) : filteredApiKeys.length === 0 ? (
         <p className="no-results">Brak kluczy API. Wygeneruj nowy.</p>
       ) : (

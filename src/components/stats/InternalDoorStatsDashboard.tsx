@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { InternalDoorItem, Order } from '../../types'
+import Spinner from '../Spinner'
 
 type InternalDoorItemWithComponent = InternalDoorItem & {
   component_product_category?: string | null
@@ -277,7 +278,7 @@ export default function InternalDoorStatsDashboard({ orders, internalDoorItems, 
   const visibleSku = useMemo(() => topSku.slice(0, visibleSkuRows), [topSku, visibleSkuRows])
 
   if (loading || itemsLoading) {
-    return <div className="stats-dashboard">Ładowanie…</div>
+    return <div className="stats-dashboard"><Spinner center label="Ładowanie…" /></div>
   }
 
   if (doorOrders.length === 0) {

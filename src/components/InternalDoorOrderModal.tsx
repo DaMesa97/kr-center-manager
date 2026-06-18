@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import type { Order, WarehouseComponent, InternalDoorItem, ToastVariant } from '../types'
@@ -141,7 +141,9 @@ function InternalDoorOrderModal({
     return String(max + 1)
   }, [])
 
-  const handleSave = async () => {
+  const savingRef = useRef(false)
+
+  const handleSaveImpl = async () => {
     if (items.length === 0) {
       pushToast('Dodaj co najmniej jedną pozycję', 'error')
       return
@@ -150,12 +152,12 @@ function InternalDoorOrderModal({
       pushToast('Każda pozycja musi mieć wybrany komponent', 'error')
       return
     }
-    if (items.some((it) => it.quantity <= 0)) {
-      pushToast('Każda pozycja musi mieć ilość > 0', 'error')
+    if (items.some((it) => !Number.isFinite(it.quantity) || it.quantity <= 0)) {
+      pushToast('Każda pozycja musi mieć poprawną ilość > 0', 'error')
       return
     }
-    if (items.some((it) => it.shorten_enabled && (!it.shorten_target_height || it.shorten_target_height <= 0))) {
-      pushToast('Skrócenie wymaga wymiaru docelowego', 'error')
+    if (items.some((it) => it.shorten_enabled && (!Number.isFinite(it.shorten_target_height) || (it.shorten_target_height ?? 0) <= 0))) {
+      pushToast('Skrócenie wymaga poprawnego wymiaru docelowego', 'error')
       return
     }
 
@@ -322,6 +324,17 @@ function InternalDoorOrderModal({
     setSaving(false)
     onSaved()
     onClose()
+  }
+
+  // Wrapper — blokuje równoległe wywołania (double-click „Zapisz")
+  const handleSave = async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    try {
+      await handleSaveImpl()
+    } finally {
+      savingRef.current = false
+    }
   }
 
   const componentLabel = (c: WarehouseComponent) => {

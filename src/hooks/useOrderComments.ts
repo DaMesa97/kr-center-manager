@@ -14,7 +14,8 @@ export function useOrderComments({ orders }: UseOrderCommentsParams) {
     open: boolean
     orderId: number | null
     orderNumber: string
-  }>({ open: false, orderId: null, orderNumber: '' })
+    orderCategory: string
+  }>({ open: false, orderId: null, orderNumber: '', orderCategory: '' })
 
   const fetchOrderCommentsCounts = useCallback(async (orderIds: number[]) => {
     if (orderIds.length === 0) {
@@ -48,11 +49,12 @@ export function useOrderComments({ orders }: UseOrderCommentsParams) {
       open: true,
       orderId: order.id,
       orderNumber: order.order_number,
+      orderCategory: order.category ?? '',
     })
   }, [])
 
   const handleCloseCommentsPanel = useCallback(() => {
-    setCommentsPanelState({ open: false, orderId: null, orderNumber: '' })
+    setCommentsPanelState({ open: false, orderId: null, orderNumber: '', orderCategory: '' })
 
     const ids = orders.map((o) => o.id).filter((x): x is number => x !== undefined)
     void fetchOrderCommentsCounts(ids)

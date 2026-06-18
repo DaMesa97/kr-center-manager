@@ -52,6 +52,7 @@ export function useApiKeys({ pushToast, touchSession }: UseApiKeysParams) {
   }, [touchSession, pushToast])
 
   const handleGenerateKey = useCallback(async () => {
+    if (generateModal.saving) return // guard double-submit
     if (!generateModal.name.trim()) {
       pushToast('Podaj nazwę klucza', 'error')
       return

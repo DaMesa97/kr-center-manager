@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { buildRecipeAutoName } from '../utils'
+import { buildRecipeAutoName, isInternalWarehouseCode } from '../utils'
 import {
   INITIAL_MM_FORM, INITIAL_PZ_FORM, INITIAL_RECIPE_FORM
 } from '../constants'
@@ -25,11 +25,13 @@ type UseWarehouseParams = {
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>
   fetchOrders: () => Promise<void>
   setDeleteConfirm: (state: DeleteConfirmState | null) => void
+  setAlertsBadgeCount: (n: number) => void
 }
 
 export function useWarehouse({
   pushToast,
   touchSession,
+  setAlertsBadgeCount,
   activeTab,
   isWarehouseTab,
   activeWarehouseSubTab,
@@ -531,7 +533,7 @@ export function useWarehouse({
   // ---------------------------------------------------------------------------
 
   const handleCreateWarehouseComponent = useCallback(
-    async (data: WarehouseComponentCreateInput) => {
+    async (data: WarehouseComponentCreateInput, warehouseIds?: number[]) => {
       const { data: created, error } = await supabase
         .from('warehouse_components')
         .insert([data])
@@ -542,14 +544,19 @@ export function useWarehouse({
         return
       }
       if (created?.id) {
-        const { data: warehousesData } = await supabase
-          .from('warehouses')
-          .select('id')
-          .eq('is_active', true)
+        // Półki zakładamy tylko w wybranych magazynach; brak wyboru => wszystkie aktywne (zgodność wstecz)
+        let targetIds = warehouseIds ?? []
+        if (targetIds.length === 0) {
+          const { data: warehousesData } = await supabase
+            .from('warehouses')
+            .select('id')
+            .eq('is_active', true)
+          targetIds = (warehousesData ?? []).map((w) => w.id as number)
+        }
 
-        if (warehousesData && warehousesData.length > 0) {
-          const stockRows = warehousesData.map((w) => ({
-            warehouse_id: w.id,
+        if (targetIds.length > 0) {
+          const stockRows = targetIds.map((id) => ({
+            warehouse_id: id,
             component_id: created.id,
             quantity: 0,
           }))
@@ -561,9 +568,110 @@ export function useWarehouse({
       }
       pushToast('Komponent dodany', 'success')
       await fetchWarehouseComponents()
+      await fetchWarehouseStock()
     },
-    [pushToast, fetchWarehouseComponents],
+    [pushToast, fetchWarehouseComponents, fetchWarehouseStock],
   )
+
+  // Ustaw przynależność komponentu do magazynów (edycja): dodaj brakujące półki,
+  // usuń odznaczone — ale tylko jeśli mają stan 0 (nie kasujemy realnych zapasów).
+  const handleSetComponentWarehouses = useCallback(
+    async (componentId: number, warehouseIds: number[]) => {
+      const { data: existing, error: exErr } = await supabase
+        .from('warehouse_stock')
+        .select('id, warehouse_id, quantity')
+        .eq('component_id', componentId)
+      if (exErr) {
+        pushToast(`Błąd: ${exErr.message}`, 'error')
+        return
+      }
+      const existingRows = (existing ?? []) as Array<{ id: number; warehouse_id: number; quantity: number }>
+      const existingIds = new Set(existingRows.map((r) => r.warehouse_id))
+      const target = new Set(warehouseIds)
+
+      const toAdd = warehouseIds.filter((id) => !existingIds.has(id))
+      const toRemove = existingRows.filter((r) => !target.has(r.warehouse_id))
+      const removable = toRemove.filter((r) => Number(r.quantity) === 0)
+      const blocked = toRemove.filter((r) => Number(r.quantity) !== 0)
+
+      if (toAdd.length > 0) {
+        const rows = toAdd.map((id) => ({ warehouse_id: id, component_id: componentId, quantity: 0 }))
+        const { error } = await supabase.from('warehouse_stock').insert(rows)
+        if (error) {
+          pushToast(`Błąd dodawania półek: ${error.message}`, 'error')
+          return
+        }
+      }
+      if (removable.length > 0) {
+        const { error } = await supabase
+          .from('warehouse_stock')
+          .delete()
+          .in('id', removable.map((r) => r.id))
+        if (error) {
+          pushToast(`Błąd usuwania półek: ${error.message}`, 'error')
+          return
+        }
+      }
+      if (blocked.length > 0) {
+        pushToast(
+          `Pominięto ${blocked.length} magazyn(y) z niezerowym stanem — najpierw wyzeruj stan.`,
+          'error',
+        )
+      }
+      await fetchWarehouseStock()
+    },
+    [pushToast, fetchWarehouseStock],
+  )
+
+  // Masowe czyszczenie: usuń zerowe półki tam, gdzie komponent nie pasuje do magazynu.
+  // Reguła: magazyny wewnętrzne (WEW*) trzymają tylko drzwi wewnętrzne (door_*), pozostałe tylko surowce (raw/null).
+  const handleCleanupOrphanStock = useCallback(async () => {
+    const { data: whData, error: whErr } = await supabase.from('warehouses').select('id, code')
+    if (whErr) {
+      pushToast(`Błąd: ${whErr.message}`, 'error')
+      return
+    }
+    const internalIds = new Set(
+      (whData ?? []).filter((w) => isInternalWarehouseCode(String(w.code))).map((w) => w.id as number),
+    )
+
+    const { data: stockData, error: stErr } = await supabase
+      .from('warehouse_stock')
+      .select('id, warehouse_id, quantity, warehouse_components(product_category)')
+    if (stErr) {
+      pushToast(`Błąd: ${stErr.message}`, 'error')
+      return
+    }
+    const toDelete: number[] = []
+    for (const r of (stockData ?? []) as Array<Record<string, unknown>>) {
+      if (Number(r.quantity) !== 0) continue
+      const wc = r.warehouse_components as { product_category?: string | null } | { product_category?: string | null }[] | null
+      const wcObj = Array.isArray(wc) ? wc[0] : wc
+      const cat = wcObj?.product_category ?? 'raw'
+      const isDoor = cat !== 'raw'
+      const isInternalWh = internalIds.has(r.warehouse_id as number)
+      // niedopasowanie: drzwi poza WEWNETRZNE lub surowiec w WEWNETRZNE
+      if ((isDoor && !isInternalWh) || (!isDoor && isInternalWh)) {
+        toDelete.push(r.id as number)
+      }
+    }
+
+    if (toDelete.length === 0) {
+      pushToast('Brak błędnych półek do usunięcia', 'success')
+      return
+    }
+    // usuwamy partiami po 200 id
+    for (let i = 0; i < toDelete.length; i += 200) {
+      const batch = toDelete.slice(i, i + 200)
+      const { error } = await supabase.from('warehouse_stock').delete().in('id', batch)
+      if (error) {
+        pushToast(`Błąd usuwania: ${error.message}`, 'error')
+        return
+      }
+    }
+    pushToast(`Usunięto ${toDelete.length} błędnych półek`, 'success')
+    await fetchWarehouseStock()
+  }, [pushToast, fetchWarehouseStock])
 
   const handleUpdateWarehouseComponent = useCallback(
     async (id: number, data: WarehouseComponentUpdateInput) => {
@@ -580,6 +688,23 @@ export function useWarehouse({
     },
     [pushToast, fetchWarehouseComponents],
   )
+
+  // ---------------------------------------------------------------------------
+  // Alert badge count
+  // ---------------------------------------------------------------------------
+
+  const fetchAlertsBadgeCount = useCallback(async () => {
+    const { data, error } = await supabase.rpc('get_stock_alerts')
+    if (error) {
+      console.warn('[Alerts] badge count fetch error:', error.message)
+      return
+    }
+    const count = (data ?? []).filter(
+      (r: Record<string, unknown>) =>
+        r.r_alert_level === 'critical' || r.r_alert_level === 'warning',
+    ).length
+    setAlertsBadgeCount(count)
+  }, [setAlertsBadgeCount])
 
   // ---------------------------------------------------------------------------
   // Stock operations
@@ -628,8 +753,9 @@ export function useWarehouse({
       if (activeTab === 'Magazyn') {
         await fetchWarehouseStock()
       }
+      void fetchAlertsBadgeCount()
     },
-    [activeTab, fetchWarehouseStock, pushToast, setOrders],
+    [activeTab, fetchWarehouseStock, fetchAlertsBadgeCount, pushToast, setOrders],
   )
 
   const syncWarehouseStockAfterOrderEdit = useCallback(
@@ -961,13 +1087,14 @@ export function useWarehouse({
       }
       setPzFormOpen(false)
       await fetchPzGroups()
-        await fetchWarehouseStock()
-        await fetchOrders()
-        await fetchOrdersNeedingReviewInternal()
+      await fetchWarehouseStock()
+      await fetchOrders()
+      await fetchOrdersNeedingReviewInternal()
+      void fetchAlertsBadgeCount()
     } finally {
       setPzSaving(false)
     }
-  }, [pzFormData, pushToast, fetchPzGroups, fetchWarehouseStock, fetchOrders, fetchOrdersNeedingReviewInternal, touchSession])
+  }, [pzFormData, pushToast, fetchPzGroups, fetchWarehouseStock, fetchOrders, fetchOrdersNeedingReviewInternal, fetchAlertsBadgeCount, touchSession])
 
   const handlePzPreview = useCallback((referenceDoc: string) => {
     setDocDetailsModal({ open: true, referenceDoc, movementType: 'PZ' })
@@ -1057,10 +1184,11 @@ export function useWarehouse({
       await fetchMmGroups()
       await fetchWarehouseStock()
       await fetchOrders()
+      void fetchAlertsBadgeCount()
     } finally {
       setMmSaving(false)
     }
-  }, [mmFormData, pushToast, fetchMmGroups, fetchWarehouseStock, fetchOrders, touchSession])
+  }, [mmFormData, pushToast, fetchMmGroups, fetchWarehouseStock, fetchOrders, fetchAlertsBadgeCount, touchSession])
 
   const handleMmPreview = useCallback((referenceDoc: string) => {
     setDocDetailsModal({ open: true, referenceDoc, movementType: 'MM' })
@@ -1177,6 +1305,11 @@ export function useWarehouse({
   // useEffect triggers
   // ---------------------------------------------------------------------------
 
+  // Odśwież badge przy starcie (niezależnie od aktywnej zakładki)
+  useEffect(() => {
+    void fetchAlertsBadgeCount()
+  }, [fetchAlertsBadgeCount])
+
   useEffect(() => {
     if (!isWarehouseTab) return
     void fetchWarehouseComponents()
@@ -1241,6 +1374,56 @@ export function useWarehouse({
       void fetchWarehouseComponents()
     }
   }, [isWarehouseTab, activeWarehouseSubTab, fetchWarehouseComponents])
+
+  // ---------------------------------------------------------------------------
+  // Realtime — magazyn
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!isWarehouseTab) return
+
+    // warehouse_stock → odśwież stany + alerty
+    const stockChannel = supabase
+      .channel('warehouse:stock:realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'warehouse_stock' },
+        () => {
+          void fetchWarehouseStock()
+          void fetchAlertsBadgeCount()
+        },
+      )
+      .subscribe()
+
+    // warehouse_movements → odśwież ruchy + stany
+    const movChannel = supabase
+      .channel('warehouse:movements:realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'warehouse_movements' },
+        () => {
+          void fetchWarehouseMovements()
+          void fetchWarehouseStock()
+          void fetchAlertsBadgeCount()
+          if (activeWarehouseSubTab === 'Przyjęcia') void fetchPzGroups()
+          if (activeWarehouseSubTab === 'Przesunięcia') void fetchMmGroups()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(stockChannel)
+      void supabase.removeChannel(movChannel)
+    }
+  }, [
+    isWarehouseTab,
+    activeWarehouseSubTab,
+    fetchWarehouseStock,
+    fetchWarehouseMovements,
+    fetchAlertsBadgeCount,
+    fetchPzGroups,
+    fetchMmGroups,
+  ])
 
   // ---------------------------------------------------------------------------
   // Return
@@ -1324,6 +1507,8 @@ export function useWarehouse({
     // Component CRUD
     handleCreateWarehouseComponent,
     handleUpdateWarehouseComponent,
+    handleSetComponentWarehouses,
+    handleCleanupOrphanStock,
     // Stock operations
     consumeStockForOrderWithToasts,
     syncWarehouseStockAfterOrderEdit,

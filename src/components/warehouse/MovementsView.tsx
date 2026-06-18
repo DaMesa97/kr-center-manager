@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Warehouse, WarehouseComponent, WarehouseMovementRow } from '../../types'
+import Spinner from '../Spinner'
 
 type MovementsViewProps = {
   movements: WarehouseMovementRow[]
@@ -177,7 +178,7 @@ function MovementsView({ movements, loading, warehouses, components }: Movements
       </div>
 
       {loading ? (
-        <p className="no-results">Ładowanie…</p>
+        <Spinner center label="Ładowanie…" />
       ) : (
         <div className="table-wrapper">
           <table className="orders-table movements-view-table">

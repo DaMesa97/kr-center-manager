@@ -11,6 +11,7 @@ import type {
 } from '../../types'
 import { generateZdPdf } from '../../utils/zdPdfGenerator'
 import { PURCHASE_ORDER_STATUS_LABELS } from '../../constants'
+import Spinner from '../Spinner'
 
 type Props = {
   purchaseOrders: PurchaseOrder[]
@@ -159,7 +160,7 @@ export default function PurchaseOrdersView({
       </div>
 
       <div className="table-wrapper">
-        {loading && <p className="no-results">Ładowanie zamówień do dostawców...</p>}
+        {loading && <Spinner center label="Ładowanie zamówień do dostawców…" />}
         <table className="orders-table">
           <thead>
             <tr>

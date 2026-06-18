@@ -1,4 +1,5 @@
 import type { Company } from '../types'
+import Spinner from './Spinner'
 
 type CompaniesViewProps = {
   companiesLoading: boolean
@@ -18,7 +19,7 @@ export default function CompaniesView({
   return (
     <>
       {companiesLoading ? (
-        <p className="no-results">Ładowanie kontrahentów...</p>
+        <Spinner center label="Ładowanie kontrahentów…" />
       ) : (
         <div className="table-wrapper">
           <table className="orders-table contractors-table">

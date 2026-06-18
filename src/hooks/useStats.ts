@@ -20,8 +20,8 @@ export function useStats({ touchSession, fetchInternalDoorItemsForVisibleOrders 
     touchSession()
     setStatsLoading(true)
     const [ordersRes, complaintsRes] = await Promise.all([
-      supabase.from('orders').select('*').order('created_at', { ascending: false }),
-      supabase.from('complaints').select('*').order('created_at', { ascending: false }),
+      supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(50000),
+      supabase.from('complaints').select('*').order('created_at', { ascending: false }).limit(50000),
     ])
     setStatsLoading(false)
     if (ordersRes.error) {

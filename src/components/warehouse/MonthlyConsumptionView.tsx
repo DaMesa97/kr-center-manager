@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { MonthlyConsumptionPivot } from '../../types'
+import Spinner from '../Spinner'
 
 type MonthlyConsumptionViewProps = {
   data: MonthlyConsumptionPivot[]
@@ -126,8 +127,8 @@ export default function MonthlyConsumptionView({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={months.length + 3} style={{ textAlign: 'center' }}>
-                  Ładowanie…
+                <td colSpan={months.length + 3}>
+                  <Spinner center label="Ładowanie…" />
                 </td>
               </tr>
             ) : rowsSortedFiltered.length === 0 ? (

@@ -1,4 +1,4 @@
-import { useCallback, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { supabase } from '../supabaseClient'
 import {
   EDITABLE_CATEGORIES,
@@ -23,6 +23,7 @@ import {
   isRushOrderSequence,
   isStaTitanLinked,
   isStTitanSystemLabel,
+  isTitanSystem,
   mergeOrderExtraFields,
   orderMetaForUpdate,
   orderToBastionForm,
@@ -143,6 +144,10 @@ export function useOrders({
 
   const [alertsBadgeCount, setAlertsBadgeCount] = useState(0)
   const [orders, setOrders] = useState<Order[]>([])
+  // Najnowsza żądana kategoria — chroni fetchOrders przed race przy przełączaniu zakładek
+  const latestFetchTabRef = useRef(activeTab)
+  // Guard przeciw podwójnemu zapisowi zamówienia (double-click zanim isSaving zadziała)
+  const isSavingRef = useRef(false)
   const [internalDoorItems, setInternalDoorItems] = useState<InternalDoorItem[]>([])
   const [linkedOrders, setLinkedOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -259,13 +264,13 @@ export function useOrders({
           pushToast(`Błąd synchronizacji etapu: ${upErr.message}`, 'error')
           return
         }
-        setOrders((prev) =>
-          prev.map((o) => {
-            if (o.id !== linkedId) return o
-            const current = parseProductionStages(o.production_stages, o.category)
-            return { ...o, production_stages: { ...current, sta_e5: value } }
-          }),
-        )
+        const applySta = (o: Order) => {
+          if (o.id !== linkedId) return o
+          const current = parseProductionStages(o.production_stages, o.category)
+          return { ...o, production_stages: { ...current, sta_e5: value } }
+        }
+        setOrders((prev) => prev.map(applySta))
+        setLinkedOrders((prev) => prev.map(applySta))
         return
       }
 
@@ -290,13 +295,13 @@ export function useOrders({
         pushToast(`Błąd synchronizacji etapu: ${upErr.message}`, 'error')
         return
       }
-      setOrders((prev) =>
-        prev.map((o) => {
-          if (o.id !== linkedId) return o
-          const current = parseProductionStages(o.production_stages, o.category)
-          return { ...o, production_stages: { ...current, [mirrorKey]: value } }
-        }),
-      )
+      const applyMirror = (o: Order) => {
+        if (o.id !== linkedId) return o
+        const current = parseProductionStages(o.production_stages, o.category)
+        return { ...o, production_stages: { ...current, [mirrorKey]: value } }
+      }
+      setOrders((prev) => prev.map(applyMirror))
+      setLinkedOrders((prev) => prev.map(applyMirror))
     },
     [pushToast],
   )
@@ -321,6 +326,30 @@ export function useOrders({
       setReleaseDateUpdating(null)
     },
     [pushToast],
+  )
+
+  // Ręczny znacznik odbioru ościeżnicy na Marklowickiej (Disting Plus) — niezależny od etapów.
+  // Kierownik (Paweł) klika sam, na wypadek błędów komunikacji. Trzymany w extra_fields.osc_received (inicjały).
+  const toggleOscReceived = useCallback(
+    async (order: Order) => {
+      const id = order.id
+      if (id == null) return
+      const ef = (order.extra_fields as Record<string, unknown>) ?? {}
+      const isSet = Boolean(ef.osc_received)
+      const initials = (currentUser?.initials ?? '').trim() || 'T'
+      const newExtra = {
+        ...ef,
+        osc_received: isSet ? '' : initials,
+        osc_received_at: isSet ? '' : new Date().toISOString(),
+      }
+      const { error } = await supabase.from('orders').update({ extra_fields: newExtra }).eq('id', id)
+      if (error) {
+        pushToast(`Wystąpił błąd: ${error.message}`, 'error')
+        return
+      }
+      setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, extra_fields: newExtra } : o)))
+    },
+    [pushToast, currentUser?.initials],
   )
 
   const fetchNextOrderNumber = useCallback(
@@ -396,15 +425,46 @@ export function useOrders({
   const fetchOrders = useCallback(async () => {
     touchSession()
     setLoading(true)
-    const { data: ordersData, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('category', activeTab)
-      .order('created_at', { ascending: false })
+    // Snapshot kategorii — chroni przed race przy szybkim przełączaniu zakładek
+    const fetchTab = activeTab
+    latestFetchTabRef.current = fetchTab
+    // Paginacja — pobieramy partiami po 1000 żeby ominąć limit PostgREST
+    const allOrders: Order[] = []
+    let from = 0
+    const PAGE = 1000
+    let fetchError = null
+    while (true) {
+      const { data, error: pageError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('category', fetchTab)
+        .order('id', { ascending: false })
+        .range(from, from + PAGE - 1)
+      if (pageError) { fetchError = pageError; break }
+      if (!data || data.length === 0) break
+      allOrders.push(...(data as Order[]))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+    // Jeśli w międzyczasie user przełączył kategorię — porzuć wynik (nie nadpisuj)
+    if (latestFetchTabRef.current !== fetchTab) {
+      return
+    }
+    const error = fetchError
+    const ordersData = allOrders
     if (error) {
       console.error(error)
     } else {
-      const loaded = (ordersData || []) as Order[]
+      const loaded = ordersData as Order[]
+      // Sortuj: data malejąco, potem numer zlecenia malejąco (numerycznie)
+      loaded.sort((a, b) => {
+        const dateA = a.order_date ?? ''
+        const dateB = b.order_date ?? ''
+        if (dateA !== dateB) return dateB.localeCompare(dateA)
+        const numA = parseInt(String(a.order_number ?? '0'), 10) || 0
+        const numB = parseInt(String(b.order_number ?? '0'), 10) || 0
+        return numB - numA
+      })
       setOrders(loaded)
 
       if (activeTab === 'DrzwiWewnetrzne') {
@@ -423,6 +483,25 @@ export function useOrders({
             .select('*')
             .in('id', linkedIds)
           setLinkedOrders((linkedData || []) as Order[])
+        } else {
+          setLinkedOrders([])
+        }
+      } else if (activeTab === 'Bastion') {
+        // Titan: Bastion potrzebuje statusu rodzeństwa — STA (skrzydło, id = titan_group)
+        // oraz ST (ościeżnica, linked_order_id = titan_group). Czytamy ich wydanie.
+        const groupIds = Array.from(
+          new Set(
+            loaded
+              .map((o) => Number((o.extra_fields as Record<string, unknown> | null)?.titan_group))
+              .filter((n) => Number.isFinite(n) && n > 0),
+          ),
+        )
+        if (groupIds.length > 0) {
+          const [staRes, stRes] = await Promise.all([
+            supabase.from('orders').select('id, order_number, category, release_date, extra_fields').in('id', groupIds),
+            supabase.from('orders').select('id, order_number, category, release_date, linked_order_id, extra_fields').in('linked_order_id', groupIds).eq('category', 'ST'),
+          ])
+          setLinkedOrders([...((staRes.data || []) as Order[]), ...((stRes.data || []) as Order[])])
         } else {
           setLinkedOrders([])
         }
@@ -553,11 +632,12 @@ export function useOrders({
           return
         }
         if (e.key === 'Enter') {
+          // Zawsze zatrzymaj Enter w polu firmy — nie pozwól na przedwczesny zapis formularza
+          e.preventDefault()
+          e.stopPropagation()
           if (suggestions.length === 0) return
           const pickIndex =
             highlightedIndex >= 0 ? Math.min(highlightedIndex, suggestions.length - 1) : 0
-          e.preventDefault()
-          e.stopPropagation()
           onSelect(suggestions[pickIndex])
           setHighlightedIndex(-1)
         }
@@ -620,9 +700,10 @@ export function useOrders({
         sideAllowance.w,
         sideAllowance.h,
       )
-      void topGlassDim
-      void sideAGlassDim
-      void sideBGlassDim
+      if (order.id === undefined) {
+        pushToast('Błąd: brak identyfikatora zamówienia', 'error')
+        return
+      }
 
       const payload = {
         order_number: order.order_number,
@@ -641,6 +722,10 @@ export function useOrders({
         decorative_panel: order.decorative_panel,
         top_light: order.top_light,
         top_light_glazing: order.top_light_glazing,
+        // Obliczone wymiary szyb z naddatkami (do zamówienia u dostawcy szkła)
+        top_light_glass_dim: topGlassDim,
+        side_panel_a_glass_dim: sideAGlassDim,
+        side_panel_b_glass_dim: sideBGlassDim,
         side_panel_a: order.side_panel_a || order.side_panel,
         side_panel_b: order.side_panel_b,
         side_panel_a_glazing: order.side_panel_a_glazing || order.side_panel_glazing,
@@ -656,14 +741,18 @@ export function useOrders({
       }
 
       try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
         const response = await fetch('https://hook.eu2.make.com/tzy1k1wrzpkbwv32sa57sprtkv5vnogx', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
+          signal: controller.signal,
         })
+        clearTimeout(timeoutId)
         if (response.ok) {
           const today = new Date().toISOString().split('T')[0]
-          await supabase.from('orders').update({ glass_order_date: today }).eq('id', order.id!)
+          await supabase.from('orders').update({ glass_order_date: today }).eq('id', order.id)
           setOrders((prev) =>
             prev.map((o) => (o.id === order.id ? { ...o, glass_order_date: today } : o)),
           )
@@ -673,13 +762,14 @@ export function useOrders({
         }
       } catch (error) {
         console.error(error)
-        pushToast('Błąd połączenia z Make.com', 'error')
+        const isTimeout = error instanceof Error && error.name === 'AbortError'
+        pushToast(isTimeout ? 'Przekroczono czas połączenia z Make.com (10s)' : 'Błąd połączenia z Make.com', 'error')
       }
     },
     [pushToast, glassAllowances],
   )
 
-  const handleSaveOrder = async () => {
+  const handleSaveOrderImpl = async () => {
     setIsSaving(true)
 
     const isEditing = editingOrderId !== null && editingOrderBaseline !== null
@@ -795,6 +885,10 @@ export function useOrders({
         category: staFormData.category || activeTab,
         oslonki: staFormData.oslonki,
         zaczep: staFormData.zaczep,
+        extra_fields: mergeOrderExtraFields(
+          isEditing ? editingOrderBaseline.extra_fields : null,
+          { wykonawca: staFormData.wykonawca || '' },
+        ),
         production_stages: productionStagesFromLegacyStageFormFields(
           activeTab,
           {
@@ -851,8 +945,87 @@ export function useOrders({
         ...mapped,
       })
 
+      // ── STA TITAN (CORE/GUARD) → trójka rekordów ────────────────────────────
+      // Skrzydło frezowane = STA (bazowy), ościeżnica = ST, skrzydło okuwane = Bastion.
+      // MVP: trzy rekordy, każdy w swojej zakładce. Grupę trzymamy w extra_fields.titan_group.
+      // STA↔ST łączymy też przez linked_order_id (istniejące wyświetlanie pary). Mirror — później.
+      const isStaTitanNew = activeTab === 'STA' && isTitanSystem(staFormData.system)
+      if (isStaTitanNew) {
+        // 1) STA bazowy
+        const { data: staRow, error: staErr } = await supabase
+          .from('orders').insert([payload]).select('id, order_number').single()
+        if (staErr || !staRow) {
+          pushToast(`Wystąpił błąd: ${staErr?.message ?? 'brak danych'}`, 'error')
+          setIsSaving(false)
+          return
+        }
+        const staId = Number((staRow as { id: number }).id)
+        const staNr = String((staRow as { order_number: string }).order_number ?? '')
+        const group = staId
+        const groupExtra = (cat: string) =>
+          mergeOrderExtraFields(payload.extra_fields, { titan_group: group, titan_role: cat })
+
+        // 2) ST (ościeżnica)
+        const stNrNext = await fetchNextOrderNumber('ST')
+        const stPayload = sanitizeOrderPayloadForDb({
+          ...emptyOrderMeta, ...mapped,
+          order_number: stNrNext,
+          category: 'ST' as const,
+          linked_order_id: staId,
+          sta_ref: staNr,
+          st_sheet: '',
+          production_stages: createEmptyProductionStages('ST'),
+          extra_fields: groupExtra('ST'),
+        })
+        const { data: stRow, error: stErr } = await supabase
+          .from('orders').insert([stPayload]).select('id, order_number').single()
+        if (stErr || !stRow) {
+          await supabase.from('orders').delete().eq('id', staId)
+          pushToast(`Nie udało się utworzyć powiązanego ST: ${stErr?.message ?? 'błąd'}`, 'error')
+          setIsSaving(false)
+          return
+        }
+        const stId = Number((stRow as { id: number }).id)
+        const stNr = String((stRow as { order_number: string }).order_number ?? '')
+
+        // 3) Bastion (skrzydło do okuwania)
+        const bastionNrNext = await fetchNextOrderNumber('Bastion')
+        const bastionPayload = sanitizeOrderPayloadForDb({
+          ...emptyOrderMeta, ...mapped,
+          order_number: bastionNrNext,
+          category: 'Bastion' as const,
+          linked_order_id: null,
+          production_stages: createEmptyProductionStages('Bastion'),
+          extra_fields: groupExtra('Bastion'),
+        })
+        const { error: bastionErr } = await supabase.from('orders').insert([bastionPayload])
+        if (bastionErr) {
+          pushToast(`ST i STA zapisane, ale Bastion nie: ${bastionErr.message}`, 'error')
+        }
+
+        // 4) Dopnij linki na STA (partner ST + grupa)
+        const { error: linkErr } = await supabase
+          .from('orders')
+          .update({ linked_order_id: stId, st_sheet: stNr, extra_fields: groupExtra('STA') })
+          .eq('id', staId)
+        if (linkErr) pushToast(`Powiązanie STA↔ST nie zapisane: ${linkErr.message}`, 'error')
+
+        await consumeStockForOrderWithToasts(staId)
+        await consumeStockForOrderWithToasts(stId)
+
+        pushToast(`Utworzono Titan: STA ${staNr} + ST ${stNr} + Bastion ${bastionNrNext}`, 'success')
+        setIsModalOpen(false)
+        setStaFormData(INITIAL_STA_ORDER_FORM)
+        await fetchOrders()
+        setIsSaving(false)
+        return
+      }
+
+      // Normalizujemy porównanie — wartość systemu pochodzi ze słownika konfiguracji
+      // i drobny rozjazd (spacja/wielkość liter) nie może po cichu zerwać parowania.
       const isDistingPlusPair =
-        activeTab === 'Disting' && staFormData.system.trim() === 'DISTING PLUS'
+        activeTab === 'Disting' &&
+        staFormData.system.trim().toUpperCase().replace(/\s+/g, ' ') === 'DISTING PLUS'
 
       if (isDistingPlusPair) {
         const distNrNext = await fetchNextOrderNumber('Disting')
@@ -1465,9 +1638,21 @@ export function useOrders({
     setIsSaving(false)
   }
 
+  // Wrapper — blokuje równoległe wywołania (double-click na „Zapisz")
+  const handleSaveOrder = async () => {
+    if (isSavingRef.current) return
+    isSavingRef.current = true
+    try {
+      await handleSaveOrderImpl()
+    } finally {
+      isSavingRef.current = false
+    }
+  }
+
   const openNewOrderModal = async () => {
     setEditingOrderId(null)
     setEditingOrderBaseline(null)
+    setOrderFormErrors([])
     const nextNr = await fetchNextOrderNumber(activeTab)
     if (activeTab === 'STA' || activeTab === 'Disting') {
       setStaFormData(
@@ -1776,6 +1961,9 @@ export function useOrders({
             .single()
           if (fetchErr) {
             pushToast(`Nie udało się odczytać powiązanego zamówienia: ${fetchErr.message}`, 'error')
+            // Główne zamówienie jest już anulowane — zwróć przynajmniej jego stock
+            try { await supabase.rpc('return_stock_for_order', { p_order_id: id }) } catch (e) { console.error(e) }
+            await fetchWarehouseStock()
             void fetchOrders()
             return
           }
@@ -1789,6 +1977,8 @@ export function useOrders({
             .eq('id', linkedId)
           if (linkUpErr) {
             pushToast(`Nie udało się oznaczyć powiązania: ${linkUpErr.message}`, 'error')
+            try { await supabase.rpc('return_stock_for_order', { p_order_id: id }) } catch (e) { console.error(e) }
+            await fetchWarehouseStock()
             void fetchOrders()
             return
           }
@@ -1884,6 +2074,44 @@ export function useOrders({
     setOrderFormOpenSnapshot(null)
     setIsModalOpen(true)
   }, [isManager, pushToast, setShowCompanyDropdown])
+
+  const handleDuplicateOrder = useCallback(async (order: Order) => {
+    if (!isManager) return
+    const rawCategory = String(order.category ?? '')
+    const isKnownCategory = (TABS as readonly string[]).includes(rawCategory)
+    const resolvedCategory = isKnownCategory
+      ? rawCategory
+      : rawCategory.toLowerCase().includes('bastion')
+        ? 'Bastion'
+        : 'Disting'
+
+    const newNr = await fetchNextOrderNumber(resolvedCategory)
+
+    setEditingOrderId(null)
+    setEditingOrderBaseline(null)
+    setShowCompanyDropdown(false)
+
+    if (resolvedCategory === 'STA' || resolvedCategory === 'Disting') {
+      setStaFormData({
+        ...orderToStaForm(order),
+        order_number: newNr,
+        // Wyczyść etapy produkcji — nowe zamówienie zaczyna od zera
+        stage1: '', stage2_1: '', stage2_2: '', stage3: '', stage4: '', stage5: '',
+      })
+    } else if (resolvedCategory === 'ST') {
+      setStFormData({ ...orderToStForm(order), order_number: newNr })
+    } else if (resolvedCategory === 'Techniczne') {
+      setTechniczneFormData({ ...orderToTechniczneForm(order), order_number: newNr })
+    } else if (resolvedCategory === 'Bastion') {
+      setBastionFormData({ ...orderToBastionForm(order), order_number: newNr })
+    } else {
+      setFormData({ ...orderToLegacyForm(order), order_number: newNr })
+    }
+
+    setOrderFormOpenSnapshot(null)
+    setIsModalOpen(true)
+    pushToast(`Duplikowanie zamówienia — nowy nr ${newNr}`, 'info')
+  }, [isManager, fetchNextOrderNumber, pushToast, setShowCompanyDropdown])
 
   const closeNewOrderModal = useCallback(() => {
     if (isSaving) {
@@ -2140,7 +2368,11 @@ export function useOrders({
   const confirmProductionStageRevert = useCallback(async () => {
     if (!stageRevertTarget) return
     const order = orders.find((o) => o.id === stageRevertTarget.orderId)
-    if (!order || order.id === undefined) return
+    if (!order || order.id === undefined) {
+      // Zamówienie zniknęło (np. odświeżenie/usunięcie) — zamknij popup, nie zostawiaj go wiszącego
+      setStageRevertTarget(null)
+      return
+    }
     await applyProductionStagesUpdate(order.id, stageRevertTarget.stageKey, '')
     await syncMirrorStagesToLinkedOrder(order, stageRevertTarget.stageKey, '')
     setStageRevertTarget(null)
@@ -2250,6 +2482,7 @@ export function useOrders({
     applyProductionStagesUpdate,
     syncMirrorStagesToLinkedOrder,
     applyReleaseDateUpdate,
+    toggleOscReceived,
     fetchNextOrderNumber,
     markProductionStageWithProfileInitials,
     fetchInternalDoorItemsForVisibleOrders,
@@ -2279,6 +2512,7 @@ export function useOrders({
     handleRestoreOrder,
     handleCancelOrderClick,
     openEditOrderModal,
+    handleDuplicateOrder,
     closeNewOrderModal,
     handleRequestCloseOrderModal,
     handleOpenReviewOrder,

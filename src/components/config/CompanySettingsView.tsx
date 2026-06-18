@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 import type { CompanySettings, ToastVariant } from '../../types'
+import Spinner from '../Spinner'
 
 type Props = {
   companySettings: CompanySettings | null
@@ -111,7 +112,7 @@ export default function CompanySettingsView({
     onSaved()
   }
 
-  if (loading) return <p className="no-results">Ładowanie danych firmy...</p>
+  if (loading) return <Spinner center label="Ładowanie danych firmy…" />
   if (!companySettings) return <p className="no-results">Brak danych firmy do edycji.</p>
 
   return (

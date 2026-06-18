@@ -62,6 +62,7 @@ export const INITIAL_COMPLAINT_FORM_DATA: ComplaintFormData = {
 }
 
 export const TABS = [
+  'Pulpit',
   'Moje stanowisko',
   'STA',
   'Disting',
@@ -75,10 +76,15 @@ export const TABS = [
   'Archiwum',
   'Wysyłka',
   'Magazyn',
+  'Zamawianie',
+  'Inwentaryzacja',
+  'Etykiety',
   'Kontrahenci',
   'Konfiguracja',
   'Użytkownicy',
   'Klucze API',
+  'Zgłoszenia',
+  'Pomoc',
 ] as const
 
 export const EDITABLE_CATEGORIES = [
@@ -86,12 +92,13 @@ export const EDITABLE_CATEGORIES = [
   'Disting',
   'STA',
   'ST',
+  'Techniczne',
   'DrzwiWewnetrzne',
 ] as const
 
 export type EditableCategory = typeof EDITABLE_CATEGORIES[number]
 
-export const STATS_SUB_TABS = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Reklamacje'] as const
+export const STATS_SUB_TABS = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Reklamacje', 'Produktywność', 'Czas realizacji'] as const
 
 export const CATEGORY_LABELS: Record<OrderCategory, string> = {
   STA: 'STA',
@@ -121,6 +128,7 @@ export const WAREHOUSE_SUB_TABS: WarehouseSubTab[] = [
   'Alerty',
   'Zamówienia',
   'Zamawianie',
+  'Inwentaryzacja',
 ]
 
 export const PRODUCT_CATEGORY_LABELS: Record<string, string> = {
@@ -193,8 +201,9 @@ export const INITIAL_USER_FORM: UserFormState = {
   full_name: '',
   initials: '',
   password: '',
-  role: 'worker',
+  role: 'pracownik_produkcji',
   department: 'all',
+  categories: [],
 }
 
 export const CONFIG_FORM_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'Wewnetrzne'] as const
@@ -354,18 +363,18 @@ export const ST_STAGE_DEFS: StageDef[] = [
 ]
 
 export const ST_TITAN_STAGE_DEFS: StageDef[] = [
-  { key: 'e1', header: 'E1', title: 'E1 — ościeżnica (Titan)' },
-  { key: 'e2', header: 'E2', title: 'E2 — skrzydło odebrane (status z E5 STA)' },
-  { key: 'e3', header: 'E3', title: 'E3 — okuwanie skrzydła' },
-  { key: 'e4', header: 'E4', title: 'E4 — montaż i pakowanie' },
+  { key: 'e1', header: 'E1', title: 'E1 — ościeżnica (jedyny etap ST dla Titana)' },
+  { key: 'e2', header: 'E2', title: 'E2 — skrzydło (robione w STA) — nieaktywne w ST' },
+  { key: 'e3', header: 'E3', title: 'E3 — okuwanie (Bastion) — nieaktywne w ST' },
+  { key: 'e4', header: 'E4', title: 'E4 — montaż/pakowanie (Bastion) — nieaktywne w ST' },
 ]
 
 export const ST_MIXED_STAGE_DEFS: StageDef[] = [
-  { key: 'st_mix_0', header: 'CNC', title: 'CNC (ST) lub E1 (Titan)' },
-  { key: 'st_mix_1', header: 'OŚC', title: 'OŚC (ST) lub E2 / status STA E5 (Titan)' },
-  { key: 'st_mix_2', header: 'SKR', title: 'SKR (ST) lub E3 (Titan)' },
-  { key: 'st_mix_3', header: 'MON', title: 'MON (ST) lub E4 (Titan)' },
-  { key: 'st_mix_4', header: 'MAG', title: 'Magazyn (ST)' },
+  { key: 'st_mix_0', header: 'CNC', title: 'CNC (ST) — dla Titana nieaktywne' },
+  { key: 'st_mix_1', header: 'OŚC', title: 'OŚC (ST) lub ościeżnica E1 (Titan)' },
+  { key: 'st_mix_2', header: 'SKR', title: 'SKR (ST) — dla Titana nieaktywne (skrzydło robi STA)' },
+  { key: 'st_mix_3', header: 'MON', title: 'MON (ST) — dla Titana nieaktywne (montaż na Bastionie)' },
+  { key: 'st_mix_4', header: 'MAG', title: 'Magazyn (ST) — dla Titana nieaktywne' },
 ]
 
 export const BASTION_STAGE_DEFS: StageDef[] = [
@@ -388,6 +397,13 @@ export const BASTION_STAGE_DEFS: StageDef[] = [
   },
 ]
 
+// Titan w Bastionie: skrzydło (ze STA) okuwane, montowane z ościeżnicą (z ST), pakowane.
+export const BASTION_TITAN_STAGE_DEFS: StageDef[] = [
+  { key: 'tit_oku', header: 'OKU', title: 'Okuwanie skrzydła (Titan)' },
+  { key: 'tit_mon', header: 'MONT', title: 'Montaż drzwi (skrzydło + ościeżnica)' },
+  { key: 'tit_pak', header: 'PAK', title: 'Pakowanie' },
+]
+
 export const STA_DISTING_PLUS_MIRROR_KEYS = ['dist_e1', 'dist_e2_1', 'dist_e2_2', 'dist_e5'] as const
 export const DISTING_PLUS_MIRROR_KEYS = ['sta_e3', 'sta_e4'] as const
 
@@ -405,8 +421,8 @@ export const INITIAL_FORM_DATA: NewOrderFormData = {
   frame_color: '',
   threshold_color: '',
   width: '',
-  direction: 'PRAWE',
-  opening: 'ONZ',
+  direction: '',
+  opening: '',
   height: '',
   glazing: '',
   hardware: '',
@@ -432,9 +448,9 @@ export const INITIAL_STA_ORDER_FORM: StaOrderFormData = {
   frame_color: '',
   threshold_color: '',
   width: '',
-  direction: 'PRAWE',
+  direction: '',
   height: '',
-  opening: 'ONZ',
+  opening: '',
   glazing: '',
   decorative_panel: '',
   top_light_w_mm: '',
@@ -461,6 +477,7 @@ export const INITIAL_STA_ORDER_FORM: StaOrderFormData = {
   quantity: 1,
   notes: '',
   client_order_number: '',
+  wykonawca: '',
 }
 
 export const INITIAL_ST_ORDER_FORM: StOrderFormData = {
@@ -473,9 +490,9 @@ export const INITIAL_ST_ORDER_FORM: StOrderFormData = {
   wing_color: '',
   threshold_color: '',
   width: '',
-  direction: 'PRAWE',
+  direction: '',
   height: '',
-  opening: 'ONZ',
+  opening: '',
   glazing: '',
   peephole: '',
   hardware: '',
@@ -497,9 +514,9 @@ export const INITIAL_TECHNICZNE_ORDER_FORM: TechniczneOrderFormData = {
   wing_color: '',
   threshold_color: '',
   width: '',
-  direction: 'PRAWE',
+  direction: '',
   height: '',
-  opening: 'ONZ',
+  opening: '',
   glazing: '',
   peephole: '',
   hardware: '',
@@ -520,9 +537,9 @@ export const INITIAL_BASTION_ORDER_FORM: BastionOrderFormData = {
   frame_color: '',
   threshold_color: '',
   width: '',
-  direction: 'PRAWE',
+  direction: '',
   height: '',
-  opening: 'ONZ',
+  opening: '',
   glazing: '',
   peephole: '',
   hardware: '',

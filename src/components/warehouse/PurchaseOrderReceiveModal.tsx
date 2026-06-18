@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
 import type { PurchaseOrder, PurchaseOrderItem, ToastVariant, Warehouse, WarehouseComponent } from '../../types'
@@ -30,12 +30,23 @@ export default function PurchaseOrderReceiveModal({
   const [receivedQty, setReceivedQty] = useState<Record<number, number>>({})
   const [saving, setSaving] = useState(false)
 
+  // Reset stanu przy otwarciu — zapobiega kontaminacji danych między różnymi ZD
+  useEffect(() => {
+    if (open) {
+      setWarehouseId(null)
+      setReferenceDoc('')
+      setNotes('')
+      setReceivedQty({})
+      setSaving(false)
+    }
+  }, [open, purchaseOrder?.id])
+
   const componentById = useMemo(() => new Map(components.map((c) => [c.id, c])), [components])
 
   const pendingItems = items.filter((i) => i.status_per_item === 'pending' || i.status_per_item === 'partial')
 
   const handleSave = async () => {
-    if (!purchaseOrder) return
+    if (!purchaseOrder || saving) return
     if (!warehouseId) {
       pushToast('Wybierz magazyn docelowy', 'error')
       return
@@ -44,8 +55,12 @@ export default function PurchaseOrderReceiveModal({
       .filter((item) => receivedQty[item.id] !== undefined)
       .map((item) => ({
         po_item_id: item.id,
-        quantity_received: Number(receivedQty[item.id]) || 0,
+        quantity_received: Math.max(0, Number(receivedQty[item.id]) || 0),
       }))
+    if (itemsPayload.every((ip) => ip.quantity_received === 0)) {
+      pushToast('Wpisz co najmniej jedną ilość większą od 0', 'error')
+      return
+    }
     setSaving(true)
     const { error } = await supabase.rpc('receive_purchase_order', {
       p_po_id: purchaseOrder.id,

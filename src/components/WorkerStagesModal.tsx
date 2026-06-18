@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import { BASTION_STAGE_DEFS, STA_DISTING_STAGE_DEFS, ST_STAGE_DEFS, ST_TITAN_STAGE_DEFS } from '../constants'
 import type { Profile, WorkerStage } from '../types'
+import Spinner from './Spinner'
 
 type Props = {
   open: boolean
@@ -144,7 +145,7 @@ export default function WorkerStagesModal({ open, worker, onClose, onSaved }: Pr
 
         <div className="worker-stages-modal__body">
           {loading ? (
-            <p className="no-results">Ładowanie przypisań…</p>
+            <Spinner center label="Ładowanie przypisań…" />
           ) : (
             CATEGORY_DEFS.map((section) => (
               <section key={section.label} className="worker-stages-section">

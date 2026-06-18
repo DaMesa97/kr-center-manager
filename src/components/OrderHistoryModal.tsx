@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import type { AuditLogRow } from '../types'
+import Spinner from './Spinner'
 
 const FIELD_LABELS: Record<string, string> = {
   order_number: 'Numer zamówienia',
@@ -184,7 +185,7 @@ export default function OrderHistoryModal({ open, orderId, orderNumber, onClose 
         <p className="audit-details-meta">Data utworzenia zamówienia: {createdMeta ?? '—'}</p>
 
         {loading ? (
-          <p className="no-results">Ładowanie historii...</p>
+          <Spinner center label="Ładowanie historii…" />
         ) : timelineRows.length === 0 ? (
           <p className="no-results">Brak wpisów historii dla tego zamówienia.</p>
         ) : (

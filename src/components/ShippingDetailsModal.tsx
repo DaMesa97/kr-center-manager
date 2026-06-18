@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { GlassAllowance, Order } from '../types'
+import OrderPhotos from './OrderPhotos'
+import type { GlassAllowance, Order, ToastVariant } from '../types'
 import { CATEGORY_LABELS } from '../constants'
 import {
   calcGlassIssueDim,
@@ -32,10 +33,13 @@ type Props = {
   order: Order | null
   companyInfo: { production_day: string; route_day: string } | null
   glassAllowances: GlassAllowance[]
+  currentUserId?: string
+  currentUserInitials?: string
+  pushToast?: (msg: string, variant: ToastVariant) => void
   onClose: () => void
 }
 
-function ShippingDetailsModal({ open, order, companyInfo, glassAllowances, onClose }: Props) {
+function ShippingDetailsModal({ open, order, companyInfo, glassAllowances, currentUserId, currentUserInitials, pushToast, onClose }: Props) {
   // Zamknij przez Esc
   useEffect(() => {
     if (!open) return
@@ -102,7 +106,8 @@ function ShippingDetailsModal({ open, order, companyInfo, glassAllowances, onClo
             <h3>Logistyka</h3>
             <div className="shipping-details-grid">
               <div>
-                <strong>Dzień produkcji:</strong> {companyInfo?.production_day || '—'}
+                <strong>Dzień produkcji:</strong>{' '}
+                {order.production_day || companyInfo?.production_day || '—'}
               </div>
               <div>
                 <strong>Dzień trasy:</strong> {companyInfo?.route_day || '—'}
@@ -211,6 +216,19 @@ function ShippingDetailsModal({ open, order, companyInfo, glassAllowances, onClo
             <section className="shipping-details-section">
               <h3>Uwagi</h3>
               <p style={{ whiteSpace: 'pre-wrap' }}>{order.notes}</p>
+            </section>
+          )}
+
+          {/* Sekcja: Foto-dokumentacja */}
+          {order.id !== undefined && (
+            <section className="shipping-details-section">
+              <h3>Foto-dokumentacja</h3>
+              <OrderPhotos
+                orderId={order.id}
+                currentUserId={currentUserId ?? ''}
+                currentUserInitials={currentUserInitials ?? ''}
+                pushToast={pushToast}
+              />
             </section>
           )}
         </div>

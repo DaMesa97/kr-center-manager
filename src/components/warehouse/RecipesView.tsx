@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { RECIPE_PARTS } from '../../constants'
 import type { RecipePart, WarehouseRecipe } from '../../types'
+import Spinner from '../Spinner'
 
 const RECIPE_CATEGORY_FILTER_VALUES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'] as const
 
@@ -118,7 +119,7 @@ function RecipesView({
         )}
       </div>
       {loading ? (
-        <p className="no-results">Ładowanie receptur…</p>
+        <Spinner center label="Ładowanie receptur…" />
       ) : (
         <div className="table-wrapper">
           <table className="orders-table">

@@ -151,7 +151,10 @@ function buildDocDefinition(data: ZdPdfData): TDocumentDefinitions {
         layout: 'lightHorizontalLines',
       },
       {
-        text: `Łącznie pozycji: ${data.items.length} | Łącznie sztuk: ${totalQty}`,
+        text:
+          `Łącznie pozycji: ${data.items.length} | Łącznie sztuk: ${totalQty}` +
+          (data.totalPallets > 0 ? ` | Palet: ${data.totalPallets}` : '') +
+          (data.tirFillness != null ? ` | Wypełnienie TIR: ${Math.round(data.tirFillness * 100)}%` : ''),
         style: 'totalsRow',
         margin: [0, 15, 0, 0],
       },

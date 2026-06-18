@@ -1,13 +1,16 @@
 import { useCallback, useMemo, useState } from 'react'
-import type { GlassAllowance, Order } from '../types'
+import type { GlassAllowance, LeadTimeRule, Order } from '../types'
 import { CATEGORY_LABELS } from '../constants'
 import {
   autoSuggestReadyToInvoice,
   countCompletedStages,
+  getDaysElapsed,
+  getOrderAgeStatus,
   isRushOrderSequence,
   isOrderReadyToInvoice,
 } from '../utils'
 import ShippingProgressBar from './ShippingProgressBar'
+import Spinner from './Spinner'
 import StockStatusBadge from './StockStatusBadge'
 
 // Forge Control — kolory kategorii (navy tonal)
@@ -21,6 +24,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 const CATEGORY_SORT_ORDER = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
+
+const NO_ROUTE_KEY = '__NO_ROUTE__'
 
 function categorySortIndex(category: string): number {
   const i = CATEGORY_SORT_ORDER.indexOf(category as (typeof CATEGORY_SORT_ORDER)[number])
@@ -45,6 +50,7 @@ export type ShippingViewProps = {
   rushUpdatingOrderId: number | null
   isManager: boolean
   glassAllowances: GlassAllowance[]
+  leadTimeRules?: LeadTimeRule[]
 }
 
 export default function ShippingView({
@@ -58,19 +64,27 @@ export default function ShippingView({
   rushUpdatingOrderId,
   isManager,
   glassAllowances,
+  leadTimeRules = [],
 }: ShippingViewProps) {
   const getProductionDay = useCallback((company: string | null | undefined) => {
     if (!company) return ''
-    const key = company.trim().toLowerCase()
-    return companiesMap.get(key)?.production_day ?? ''
+    return companiesMap.get(company.trim().toLowerCase())?.production_day ?? ''
+  }, [companiesMap])
+
+  const getRouteDay = useCallback((company: string | null | undefined) => {
+    if (!company) return ''
+    return companiesMap.get(company.trim().toLowerCase())?.route_day ?? ''
   }, [companiesMap])
 
   const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [companyFilter, setCompanyFilter] = useState('')
   const [onlyReadyToInvoice, setOnlyReadyToInvoice] = useState(false)
   const [productionDayFilter, setProductionDayFilter] = useState<string>('')
+  const [routeDayFilter, setRouteDayFilter] = useState<string>('')
   const [onlyWithStockIssues, setOnlyWithStockIssues] = useState(false)
   const [onlyUrgent, setOnlyUrgent] = useState(false)
+  const [onlyOverdue, setOnlyOverdue] = useState(false)
+  const [groupByRoute, setGroupByRoute] = useState(false)
 
   const availableProductionDays = useMemo(() => {
     const set = new Set<string>()
@@ -81,24 +95,23 @@ export default function ShippingView({
     return Array.from(set).sort()
   }, [orders, getProductionDay])
 
+  const availableRouteDays = useMemo(() => {
+    const set = new Set<string>()
+    for (const o of orders) {
+      const route = getRouteDay(o.company)
+      if (route) set.add(route)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pl'))
+  }, [orders, getRouteDay])
+
   const filteredOrders = useMemo(() => {
     const companyQ = companyFilter.trim().toLowerCase()
     return orders.filter((o) => {
-      if (categoryFilter && (o.category ?? '') !== categoryFilter) {
-        return false
-      }
-      if (companyQ && !String(o.company ?? '').toLowerCase().includes(companyQ)) {
-        return false
-      }
-      if (onlyReadyToInvoice && !isOrderReadyToInvoice(o)) {
-        return false
-      }
-      if (onlyWithStockIssues) {
-        if (!o.stock_status || o.stock_status === 'ok') return false
-      }
-      if (onlyUrgent && !isRushOrderSequence(o.sequence)) {
-        return false
-      }
+      if (categoryFilter && (o.category ?? '') !== categoryFilter) return false
+      if (companyQ && !String(o.company ?? '').toLowerCase().includes(companyQ)) return false
+      if (onlyReadyToInvoice && !isOrderReadyToInvoice(o)) return false
+      if (onlyWithStockIssues && (!o.stock_status || o.stock_status === 'ok')) return false
+      if (onlyUrgent && !isRushOrderSequence(o.sequence)) return false
       if (productionDayFilter) {
         const day = getProductionDay(o.company)
         if (productionDayFilter === '__EMPTY__') {
@@ -107,7 +120,15 @@ export default function ShippingView({
           return false
         }
       }
-
+      if (routeDayFilter) {
+        const route = getRouteDay(o.company)
+        if (routeDayFilter === '__EMPTY__') {
+          if (route) return false
+        } else if (route !== routeDayFilter) {
+          return false
+        }
+      }
+      if (onlyOverdue && getOrderAgeStatus(o, leadTimeRules) === 'ok') return false
       return true
     })
   }, [
@@ -117,8 +138,12 @@ export default function ShippingView({
     onlyReadyToInvoice,
     onlyWithStockIssues,
     onlyUrgent,
+    onlyOverdue,
     productionDayFilter,
+    routeDayFilter,
     getProductionDay,
+    getRouteDay,
+    leadTimeRules,
   ])
 
   const displayedOrders = useMemo(() => {
@@ -135,6 +160,24 @@ export default function ShippingView({
     return rows
   }, [filteredOrders])
 
+  // Grupowanie po trasie — zachowuje istniejące sortowanie wewnątrz grupy
+  const routeGroups = useMemo(() => {
+    if (!groupByRoute) return null
+    const map = new Map<string, Order[]>()
+    for (const order of displayedOrders) {
+      const route = getRouteDay(order.company) || NO_ROUTE_KEY
+      if (!map.has(route)) map.set(route, [])
+      map.get(route)!.push(order)
+    }
+    return Array.from(map.entries())
+      .map(([route, routeOrders]) => ({ route, orders: routeOrders }))
+      .sort((a, b) => {
+        if (a.route === NO_ROUTE_KEY) return 1
+        if (b.route === NO_ROUTE_KEY) return -1
+        return a.route.localeCompare(b.route, 'pl')
+      })
+  }, [groupByRoute, displayedOrders, getRouteDay])
+
   const openCount = orders.length
   const readyCount = displayedOrders.filter((o) => isOrderReadyToInvoice(o)).length
   const withIssuesCount = useMemo(
@@ -145,6 +188,151 @@ export default function ShippingView({
     () => orders.filter((o) => isRushOrderSequence(o.sequence)).length,
     [orders],
   )
+  const overdueCount = useMemo(
+    () => orders.filter((o) => getOrderAgeStatus(o, leadTimeRules) === 'overdue').length,
+    [orders, leadTimeRules],
+  )
+
+  const warningCount = useMemo(
+    () => orders.filter((o) => getOrderAgeStatus(o, leadTimeRules) === 'warning').length,
+    [orders, leadTimeRules],
+  )
+
+  // ---------------------------------------------------------------------------
+  // Row renderer — wydzielony żeby nie duplikować między trybem flat i grouped
+  // ---------------------------------------------------------------------------
+
+  function renderOrderRow(order: Order) {
+    const { total, percent } = countCompletedStages(order)
+    const cat = order.category ?? ''
+    const badgeBg = CATEGORY_COLORS[cat] ?? '#6b7280'
+
+    let statusClass = 'shipping-status-badge shipping-status-badge--new'
+    let statusLabel = 'Nowe'
+    if (cat === 'DrzwiWewnetrzne') {
+      statusClass = 'order-status-badge order-status-badge--in-progress'
+      statusLabel = 'W realizacji'
+    } else if (cat === 'Techniczne' || total === 0) {
+      statusClass = 'shipping-status-badge shipping-status-badge--technical'
+      statusLabel = 'Techniczne'
+    } else if (percent === 100) {
+      statusClass = 'shipping-status-badge shipping-status-badge--done'
+      statusLabel = 'Gotowe'
+    } else if (percent > 0) {
+      statusClass = 'shipping-status-badge shipping-status-badge--production'
+      statusLabel = 'W produkcji'
+    }
+
+    const ready = isOrderReadyToInvoice(order)
+    const suggested = autoSuggestReadyToInvoice(order) && !ready
+    const invoiceCellClass = suggested ? 'shipping-invoice-cell--suggested' : ''
+    const ageStatus = getOrderAgeStatus(order, leadTimeRules)
+    const daysElapsed = getDaysElapsed(order)
+
+    let ageTitle: string | undefined
+    if (ageStatus === 'overdue') {
+      ageTitle = `Przeterminowane — ${daysElapsed} dni od złożenia zamówienia`
+    } else if (ageStatus === 'warning') {
+      ageTitle = `Uwaga: ${daysElapsed} dni od złożenia zamówienia`
+    }
+
+    return (
+      <tr
+        key={order.id ?? `${cat}-${order.order_number}`}
+        className={[
+          'orders-table-row',
+          isRushOrderSequence(order.sequence) ? 'orders-table-row--priority' : '',
+          ageStatus === 'overdue' ? 'orders-table-row--overdue' : '',
+          ageStatus === 'warning' ? 'orders-table-row--warning' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        title={ageTitle}
+        onClick={() => onShowDetails(order)}
+      >
+        <td className="rush-cell col-rush" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            className="rush-checkbox"
+            checked={isRushOrderSequence(order.sequence)}
+            disabled={!isManager || order.id === undefined || rushUpdatingOrderId === order.id}
+            title="Pilne zamówienie"
+            aria-label="Pilne"
+            onChange={(e) => {
+              e.stopPropagation()
+              void onRushToggle(order, e.target.checked)
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </td>
+        <td className="col-nr">{order.order_number}</td>
+        <td className="col-cat">
+          <span
+            className="shipping-category-badge"
+            style={{ backgroundColor: badgeBg }}
+            title={CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
+          >
+            {CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
+          </span>
+        </td>
+        <td className="col-firm" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {order.company}
+        </td>
+        <td className="col-day">{getProductionDay(order.company)}</td>
+        <td className="col-qty">{order.quantity ?? '—'}</td>
+        <td className="col-prog">
+          <ShippingProgressBar order={order} />
+        </td>
+        <td className="col-status">
+          <span className={statusClass}>{statusLabel}</span>
+        </td>
+        <td className="col-stock">
+          <StockStatusBadge
+            status={order.stock_status}
+            issues={order.stock_issues}
+            category={order.category}
+            glassAllowances={glassAllowances}
+          />
+        </td>
+        <td
+          className={`col-inv${invoiceCellClass ? ` ${invoiceCellClass}` : ''}`}
+          title={
+            !ready && suggested
+              ? 'Sugestia: wszystkie etapy ukończone lub data wydania ustawiona — można oznaczyć jako gotowe do fakturowania'
+              : undefined
+          }
+        >
+          <input
+            type="checkbox"
+            checked={ready}
+            disabled={loading || order.id === undefined}
+            onChange={(e) => {
+              e.stopPropagation()
+              void onToggleReadyToInvoice(order, e.target.checked)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Gotowe do fakturowania — ${order.order_number}`}
+          />
+        </td>
+        <td className="col-act">
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={(e) => {
+              e.stopPropagation()
+              onShowDetails(order)
+            }}
+          >
+            Szczegóły
+          </button>
+        </td>
+      </tr>
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="shipping-view">
@@ -165,27 +353,32 @@ export default function ShippingView({
         <span>
           <strong>Pilnych:</strong> <strong style={{ color: '#b91c1c' }}>{urgentCount}</strong>
         </span>
+        <span>
+          <strong>Ostrzeżenia:</strong>{' '}
+          <strong style={{ color: warningCount > 0 ? '#b45309' : undefined }}>{warningCount}</strong>
+        </span>
+        <span>
+          <strong>Przeterminowanych:</strong>{' '}
+          <strong style={{ color: overdueCount > 0 ? '#b91c1c' : undefined }}>{overdueCount}</strong>
+        </span>
         <button type="button" className="btn btn-sm btn-primary" onClick={() => onRefresh()} disabled={loading}>
           Odśwież
         </button>
       </div>
 
       <div className="orders-filters" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+        {/* Kategoria */}
         <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <span>Kategoria</span>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="day-filter"
-          >
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="day-filter">
             <option value="">Wszystkie</option>
             {CATEGORY_SORT_ORDER.map((c) => (
-              <option key={c} value={c}>
-                {CATEGORY_LABELS[c] ?? c}
-              </option>
+              <option key={c} value={c}>{CATEGORY_LABELS[c] ?? c}</option>
             ))}
           </select>
         </label>
+
+        {/* Firma */}
         <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <span>Firma</span>
           <input
@@ -197,51 +390,82 @@ export default function ShippingView({
             onChange={(e) => setCompanyFilter(e.target.value)}
           />
         </label>
+
+        {/* Dzień produkcji */}
         <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span>Dzień produkcji</span>
-          <select
-            value={productionDayFilter}
-            onChange={(e) => setProductionDayFilter(e.target.value)}
-            className="day-filter"
-          >
+          <span>Dzień prod.</span>
+          <select value={productionDayFilter} onChange={(e) => setProductionDayFilter(e.target.value)} className="day-filter">
             <option value="">wszystkie</option>
             <option value="__EMPTY__">(bez ustawionego)</option>
             {availableProductionDays.map((day) => (
-              <option key={day} value={day}>
-                {day}
-              </option>
+              <option key={day} value={day}>{day}</option>
             ))}
           </select>
         </label>
+
+        {/* Trasa */}
+        <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span>Trasa</span>
+          <select
+            value={routeDayFilter}
+            onChange={(e) => setRouteDayFilter(e.target.value)}
+            className="day-filter"
+            disabled={groupByRoute}
+            title={groupByRoute ? 'Wyłącz grupowanie by filtrować po trasie' : undefined}
+          >
+            <option value="">wszystkie</option>
+            <option value="__EMPTY__">(bez trasy)</option>
+            {availableRouteDays.map((route) => (
+              <option key={route} value={route}>{route}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Checkboxy */}
         <label className="orders-filter-checkbox">
-          <input
-            type="checkbox"
-            checked={onlyReadyToInvoice}
-            onChange={(e) => setOnlyReadyToInvoice(e.target.checked)}
-          />
+          <input type="checkbox" checked={onlyReadyToInvoice} onChange={(e) => setOnlyReadyToInvoice(e.target.checked)} />
           <span>Tylko gotowe do fakturowania</span>
         </label>
         <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={onlyWithStockIssues}
-            onChange={(e) => setOnlyWithStockIssues(e.target.checked)}
-          />
+          <input type="checkbox" checked={onlyWithStockIssues} onChange={(e) => setOnlyWithStockIssues(e.target.checked)} />
           <span>Tylko z brakami magazynowymi</span>
         </label>
         <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={onlyUrgent} onChange={(e) => setOnlyUrgent(e.target.checked)} />
+          <span>Tylko pilne</span>
+        </label>
+
+        {/* Tylko przeterminowane/z ostrzeżeniem */}
+        <label className="orders-filter-checkbox orders-filter-checkbox--overdue" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <input
             type="checkbox"
-            checked={onlyUrgent}
-            onChange={(e) => setOnlyUrgent(e.target.checked)}
+            checked={onlyOverdue}
+            onChange={(e) => setOnlyOverdue(e.target.checked)}
           />
-          <span>Tylko pilne</span>
+          <span>Tylko opóźnione</span>
+          {warningCount > 0 && (
+            <span className="overdue-filter-pill overdue-filter-pill--warning">{warningCount}</span>
+          )}
+          {overdueCount > 0 && (
+            <span className="overdue-filter-pill">{overdueCount}</span>
+          )}
+        </label>
+
+        {/* Grupuj po trasie */}
+        <label className="orders-filter-checkbox orders-filter-checkbox--highlight" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={groupByRoute}
+            onChange={(e) => {
+              setGroupByRoute(e.target.checked)
+              if (e.target.checked) setRouteDayFilter('')
+            }}
+          />
+          <span>Grupuj po trasie</span>
         </label>
       </div>
 
-      <div
-        style={{ fontSize: '0.75rem', color: '#6b7280', padding: '4px 0 8px 0' }}
-      >
+      <div style={{ fontSize: '0.75rem', color: '#6b7280', padding: '4px 0 8px 0' }}>
         💡 Żółte tło w kolumnie "Gotowe do fakturowania" = sugestia systemu (wszystkie etapy
         ukończone lub data wydania ustawiona)
       </div>
@@ -268,7 +492,7 @@ export default function ShippingView({
               <th className="col-cat">KATEGORIA</th>
               <th className="col-firm">FIRMA</th>
               <th className="col-day">DZIEŃ PROD.</th>
-              <th className="col-qty">ILość</th>
+              <th className="col-qty">ILOŚĆ</th>
               <th className="col-prog">POSTĘP</th>
               <th className="col-status">STATUS</th>
               <th className="col-stock">BRAKI</th>
@@ -279,130 +503,57 @@ export default function ShippingView({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={11} style={{ textAlign: 'center', padding: '2rem' }}>
-                  Ładowanie…
-                </td>
+                <td colSpan={11}><Spinner center label="Ładowanie…" /></td>
               </tr>
-            ) : displayedOrders.length === 0 ? (
-              <tr>
-                <td colSpan={11} style={{ textAlign: 'center', padding: '2rem' }}>
-                  Brak zamówień spełniających kryteria.
-                </td>
-              </tr>
+            ) : groupByRoute && routeGroups ? (
+              /* ── Tryb grupowania po trasie ── */
+              routeGroups.length === 0 ? (
+                <tr>
+                  <td colSpan={11} style={{ textAlign: 'center', padding: '2rem' }}>
+                    Brak zamówień spełniających kryteria.
+                  </td>
+                </tr>
+              ) : (
+                routeGroups.flatMap(({ route, orders: groupOrders }) => {
+                  const groupReadyCount = groupOrders.filter((o) => isOrderReadyToInvoice(o)).length
+                  const groupUrgentCount = groupOrders.filter((o) => isRushOrderSequence(o.sequence)).length
+                  const label = route === NO_ROUTE_KEY ? 'Bez przypisanej trasy' : route
+                  return [
+                    <tr key={`group-${route}`} className="shipping-route-group-header">
+                      <td colSpan={11}>
+                        <div>
+                          <span className="shipping-route-label">🚛 {label}</span>
+                          <span className="shipping-route-stats">
+                            <span className="shipping-route-stat">{groupOrders.length} zam.</span>
+                            {groupReadyCount > 0 && (
+                              <span className="shipping-route-stat shipping-route-stat--ready">
+                                ✓ {groupReadyCount} gotowych
+                              </span>
+                            )}
+                            {groupUrgentCount > 0 && (
+                              <span className="shipping-route-stat shipping-route-stat--urgent">
+                                ⚡ {groupUrgentCount} pilnych
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>,
+                    ...groupOrders.map((order) => renderOrderRow(order)),
+                  ]
+                })
+              )
             ) : (
-              displayedOrders.map((order) => {
-                const { total, percent } = countCompletedStages(order)
-                const cat = order.category ?? ''
-                const badgeBg = CATEGORY_COLORS[cat] ?? '#6b7280'
-
-                let statusClass = 'shipping-status-badge shipping-status-badge--new'
-                let statusLabel = 'Nowe'
-                if (cat === 'DrzwiWewnetrzne') {
-                  statusClass = 'order-status-badge order-status-badge--in-progress'
-                  statusLabel = 'W realizacji'
-                } else if (cat === 'Techniczne' || total === 0) {
-                  statusClass = 'shipping-status-badge shipping-status-badge--technical'
-                  statusLabel = 'Techniczne'
-                } else if (percent === 100) {
-                  statusClass = 'shipping-status-badge shipping-status-badge--done'
-                  statusLabel = 'Gotowe'
-                } else if (percent > 0) {
-                  statusClass = 'shipping-status-badge shipping-status-badge--production'
-                  statusLabel = 'W produkcji'
-                }
-
-                const ready = isOrderReadyToInvoice(order)
-                const suggested = autoSuggestReadyToInvoice(order) && !ready
-                const invoiceCellClass = suggested ? 'shipping-invoice-cell--suggested' : ''
-
-                return (
-                  <tr
-                    key={order.id ?? `${cat}-${order.order_number}`}
-                    className={[
-                      'orders-table-row',
-                      isRushOrderSequence(order.sequence) ? 'orders-table-row--priority' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    onClick={() => onShowDetails(order)}
-                  >
-                    <td className="rush-cell col-rush" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        className="rush-checkbox"
-                        checked={isRushOrderSequence(order.sequence)}
-                        disabled={!isManager || order.id === undefined || rushUpdatingOrderId === order.id}
-                        title="Pilne zamówienie"
-                        aria-label="Pilne"
-                        onChange={(e) => {
-                          e.stopPropagation()
-                          void onRushToggle(order, e.target.checked)
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </td>
-                    <td className="col-nr">{order.order_number}</td>
-                    <td className="col-cat">
-                      <span
-                        className="shipping-category-badge"
-                        style={{ backgroundColor: badgeBg }}
-                        title={CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
-                      >
-                        {CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
-                      </span>
-                    </td>
-                    <td className="col-firm" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{order.company}</td>
-                    <td className="col-day">{getProductionDay(order.company)}</td>
-                    <td className="col-qty">{order.quantity ?? '—'}</td>
-                    <td className="col-prog">
-                      <ShippingProgressBar order={order} />
-                    </td>
-                    <td className="col-status">
-                      <span className={statusClass}>{statusLabel}</span>
-                    </td>
-                    <td className="col-stock">
-                      <StockStatusBadge
-                        status={order.stock_status}
-                        issues={order.stock_issues}
-                        category={order.category}
-                        glassAllowances={glassAllowances}
-                      />
-                    </td>
-                    <td
-                      className={`col-inv${invoiceCellClass ? ` ${invoiceCellClass}` : ''}`}
-                      title={
-                        !ready && suggested
-                          ? 'Sugestia: wszystkie etapy ukończone lub data wydania ustawiona — można oznaczyć jako gotowe do fakturowania'
-                          : undefined
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        checked={ready}
-                        disabled={loading || order.id === undefined}
-                        onChange={(e) => {
-                          e.stopPropagation()
-                          void onToggleReadyToInvoice(order, e.target.checked)
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label={`Gotowe do fakturowania — ${order.order_number}`}
-                      />
-                    </td>
-                    <td className="col-act">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onShowDetails(order)
-                        }}
-                      >
-                        Szczegóły
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })
+              /* ── Tryb płaski (domyślny) ── */
+              displayedOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={11} style={{ textAlign: 'center', padding: '2rem' }}>
+                    Brak zamówień spełniających kryteria.
+                  </td>
+                </tr>
+              ) : (
+                displayedOrders.map((order) => renderOrderRow(order))
+              )
             )}
           </tbody>
         </table>

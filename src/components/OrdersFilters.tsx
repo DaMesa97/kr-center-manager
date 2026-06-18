@@ -1,5 +1,11 @@
 import { PRODUCTION_DAYS } from '../constants'
 
+const WYKONAWCA_OPTIONS = [
+  { value: 'Center', label: 'CENTER', color: '#9b1c1c' },
+  { value: 'Profil', label: 'PROFIL', color: '#16a34a' },
+  { value: 'WZ', label: 'WZ', color: '#0369a1' },
+]
+
 type OrdersFiltersProps = {
   searchTerm: string
   selectedProductionDay: string
@@ -8,11 +14,14 @@ type OrdersFiltersProps = {
   sourceFilter: 'all' | 'manual' | 'bot'
   sourceFilterCounts: { all: number; manual: number; bot: number }
   showSourceFilter: boolean
+  wykonawcaFilter: string[]
+  showWykonawcaFilter: boolean
   onSearchChange: (v: string) => void
   onDayChange: (v: string) => void
   onHideCompletedChange: (v: boolean) => void
   onShowCancelledChange: (v: boolean) => void
   onSourceFilterChange: (v: 'all' | 'manual' | 'bot') => void
+  onWykonawcaFilterChange: (vals: string[]) => void
 }
 
 export default function OrdersFilters({
@@ -20,15 +29,23 @@ export default function OrdersFilters({
   selectedProductionDay,
   hideCompletedOrders,
   showCancelledOrders,
-  sourceFilter,
-  sourceFilterCounts,
-  showSourceFilter,
+  wykonawcaFilter,
+  showWykonawcaFilter,
   onSearchChange,
   onDayChange,
   onHideCompletedChange,
   onShowCancelledChange,
-  onSourceFilterChange,
+  onWykonawcaFilterChange,
 }: OrdersFiltersProps) {
+
+  const toggleWykonawca = (val: string) => {
+    if (wykonawcaFilter.includes(val)) {
+      onWykonawcaFilterChange(wykonawcaFilter.filter((v) => v !== val))
+    } else {
+      onWykonawcaFilterChange([...wykonawcaFilter, val])
+    }
+  }
+
   return (
     <div className="orders-filters">
       <input
@@ -66,31 +83,40 @@ export default function OrdersFilters({
           <span>Pokaż anulowane</span>
         </label>
       </div>
-      {showSourceFilter && (
-        <div className="alerts-filter-pills">
-          <button
-            type="button"
-            className={`alerts-filter-pill ${sourceFilter === 'all' ? 'alerts-filter-pill--active' : ''}`}
-            onClick={() => onSourceFilterChange('all')}
-          >
-            Wszystkie <span className="alerts-filter-pill-count">{sourceFilterCounts.all}</span>
-          </button>
-          <button
-            type="button"
-            className={`alerts-filter-pill ${sourceFilter === 'manual' ? 'alerts-filter-pill--active' : ''}`}
-            onClick={() => onSourceFilterChange('manual')}
-          >
-            📝 Manualne <span className="alerts-filter-pill-count">{sourceFilterCounts.manual}</span>
-          </button>
-          <button
-            type="button"
-            className={`alerts-filter-pill ${sourceFilter === 'bot' ? 'alerts-filter-pill--active' : ''}`}
-            onClick={() => onSourceFilterChange('bot')}
-          >
-            🤖 Z konfiguratora <span className="alerts-filter-pill-count">{sourceFilterCounts.bot}</span>
-          </button>
+
+      {showWykonawcaFilter && (
+        <div className="wykonawca-filter-row">
+          <span className="wykonawca-filter-label">Wykonawca:</span>
+          {WYKONAWCA_OPTIONS.map((opt) => {
+            const active = wykonawcaFilter.includes(opt.value)
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                className="wykonawca-filter-pill"
+                style={{
+                  background: active ? opt.color : 'transparent',
+                  color: active ? '#fff' : opt.color,
+                  borderColor: opt.color,
+                }}
+                onClick={() => toggleWykonawca(opt.value)}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+          {wykonawcaFilter.length > 0 && (
+            <button
+              type="button"
+              className="wykonawca-filter-clear"
+              onClick={() => onWykonawcaFilterChange([])}
+            >
+              ✕ Wszystkie
+            </button>
+          )}
         </div>
       )}
+
     </div>
   )
 }

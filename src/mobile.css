@@ -1,0 +1,580 @@
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f1f5f9;
+  color: #1e293b;
+  overscroll-behavior: none;
+}
+
+/* ── Boot / spinner ── */
+.mlogin-boot {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mlogin-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #cbd5e1;
+  border-top-color: #1b304a;
+  border-radius: 50%;
+  animation: mspin 0.7s linear infinite;
+}
+@keyframes mspin { to { transform: rotate(360deg); } }
+
+/* ── Login ── */
+.mlogin {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: linear-gradient(160deg, #1b304a, #0f1d30);
+}
+.mlogin-card {
+  width: 100%;
+  max-width: 360px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 2rem 1.5rem;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+}
+.mlogin-title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #1b304a;
+  text-align: center;
+}
+.mlogin-sub {
+  margin: 0.25rem 0 1.5rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+.mlogin-form { display: flex; flex-direction: column; gap: 1rem; }
+.mlogin-field { display: flex; flex-direction: column; gap: 0.35rem; }
+.mlogin-field span { font-size: 0.85rem; font-weight: 600; color: #475569; }
+.mlogin-field input {
+  padding: 0.85rem 1rem;
+  font-size: 1.05rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  outline: none;
+}
+.mlogin-field input:focus { border-color: #3b82f6; }
+.mlogin-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.mlogin-btn {
+  margin-top: 0.5rem;
+  padding: 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  background: #1b304a;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.mlogin-btn:disabled { opacity: 0.6; }
+
+/* ── Packing ── */
+.mpack {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.mpack-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-top, 0));
+  padding-top: max(1rem, env(safe-area-inset-top, 0));
+  background: #1b304a;
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.mpack-title { font-size: 1.1rem; font-weight: 700; flex: 1; }
+.mpack-user {
+  background: rgba(255,255,255,0.2);
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.mpack-signout {
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 0.4rem;
+  cursor: pointer;
+  display: flex;
+}
+
+.mpack-search { padding: 1rem; flex: 1; }
+.mpack-search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #fff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  color: #64748b;
+}
+.mpack-search-box input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 1.05rem;
+  background: transparent;
+  color: #1e293b;
+}
+.mpack-info {
+  text-align: center;
+  color: #94a3b8;
+  padding: 1.5rem;
+  font-size: 0.9rem;
+}
+.mpack-results { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem; }
+.mpack-result {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+.mpack-result:active { background: #f1f5f9; }
+.mpack-cat {
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+  min-width: 52px;
+  text-align: center;
+}
+.mpack-result-main { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1; }
+.mpack-nr { font-weight: 700; font-size: 1rem; }
+.mpack-company {
+  font-size: 0.85rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mpack-done {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #15803d;
+  background: #dcfce7;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Detail ── */
+.mpack-detail { padding: 1rem; flex: 1; display: flex; flex-direction: column; gap: 1rem; }
+.mpack-back {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.25rem 0;
+  cursor: pointer;
+}
+.mpack-order-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.1rem;
+}
+.mpack-order-top { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; }
+.mpack-order-nr { font-size: 1.4rem; font-weight: 800; }
+.mpack-order-company { font-size: 1rem; font-weight: 600; }
+.mpack-order-model { font-size: 0.9rem; color: #64748b; margin-top: 0.15rem; }
+
+.mpack-shoot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 1.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  background: #16a34a;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+}
+.mpack-shoot:disabled { opacity: 0.6; }
+.mpack-shoot:active { background: #15803d; }
+
+.mpack-photos { flex: 1; }
+.mpack-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+.mpack-photo {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+.mpack-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mpack-photo-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* ── Toast ── */
+.mpack-toast {
+  position: fixed;
+  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0));
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #fff;
+  padding: 0.75rem 1.25rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  z-index: 100;
+}
+
+/* ── Shell z dolną nawigacją ── */
+.mshell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+.mshell-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: max(1rem, env(safe-area-inset-top, 0)) 1rem 1rem;
+  background: #1b304a;
+  color: #fff;
+  flex-shrink: 0;
+}
+.mshell-title { font-size: 1.1rem; font-weight: 700; flex: 1; }
+.mshell-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.mshell-nav {
+  display: flex;
+  flex-shrink: 0;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.mshell-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.6rem;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mshell-nav-btn--active { color: #1b304a; }
+.mshell-nav-btn--active span { font-weight: 700; }
+
+/* ── Widok zadań (stanowisko) ── */
+.mstation { padding: 0.75rem; }
+.mstation-boot { display: flex; justify-content: center; padding: 3rem; }
+.mstation-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.25rem 0.75rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+.mstation-ready { color: #16a34a; }
+.mstation-refresh {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+}
+.mstation-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.mstation-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.mstation-card--waiting { opacity: 0.65; }
+.mstation-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.mstation-card-main { flex: 1; display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.mstation-card-nr {
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.mstation-urgent { color: #dc2626; }
+.mstation-card-stage { font-size: 0.8rem; color: #64748b; }
+.mstation-card-body {
+  padding: 0 0.75rem 0.75rem;
+  border-top: 1px solid #f1f5f9;
+}
+.mstation-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.75rem;
+  margin: 0.75rem 0;
+}
+.mstation-detail { display: flex; flex-direction: column; }
+.mstation-detail-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 600;
+}
+.mstation-detail-value { font-size: 0.85rem; font-weight: 500; }
+.mstation-done-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.9rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  background: #16a34a;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+.mstation-done-btn:active { background: #15803d; }
+.mstation-waiting-note {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  padding: 0.75rem;
+}
+
+/* ── Confirm dialog ── */
+.mstation-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.55);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.mstation-confirm {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 340px;
+}
+.mstation-confirm-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+.mstation-confirm-body { font-size: 0.9rem; color: #475569; line-height: 1.5; margin-bottom: 1.25rem; }
+.mstation-confirm-actions { display: flex; gap: 0.6rem; }
+.mstation-confirm-cancel {
+  flex: 1;
+  padding: 0.85rem;
+  border: 1.5px solid #cbd5e1;
+  background: #fff;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mstation-confirm-ok {
+  flex: 1;
+  padding: 0.85rem;
+  border: none;
+  background: #16a34a;
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mstation-confirm-ok:disabled { opacity: 0.6; }
+
+/* ── Zlecenia (przeglądanie) ── */
+.morders { padding: 0.75rem; }
+.morders-cats {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+.morders-cat-chip {
+  flex-shrink: 0;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1.5px solid;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.morders-searchrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+.morders-searchrow .mpack-search-box { flex: 1; }
+.morders-count {
+  font-size: 0.8rem;
+  color: #64748b;
+  padding: 0.25rem 0.25rem 0.5rem;
+}
+.morders-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.morders-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.8rem;
+  cursor: pointer;
+}
+.morders-card:active { background: #f1f5f9; }
+.morders-card-top { display: flex; align-items: baseline; gap: 0.5rem; justify-content: space-between; }
+.morders-card-nr { font-weight: 800; font-size: 1rem; }
+.morders-card-model { font-size: 0.8rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.morders-card-company { font-size: 0.85rem; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.morders-card-prog { display: flex; align-items: center; gap: 0.5rem; }
+.morders-card-prog-bar { flex: 1; height: 5px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+.morders-card-prog-fill { height: 100%; border-radius: 999px; }
+.morders-card-prog-txt { font-size: 0.7rem; color: #94a3b8; font-weight: 600; }
+
+/* ── Szczegóły zlecenia ── */
+.morders-detail { padding: 0.75rem; }
+.morders-detail-head { display: flex; align-items: center; gap: 0.6rem; margin: 0.5rem 0 1rem; }
+.morders-detail-nr { font-size: 1.5rem; font-weight: 800; }
+.morders-rush { font-size: 0.65rem; font-weight: 800; color: #fff; background: #dc2626; padding: 0.15rem 0.5rem; border-radius: 4px; }
+.morders-progress { margin-bottom: 1rem; }
+.morders-progress-bar { height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin-bottom: 0.3rem; }
+.morders-progress-fill { height: 100%; border-radius: 999px; }
+.morders-progress-label { font-size: 0.8rem; color: #64748b; }
+.morders-section {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem;
+  margin-bottom: 0.6rem;
+}
+.morders-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 0.6rem;
+}
+.morders-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.75rem; }
+.morders-field { display: flex; flex-direction: column; }
+.morders-field-label { font-size: 0.68rem; color: #94a3b8; font-weight: 600; }
+.morders-field-value { font-size: 0.88rem; color: #1e293b; font-weight: 500; }
+
+/* ── Wysyłka mobilna ── */
+.mship-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.8rem;
+}
+.mship-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.mship-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; font-size: 0.72rem; }
+.mship-ready { color: #15803d; font-weight: 700; background: #dcfce7; padding: 0.1rem 0.4rem; border-radius: 4px; }
+.mship-progress { color: #b45309; font-weight: 600; background: #fef3c7; padding: 0.1rem 0.4rem; border-radius: 4px; }
+.mship-route { color: #475569; font-weight: 600; }
+.mship-release-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.6rem 0.8rem;
+  background: #1b304a;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mship-release-btn:active { background: #0f1d30; }
+
+/* Nav — zwężenie tekstu przy 4 zakładkach */
+.mshell-nav-btn { font-size: 0.68rem; padding: 0.55rem 0.3rem; }
+.mshell-nav-btn span { white-space: nowrap; }

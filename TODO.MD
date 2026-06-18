@@ -52,15 +52,16 @@
 - [x] Dorzucić `.cursorignore` (release/, dist/, dist-electron/, node_modules/, *.asar, *.exe)
 - [x] Git cleanup — odtrackowano dist-electron/ i release/ z historii, .env dodany do .gitignore
 
-### Supabase Pro (gdy będzie karta firmowa) — $25/mc
+### Supabase Pro (gdy będzie karta firmowa) — $25/mc — ⚠️ KONIECZNIE dla backupów bazy!
 - [ ] Upgrade konta Supabase do Pro
-- [ ] 30-dniowe backups + Point-in-Time Recovery
+- [ ] 30-dniowe backups + Point-in-Time Recovery (bez tego brak backupu danych!)
 - [ ] 8 GB databasy + 250 GB transferu
 - [ ] Decyzja: free quota Edge Functions vs Pro (raczej wystarcza)
 
 ### Monitoring podstawowy (FREE)
-- [x] UptimeRobot — ping co 5 min na Supabase URL + Edge Function
+- [x] UptimeRobot — keyword monitor na Edge Function orders-intake (GET → {"status":"ok"})
 - [x] Alert email gdy padnie
+- [x] Drugi monitor (HTTP na Supabase URL) usunięty — zbędny, Edge Function i tak odpytuje bazę
 - [ ] Public status page (opcjonalnie)
 
 ### Backup własny
@@ -72,16 +73,15 @@
 
 ## 🟡 PRIORYTET 2 — Wczesne tygodnie po Sentry
 
-### Auto-updater (Tura 13b) — ✅ ZROBIONE (GitHub Releases, bez Supabase Pro)
+### Auto-updater (Tura 13b) — ✅ W PEŁNI ZROBIONE
 - [x] `electron-updater@6.8.3` zainstalowany
-- [x] `electron-builder.json5` — sekcja `publish` z GitHub provider (owner/repo do uzupełnienia)
+- [x] `electron-builder.json5` — sekcja `publish` z GitHub provider
 - [x] `electron/main.ts` — `autoUpdater` pół-auto (autoDownload: false), IPC eventy + handlery
 - [x] `src/components/UpdateBanner.tsx` — banner z progress barem, pobierz/restart/dismiss
 - [x] `App.tsx` — `<UpdateBanner />` między headerem a main
 - [x] `AppHeader.tsx` — przycisk "Sprawdź aktualizacje" w About modal
 - [x] `npm run release` script (build + publish always)
-- [x] Wersja bumped: `1.0.0-beta.1` → `1.0.0-beta.2`
-- [ ] **TODO user**: `npm run release` wymaga GH_TOKEN w `.env` + ustawienia owner/repo w `electron-builder.json5`
+- [x] GitHub Releases jako serwer aktualizacji — działa
 
 ### Tura 10.3 — UI managera dla API keys
 - [x] Lista kluczy + statystyki (total_requests, total_orders_created, last_used_at)
@@ -126,6 +126,15 @@
 - [ ] TCP socket connection
 - [ ] ZPL template builder
 - [ ] Test print + boundary cases
+- [ ] **Etykieta z kodem QR** — QR ma zawierać `order_id` (unikalny w bazie; numery zleceń NIE są unikalne między Center/Profil/WZ)
+
+### Skaner QR/barcode w mobilnej (PO drukarce/etykietach) — DECYZJE USTALONE
+- [ ] Skaner przez `BarcodeDetector` API (natywny w Chrome Android, bez bibliotek) — fallback `@zxing/browser` na iOS jeśli brak
+- [ ] Kod = `order_id` → jednoznaczne dopasowanie zlecenia
+- [ ] Akcja 1: **Otwórz zlecenie w Pakowaniu** (skan zamiast wpisywania numeru → od razu zdjęcia/podgląd)
+- [ ] Akcja 2: **Oznacz mój etap** jako zrobiony dla zeskanowanego zlecenia (jeśli pracownik ma przypisane stanowisko)
+- [ ] Przycisk skanera w nagłówku mobilnym (ikona aparatu) — wspólny dla obu zakładek
+- [ ] Blocker: wymaga fizycznych etykiet z QR na drzwiach (zależne od drukarki ZPL powyżej)
 
 ### CSS cleanup — Tura 12 (Forge Control Design System)
 - [x] Tura 12.1 — Sidebar + Forge Control layout (sidebar nav, app-layout)
@@ -255,3 +264,26 @@
 - Bezpieczeństwo: API keys, tokeny, hasła NIGDY nie trafiają do czatu/Cursora — login przez terminal w OS
 - **Git commit po każdej zamkniętej zmianie** (zasada nauczona po katastrofie Tury 11.3)
 - Bezpośredni styl, polski + wulgarny koloryt (Tymek 28 lat, 5 lat w branży drzwiowej, KR Center)
+---
+
+## 🧪 DO PRZETESTOWANIA W FIRMIE (na sprzęcie, nie z domu)
+
+### Etykiety — druk ZPL na Zebrze (Stage 2)
+- Zakładka **Etykiety** (grupa Produkcja)
+- Dodać drukarkę Zebra (nazwa + IP + port 9100)
+- Dodać dokument ZPL (DoP) per kategoria (wklej ZPL / wgraj .zpl)
+- Wydrukować N kopii → sprawdzić czy Zebra wypluwa etykietę (TCP 9100 raw)
+- ⚠️ Wymaga restartu dev / rebuildu (zmiana w electron/main.ts — handler `label:printZpl`)
+
+### Titan z konfiguratora
+- Wysłać Titan (CORE/GUARD) z konfiguratora → czy `create_bot_order` daje kategorię STA i powstaje trójka STA+ST+Bastion
+
+### Inne otwarte
+- Bastion + stock: czy okuwanie ma zdejmować komponenty
+- „Moje stanowisko" dla Titan-Bastion (osobny widok)
+- Kopie backlogu Disting→STA (skrypt)
+- Druk etykiet dynamicznych HTML (Stage 3) — w toku
+- Multi-etykieta Bastion regulowana (główna + ~10 elementów) — później
+- Partie produkcyjne regulowanych — naprawa, później
+- Supabase max_rows = 1000 → podnieść
+- Martwy kod: wyłączona kolumna SKR w ST, nieużywane klasy CSS bastion-titan

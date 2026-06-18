@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useTransition,
   type FormEvent,
   type MouseEvent,
 } from 'react'
@@ -40,6 +41,7 @@ import {
   canEditBastionSalesChanges,
   calcExtensionDims,
   getExtQty,
+  getOrderAgeStatus,
   getTableStageDefinitions,
   isExtSideActive,
   isFieldValueExcluded,
@@ -86,6 +88,12 @@ import MyStationView from './components/MyStationView'
 import OrderCommentsPanel from './components/OrderCommentsPanel'
 import AppHeader from './components/AppHeader'
 import Sidebar from './components/Sidebar'
+import LabelsView from './components/LabelsView'
+import HelpView from './components/HelpView'
+import FeedbackView from './components/FeedbackView'
+import FeedbackFab from './components/FeedbackFab'
+import PrintLabelModal from './components/PrintLabelModal'
+import { can, isManagerRole } from './lib/permissions'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
 import InternalDoorOrderDetailsModal from './components/InternalDoorOrderDetailsModal'
 import OrdersNeedingReviewView from './components/OrdersNeedingReviewView'
@@ -100,6 +108,11 @@ import ComplaintFormModal from './components/ComplaintFormModal'
 import OrdersFilters from './components/OrdersFilters'
 import ApiKeysView from './components/ApiKeysView'
 import UpdateBanner from './components/UpdateBanner'
+import UpdateBlocker from './components/UpdateBlocker'
+import OverdueBanner from './components/OverdueBanner'
+import GlobalSearch, { type SearchResult } from './components/GlobalSearch'
+import DashboardView from './components/DashboardView'
+import Spinner from './components/Spinner'
 import type {
   ArchivedOrder,
   Complaint,
@@ -182,11 +195,15 @@ function App() {
   const { toasts, pushToast, dismissToast } = useToasts()
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null)
   const [globalLoading, setGlobalLoading] = useState(false)
+  const [wykonawcaFilter, setWykonawcaFilter] = useState<string[]>([])
+  const [isFilterPending, startFilterTransition] = useTransition()
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false)
   const didSetDefaultTabRef = useRef(false)
 
   // Refs for circular dependency between useWarehouse <-> useOrders
   const fetchOrdersRef = useRef(async () => {})
   const setOrdersRef = useRef<React.Dispatch<React.SetStateAction<Order[]>>>(() => {})
+  const setAlertsBadgeCountRef = useRef<(n: number) => void>(() => {})
 
   const {
     activeConfigSubTab,
@@ -261,6 +278,11 @@ function App() {
     handleUpdateExtensionProfileWidth,
     handleSaveExtensionProfile,
     handleDeleteExtensionProfile,
+    leadTimeRules,
+    fetchLeadTimeRules,
+    handleSaveLeadTimeRule,
+    handleDeleteLeadTimeRule,
+    handleToggleLeadTimeRuleActive,
   } = useConfig({ pushToast, setGlobalLoading, setDeleteConfirm })
 
   const resetAppStateAfterLogoutRef = useRef<() => void>(() => {})
@@ -292,15 +314,25 @@ function App() {
     void fetchGlassAllowances()
     void fetchAllConfigDefaults()
     void fetchBastionFrameOptions()
+    void fetchLeadTimeRules()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authSession])
 
-  const isManager = currentUser?.role === 'manager'
+  const isManager = isManagerRole(currentUser?.role)
+  // Ceny: legacy role bez zmian (manager/worker/sprzedawca widzą), nowe role wg uprawnień
+  const canSeePrices = (() => {
+    const r = currentUser?.role ?? ''
+    if (r === '' || r === 'manager' || r === 'worker' || r === 'sprzedawca') return true
+    return can(r, 'prices.view')
+  })()
   const canSeeReorderTab =
     isManager || (currentUser?.role === 'worker' && currentUser?.department === 'magazyn')
   const canSeePurchaseOrdersTab = canSeeReorderTab
 
   const isWarehouseTab = activeTab === 'Magazyn'
+  // Taby które potrzebują danych magazynowych (stany, komponenty, smart ROP, dostawcy)
+  const isWarehouseDataTab =
+    activeTab === 'Magazyn' || activeTab === 'Zamawianie' || activeTab === 'Inwentaryzacja'
 
   const {
     warehouseComponents,
@@ -375,6 +407,8 @@ function App() {
     fetchOrdersNeedingReview,
     handleCreateWarehouseComponent,
     handleUpdateWarehouseComponent,
+    handleSetComponentWarehouses,
+    handleCleanupOrphanStock,
     consumeStockForOrderWithToasts,
     syncWarehouseStockAfterOrderEdit,
     handleDeleteRecipe,
@@ -424,12 +458,13 @@ function App() {
     pushToast,
     touchSession,
     activeTab,
-    isWarehouseTab,
+    isWarehouseTab: isWarehouseDataTab,
     activeWarehouseSubTab,
     setActiveWarehouseSubTab,
     setOrders: (v) => setOrdersRef.current(v),
     fetchOrders: () => fetchOrdersRef.current(),
     setDeleteConfirm,
+    setAlertsBadgeCount: (n) => setAlertsBadgeCountRef.current(n),
   })
 
   const {
@@ -562,6 +597,7 @@ function App() {
     fetchAlertsBadgeCount,
     submitOnEnterInInput,
     applyReleaseDateUpdate,
+    toggleOscReceived,
     markProductionStageWithProfileInitials,
     fetchInternalDoorItemsForVisibleOrders,
     fetchOrders,
@@ -590,6 +626,7 @@ function App() {
     handleRestoreOrder,
     handleCancelOrderClick,
     openEditOrderModal,
+    handleDuplicateOrder,
     handleRequestCloseOrderModal,
     handleOpenReviewOrder,
     handleMarkVerified,
@@ -628,6 +665,38 @@ function App() {
   // Update refs so useWarehouse can call fetchOrders and setOrders from useOrders
   fetchOrdersRef.current = fetchOrders
   setOrdersRef.current = setOrders
+  setAlertsBadgeCountRef.current = setAlertsBadgeCount
+
+  // Pracownik produkcji (nowa rola) oznacza TYLKO przypisane mu etapy — także w tabelach.
+  // Legacy 'worker' bez zmian (okres przejściowy).
+  const myAssignedStageKeys = useMemo(
+    () => new Set(workerStagesForCurrent.map((w) => w.stage_key)),
+    [workerStagesForCurrent],
+  )
+  const guardedMarkProductionStage = useCallback(
+    (orderId: number, stageKey: string) => {
+      if (currentUser?.role === 'pracownik_produkcji' && !myAssignedStageKeys.has(stageKey)) {
+        pushToast('Możesz oznaczać tylko przypisane Ci etapy', 'error')
+        return
+      }
+      return markProductionStageWithProfileInitials(orderId, stageKey)
+    },
+    [currentUser?.role, myAssignedStageKeys, markProductionStageWithProfileInitials, pushToast],
+  )
+  const guardedSetStageRevertTarget = useCallback(
+    (target: Parameters<typeof setStageRevertTarget>[0]) => {
+      if (
+        currentUser?.role === 'pracownik_produkcji' &&
+        target &&
+        !myAssignedStageKeys.has((target as { stageKey: string }).stageKey)
+      ) {
+        pushToast('Możesz cofać tylko przypisane Ci etapy', 'error')
+        return
+      }
+      setStageRevertTarget(target)
+    },
+    [currentUser?.role, myAssignedStageKeys, setStageRevertTarget, pushToast],
+  )
 
   const {
     activeStatsSubTab,
@@ -699,6 +768,7 @@ function App() {
     setOrders,
     setInternalDoorDetailsModal,
     handleRushToggle,
+    isActive: activeTab === 'Wysyłka' && isManager,
   })
 
   const {
@@ -735,6 +805,15 @@ function App() {
     setUserForm(INITIAL_USER_FORM)
     setProfilesList([])
     setRushUpdatingOrderId(null)
+    // Wyczyść filtry/wyszukiwanie — współdzielone komputery w hali
+    setSearchTerm('')
+    setSelectedProductionDay('Wszystkie dni')
+    setHideCompletedOrders(true)
+    setShowCancelledOrders(false)
+    setSourceFilter('all')
+    setWykonawcaFilter([])
+    setActiveSubTab('Zamówienia')
+    setGlobalSearchOpen(false)
   }
 
   const handleStaDistingSheetNavigate = useCallback((sheetValue: string, e: MouseEvent<HTMLButtonElement>) => {
@@ -769,6 +848,61 @@ function App() {
     void fetchProfiles()
   }, [authSession, fetchProfiles])
 
+  // Globalna wyszukiwarka — skrót Ctrl/Cmd + K
+  useEffect(() => {
+    if (!authSession) return
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        setGlobalSearchOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [authSession])
+
+  // Utwórz nowego kontrahenta z nazwy z zamówienia (np. BOT bez dopasowania)
+  const handleCreateCompanyFromName = useCallback(async (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const { error } = await supabase
+      .from('companies')
+      .insert([{ name: trimmed, city: '', route_day: '', production_day: '' }])
+    if (error) {
+      pushToast(`Błąd tworzenia kontrahenta: ${error.message}`, 'error')
+      return
+    }
+    pushToast(`Utworzono kontrahenta: ${trimmed}`, 'success')
+    await fetchCompanies()
+  }, [pushToast, fetchCompanies])
+
+  // Zapamiętaj ręczne dopasowanie nazwy kontrahenta (konfigurator → baza)
+  const handleSaveCompanyAlias = useCallback(async (aliasName: string, companyName: string) => {
+    const alias = aliasName.trim().toLowerCase()
+    if (!alias || !companyName.trim()) return
+    const { error } = await supabase
+      .from('company_aliases')
+      .upsert(
+        { alias_name: alias, company_name: companyName, created_by: currentUser?.id ?? null },
+        { onConflict: 'alias_name' },
+      )
+    if (error) {
+      // tabela może nie istnieć jeszcze — nie blokuj zapisu zamówienia
+      console.warn('[company_aliases]', error.message)
+    }
+  }, [currentUser?.id])
+
+  const handleGlobalSearchNavigate = useCallback((order: SearchResult) => {
+    const cat = order.category
+    if ((TABS as readonly string[]).includes(cat)) {
+      setActiveTab(cat as (typeof TABS)[number])
+      setActiveSubTab('Zamówienia')
+      setSearchTerm(order.order_number)
+      setShowCancelledOrders(true)
+      setHideCompletedOrders(false)
+    }
+  }, [setActiveTab, setActiveSubTab, setSearchTerm, setShowCancelledOrders, setHideCompletedOrders])
+
   useEffect(() => {
     if (!authSession) return
     setActiveSubTab('Zamówienia') // reset podzakładki przy zmianie kategorii
@@ -793,6 +927,7 @@ function App() {
     if (activeTab === 'Magazyn') {
       setOrders([])
       setComplaints([])
+      setActiveWarehouseSubTab('Stany')
       return
     }
     if (activeTab === 'Statystyki') {
@@ -812,6 +947,11 @@ function App() {
       return
     }
     if (activeTab === 'Wysyłka') {
+      setOrders([])
+      setComplaints([])
+      return
+    }
+    if (activeTab === 'Zamawianie' || activeTab === 'Inwentaryzacja' || activeTab === 'Pulpit') {
       setOrders([])
       setComplaints([])
       return
@@ -866,10 +1006,20 @@ function App() {
             })
           }
           if (payload.eventType === 'UPDATE') {
+            const incoming = payload.new as Order
             setOrders((prev) =>
-              prev.map((o) =>
-                o.id === (payload.new as Order).id ? (payload.new as Order) : o,
-              ),
+              prev.map((o) => {
+                if (o.id !== incoming.id) return o
+                // Merge production_stages: nigdy nie nadpisuj lokalnie wypełnionego etapu
+                // pustą wartością z realtime (race condition z optimistic update)
+                const localStages = (o.production_stages ?? {}) as Record<string, string>
+                const remoteStages = (incoming.production_stages ?? {}) as Record<string, string>
+                const merged: Record<string, string> = { ...remoteStages }
+                for (const [k, v] of Object.entries(localStages)) {
+                  if (v?.trim() && !merged[k]?.trim()) merged[k] = v
+                }
+                return { ...incoming, production_stages: merged }
+              }),
             )
           }
           if (payload.eventType === 'DELETE') {
@@ -929,7 +1079,8 @@ function App() {
     void fetchConfigOptionsList()
     void fetchExclusions()
     void fetchConfigOptionsForExclusions()
-  }, [authSession, activeTab, fetchConfigOptionsList, fetchExclusions, fetchConfigOptionsForExclusions])
+    void fetchLeadTimeRules()
+  }, [authSession, activeTab, fetchConfigOptionsList, fetchExclusions, fetchConfigOptionsForExclusions, fetchLeadTimeRules])
 
   useEffect(() => {
     if (!authSession) return
@@ -1014,6 +1165,13 @@ function App() {
     void fetchConfigOptionsForExclusions()
   }, [authSession, recipeEditorOpen, fetchConfigOptionsForExclusions])
 
+  // Prefetch słownika konfiguracji po zalogowaniu — żeby receptury/wykluczenia
+  // miały dane od razu (bez pustych dropdownów przy pierwszym otwarciu modala).
+  useEffect(() => {
+    if (!authSession) return
+    void fetchConfigOptionsForExclusions()
+  }, [authSession, fetchConfigOptionsForExclusions])
+
   // Tabela kontrahentów
   const contractorsTableRows = useMemo(() => {
     const query = contractorSearchTerm.trim().toLowerCase()
@@ -1063,7 +1221,10 @@ function App() {
       activeTab === 'Weryfikacja' ||
       activeTab === 'Audyt' ||
       activeTab === 'Archiwum' ||
-      activeTab === 'Wysyłka'
+      activeTab === 'Wysyłka' ||
+      activeTab === 'Etykiety' ||
+      activeTab === 'Pomoc' ||
+      activeTab === 'Zgłoszenia'
     ) {
       return []
     }
@@ -1113,12 +1274,17 @@ function App() {
 
   const filteredOrders = useMemo(() => {
     return categoryFilteredOrders.filter((order) => {
-      if (sourceFilter === 'all') return true
-      if (sourceFilter === 'manual') return order.source !== 'bot'
-      if (sourceFilter === 'bot') return order.source === 'bot'
+      if (sourceFilter !== 'all') {
+        if (sourceFilter === 'manual' && order.source === 'bot') return false
+        if (sourceFilter === 'bot' && order.source !== 'bot') return false
+      }
+      if (wykonawcaFilter.length > 0) {
+        const wyk = (order.extra_fields as Record<string, unknown> | null)?.wykonawca as string | undefined
+        if (!wyk || !wykonawcaFilter.includes(wyk)) return false
+      }
       return true
     })
-  }, [categoryFilteredOrders, sourceFilter])
+  }, [categoryFilteredOrders, sourceFilter, wykonawcaFilter])
 
   const sourceFilterCounts = useMemo(
     () => ({
@@ -1229,6 +1395,13 @@ function App() {
   const isArchiveTab = activeTab === 'Archiwum'
   const isShippingTab = activeTab === 'Wysyłka'
   const isMyStationTab = activeTab === 'Moje stanowisko'
+  const isZamawianiTab = activeTab === 'Zamawianie'
+  const isInwentaryzacjaTab = activeTab === 'Inwentaryzacja'
+  const isLabelsTab = activeTab === 'Etykiety'
+  const isHelpTab = activeTab === 'Pomoc'
+  const isFeedbackTab = activeTab === 'Zgłoszenia'
+  const [printLabelOrder, setPrintLabelOrder] = useState<Order | null>(null)
+  const isPulpitTab = activeTab === 'Pulpit'
 
   const handleDeleteWarehouseComponent = useCallback(
     async (id: number) => {
@@ -1254,12 +1427,12 @@ function App() {
 
       await fetchWarehouseComponents()
       // Odśwież też widok stanów jeśli jest otwarty
-      if (isWarehouseTab) {
+      if (isWarehouseDataTab) {
         await fetchWarehouseStock()
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pushToast, fetchWarehouseComponents, fetchWarehouseStock, isWarehouseTab],
+    [pushToast, fetchWarehouseComponents, fetchWarehouseStock, isWarehouseDataTab],
   )
 
   const usesStructuredOrderForm =
@@ -1307,6 +1480,9 @@ function App() {
       isArchiveTab ||
       isMyStationTab ||
       isShippingTab ||
+      isZamawianiTab ||
+      isInwentaryzacjaTab ||
+      isPulpitTab ||
       loading
     )
       return
@@ -1347,6 +1523,9 @@ function App() {
       isArchiveTab ||
       isMyStationTab ||
       isShippingTab ||
+      isZamawianiTab ||
+      isInwentaryzacjaTab ||
+      isPulpitTab ||
       loading
     )
       return
@@ -1409,16 +1588,15 @@ function App() {
 
   const visibleTabs = useMemo(() => {
     if (!currentUser) return [] as (typeof TABS)[number][]
-    return tabsForUserDepartment(currentUser.department, isManager, currentUser.role)
+    return tabsForUserDepartment(currentUser.department, isManager, currentUser.role, currentUser.categories)
   }, [currentUser, isManager])
 
   useEffect(() => {
     if (!currentUser) return
-    if ((activeTab === 'Statystyki' || activeTab === 'Wysyłka' || activeTab === 'Weryfikacja') && !isManager) {
-      const allowedTabs = tabsForUserDepartment(currentUser.department, isManager, currentUser.role)
-      setActiveTab(allowedTabs[0] ?? 'STA')
+    if (visibleTabs.length > 0 && !visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0])
     }
-  }, [activeTab, isManager, currentUser])
+  }, [activeTab, currentUser, visibleTabs])
 
   useEffect(() => {
     if (!currentUser) return
@@ -1433,6 +1611,11 @@ function App() {
       return
     }
     if (didSetDefaultTabRef.current) return
+    if (isManagerRole(currentUser.role)) {
+      setActiveTab('Pulpit')
+      didSetDefaultTabRef.current = true
+      return
+    }
     if (currentUser.role !== 'worker') {
       didSetDefaultTabRef.current = true
       return
@@ -1460,6 +1643,12 @@ function App() {
       void fetchMyStationOrders()
     }
   }, [activeTab, fetchMyWorkerStages, fetchMyStationOrders])
+
+  // Pracownik produkcji potrzebuje swoich przypisanych etapów wszędzie (gating w tabelach),
+  // nie tylko na „Moje stanowisko".
+  useEffect(() => {
+    if (currentUser?.role === 'pracownik_produkcji') void fetchMyWorkerStages()
+  }, [currentUser?.id, currentUser?.role, fetchMyWorkerStages])
 
   useEffect(() => {
     const ids = orders.map((o) => o.id).filter((x): x is number => x !== undefined)
@@ -1515,27 +1704,27 @@ function App() {
   }, [showComplaintForm, activeTab, touchSession])
 
   useEffect(() => {
-    if (!isWarehouseTab) return
+    if (!isWarehouseDataTab) return
     void fetchWarehouseComponents()
-  }, [isWarehouseTab, fetchWarehouseComponents])
+  }, [isWarehouseDataTab, fetchWarehouseComponents])
 
   useEffect(() => {
-    if (isWarehouseTab) {
+    if (isWarehouseDataTab) {
       void fetchWarehouses()
     }
-  }, [isWarehouseTab, fetchWarehouses])
+  }, [isWarehouseDataTab, fetchWarehouses])
 
   useEffect(() => {
-    if (isWarehouseTab) {
+    if (isWarehouseDataTab) {
       void fetchWarehouseStock()
     }
-  }, [isWarehouseTab, fetchWarehouseStock])
+  }, [isWarehouseDataTab, fetchWarehouseStock])
 
   useEffect(() => {
-    if (isWarehouseTab) {
+    if (isWarehouseDataTab) {
       void fetchSmartRop()
     }
-  }, [isWarehouseTab, fetchSmartRop])
+  }, [isWarehouseDataTab, fetchSmartRop])
 
   useEffect(() => {
     if (isWarehouseTab) {
@@ -1718,9 +1907,10 @@ function App() {
   if (!authReady) {
     return (
       <>
+        <UpdateBlocker />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <div className="auth-boot-screen" role="status">
-          <p>Ładowanie…</p>
+          <Spinner center label="Ładowanie…" />
         </div>
       </>
     )
@@ -1729,6 +1919,7 @@ function App() {
   if (!authSession) {
     return (
       <>
+        <UpdateBlocker />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <LoginScreen
           username={loginUsername}
@@ -1745,16 +1936,25 @@ function App() {
   if (currentUser === null) {
     return (
       <>
+        <UpdateBlocker />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <div className="auth-boot-screen" role="status">
-          <p>Ładowanie profilu…</p>
+          <Spinner center label="Ładowanie profilu…" />
         </div>
       </>
     )
   }
 
+  const overdueCount = isManager
+    ? orders.filter((o) => getOrderAgeStatus(o, leadTimeRules) === 'overdue').length
+    : 0
+  const warningCount = isManager
+    ? orders.filter((o) => getOrderAgeStatus(o, leadTimeRules) === 'warning').length
+    : 0
+
   return (
     <>
+      <UpdateBlocker />
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       {globalLoading && <GlobalSpinner />}
       {deleteConfirm && (
@@ -1802,6 +2002,11 @@ function App() {
         onExtend={handleExtendSession}
         onLogout={() => void handleAutoLogout()}
       />
+      <GlobalSearch
+        open={globalSearchOpen}
+        onClose={() => setGlobalSearchOpen(false)}
+        onNavigate={handleGlobalSearchNavigate}
+      />
       <OrderHistoryModal
         open={historyModal.open}
         orderId={historyModal.orderId}
@@ -1817,6 +2022,9 @@ function App() {
             : null
         }
         glassAllowances={glassAllowances}
+        currentUserId={currentUser?.id ?? ''}
+        currentUserInitials={currentUser?.initials ?? ''}
+        pushToast={pushToast}
         onClose={() => setShippingDetailsModal({ open: false, order: null })}
       />
       <WorkerStagesModal
@@ -1831,8 +2039,10 @@ function App() {
         open={commentsPanelState.open}
         orderId={commentsPanelState.orderId}
         orderNumber={commentsPanelState.orderNumber}
+        orderCategory={commentsPanelState.orderCategory}
         currentUserId={currentUser?.id ?? ''}
         currentUserRole={currentUser?.role ?? ''}
+        profiles={profilesList.map((p) => ({ id: p.id, full_name: p.full_name ?? '' }))}
         onClose={handleCloseCommentsPanel}
         onCountChange={handleCommentsCountChange}
       />
@@ -1863,12 +2073,11 @@ function App() {
           order={internalDoorDetailsModal.order}
           items={internalDoorItems.filter((it) => it.order_id === internalDoorDetailsModal.order!.id)}
           currentUser={{
-            role:
-              currentUser?.role === 'manager'
-                ? 'manager'
-                : currentUser?.role === 'sprzedawca'
-                  ? 'sprzedawca'
-                  : 'worker',
+            role: isManagerRole(currentUser?.role)
+              ? 'manager'
+              : currentUser?.role === 'sprzedawca' || currentUser?.role === 'obsluga_klienta'
+                ? 'sprzedawca'
+                : 'worker',
             department: currentUser?.department ?? 'all',
             id: currentUser?.id ?? '',
             initials: currentUser?.initials ?? '',
@@ -1893,6 +2102,8 @@ function App() {
         activeTab={activeTab}
         onChange={(tab) => setActiveTab(tab as (typeof TABS)[number])}
         reviewCount={ordersNeedingReview.length}
+        warehouseAlertsCount={alertsBadgeCount}
+        overdueCount={overdueCount + warningCount}
       />
       <div className="app-content">
         <AppHeader
@@ -1909,12 +2120,19 @@ function App() {
           isShippingTab={isShippingTab}
           isApiKeysTab={isApiKeysTab}
           currentUserFullName={currentUser?.full_name ?? ''}
+          currentUserId={currentUser?.id ?? ''}
+          onNavigateTab={(tab) => setActiveTab(tab as (typeof TABS)[number])}
           onAddContractor={openAddContractorModal}
           onAddUser={openAddUserModal}
           onNewOrder={activeTab === 'DrzwiWewnetrzne' ? openCreateInternalDoorOrder : openNewOrderModal}
           onSignOut={() => void handleSignOut()}
         />
         <UpdateBanner />
+        <OverdueBanner
+          overdueCount={overdueCount}
+          warningCount={warningCount}
+          onNavigateToShipping={() => setActiveTab('Wysyłka')}
+        />
         <main className="app-main">
 
         {!isCompaniesTab &&
@@ -1927,12 +2145,19 @@ function App() {
           !isArchiveTab &&
           !isMyStationTab &&
           !isShippingTab &&
+          !isZamawianiTab &&
+          !isInwentaryzacjaTab &&
+          !isLabelsTab &&
+          !isHelpTab &&
+          !isFeedbackTab &&
+          !isPulpitTab &&
           isModalOpen && (
           <OrderFormModal
             {...{
               activeTab,
               usesStructuredOrderForm,
               onRequestClose: handleRequestCloseOrderModal,
+              onPrintLabel: (o: Order) => setPrintLabelOrder(o),
               editingOrderId,
               editingOrderBaseline,
               newOrderFormNumber,
@@ -1983,8 +2208,26 @@ function App() {
               handleFormChange,
               legacyExclusionFormData,
               isSaving,
+              allCompanies: companies,
+              onSaveCompanyAlias: handleSaveCompanyAlias,
+              onCreateCompany: handleCreateCompanyFromName,
+              onDuplicate: editingOrderBaseline
+                ? () => void handleDuplicateOrder(editingOrderBaseline)
+                : undefined,
             }}
           />
+        )}
+
+        {printLabelOrder && (
+          <PrintLabelModal
+            order={printLabelOrder}
+            onClose={() => setPrintLabelOrder(null)}
+            pushToast={pushToast}
+          />
+        )}
+
+        {!isFeedbackTab && (
+          <FeedbackFab currentUser={currentUser} page={activeTab} pushToast={pushToast} />
         )}
 
         {recipeEditorOpen && (
@@ -2099,6 +2342,7 @@ function App() {
             formData={pzFormData}
             warehouses={warehouses}
             components={warehouseComponents}
+            suppliers={suppliers}
             onChange={handlePzFormChange}
             onItemChange={handlePzItemChange}
             onAddItem={handleAddPzItem}
@@ -2213,7 +2457,14 @@ function App() {
           submitOnEnterInInput={submitOnEnterInInput}
         />
 
-        {isCompaniesTab ? (
+        {isPulpitTab ? (
+          <DashboardView
+            currentUserFullName={currentUser?.full_name ?? ''}
+            reviewCount={ordersNeedingReview.length}
+            alertsBadgeCount={alertsBadgeCount}
+            onNavigate={(tab) => setActiveTab(tab as (typeof TABS)[number])}
+          />
+        ) : isCompaniesTab ? (
           <>
             <div className="orders-filters">
               <input
@@ -2232,7 +2483,7 @@ function App() {
               onDeleteCompany={handleDeleteContractor}
             />
           </>
-        ) : isConfigTab ? (
+        ) : isConfigTab && isManager ? (
           <ConfigView
             activeConfigSubTab={activeConfigSubTab}
             setActiveConfigSubTab={setActiveConfigSubTab}
@@ -2296,9 +2547,14 @@ function App() {
             onCompanySettingsSaved={() => {
               void fetchCompanySettings()
             }}
+            leadTimeRules={leadTimeRules}
+            fetchLeadTimeRules={fetchLeadTimeRules}
+            onSaveLeadTimeRule={handleSaveLeadTimeRule}
+            onDeleteLeadTimeRule={handleDeleteLeadTimeRule}
+            onToggleLeadTimeRuleActive={handleToggleLeadTimeRuleActive}
             pushToast={pushToast}
           />
-        ) : isUsersTab ? (
+        ) : isUsersTab && isManager ? (
           <UsersView
             profilesLoading={profilesLoading}
             profiles={profilesList}
@@ -2325,7 +2581,7 @@ function App() {
             openGenerateModal={openGenerateModal}
             closeGenerateModal={closeGenerateModal}
           />
-        ) : isStatsTab ? (
+        ) : isStatsTab && isManager ? (
           <StatsView
             orders={statsOrders}
             complaints={statsComplaints}
@@ -2378,7 +2634,146 @@ function App() {
             rushUpdatingOrderId={rushUpdatingOrderId}
             isManager={isManager}
             glassAllowances={glassAllowances}
+            leadTimeRules={leadTimeRules}
           />
+        ) : isZamawianiTab ? (
+          <WarehouseView
+            isManager={isManager}
+            activeSubTab="Zamawianie"
+            onSubTabChange={() => {}}
+            hideSubTabs
+            warehouses={warehouses}
+            stock={warehouseStock}
+            stockLoading={warehouseStockLoading}
+            components={warehouseComponents}
+            componentsLoading={warehouseComponentsLoading}
+            onCreateComponent={handleCreateWarehouseComponent}
+            onUpdateComponent={handleUpdateWarehouseComponent}
+            onSetComponentWarehouses={handleSetComponentWarehouses}
+            onCleanupStock={handleCleanupOrphanStock}
+            onDeleteComponent={handleDeleteWarehouseComponent}
+            onAddDoorComponent={openAddDoorComponent}
+            onEditDoorComponent={openEditDoorComponent}
+            onShowHistory={openComponentHistory}
+            editRequestComponent={warehouseEditRequestComponent}
+            onEditRequestHandled={() => setWarehouseEditRequestComponent(null)}
+            recipes={warehouseRecipes}
+            recipesLoading={warehouseRecipesLoading}
+            onCreateRecipe={handleOpenRecipeEditor}
+            onEditRecipe={handleEditRecipe}
+            onDeleteRecipe={handleDeleteRecipe}
+            onToggleRecipeActive={handleToggleRecipeActive}
+            showDeleted={showDeletedRecipes}
+            onToggleShowDeleted={setShowDeletedRecipes}
+            onRestore={handleRestoreRecipe}
+            movements={warehouseMovements}
+            movementsLoading={warehouseMovementsLoading}
+            pzGroups={pzGroups}
+            pzGroupsLoading={pzGroupsLoading}
+            onPzCreate={handleOpenPzForm}
+            onPzPreview={handlePzPreview}
+            mmGroups={mmGroups}
+            mmGroupsLoading={mmGroupsLoading}
+            onMmCreate={handleOpenMmForm}
+            onMmPreview={handleMmPreview}
+            monthlyConsumption={monthlyConsumption}
+            monthlyConsumptionMonths={monthlyConsumptionMonths}
+            monthlyConsumptionLoading={monthlyConsumptionLoading}
+            monthlyConsumptionRange={monthlyConsumptionRange}
+            onMonthlyConsumptionRefresh={() => void fetchMonthlyConsumption(monthlyConsumptionRange)}
+            onMonthlyConsumptionRangeChange={setMonthlyConsumptionRange}
+            alertsBadgeCount={alertsBadgeCount}
+            suppliers={suppliers}
+            canSeeReorderTab={canSeeReorderTab}
+            canSeePurchaseOrdersTab={canSeePurchaseOrdersTab}
+            shoppingList={shoppingList}
+            smartRopData={smartRopData}
+            smartRopLoading={smartRopLoading}
+            onAddToShoppingList={handleAddToShoppingList}
+            onOpenShoppingList={() => setShoppingListModalOpen(true)}
+            onEditComponent={openComponentEditFromDashboard}
+            purchaseOrders={purchaseOrders}
+            purchaseOrderItems={purchaseOrderItems}
+            purchaseOrdersLoading={purchaseOrdersLoading}
+            companySettings={companySettings}
+            currentUser={currentUser}
+            onShowPurchaseOrderDetails={openPoDetails}
+            pushToast={pushToast}
+          />
+        ) : isInwentaryzacjaTab ? (
+          <WarehouseView
+            isManager={isManager}
+            activeSubTab="Inwentaryzacja"
+            onSubTabChange={() => {}}
+            hideSubTabs
+            warehouses={warehouses}
+            stock={warehouseStock}
+            stockLoading={warehouseStockLoading}
+            components={warehouseComponents}
+            componentsLoading={warehouseComponentsLoading}
+            onCreateComponent={handleCreateWarehouseComponent}
+            onUpdateComponent={handleUpdateWarehouseComponent}
+            onSetComponentWarehouses={handleSetComponentWarehouses}
+            onCleanupStock={handleCleanupOrphanStock}
+            onDeleteComponent={handleDeleteWarehouseComponent}
+            onAddDoorComponent={openAddDoorComponent}
+            onEditDoorComponent={openEditDoorComponent}
+            onShowHistory={openComponentHistory}
+            editRequestComponent={warehouseEditRequestComponent}
+            onEditRequestHandled={() => setWarehouseEditRequestComponent(null)}
+            recipes={warehouseRecipes}
+            recipesLoading={warehouseRecipesLoading}
+            onCreateRecipe={handleOpenRecipeEditor}
+            onEditRecipe={handleEditRecipe}
+            onDeleteRecipe={handleDeleteRecipe}
+            onToggleRecipeActive={handleToggleRecipeActive}
+            showDeleted={showDeletedRecipes}
+            onToggleShowDeleted={setShowDeletedRecipes}
+            onRestore={handleRestoreRecipe}
+            movements={warehouseMovements}
+            movementsLoading={warehouseMovementsLoading}
+            pzGroups={pzGroups}
+            pzGroupsLoading={pzGroupsLoading}
+            onPzCreate={handleOpenPzForm}
+            onPzPreview={handlePzPreview}
+            mmGroups={mmGroups}
+            mmGroupsLoading={mmGroupsLoading}
+            onMmCreate={handleOpenMmForm}
+            onMmPreview={handleMmPreview}
+            monthlyConsumption={monthlyConsumption}
+            monthlyConsumptionMonths={monthlyConsumptionMonths}
+            monthlyConsumptionLoading={monthlyConsumptionLoading}
+            monthlyConsumptionRange={monthlyConsumptionRange}
+            onMonthlyConsumptionRefresh={() => void fetchMonthlyConsumption(monthlyConsumptionRange)}
+            onMonthlyConsumptionRangeChange={setMonthlyConsumptionRange}
+            alertsBadgeCount={alertsBadgeCount}
+            suppliers={suppliers}
+            canSeeReorderTab={canSeeReorderTab}
+            canSeePurchaseOrdersTab={canSeePurchaseOrdersTab}
+            shoppingList={shoppingList}
+            smartRopData={smartRopData}
+            smartRopLoading={smartRopLoading}
+            onAddToShoppingList={handleAddToShoppingList}
+            onOpenShoppingList={() => setShoppingListModalOpen(true)}
+            onEditComponent={openComponentEditFromDashboard}
+            purchaseOrders={purchaseOrders}
+            purchaseOrderItems={purchaseOrderItems}
+            purchaseOrdersLoading={purchaseOrdersLoading}
+            companySettings={companySettings}
+            currentUser={currentUser}
+            onShowPurchaseOrderDetails={openPoDetails}
+            pushToast={pushToast}
+          />
+        ) : isLabelsTab ? (
+          <LabelsView
+            isManager={isManager}
+            currentUser={currentUser}
+            pushToast={pushToast}
+          />
+        ) : isHelpTab ? (
+          <HelpView />
+        ) : isFeedbackTab ? (
+          <FeedbackView isManager={isManager} currentUser={currentUser} pushToast={pushToast} />
         ) : isWarehouseTab ? (
           <WarehouseView
             isManager={isManager}
@@ -2391,6 +2786,8 @@ function App() {
             componentsLoading={warehouseComponentsLoading}
             onCreateComponent={handleCreateWarehouseComponent}
             onUpdateComponent={handleUpdateWarehouseComponent}
+            onSetComponentWarehouses={handleSetComponentWarehouses}
+            onCleanupStock={handleCleanupOrphanStock}
             onDeleteComponent={handleDeleteWarehouseComponent}
             onAddDoorComponent={openAddDoorComponent}
             onEditDoorComponent={openEditDoorComponent}
@@ -2451,16 +2848,35 @@ function App() {
               sourceFilter={sourceFilter}
               sourceFilterCounts={sourceFilterCounts}
               showSourceFilter={['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'].includes(activeTab)}
-              onSearchChange={setSearchTerm}
-              onDayChange={setSelectedProductionDay}
-              onHideCompletedChange={setHideCompletedOrders}
-              onShowCancelledChange={setShowCancelledOrders}
-              onSourceFilterChange={setSourceFilter}
+              wykonawcaFilter={wykonawcaFilter}
+              showWykonawcaFilter={activeTab === 'STA' || activeTab === 'Disting'}
+              onSearchChange={(v) => startFilterTransition(() => setSearchTerm(v))}
+              onDayChange={(v) => startFilterTransition(() => setSelectedProductionDay(v))}
+              onHideCompletedChange={(v) => startFilterTransition(() => setHideCompletedOrders(v))}
+              onShowCancelledChange={(v) => startFilterTransition(() => setShowCancelledOrders(v))}
+              onSourceFilterChange={(v) => startFilterTransition(() => setSourceFilter(v))}
+              onWykonawcaFilterChange={(v) => startFilterTransition(() => setWykonawcaFilter(v))}
             />
+            {!loading && orders.length > 0 && (
+              <div className="orders-count-bar">
+                {isFilterPending ? (
+                  <span className="orders-count-bar--filtering">Filtrowanie…</span>
+                ) : filteredOrders.length === orders.length
+                  ? <span>Zamówień: <strong>{orders.length}</strong></span>
+                  : <span>Wyświetlane: <strong>{filteredOrders.length}</strong> z <strong>{orders.length}</strong></span>
+                }
+              </div>
+            )}
             {loading ? (
-              <p className="no-results">Ładowanie zamówień...</p>
+              <Spinner center label="Ładowanie zamówień…" />
             ) : (
-              <>
+              <div style={{ position: 'relative' }}>
+                {isFilterPending && (
+                  <div className="filter-overlay">
+                    <div className="filter-overlay-spinner" />
+                  </div>
+                )}
+
                 {['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'].includes(activeTab) && (
                   <div className="subtab-bar">
                     <button
@@ -2508,6 +2924,7 @@ function App() {
                     tableWrapperRef={ordersTableWrapperRef}
                     orderStageColumnDefs={orderStageColumnDefs}
                     isManager={isManager}
+                    canSeePrices={canSeePrices}
                     productionStageUpdating={productionStageUpdating}
                     releaseDateUpdating={releaseDateUpdating}
                     rushUpdatingOrderId={rushUpdatingOrderId}
@@ -2518,9 +2935,10 @@ function App() {
                     onOpenCommentsPanel={handleOpenCommentsPanel}
                     openEditOrderModal={openEditOrderModal}
                     handleRushToggle={handleRushToggle}
-                    markProductionStageWithProfileInitials={markProductionStageWithProfileInitials}
-                    setStageRevertTarget={(target) => setStageRevertTarget(target)}
+                    markProductionStageWithProfileInitials={guardedMarkProductionStage}
+                    setStageRevertTarget={(target) => guardedSetStageRevertTarget(target)}
                     applyReleaseDateUpdate={applyReleaseDateUpdate}
+                    onToggleOscReceived={toggleOscReceived}
                     setReleaseClearTarget={(target) => setReleaseClearTarget(target)}
                     handleDistingStaSheetNavigate={handleDistingStaSheetNavigate}
                     handleStaDistingSheetNavigate={handleStaDistingSheetNavigate}
@@ -2533,7 +2951,9 @@ function App() {
                 {activeTab === 'Bastion' && (
                   <BastionOrdersTableView
                     filteredOrders={filteredOrders}
+                    linkedOrders={linkedOrders}
                     isManager={isManager}
+                    canSeePrices={canSeePrices}
                     productionStageUpdating={productionStageUpdating}
                     releaseDateUpdating={releaseDateUpdating}
                     rushUpdatingOrderId={rushUpdatingOrderId}
@@ -2543,8 +2963,8 @@ function App() {
                     tableWrapperRef={ordersTableWrapperRef}
                     openEditOrderModal={openEditOrderModal}
                     handleRushToggle={handleRushToggle}
-                    markProductionStageWithProfileInitials={markProductionStageWithProfileInitials}
-                    setStageRevertTarget={(target) => setStageRevertTarget(target)}
+                    markProductionStageWithProfileInitials={guardedMarkProductionStage}
+                    setStageRevertTarget={(target) => guardedSetStageRevertTarget(target)}
                     applyReleaseDateUpdate={applyReleaseDateUpdate}
                     setReleaseClearTarget={(target) => setReleaseClearTarget(target)}
                     handleCancelOrderClick={handleCancelOrderClick}
@@ -2564,6 +2984,7 @@ function App() {
                     stOrdersStageLayout={stOrdersStageLayout}
                     tableWrapperRef={ordersTableWrapperRef}
                     isManager={isManager}
+                    canSeePrices={canSeePrices}
                     releaseDateUpdating={releaseDateUpdating}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     productionStageUpdating={productionStageUpdating}
@@ -2572,8 +2993,8 @@ function App() {
                     onOpenCommentsPanel={handleOpenCommentsPanel}
                     onOpenEditOrderModal={openEditOrderModal}
                     onHandleRushToggle={handleRushToggle}
-                    onMarkProductionStageWithProfileInitials={markProductionStageWithProfileInitials}
-                    onSetStageRevertTarget={(target) => setStageRevertTarget(target)}
+                    onMarkProductionStageWithProfileInitials={guardedMarkProductionStage}
+                    onSetStageRevertTarget={(target) => guardedSetStageRevertTarget(target)}
                     onApplyReleaseDateUpdate={applyReleaseDateUpdate}
                     onSetReleaseClearTarget={(target) => setReleaseClearTarget(target)}
                     onHandleStTitanStaSheetNavigate={handleStTitanStaSheetNavigate}
@@ -2588,6 +3009,7 @@ function App() {
                     filteredOrders={filteredOrders}
                     tableWrapperRef={ordersTableWrapperRef}
                     isManager={isManager}
+                    canSeePrices={canSeePrices}
                     releaseDateUpdating={releaseDateUpdating}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     glassAllowances={glassAllowances}
@@ -2650,7 +3072,9 @@ function App() {
                   <>
                     <BastionOrdersTableView
                       filteredOrders={bastionBatchOrders}
+                      linkedOrders={linkedOrders}
                       isManager={isManager}
+                      canSeePrices={canSeePrices}
                       productionStageUpdating={productionStageUpdating}
                       releaseDateUpdating={releaseDateUpdating}
                       rushUpdatingOrderId={rushUpdatingOrderId}
@@ -2660,8 +3084,8 @@ function App() {
                       tableWrapperRef={ordersTableWrapperRef}
                       openEditOrderModal={openEditOrderModal}
                       handleRushToggle={handleRushToggle}
-                      markProductionStageWithProfileInitials={markProductionStageWithProfileInitials}
-                      setStageRevertTarget={(target) => setStageRevertTarget(target)}
+                      markProductionStageWithProfileInitials={guardedMarkProductionStage}
+                      setStageRevertTarget={(target) => guardedSetStageRevertTarget(target)}
                       applyReleaseDateUpdate={applyReleaseDateUpdate}
                       setReleaseClearTarget={(target) => setReleaseClearTarget(target)}
                       handleCancelOrderClick={handleCancelOrderClick}
@@ -2679,7 +3103,7 @@ function App() {
                     )}
                   </>
                 )}
-              </>
+              </div>
             )}
           </>
         )}

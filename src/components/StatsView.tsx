@@ -4,6 +4,8 @@ import type { Complaint, InternalDoorItem, Order, StatsSubTab } from '../types'
 import CategoryStatsDashboard from './stats/CategoryStatsDashboard'
 import ComplaintsStatsDashboard from './stats/ComplaintsStatsDashboard'
 import InternalDoorStatsDashboard from './stats/InternalDoorStatsDashboard'
+import ProductivityView from './stats/ProductivityView'
+import LeadTimeStatsView from './stats/LeadTimeStatsView'
 
 type StatsViewProps = {
   orders: Order[]
@@ -57,6 +59,8 @@ function StatsView({
           itemsLoading={internalDoorItemsLoading}
         />
       )}
+      {activeSubTab === 'Produktywność' && <ProductivityView />}
+      {activeSubTab === 'Czas realizacji' && <LeadTimeStatsView />}
     </div>
   )
 }

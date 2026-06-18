@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PzGroupRow, Warehouse } from '../../types'
+import Spinner from '../Spinner'
 
 type PzViewProps = {
   pzGroups: PzGroupRow[]
@@ -102,7 +103,7 @@ function PzView({ pzGroups, loading, isManager, warehouses, onCreate, onPreview 
       </div>
 
       {loading ? (
-        <p className="no-results">Ładowanie…</p>
+        <Spinner center label="Ładowanie…" />
       ) : (
         <div className="table-wrapper">
           <table className="orders-table">

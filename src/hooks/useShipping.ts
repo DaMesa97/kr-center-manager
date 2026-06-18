@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { isReleaseDateEmpty } from '../utils'
 import type { Order } from '../types'
@@ -14,6 +14,15 @@ type UseShippingParams = {
     React.SetStateAction<{ open: boolean; order: Order | null }>
   >
   handleRushToggle: (order: Order, checked: boolean) => Promise<void>
+  isActive: boolean
+}
+
+/** Zamówienie widoczne w Wysyłce (nie anulowane, nie wydane) */
+function passesShippingFilter(o: Order): boolean {
+  const extra = o.extra_fields as Record<string, unknown> | null
+  if (extra?.cancelled === true) return false
+  if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
+  return true
 }
 
 export function useShipping({
@@ -22,6 +31,7 @@ export function useShipping({
   fetchInternalDoorItemsForVisibleOrders,
   setInternalDoorDetailsModal,
   handleRushToggle,
+  isActive,
 }: UseShippingParams) {
   const [shippingOrders, setShippingOrders] = useState<Order[]>([])
   const [shippingOrdersLoading, setShippingOrdersLoading] = useState(false)
@@ -41,6 +51,7 @@ export function useShipping({
       supabase
         .from('orders')
         .select('*')
+        .is('release_date', null)
         .order('category', { ascending: true })
         .order('order_number', { ascending: false })
         .limit(2000),
@@ -131,6 +142,62 @@ export function useShipping({
     },
     [setInternalDoorDetailsModal],
   )
+
+  // ── Realtime ─────────────────────────────────────────────────────────────────
+  // Ref do aktualnego stanu zamówień, żeby handler nie "zamrażał" closury
+  const shippingOrdersRef = useRef<Order[]>([])
+  shippingOrdersRef.current = shippingOrders
+
+  useEffect(() => {
+    if (!isActive) return
+
+    const channel = supabase
+      .channel('shipping:orders:realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as { id?: number }).id
+            if (deletedId === undefined) return
+            setShippingOrders((prev) => prev.filter((o) => o.id !== deletedId))
+            return
+          }
+
+          const updated = payload.new as Order
+
+          if (payload.eventType === 'INSERT') {
+            if (!passesShippingFilter(updated)) return
+            setShippingOrders((prev) => {
+              if (prev.some((o) => o.id === updated.id)) return prev
+              return [updated, ...prev]
+            })
+            return
+          }
+
+          if (payload.eventType === 'UPDATE') {
+            const passes = passesShippingFilter(updated)
+            setShippingOrders((prev) => {
+              const exists = prev.some((o) => o.id === updated.id)
+              if (!passes) {
+                // zamówienie zostało wydane / anulowane → usuń z listy
+                return prev.filter((o) => o.id !== updated.id)
+              }
+              if (exists) {
+                return prev.map((o) => (o.id === updated.id ? updated : o))
+              }
+              // nowe zamówienie, które teraz pasuje do filtra (np. release_date wyczyszczona)
+              return [updated, ...prev]
+            })
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [isActive])
 
   return {
     shippingOrders,

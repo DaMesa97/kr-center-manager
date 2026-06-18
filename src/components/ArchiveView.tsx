@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import ArchivedOrderDetailsModal from './ArchivedOrderDetailsModal'
 import type { ArchivedOrder, ArchiveRunLog } from '../types'
+import Spinner from './Spinner'
 
 type ArchiveViewProps = {
   orders: ArchivedOrder[]
@@ -47,7 +48,7 @@ export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCre
       if (filters.category && o.category !== filters.category) return false
       if (filters.company && !o.company.toLowerCase().includes(filters.company.toLowerCase())) return false
       if (filters.dateFrom && o.created_at && o.created_at < filters.dateFrom) return false
-      if (filters.dateTo && o.created_at && o.created_at > `${filters.dateTo}T23:59:59`) return false
+      if (filters.dateTo && o.created_at && o.created_at > `${filters.dateTo}T23:59:59.999`) return false
       if (q) {
         const hit =
           o.order_number.toLowerCase().includes(q) ||
@@ -128,7 +129,7 @@ export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCre
       </div>
 
       {loading ? (
-        <p className="no-results">Ładowanie archiwum...</p>
+        <Spinner center label="Ładowanie archiwum…" />
       ) : (
         <div className="table-wrapper">
           <table className="orders-table audit-table">

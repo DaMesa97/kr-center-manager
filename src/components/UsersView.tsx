@@ -1,4 +1,5 @@
 import type { DbProfileRow } from '../types'
+import Spinner from './Spinner'
 
 type UsersViewProps = {
   profilesLoading: boolean
@@ -24,7 +25,7 @@ export default function UsersView({
   return (
     <>
       {profilesLoading ? (
-        <p className="no-results">Ładowanie użytkowników...</p>
+        <Spinner center label="Ładowanie użytkowników…" />
       ) : (
         <div className="table-wrapper">
           <table className="orders-table contractors-table users-table">
@@ -33,7 +34,7 @@ export default function UsersView({
                 <th>Imię i nazwisko</th>
                 <th>Inicjały</th>
                 <th>Rola</th>
-                <th>Dział</th>
+                <th>Kategorie / Dział</th>
                 <th>Akcje</th>
               </tr>
             </thead>
@@ -43,10 +44,14 @@ export default function UsersView({
                   <td>{row.full_name}</td>
                   <td>{row.initials}</td>
                   <td>{getRoleLabel(row.role)}</td>
-                  <td>{getDepartmentLabel(row.department, row.role)}</td>
+                  <td>
+                    {row.categories && row.categories.length > 0
+                      ? row.categories.join(', ')
+                      : getDepartmentLabel(row.department, row.role)}
+                  </td>
                   <td>
                     <div className="contractor-actions">
-                      {row.role === 'worker' && (
+                      {(row.role === 'pracownik_produkcji' || row.role === 'worker') && (
                         <button
                           type="button"
                           className="btn btn-sm btn-primary"

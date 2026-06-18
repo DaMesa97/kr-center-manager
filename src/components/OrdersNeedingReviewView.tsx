@@ -1,4 +1,5 @@
 import type { OrderNeedingReview } from '../types'
+import Spinner from './Spinner'
 
 type Props = {
   orders: OrderNeedingReview[]
@@ -35,7 +36,7 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
       </div>
 
       {loading ? (
-        <p className="no-results">Ładowanie listy weryfikacji...</p>
+        <Spinner center label="Ładowanie listy weryfikacji…" />
       ) : orders.length === 0 ? (
         <p className="no-results">🎉 Brak zamówień do weryfikacji! Wszystko czyste.</p>
       ) : (

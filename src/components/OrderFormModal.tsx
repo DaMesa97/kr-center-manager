@@ -6,6 +6,7 @@ import SearchableConfigSelect from './SearchableConfigSelect'
 import CompanyAutocomplete from './CompanyAutocomplete'
 import FormInput from './FormInput'
 import { getBotMetadata, getBotWarnings, isBotOrder } from '../utils/botOrder'
+import { findBestCompanyMatch, isCompanyInBase } from '../utils'
 
 type OrderFormModalProps = Record<string, unknown>
 
@@ -14,6 +15,7 @@ function OrderFormModal(props: OrderFormModalProps) {
     activeTab,
     usesStructuredOrderForm,
     onRequestClose,
+    onPrintLabel,
     editingOrderId,
     editingOrderBaseline,
     newOrderFormNumber,
@@ -63,7 +65,55 @@ function OrderFormModal(props: OrderFormModalProps) {
     handleFormChange,
     legacyExclusionFormData,
     isSaving,
+    onDuplicate,
+    allCompanies,
+    onSaveCompanyAlias,
+    onCreateCompany,
   } = props
+
+  // Ostrzeżenie o niedopasowanej firmie (gł. zamówienia z BOT-a) — tylko przy edycji/weryfikacji
+  const companies = (allCompanies ?? []) as Array<{ name: string; production_day?: string; route_day?: string }>
+  const renderCompanyMatchWarning = (
+    companyValue: string,
+    applyMatch: (name: string, productionDay: string) => void,
+  ) => {
+    if (editingOrderId === null) return null
+    if (!companyValue || !companyValue.trim()) return null
+    if (isCompanyInBase(companyValue, companies)) return null
+    const match = findBestCompanyMatch(companyValue, companies)
+    return (
+      <div className="company-match-warning order-field-full--keep">
+        <span className="company-match-warning-text">
+          ⚠️ Firma „{companyValue}" nie jest rozpoznana w bazie kontrahentów — dzień trasy i dane logistyczne mogą się nie wyświetlać.
+        </span>
+        {match && (
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary company-match-btn"
+            onClick={() => {
+              // Zapamiętaj parę (nazwa z BOT → nazwa z bazy) na przyszłość
+              if (typeof onSaveCompanyAlias === 'function') {
+                void onSaveCompanyAlias(companyValue, match.name)
+              }
+              applyMatch(match.name, match.production_day ?? '')
+            }}
+          >
+            Dopasuj do: {match.name}
+          </button>
+        )}
+        {typeof onCreateCompany === 'function' && (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary company-match-btn"
+            onClick={() => void onCreateCompany(companyValue)}
+            title="Dodaj tę firmę do bazy kontrahentów"
+          >
+            + Utwórz kontrahenta „{companyValue}"
+          </button>
+        )}
+      </div>
+    )
+  }
 
   const isFrameRegulated =
     bastionFormData?.frame_type?.toUpperCase().includes('REGULOWANA') ||
@@ -147,9 +197,21 @@ function OrderFormModal(props: OrderFormModalProps) {
                         ? `Nowe zamówienie - nr ${newOrderFormNumber}`
                         : 'Nowe zamówienie'}
                 </h2>
-                <button className="btn btn-icon btn-ghost" onClick={onRequestClose}>
-                  X
-                </button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {editingOrderId !== null && onPrintLabel && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={() => onPrintLabel(editingOrderBaseline)}
+                      title="Drukuj etykietę dla tego zlecenia"
+                    >
+                      🏷️ Drukuj etykietę
+                    </button>
+                  )}
+                  <button className="btn btn-icon btn-ghost" onClick={onRequestClose}>
+                    X
+                  </button>
+                </div>
               </div>
                             {isBotOrder(editingOrderBaseline) && (() => {
                 const meta = getBotMetadata(editingOrderBaseline)
@@ -200,6 +262,35 @@ function OrderFormModal(props: OrderFormModalProps) {
               })()}
 
               {activeTab === 'STA' || activeTab === 'Disting' ? (
+                <>
+                  {/* Wykonawca — na górze, mocno widoczny */}
+                  <div className="wykonawca-picker">
+                    <span className="wykonawca-picker-label">Wykonawca</span>
+                    <div className="wykonawca-picker-buttons">
+                      {[
+                        { value: 'Center', color: '#9b1c1c' },
+                        { value: 'Profil', color: '#16a34a' },
+                        { value: 'WZ',     color: '#0369a1' },
+                      ].map((opt) => {
+                        const active = staFormData.wykonawca === opt.value
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            className="wykonawca-picker-btn"
+                            style={{
+                              background: active ? opt.color : 'transparent',
+                              color: active ? '#fff' : opt.color,
+                              borderColor: opt.color,
+                            }}
+                            onClick={() => handleStaFormChange('wykonawca', active ? '' : opt.value)}
+                          >
+                            {opt.value}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 <div
                   className="order-form-grid order-form-grid--sta"
                   onKeyDown={(e) => submitOnEnterInInput(e, () => void handleSaveOrder())}
@@ -232,6 +323,11 @@ function OrderFormModal(props: OrderFormModalProps) {
                       }
                     />
                   </div>
+
+                  {renderCompanyMatchWarning(staFormData.company, (name, prodDay) => {
+                    handleStaFormChange('company', name)
+                    if (prodDay) handleStaFormChange('production_day', prodDay)
+                  })}
 
                   <label className="order-field-full">
                     <span className="order-field-label-text">Dzień produkcji</span>
@@ -675,7 +771,9 @@ function OrderFormModal(props: OrderFormModalProps) {
                     value={staFormData.client_order_number}
                     onChange={(v) => handleStaFormChange('client_order_number', v)}
                   />
+
                 </div>
+                </>
               ) : activeTab === 'ST' ? (
                 <div
                   className="order-form-grid order-form-grid--sta"
@@ -1676,6 +1774,17 @@ function OrderFormModal(props: OrderFormModalProps) {
               )}
 
               <div className="order-form-actions">
+                {editingOrderId !== null && typeof onDuplicate === 'function' && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => onDuplicate()}
+                    disabled={isSaving}
+                    title="Utwórz nowe zamówienie z tymi samymi parametrami"
+                  >
+                    📋 Duplikuj
+                  </button>
+                )}
                 <button className="btn btn-primary" onClick={handleSaveOrder} disabled={isSaving}>
                   {isSaving
                     ? 'Zapisywanie...'

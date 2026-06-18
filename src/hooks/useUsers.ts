@@ -4,6 +4,28 @@ import { INITIAL_USER_FORM } from '../constants'
 import type { CurrentUser, DbProfileRow, DeleteConfirmState, UserFormState } from '../types'
 import type { ToastVariant } from '../types'
 import type { Session, User } from '@supabase/supabase-js'
+import { isManagerRole } from '../lib/permissions'
+
+// Przy non-2xx supabase-js daje generyczny error.message, a prawdziwy komunikat
+// funkcji jest w error.context (Response). Wyciągamy go, żeby user widział powód.
+async function fnErrorMessage(error: unknown, fallback: string): Promise<string> {
+  const ctx = (error as { context?: unknown })?.context as
+    | { json?: () => Promise<unknown>; text?: () => Promise<string> }
+    | undefined
+  try {
+    if (ctx?.json) {
+      const body = (await ctx.json()) as { error?: string } | null
+      if (body?.error) return String(body.error)
+    }
+  } catch { /* ignore */ }
+  try {
+    if (ctx?.text) {
+      const t = await ctx.text()
+      if (t && t.trim()) return t.trim()
+    }
+  } catch { /* ignore */ }
+  return (error as { message?: string })?.message || fallback
+}
 
 type UseUsersParams = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -30,7 +52,7 @@ export function useUsers({
   const [userForm, setUserForm] = useState<UserFormState>(INITIAL_USER_FORM)
   const [userModalSaving, setUserModalSaving] = useState(false)
 
-  const isManager = currentUser?.role === 'manager'
+  const isManager = isManagerRole(currentUser?.role)
 
   const fetchProfiles = useCallback(async () => {
     touchSession()
@@ -52,6 +74,9 @@ export function useUsers({
           initials: String((r as { initials?: string }).initials ?? ''),
           role: String((r as { role?: string }).role ?? ''),
           department: String((r as { department?: string }).department ?? 'all'),
+          categories: Array.isArray((r as { categories?: string[] }).categories)
+            ? ((r as { categories?: string[] }).categories as string[])
+            : [],
         })),
       )
     }
@@ -75,18 +100,11 @@ export function useUsers({
       full_name: row.full_name,
       initials: row.initials.slice(0, 3),
       password: '',
-      role:
-        row.role === 'manager' ? 'manager' : row.role === 'sprzedawca' ? 'sprzedawca' : 'worker',
-      department:
-        (row.role === 'manager'
-          ? 'all'
-          : row.department === 'bastion'
-            ? 'bastion'
-            : row.department === 'stalowe'
-              ? 'stalowe'
-              : row.department === 'magazyn'
-                ? 'magazyn'
-              : 'all') as UserFormState['department'],
+      role: row.role || 'pracownik_produkcji',
+      department: 'all',
+      categories: Array.isArray((row as { categories?: string[] }).categories)
+        ? ((row as { categories?: string[] }).categories as string[])
+        : [],
     })
     setUserModalOpen(true)
   }
@@ -100,6 +118,7 @@ export function useUsers({
 
   const handleSaveUser = async () => {
     if (!isManager) return
+    if (userModalSaving) return // guard double-submit (duplikat konta)
     const full_name = userForm.full_name.trim()
     const initials = userForm.initials.trim().slice(0, 3)
     if (!full_name || !initials) {
@@ -130,12 +149,9 @@ export function useUsers({
       })
       if (error || (data && typeof data === 'object' && 'error' in data && data.error)) {
         setUserModalSaving(false)
-        pushToast(
-          (data && typeof data === 'object' && 'error' in data && data.error
-            ? String(data.error)
-            : null) || error?.message || 'Błąd tworzenia użytkownika',
-          'error',
-        )
+        const inlineErr = data && typeof data === 'object' && 'error' in data && data.error ? String(data.error) : null
+        const msg = inlineErr || (error ? await fnErrorMessage(error, 'Błąd tworzenia użytkownika') : 'Błąd tworzenia użytkownika')
+        pushToast(msg, 'error')
         return
       }
       const userId = data?.user?.id
@@ -149,7 +165,8 @@ export function useUsers({
         initials,
         full_name,
         role: userForm.role,
-        department: userForm.role === 'manager' ? 'all' : userForm.department,
+        department: 'all',
+        categories: userForm.categories ?? [],
       })
       if (insertError) {
         await supabase.functions.invoke('manage-users', {
@@ -175,7 +192,8 @@ export function useUsers({
         full_name,
         initials,
         role: userForm.role,
-        department: userForm.role === 'manager' ? 'all' : userForm.department,
+        department: 'all',
+        categories: userForm.categories ?? [],
       })
       .eq('id', editingProfileId)
     setUserModalSaving(false)
@@ -207,7 +225,7 @@ export function useUsers({
           },
         )
         if (error) {
-          pushToast(error.message || 'Błąd usuwania', 'error')
+          pushToast(await fnErrorMessage(error, 'Błąd usuwania'), 'error')
           return
         }
         if (data && typeof data === 'object' && 'error' in data && data.error) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
+import Spinner from '../Spinner'
 
 export type DocumentDetailsModalProps = {
   open: boolean
@@ -271,8 +272,8 @@ export default function DocumentDetailsModal({
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '1rem' }}>
-                          Ładowanie…
+                        <td colSpan={5}>
+                          <Spinner center label="Ładowanie…" />
                         </td>
                       </tr>
                     ) : rows.length === 0 ? (

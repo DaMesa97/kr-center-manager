@@ -34,23 +34,36 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
 
   const fetchMyStationOrders = useCallback(async () => {
     setMyStationLoading(true)
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('order_number', { ascending: false })
-      .limit(2000)
+    // Paginacja — przy >2000 zamówień stary limit ucinał część i etapy "znikały".
+    // Pobieramy partiami po id (numerycznie, stabilnie).
+    const all: Order[] = []
+    let from = 0
+    const PAGE = 1000
+    let fetchError: { message: string } | null = null
+    while (true) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('id', { ascending: false })
+        .range(from, from + PAGE - 1)
+      if (error) { fetchError = error; break }
+      if (!data || data.length === 0) break
+      all.push(...(data as Order[]))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
     setMyStationLoading(false)
-    if (error) {
-      pushToast(`Błąd: ${error.message}`, 'error')
+    if (fetchError) {
+      pushToast(`Błąd: ${fetchError.message}`, 'error')
       return
     }
 
-    const filtered = (data ?? []).filter((o: Order) => {
+    const filtered = all.filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
       if (extra?.cancelled === true) return false
       if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
       return true
-    }) as Order[]
+    })
 
     setMyStationOrders(filtered)
   }, [pushToast])
@@ -60,7 +73,9 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       const actualKey = stageKey.startsWith('titan_') ? stageKey.replace('titan_', '') : stageKey
 
       const current = parseProductionStages(order.production_stages, category)
-      const updated = { ...current, [actualKey]: 'T' }
+      // Zapisujemy INICJAŁY pracownika (spójnie z resztą apki), nie 'T'
+      const mark = (currentUser?.initials ?? '').trim() || 'T'
+      const updated = { ...current, [actualKey]: mark }
 
       const { error } = await supabase
         .from('orders')
@@ -78,7 +93,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
 
       pushToast('Etap oznaczony jako zrobiony', 'success')
     },
-    [pushToast],
+    [pushToast, currentUser?.initials],
   )
 
   return {

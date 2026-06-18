@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 import type { AlertThresholds, StockAlert } from '../../types'
+import Spinner from '../Spinner'
 
 type Props = {
   isManager: boolean
@@ -311,7 +312,7 @@ function AlertsView({ isManager }: Props) {
       </div>
 
       {loading ? (
-        <p className="no-results">Ładowanie...</p>
+        <Spinner center label="Ładowanie…" />
       ) : filtered.length === 0 ? (
         <p className="no-results">Brak alertów w wybranej kategorii 🎉</p>
       ) : (

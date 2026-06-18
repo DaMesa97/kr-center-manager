@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { Warehouse, WarehouseComponent, WarehouseStockRow } from '../../types'
+import Spinner from '../Spinner'
 
 type StockStatus = 'ok' | 'low' | 'minus'
 
@@ -110,9 +111,6 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
     const q = search.trim().toLowerCase()
     return sortedRows.filter((row) => {
       if (selectedWarehouseId !== '' && row.warehouse_id !== selectedWarehouseId) return false
-      if (categoryFilter !== '' && categoryFilter !== 'all') {
-        console.log(categoryFilter, row.component_category)
-      }
       if (!matchCategory(row.component_category)) return false
       if (problemsOnly) {
         const s = stockStatus(row)
@@ -300,7 +298,7 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
       </div>
 
       {loading ? (
-        <p className="no-results">Ładowanie stanów…</p>
+        <Spinner center label="Ładowanie stanów…" />
       ) : isAllWarehouses && filteredAggregatedRows ? (
         <div className="table-wrapper">
           <table className="orders-table">

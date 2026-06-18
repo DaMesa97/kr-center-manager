@@ -65,6 +65,9 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
         (user.email ?? 'Użytkownik'),
       role,
       department: normalizeProfileDepartment(role, (data as { department?: string }).department),
+      categories: Array.isArray((data as { categories?: string[] }).categories)
+        ? ((data as { categories?: string[] }).categories as string[])
+        : [],
     }
     setCurrentUser(profile)
     setSentryUserFromProfile(profile)

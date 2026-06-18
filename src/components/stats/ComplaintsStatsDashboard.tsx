@@ -15,6 +15,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { Complaint } from '../../types'
+import Spinner from '../Spinner'
 
 const COMPLAINT_COLORS = [
   '#ef4444',
@@ -107,7 +108,7 @@ export default function ComplaintsStatsDashboard({ complaints, loading }: Props)
   }, [complaints])
 
   if (loading) {
-    return <div className="stats-dashboard">Ładowanie…</div>
+    return <div className="stats-dashboard"><Spinner center label="Ładowanie…" /></div>
   }
 
   return (
@@ -171,7 +172,8 @@ export default function ComplaintsStatsDashboard({ complaints, loading }: Props)
                 cx="50%"
                 cy="50%"
                 outerRadius={120}
-                label={({ name, value }) => `${name}: ${value}`}
+                minAngle={2}
+                label={({ name, value }) => (Number(value) > 0 ? `${name}: ${value}` : '')}
               >
                 {byWhatComplained.map((entry, idx) => (
                   <Cell key={`${entry.name}-${idx}`} fill={COMPLAINT_COLORS[idx % COMPLAINT_COLORS.length]} />

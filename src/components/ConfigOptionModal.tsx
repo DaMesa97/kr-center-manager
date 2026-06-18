@@ -73,9 +73,10 @@ export default function ConfigOptionModal({
                 <input
                   type="number"
                   value={dimensionModalForm.width_mm || ''}
+                  min={0}
                   onChange={(e) =>
                     onDimensionModalFormChange({
-                      width_mm: parseInt(e.target.value) || 0,
+                      width_mm: Math.max(0, parseInt(e.target.value, 10) || 0),
                     })
                   }
                   placeholder="np. 1020"
@@ -87,9 +88,10 @@ export default function ConfigOptionModal({
                 <input
                   type="number"
                   value={dimensionModalForm.height_mm === 0 ? '' : dimensionModalForm.height_mm}
+                  min={0}
                   onChange={(e) =>
                     onDimensionModalFormChange({
-                      height_mm: parseInt(e.target.value) || 0,
+                      height_mm: Math.max(0, parseInt(e.target.value, 10) || 0),
                     })
                   }
                   placeholder="np. 2080"

@@ -43,15 +43,6 @@ export default function UpdateBanner() {
   const [state, setState] = useState<UpdateState>({ status: 'idle' })
   const [dismissed, setDismissed] = useState(false)
 
-  // Sprawdź aktualizacje 3s po zalogowaniu (po zamontowaniu komponentu)
-  useEffect(() => {
-    if (import.meta.env.DEV) return  // tylko w produkcji
-    const timer = setTimeout(() => {
-      void getIpc()?.invoke('updater:check')
-    }, 3000)
-    return () => clearTimeout(timer)
-  }, [])
-
   useEffect(() => {
     const ipc = getIpc()
     if (!ipc) return

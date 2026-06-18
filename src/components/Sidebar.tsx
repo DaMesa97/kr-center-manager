@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { User, DoorOpen, Factory, Package, Settings, ChevronRight, Key } from 'lucide-react'
+import { User, DoorOpen, Factory, Package, Settings, ChevronRight, Key, LayoutDashboard, HelpCircle, MessageSquare } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { CATEGORY_LABELS } from '../constants'
 
@@ -8,6 +8,12 @@ type TabGroupDef =
   | { type: 'group'; id: string; label: string; Icon: LucideIcon; tabs: readonly string[] }
 
 const TAB_GROUPS: TabGroupDef[] = [
+  {
+    type: 'standalone',
+    tab: 'Pulpit',
+    Icon: LayoutDashboard,
+    label: 'Pulpit',
+  },
   {
     type: 'standalone',
     tab: 'Moje stanowisko',
@@ -26,14 +32,14 @@ const TAB_GROUPS: TabGroupDef[] = [
     id: 'production',
     label: 'Produkcja',
     Icon: Factory,
-    tabs: ['Wysyłka', 'Statystyki', 'Weryfikacja'],
+    tabs: ['Wysyłka', 'Statystyki', 'Weryfikacja', 'Etykiety'],
   },
   {
     type: 'group',
     id: 'warehouse',
     label: 'Magazyn',
     Icon: Package,
-    tabs: ['Magazyn', 'Kontrahenci'],
+    tabs: ['Magazyn', 'Zamawianie', 'Inwentaryzacja', 'Kontrahenci'],
   },
   {
     type: 'group',
@@ -42,6 +48,18 @@ const TAB_GROUPS: TabGroupDef[] = [
     Icon: Settings,
     tabs: ['Konfiguracja', 'Użytkownicy', 'Klucze API', 'Audyt', 'Archiwum'],
   },
+  {
+    type: 'standalone',
+    tab: 'Zgłoszenia',
+    Icon: MessageSquare,
+    label: 'Zgłoszenia',
+  },
+  {
+    type: 'standalone',
+    tab: 'Pomoc',
+    Icon: HelpCircle,
+    label: 'Pomoc',
+  },
 ]
 
 type Props = {
@@ -49,9 +67,11 @@ type Props = {
   activeTab: string
   onChange: (tab: string) => void
   reviewCount?: number
+  warehouseAlertsCount?: number
+  overdueCount?: number
 }
 
-export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount = 0 }: Props) {
+export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount = 0, warehouseAlertsCount = 0, overdueCount = 0 }: Props) {
   const visible = useMemo(() => new Set(visibleTabs), [visibleTabs])
 
   const activeGroupId = useMemo(() => {
@@ -97,7 +117,7 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
       </div>
 
       {/* Nav */}
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" style={{ flex: 1 }}>
         {TAB_GROUPS.map((entry) => {
           if (entry.type === 'standalone') {
             if (!visible.has(entry.tab)) return null
@@ -131,6 +151,9 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
               >
                 <GroupIcon size={15} className="sidebar-item-icon" />
                 <span className="sidebar-group-label">{entry.label}</span>
+                {entry.id === 'warehouse' && warehouseAlertsCount > 0 && (
+                  <span className="sidebar-badge sidebar-badge--alert">{warehouseAlertsCount}</span>
+                )}
                 <ChevronRight
                   size={13}
                   className={`sidebar-group-arrow ${isExpanded ? 'sidebar-group-arrow--open' : ''}`}
@@ -151,6 +174,9 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
                       {t === 'Weryfikacja' && reviewCount > 0 && (
                         <span className="sidebar-badge">{reviewCount}</span>
                       )}
+                      {t === 'Wysyłka' && overdueCount > 0 && (
+                        <span className="sidebar-badge sidebar-badge--alert">{overdueCount}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -159,6 +185,9 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
           )
         })}
       </nav>
+
+      {/* Wersja */}
+      <div className="sidebar-version">v{__APP_VERSION__}</div>
     </aside>
   )
 }

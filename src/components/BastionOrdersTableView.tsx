@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, type MutableRefObject } from 'react'
-import { BASTION_STAGE_DEFS } from '../constants'
+import { BASTION_STAGE_DEFS, BASTION_TITAN_STAGE_DEFS } from '../constants'
 import StockStatusBadge from './StockStatusBadge'
-import { BotBadge } from './BotBadge'
 import { TopScrollTableWrapper } from './TopScrollTableWrapper'
 import type { ConfigOptionRecord, GlassAllowance, Order, ToastVariant } from '../types'
 import {
@@ -14,9 +13,19 @@ import {
 } from '../utils'
 import ProductionStageCell from './ProductionStageCell'
 
+// Titan w Bastionie: mapowanie etapów OKU/MONT/PAK na 3 sąsiednie kolumny tabeli.
+// Pozostałe kolumny Bastiona są dla Titana zablokowane.
+const TITAN_BASTION_COL_MAP: Record<string, string> = {
+  okuwanie_skrzydla: 'tit_oku',
+  oscieznica_cnc: 'tit_mon',
+  oscieznica_skrecanie: 'tit_pak',
+}
+
 type BastionOrdersTableViewProps = {
   filteredOrders: Order[]
+  linkedOrders?: Order[]
   isManager: boolean
+  canSeePrices?: boolean
   productionStageUpdating: string | null
   releaseDateUpdating: number | null
   rushUpdatingOrderId: number | null
@@ -43,7 +52,9 @@ type BastionOrdersTableViewProps = {
 
 export default function BastionOrdersTableView({
   filteredOrders,
+  linkedOrders = [],
   isManager,
+  canSeePrices = true,
   productionStageUpdating,
   releaseDateUpdating,
   rushUpdatingOrderId,
@@ -145,7 +156,7 @@ export default function BastionOrdersTableView({
           <th className="col-order-text">UWAGI 2</th>
           <th className="col-order-text release-date-th">ZREALIZOWANE</th>
           <th className="col-order-text">NUMER ZAMÓWIENIA KLIENTA</th>
-          <th className="col-order-text">WARTOŚĆ KONFIGURATOR</th>
+          {canSeePrices && <th className="col-order-text">WARTOŚĆ KONFIGURATOR</th>}
           <th className="col-order-text">WPISAŁ</th>
           <th className="col-order-text">AIRTABLE ID</th>
           {isManager && <th className="col-order-actions">Akcje</th>}
@@ -180,6 +191,18 @@ export default function BastionOrdersTableView({
           const frameOption = bastionFrameOptions.find((o) => o.value === frameType.trim())
           const canEditPriority = !!frameOption?.add_to_batch && isManager && rowOrderId !== undefined
 
+          // Titan: status dojazdu rodzeństwa (ościeżnica z ST, skrzydło ze STA) po wydaniu
+          const titanGroup = Number((order.extra_fields as Record<string, unknown> | null)?.titan_group)
+          const isTitanBastion = Number.isFinite(titanGroup) && titanGroup > 0
+          let oscArrived = false
+          let skrArrived = false
+          if (isTitanBastion) {
+            const staBase = linkedOrders.find((o) => o.id === titanGroup)
+            const stSib = linkedOrders.find((o) => o.category === 'ST' && o.linked_order_id === titanGroup)
+            skrArrived = !!staBase && !isReleaseDateEmpty(staBase.release_date)
+            oscArrived = !!stSib && !isReleaseDateEmpty(stSib.release_date)
+          }
+
           return (
             <tr
               key={rowOrderId ?? order.airtable_id ?? order.order_number}
@@ -212,7 +235,19 @@ export default function BastionOrdersTableView({
                 ) : null}
                 <span className="order-number-wrapper">
                   <span className="order-num-value order-number-value">{order.order_number}</span>
-                  <BotBadge order={order} />
+                  {isTitanBastion && (
+                    <span
+                      className="titan-arrival"
+                      title={`Titan — ościeżnica (ST): ${oscArrived ? 'dojechała' : 'czeka'}; skrzydło (STA): ${skrArrived ? 'dojechało' : 'czeka'}`}
+                    >
+                      <span className={`titan-arrival-chip ${oscArrived ? 'titan-arrival-chip--ok' : 'titan-arrival-chip--wait'}`}>
+                        OŚC {oscArrived ? '✓' : '…'}
+                      </span>
+                      <span className={`titan-arrival-chip ${skrArrived ? 'titan-arrival-chip--ok' : 'titan-arrival-chip--wait'}`}>
+                        SKRZ {skrArrived ? '✓' : '…'}
+                      </span>
+                    </span>
+                  )}
                   {(() => {
                     const counts = order.id !== undefined ? orderCommentsCounts.get(order.id) : undefined
                     const total = counts?.total ?? 0
@@ -387,6 +422,58 @@ export default function BastionOrdersTableView({
                 )}
               </td>
               {BASTION_STAGE_DEFS.map((def) => {
+                // Titan: w wybranych kolumnach pokazujemy etap OKU/MONT/PAK, resztę blokujemy
+                if (isTitanBastion) {
+                  const titKey = TITAN_BASTION_COL_MAP[def.key]
+                  if (!titKey) {
+                    return (
+                      <td
+                        key={def.key}
+                        className="production-stage-td col-stage"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span
+                          className="production-stage-readonly production-stage-readonly--linked-empty"
+                          title="Nie dotyczy Titana"
+                        >
+                          —
+                        </span>
+                      </td>
+                    )
+                  }
+                  const titDef = BASTION_TITAN_STAGE_DEFS.find((d) => d.key === titKey)
+                  const value = rowStages[titKey] ?? ''
+                  return (
+                    <td
+                      key={def.key}
+                      className="production-stage-td col-stage"
+                      title={titDef?.title}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="bastion-titan-step">
+                        <span className="bastion-titan-step-label">{titDef?.header}</span>
+                        <ProductionStageCell
+                          value={value}
+                          disabled={rowBusy || isSelfCancelled || rowOrderId === undefined}
+                          onPickEmpty={() => {
+                            if (rowOrderId === undefined) {
+                              pushToast('Brak identyfikatora zamówienia', 'error')
+                              return
+                            }
+                            void markProductionStageWithProfileInitials(rowOrderId, titKey)
+                          }}
+                          onPickFilled={() => {
+                            if (rowOrderId === undefined) {
+                              pushToast('Brak identyfikatora zamówienia', 'error')
+                              return
+                            }
+                            setStageRevertTarget({ orderId: rowOrderId, stageKey: titKey })
+                          }}
+                        />
+                      </div>
+                    </td>
+                  )
+                }
                 const value = rowStages[def.key] ?? ''
                 return (
                   <td
@@ -503,9 +590,11 @@ export default function BastionOrdersTableView({
               <td className="col-order-text" title={orderCellTooltip(order.client_order_number)}>
                 {order.client_order_number}
               </td>
-              <td className="col-order-text" title={orderCellTooltip(order.configurator_value)}>
-                {order.configurator_value}
-              </td>
+              {canSeePrices && (
+                <td className="col-order-text" title={orderCellTooltip(order.configurator_value)}>
+                  {order.configurator_value}
+                </td>
+              )}
               <td className="col-order-text" title={orderCellTooltip(order.entered_by)}>
                 {order.entered_by}
               </td>

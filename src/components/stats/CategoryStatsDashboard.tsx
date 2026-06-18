@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 import type { Order } from '../../types'
 import { isReleaseDateEmpty } from '../../utils'
+import Spinner from '../Spinner'
 
 type Props = {
   category: string
@@ -239,7 +240,7 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
   }, [filteredOrdersNonCancelled])
 
   if (loading) {
-    return <div className="stats-dashboard">Ładowanie…</div>
+    return <div className="stats-dashboard"><Spinner center label="Ładowanie…" /></div>
   }
 
   return (
@@ -344,7 +345,8 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label={({ name, value }) => `${name}: ${value}`}
+                minAngle={2}
+                label={({ name, value }) => (Number(value) > 0 ? `${name}: ${value}` : '')}
               >
                 {statusData.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />

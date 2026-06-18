@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { MmGroupRow, Warehouse } from '../../types'
+import Spinner from '../Spinner'
 
 type MmViewProps = {
   mmGroups: MmGroupRow[]
@@ -122,7 +123,7 @@ function MmView({ mmGroups, loading, isManager, warehouses, onCreate, onPreview 
       </div>
 
       {loading ? (
-        <p className="no-results">Ładowanie…</p>
+        <Spinner center label="Ładowanie…" />
       ) : (
         <div className="table-wrapper">
           <table className="orders-table">

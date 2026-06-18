@@ -5,7 +5,6 @@ import {
   type MutableRefObject,
 } from 'react'
 import StockStatusBadge from './StockStatusBadge'
-import { BotBadge } from './BotBadge'
 import { TopScrollTableWrapper } from './TopScrollTableWrapper'
 import type { GlassAllowance, Order, ToastVariant } from '../types'
 import {
@@ -19,6 +18,7 @@ type TechniczneOrdersTableViewProps = {
   filteredOrders: Order[]
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
   isManager: boolean
+  canSeePrices?: boolean
   releaseDateUpdating: number | null
   rushUpdatingOrderId: number | null
   glassAllowances: GlassAllowance[]
@@ -38,6 +38,7 @@ export default function TechniczneOrdersTableView({
   filteredOrders,
   tableWrapperRef,
   isManager,
+  canSeePrices = true,
   releaseDateUpdating,
   rushUpdatingOrderId,
   glassAllowances,
@@ -164,9 +165,11 @@ export default function TechniczneOrdersTableView({
           <th className="col-order-text" title="WPISAŁ">
             WPISAŁ
           </th>
-          <th className="col-order-text" title="WARTOŚĆ KONFIGURATOR">
-            WARTOŚĆ KONFIGURATOR
-          </th>
+          {canSeePrices && (
+            <th className="col-order-text" title="WARTOŚĆ KONFIGURATOR">
+              WARTOŚĆ KONFIGURATOR
+            </th>
+          )}
           <th className="col-order-text" title="AIRTABLE ID">
             AIRTABLE ID
           </th>
@@ -222,7 +225,6 @@ export default function TechniczneOrdersTableView({
                   ) : null}
                   <span className="order-number-wrapper">
                     <span className="order-num-value order-number-value">{order.order_number}</span>
-                    <BotBadge order={order} />
                     {(() => {
                       const counts = order.id !== undefined ? orderCommentsCounts.get(order.id) : undefined
                       const total = counts?.total ?? 0
@@ -385,9 +387,11 @@ export default function TechniczneOrdersTableView({
                 <td className="col-order-text" title={orderCellTooltip(order.entered_by)}>
                   {order.entered_by}
                 </td>
-                <td className="col-order-text" title={orderCellTooltip(order.configurator_value)}>
-                  {order.configurator_value}
-                </td>
+                {canSeePrices && (
+                  <td className="col-order-text" title={orderCellTooltip(order.configurator_value)}>
+                    {order.configurator_value}
+                  </td>
+                )}
                 <td className="col-order-text" title={orderCellTooltip(order.airtable_id)}>
                   {order.airtable_id}
                 </td>

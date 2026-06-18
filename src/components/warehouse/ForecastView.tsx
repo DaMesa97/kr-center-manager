@@ -12,6 +12,7 @@ import {
 import { supabase } from '../../supabaseClient'
 import type { ConsumptionHistoryPoint, ForecastRun, WarehouseComponent } from '../../types'
 import SeasonalFactorsEditor from './SeasonalFactorsEditor'
+import Spinner from '../Spinner'
 
 type Props = {
   components: WarehouseComponent[]
@@ -288,7 +289,7 @@ export default function ForecastView({ components, isManager }: Props) {
           </div>
         </aside>
         <div className="forecast-main">
-          {loading && <p className="no-results">Ładowanie danych…</p>}
+          {loading && <Spinner center label="Ładowanie danych…" />}
           {!loading && selectedComponent && forecast && (
             <div className="forecast-header">
               <h3>{selectedComponent.name}</h3>

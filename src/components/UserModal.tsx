@@ -1,5 +1,12 @@
 import { createPortal } from 'react-dom'
 import type { UserFormState } from '../types'
+import { ROLE_LABELS, isCategoryScoped } from '../lib/permissions'
+
+const ROLE_OPTIONS = [
+  'obsluga_klienta', 'pracownik_produkcji', 'magazynier',
+  'kierownik_dzialu', 'kierownik_magazynu', 'kierownik_produkcji', 'kierownik_firmowy', 'admin',
+]
+const USER_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
 
 type UserModalProps = {
   open: boolean
@@ -88,56 +95,44 @@ export default function UserModal({
             <span className="order-field-label-text">Rola</span>
             <select
               value={userForm.role}
-              onChange={(e) => {
-                const role =
-                  e.target.value === 'manager'
-                    ? 'manager'
-                    : e.target.value === 'sprzedawca'
-                      ? 'sprzedawca'
-                      : 'worker'
-                onFormChange({
-                  role,
-                  ...(role !== 'manager' && userForm.role === 'manager'
-                    ? { department: 'all' as const }
-                    : {}),
-                })
-              }}
+              onChange={(e) => onFormChange({ role: e.target.value })}
               disabled={userModalSaving}
             >
-              <option value="worker">Pracownik</option>
-              <option value="sprzedawca">Sprzedawca</option>
-              <option value="manager">Kierownik</option>
+              {ROLE_OPTIONS.map((r) => (
+                <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
+              ))}
             </select>
           </label>
-          {userForm.role !== 'manager' ? (
+          {isCategoryScoped(userForm.role) ? (
             <label className="order-field-full">
-              <span className="order-field-label-text">Dział</span>
-              <select
-                value={userForm.department}
-                onChange={(e) => {
-                  const v = e.target.value
-                  onFormChange({
-                    department:
-                      (v === 'bastion'
-                        ? 'bastion'
-                        : v === 'stalowe'
-                          ? 'stalowe'
-                          : v === 'magazyn'
-                            ? 'magazyn'
-                            : 'all') as UserFormState['department'],
-                  })
-                }}
-                disabled={userModalSaving}
-              >
-                <option value="all">KR CENTER</option>
-                <option value="bastion">Bastion</option>
-                <option value="stalowe">Stalowe</option>
-                <option value="magazyn">Magazyn</option>
-              </select>
+              <span className="order-field-label-text">Kategorie (dostęp)</span>
+              <div className="user-cat-picker">
+                {USER_CATEGORIES.map((c) => {
+                  const checked = userForm.categories.includes(c)
+                  return (
+                    <label key={c} className={`user-cat-chip ${checked ? 'user-cat-chip--on' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={userModalSaving}
+                        onChange={(e) =>
+                          onFormChange({
+                            categories: e.target.checked
+                              ? [...userForm.categories, c]
+                              : userForm.categories.filter((x) => x !== c),
+                          })
+                        }
+                      />
+                      {c}
+                    </label>
+                  )
+                })}
+              </div>
+              <span className="user-modal-hint">Widzi/działa tylko w zaznaczonych kategoriach.</span>
             </label>
           ) : (
             <p className="user-modal-hint">
-              Kierownik ma dostęp do wszystkich działów (w bazie: dział = wszystkie).
+              Ta rola ma dostęp do wszystkich kategorii (kierownicy/admin) lub bez kategorii (magazynier/obsługa).
             </p>
           )}
         </div>

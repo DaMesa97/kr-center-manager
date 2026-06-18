@@ -10,6 +10,7 @@ import type {
   DimensionMap,
   ExtensionProfileWidth,
   GlassAllowance,
+  LeadTimeRule,
   ToastVariant,
 } from '../types'
 
@@ -74,6 +75,9 @@ export function useConfig({
 
   // ── Glass allowances (naddatki szyb) ────────────────────────────────────────
   const [glassAllowances, setGlassAllowances] = useState<GlassAllowance[]>([])
+
+  // ── Lead time rules ─────────────────────────────────────────────────────────
+  const [leadTimeRules, setLeadTimeRules] = useState<LeadTimeRule[]>([])
 
   // ── Extension profile widths ────────────────────────────────────────────────
   const [extensionProfileForm, setExtensionProfileForm] = useState({
@@ -228,6 +232,87 @@ export function useConfig({
     }))
     setInternalDoorConfigOptions(rows)
   }, [])
+
+  const fetchLeadTimeRules = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('order_lead_time_rules')
+      .select('*')
+      .order('priority', { ascending: false })
+      .order('id', { ascending: true })
+    if (error) {
+      console.error('[LeadTimeRules] fetch error:', error.message, error)
+      pushToast(`Błąd ładowania reguł terminów: ${error.message}`, 'error')
+      return
+    }
+    console.log('[LeadTimeRules] loaded:', data?.length, 'rows')
+    setLeadTimeRules((data ?? []) as LeadTimeRule[])
+  }, [pushToast])
+
+  const handleSaveLeadTimeRule = useCallback(
+    async (payload: Omit<LeadTimeRule, 'id'> & { id?: number }) => {
+      setGlobalLoading(true)
+      try {
+        let error
+        if (payload.id) {
+          const { id, ...rest } = payload
+          ;({ error } = await supabase
+            .from('order_lead_time_rules')
+            .update(rest)
+            .eq('id', id))
+        } else {
+          const { id: _id, ...rest } = payload
+          ;({ error } = await supabase.from('order_lead_time_rules').insert(rest))
+        }
+        if (error) {
+          pushToast(`Błąd zapisu: ${error.message}`, 'error')
+          return
+        }
+        pushToast(payload.id ? 'Reguła zaktualizowana' : 'Reguła dodana', 'success')
+        await fetchLeadTimeRules()
+      } finally {
+        setGlobalLoading(false)
+      }
+    },
+    [pushToast, setGlobalLoading, fetchLeadTimeRules],
+  )
+
+  const handleDeleteLeadTimeRule = useCallback(
+    async (id: number) => {
+      setGlobalLoading(true)
+      try {
+        const { error } = await supabase
+          .from('order_lead_time_rules')
+          .delete()
+          .eq('id', id)
+        if (error) {
+          pushToast(`Błąd usuwania: ${error.message}`, 'error')
+          return
+        }
+        pushToast('Reguła usunięta', 'success')
+        await fetchLeadTimeRules()
+      } finally {
+        setGlobalLoading(false)
+      }
+    },
+    [pushToast, setGlobalLoading, fetchLeadTimeRules],
+  )
+
+  const handleToggleLeadTimeRuleActive = useCallback(
+    async (id: number, isActive: boolean) => {
+      const { error } = await supabase
+        .from('order_lead_time_rules')
+        .update({ is_active: isActive })
+        .eq('id', id)
+      if (error) {
+        pushToast(`Błąd: ${error.message}`, 'error')
+        return
+      }
+      setLeadTimeRules((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, is_active: isActive } : r)),
+      )
+    },
+    [pushToast],
+  )
 
   const fetchConfigOptionsForExclusions = useCallback(async () => {
     const { data } = await supabase
@@ -736,7 +821,9 @@ export function useConfig({
     extensionProfileForm,
     setExtensionProfileForm,
     extensionProfileWidths,
+    leadTimeRules,
     // Fetch
+    fetchLeadTimeRules,
     fetchExclusions,
     fetchDimensionMap,
     fetchExtensionProfileWidths,
@@ -768,5 +855,9 @@ export function useConfig({
     handleUpdateExtensionProfileWidth,
     handleSaveExtensionProfile,
     handleDeleteExtensionProfile,
+    // Lead time rules CRUD
+    handleSaveLeadTimeRule,
+    handleDeleteLeadTimeRule,
+    handleToggleLeadTimeRuleActive,
   }
 }

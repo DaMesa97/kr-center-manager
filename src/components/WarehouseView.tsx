@@ -32,18 +32,22 @@ import RecipesView from './warehouse/RecipesView'
 import StockView from './warehouse/StockView'
 import ReorderDashboardView from './warehouse/ReorderDashboardView'
 import PurchaseOrdersView from './warehouse/PurchaseOrdersView'
+import InventoryView from './warehouse/InventoryView'
 
 type WarehouseViewProps = {
   isManager: boolean
   activeSubTab: WarehouseSubTab
   onSubTabChange: (tab: WarehouseSubTab) => void
+  hideSubTabs?: boolean
   warehouses: Warehouse[]
   stock: WarehouseStockRow[]
   stockLoading: boolean
   components: WarehouseComponent[]
   componentsLoading: boolean
-  onCreateComponent: (data: WarehouseComponentCreateInput) => Promise<void>
+  onCreateComponent: (data: WarehouseComponentCreateInput, warehouseIds?: number[]) => Promise<void>
   onUpdateComponent: (id: number, data: WarehouseComponentUpdateInput) => Promise<void>
+  onSetComponentWarehouses: (componentId: number, warehouseIds: number[]) => Promise<void>
+  onCleanupStock: () => Promise<void>
   onDeleteComponent: (id: number) => Promise<void>
   onAddDoorComponent: () => void
   onEditDoorComponent: (component: WarehouseComponent) => void
@@ -99,6 +103,7 @@ function WarehouseView({
   isManager,
   activeSubTab,
   onSubTabChange,
+  hideSubTabs,
   warehouses,
   stock,
   stockLoading,
@@ -106,6 +111,8 @@ function WarehouseView({
   componentsLoading,
   onCreateComponent,
   onUpdateComponent,
+  onSetComponentWarehouses,
+  onCleanupStock,
   onDeleteComponent,
   onAddDoorComponent,
   onEditDoorComponent,
@@ -171,6 +178,7 @@ function WarehouseView({
     <div
       className={`warehouse-view${isManager ? ' warehouse-view--manager' : ' warehouse-view--readonly'}`}
     >
+      {!hideSubTabs && (
       <div className="subtab-bar" role="tablist" aria-label="Magazyn — sekcje">
         {warehouseTabs.map((tab) => (
           <button
@@ -188,13 +196,18 @@ function WarehouseView({
           </button>
         ))}
       </div>
+      )}
       {activeSubTab === 'Komponenty' ? (
         <ComponentsView
           isManager={isManager}
           components={components}
+          warehouses={warehouses}
+          stock={stock}
           loading={componentsLoading}
           onCreate={onCreateComponent}
           onUpdate={onUpdateComponent}
+          onSetComponentWarehouses={onSetComponentWarehouses}
+          onCleanupStock={onCleanupStock}
           onDelete={onDeleteComponent}
           onAddDoorComponent={onAddDoorComponent}
           onEditDoorComponent={onEditDoorComponent}
@@ -291,6 +304,8 @@ function WarehouseView({
           onShowDetails={onShowPurchaseOrderDetails}
           pushToast={pushToast}
         />
+      ) : activeSubTab === 'Inwentaryzacja' ? (
+        <InventoryView pushToast={pushToast} currentUser={currentUser} />
       ) : (
         <p className="no-results">Widok w przygotowaniu</p>
       )}

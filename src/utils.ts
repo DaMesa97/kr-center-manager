@@ -1,5 +1,6 @@
 import {
   BASTION_STAGE_DEFS,
+  BASTION_TITAN_STAGE_DEFS,
   DEPARTMENT_LABELS,
   DISTING_PLUS_MIRROR_KEYS,
   RECIPE_PARTS,
@@ -10,16 +11,20 @@ import {
   TABS,
 } from './constants'
 import { supabase } from './supabaseClient'
+import { can, isAdminRole, isCategoryScoped, isManagerRole } from './lib/permissions'
 import type {
   BastionOrderFormData,
+  Company,
   Complaint,
   ConfigOptionRecord,
   ConfigExclusion,
   CurrentUser,
   DimensionMap,
   GlassAllowance,
+  LeadTimeRule,
   NewOrderFormData,
   Order,
+  OrderAgeStatus,
   RecipeFormState,
   OrderExtraFields,
   ProfileDepartment,
@@ -41,23 +46,107 @@ export function normalizeProfileDepartment(role: string, raw: unknown): ProfileD
   return 'all'
 }
 
+// Magazyn wewnętrznych drzwi — rozpoznajemy po prefiksie kodu (WEWNETRZNE, WEW1, WEW2…)
+export function isInternalWarehouseCode(code: string | null | undefined): boolean {
+  return String(code ?? '').trim().toUpperCase().startsWith('WEW')
+}
+
 export const ROLE_LABELS: Record<string, string> = {
+  // stare role (zgodność wsteczna)
   manager: 'Kierownik',
   worker: 'Pracownik',
   sprzedawca: 'Sprzedawca',
+  // nowe role
+  obsluga_klienta: 'Obsługa klienta',
+  pracownik_produkcji: 'Pracownik produkcji',
+  magazynier: 'Magazynier',
+  kierownik_dzialu: 'Kierownik działu',
+  kierownik_magazynu: 'Kierownik magazynu',
+  kierownik_produkcji: 'Kierownik produkcji',
+  kierownik_firmowy: 'Kierownik firmowy',
+  admin: 'Administrator',
 }
 
 export function roleLabel(role: string): string {
   return ROLE_LABELS[role] ?? role
 }
 
+/** Normalizuje nazwę firmy do porównań: małe litery, bez form prawnych, bez interpunkcji i nadmiarowych spacji */
+export function normalizeCompanyName(s: string | null | undefined): string {
+  if (!s) return ''
+  return String(s)
+    .toLowerCase()
+    .replace(/sp\.?\s*z\.?\s*o\.?\s*o\.?/g, '') // sp. z o.o.
+    .replace(/\bs\.?\s*c\.?\b/g, '')             // s.c.
+    .replace(/\bs\.?\s*a\.?\b/g, '')             // s.a.
+    .replace(/[.,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Znajduje kontrahenta z bazy najlepiej pasującego do podanej nazwy. Null jeśli brak sensownego dopasowania. */
+export function findBestCompanyMatch(input: string | null | undefined, companies: Company[]): Company | null {
+  const norm = normalizeCompanyName(input)
+  if (!norm || companies.length === 0) return null
+  // 1) dokładne dopasowanie znormalizowane
+  const exact = companies.find((c) => normalizeCompanyName(c.name) === norm)
+  if (exact) return exact
+  // 2) jedna nazwa zawiera drugą (min. 4 znaki, by uniknąć przypadków)
+  if (norm.length >= 4) {
+    const contains = companies.find((c) => {
+      const cn = normalizeCompanyName(c.name)
+      return cn.length >= 4 && (cn.includes(norm) || norm.includes(cn))
+    })
+    if (contains) return contains
+  }
+  return null
+}
+
+/** Czy nazwa firmy odpowiada dokładnie (znormalizowanie) jakiemuś kontrahentowi z bazy */
+export function isCompanyInBase(input: string | null | undefined, companies: Company[]): boolean {
+  const norm = normalizeCompanyName(input)
+  if (!norm) return false
+  return companies.some((c) => normalizeCompanyName(c.name) === norm)
+}
+
 export function tabsForUserDepartment(
   dept: ProfileDepartment,
   isMgr: boolean,
   role?: string,
+  categories?: string[],
 ): (typeof TABS)[number][] {
   const roleNormalized = String(role ?? '').toLowerCase()
-  const seesAllOrderCategories = isMgr || roleNormalized === 'manager' || roleNormalized === 'sprzedawca'
+  const LEGACY = roleNormalized === '' || roleNormalized === 'manager' || roleNormalized === 'worker' || roleNormalized === 'sprzedawca'
+
+  // ── NOWE role: widoczność wprost z uprawnień (can) + przypisanych kategorii ──
+  if (!LEGACY) {
+    const allCats: (typeof TABS)[number][] = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+    const orderTabs: (typeof TABS)[number][] = isCategoryScoped(role)
+      ? (allCats.filter((c) => (categories ?? []).includes(c)))
+      : allCats
+    const out: (typeof TABS)[number][] = []
+    if (isManagerRole(role)) out.push('Pulpit')
+    if (isManagerRole(role) || roleNormalized === 'pracownik_produkcji' || roleNormalized === 'magazynier') {
+      out.push('Moje stanowisko')
+    }
+    out.push(...orderTabs)
+    if (can(role, 'shipping.view')) out.push('Wysyłka')
+    if (can(role, 'stats.view')) out.push('Statystyki')
+    if (can(role, 'review.handle')) out.push('Weryfikacja')
+    if (can(role, 'audit.view')) out.push('Audyt')
+    if (isManagerRole(role)) out.push('Archiwum')
+    if (can(role, 'warehouse.movements')) out.push('Magazyn')
+    if (can(role, 'warehouse.ordering')) out.push('Zamawianie', 'Inwentaryzacja')
+    if (isAdminRole(role)) out.push('Kontrahenci')
+    out.push('Etykiety')
+    if (isAdminRole(role)) out.push('Konfiguracja', 'Użytkownicy', 'Klucze API')
+    out.push('Zgłoszenia', 'Pomoc')
+    return out
+  }
+
+  // ── LEGACY (stare role) — zachowanie bez zmian (okres przejściowy) ──
+  const seesAllOrderCategories =
+    isMgr || roleNormalized === 'manager' || roleNormalized === 'sprzedawca'
   let orderTabs: (typeof TABS)[number][]
   if (seesAllOrderCategories) {
     orderTabs = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
@@ -73,12 +162,16 @@ export function tabsForUserDepartment(
     orderTabs = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
   }
   const managerOnlyTabs = isMgr ? (['Statystyki', 'Weryfikacja', 'Audyt', 'Archiwum', 'Wysyłka'] as const) : []
-  let result: (typeof TABS)[number][] = [...orderTabs, ...managerOnlyTabs, 'Magazyn']
+  let result: (typeof TABS)[number][] = [...orderTabs, ...managerOnlyTabs, 'Magazyn', 'Zamawianie', 'Inwentaryzacja', 'Etykiety']
   if (isMgr) {
     result = [...result, 'Kontrahenci', 'Konfiguracja', 'Użytkownicy', 'Klucze API']
   }
-  if (role === 'worker' || role === 'manager') {
+  result = [...result, 'Zgłoszenia', 'Pomoc']
+  if (isMgr || ['worker', 'manager', 'pracownik_produkcji', 'magazynier'].includes(roleNormalized)) {
     result = ['Moje stanowisko', ...result]
+  }
+  if (isMgr) {
+    result = ['Pulpit', ...result]
   }
   return result
 }
@@ -147,17 +240,22 @@ export async function generateComplaintNumber(): Promise<string> {
   return `RK/${year}/${next}`
 }
 
+// Systemy Titana — JEDNA lista używana wszędzie (tworzenie pary, wyświetlanie, reklamacje).
+// 'GUARD RC3' łapie też 'GUARD RC3 EI 30'. Realne systemy: CORE, GUARD RC2, GUARD RC3, GUARD RC3 EI 30.
+export function isTitanSystem(system: string | null | undefined): boolean {
+  const sys = String(system ?? '').toUpperCase()
+  return sys.includes('CORE') || sys.includes('GUARD RC2') || sys.includes('GUARD RC3')
+}
+
 export function isStTitanOrder(order: Order): boolean {
   if (order.category !== 'ST') return false
   if (order.linked_order_id != null) return true
-  const sys = String(order.system ?? '').toUpperCase()
-  return sys.includes('CORE') || sys.includes('GUARD RC2') || sys.includes('GUARD RC3')
+  return isTitanSystem(order.system)
 }
 
 export function isStTitanComplaint(c: Complaint): boolean {
   if (c.category !== 'ST') return false
-  const sys = String(c.system ?? '').toUpperCase()
-  return sys.includes('CORE') || sys.includes('GUARD RC2') || sys.includes('GUARD RC3')
+  return isTitanSystem(c.system)
 }
 
 export function isStaTitanLinked(order: Order, allOrders: Order[]): boolean {
@@ -169,7 +267,7 @@ export function isStaTitanLinked(order: Order, allOrders: Order[]): boolean {
 }
 
 export function isStTitanSystemLabel(system: string): boolean {
-  return String(system ?? '').toUpperCase().includes('TITAN')
+  return isTitanSystem(system)
 }
 
 export function stStageCellKind(
@@ -177,24 +275,31 @@ export function stStageCellKind(
   isTitan: boolean,
   layoutMode: StStageLayoutMode,
 ): StStageCellKind {
+  // Titan w ST: jedyny etap ekipy ST to OŚCIEŻNICA (E1). Skrzydło robi STA,
+  // okuwanie/montaż/pakowanie robi Bastion → reszta etapów zablokowana.
   if (layoutMode === 'titan') {
-    if (def.key === 'e2') return { kind: 'e2_sta', stageKey: 'sta_e5' }
-    return { kind: 'click', stageKey: def.key }
+    if (def.key === 'e1') return { kind: 'click', stageKey: 'e1' }
+    return { kind: 'none' }
   }
   if (layoutMode === 'std') {
     return { kind: 'click', stageKey: def.key }
   }
   switch (def.key) {
     case 'st_mix_0':
-      return isTitan ? { kind: 'click', stageKey: 'e1' } : { kind: 'click', stageKey: 'cnc' }
+      // CNC — dla Titana nieaktywne
+      return isTitan ? { kind: 'none' } : { kind: 'click', stageKey: 'cnc' }
     case 'st_mix_1':
-      return isTitan ? { kind: 'e2_sta', stageKey: 'sta_e5' } : { kind: 'click', stageKey: 'osc' }
+      // OŚC — dla Titana = ościeżnica (E1), jedyny etap ST
+      return isTitan ? { kind: 'click', stageKey: 'e1' } : { kind: 'click', stageKey: 'osc' }
     case 'st_mix_2':
-      return isTitan ? { kind: 'click', stageKey: 'e3' } : { kind: 'click', stageKey: 'skr' }
+      // SKR — dla Titana nieaktywne (skrzydło robi STA)
+      return isTitan ? { kind: 'none' } : { kind: 'click', stageKey: 'skr' }
     case 'st_mix_3':
-      return isTitan ? { kind: 'click', stageKey: 'e4' } : { kind: 'click', stageKey: 'mon' }
+      // MON — dla Titana nieaktywne (montaż na Bastionie)
+      return isTitan ? { kind: 'none' } : { kind: 'click', stageKey: 'mon' }
     case 'st_mix_4':
-      return { kind: 'click', stageKey: 'mag' }
+      // MAG — dla Titana nieaktywne
+      return isTitan ? { kind: 'none' } : { kind: 'click', stageKey: 'mag' }
     default:
       return { kind: 'none' }
   }
@@ -217,8 +322,19 @@ export function allProductionStageKeysForCategory(category: string): string[] {
     const titan = ['e1', 'e2', 'e3', 'e4', 'sta_e5']
     return [...new Set([...std, ...titan])]
   }
+  if (category === 'Bastion') {
+    // standardowe etapy + etapy Titana (okuwanie/montaż/pakowanie)
+    return [...base, ...BASTION_TITAN_STAGE_DEFS.map((d) => d.key)]
+  }
   if (category === 'Techniczne' || category === 'DrzwiWewnetrzne') return []
   return base
+}
+
+// Czy rekord Bastion to "noga" Titana (powstał z STA Titan, ma titan_group)
+export function isTitanBastionOrder(order: Order): boolean {
+  if (order.category !== 'Bastion') return false
+  const g = (order.extra_fields as Record<string, unknown> | null)?.titan_group
+  return g != null && Number(g) > 0
 }
 
 export function getTableStageDefinitions(category: string): StageDef[] {
@@ -400,18 +516,24 @@ export function countCompletedStages(order: Order): {
   if (category === 'STA' || category === 'Disting') {
     defs = STA_DISTING_STAGE_DEFS
   } else if (category === 'Bastion') {
-    defs = BASTION_STAGE_DEFS
+    defs = isTitanBastionOrder(order) ? BASTION_TITAN_STAGE_DEFS : BASTION_STAGE_DEFS
   } else if (category === 'ST') {
     defs = isStTitanOrder(order) ? ST_TITAN_STAGE_DEFS : ST_STAGE_DEFS
   }
 
   const parsed = parseProductionStages(order.production_stages, category)
 
+  // Etap szklenia dostawki/naświetla (e2_2) jest "z automatu" zrobiony,
+  // gdy zamówienie nie ma ani dostawki, ani naświetla — nie ma czego robić.
+  const noGlassExtra = (category === 'STA' || category === 'Disting') && !hasGlassExtra(order)
+
+  // Etap zrobiony = dowolna niepusta wartość (inicjały pracownika, 'T' lub 'X' z migracji) —
+  // spójnie z komórkami tabeli, które każdą niepustą wartość traktują jako wykonany etap.
   const stages = defs.map((def) => ({
     key: def.key,
     header: def.header,
     title: def.title ?? '',
-    done: parsed[def.key] === 'T',
+    done: String(parsed[def.key] ?? '').trim() !== '' || (def.key === 'e2_2' && noGlassExtra),
   }))
 
   const completed = stages.filter((s) => s.done).length
@@ -567,11 +689,12 @@ export function applyDefaultConfigValues<T extends Record<string, unknown>>(
 export function splitWxH(value: string): { w: string; h: string } {
   const s = (value || '').trim()
   if (!s) return { w: '', h: '' }
-  const parts = s.split(/[×x]/i)
+  const parts = s.split(/[×x*]/i)
   if (parts.length >= 2) {
     return { w: parts[0].trim(), h: parts[1].trim() }
   }
-  return { w: '', h: '' }
+  // Pojedyncza liczba bez separatora — potraktuj jako szerokość (nie gub danych)
+  return { w: parts[0].trim(), h: '' }
 }
 
 export function getDimensions(
@@ -622,8 +745,9 @@ export function calcGlassDim(
   allowanceH: number,
 ): string {
   if (!totalW && !totalH) return ''
-  const glassW = totalW - allowanceW
-  const glassH = totalH - allowanceH
+  // Naddatek nie może dać ujemnego wymiaru szyby
+  const glassW = Math.max(0, totalW - allowanceW)
+  const glassH = Math.max(0, totalH - allowanceH)
   return `${glassW}×${glassH}`
 }
 
@@ -711,18 +835,20 @@ export function calcTopLightWidth(
   if (!dims.width_mm) return ''
 
   let total = dims.width_mm
-  total += parseInt(formData.side_panel_a_w_mm) || 0
-  total += parseInt(formData.side_panel_b_w_mm) || 0
+  total += parseInt(formData.side_panel_a_w_mm, 10) || 0
+  total += parseInt(formData.side_panel_b_w_mm, 10) || 0
 
   const aQtys = formData.extension_qtys?.['a'] ?? {}
   const bQtys = formData.extension_qtys?.['b'] ?? {}
 
   let extensionTotal = 0
   for (const [w, qty] of Object.entries(aQtys)) {
-    extensionTotal += qty * parseInt(w)
+    const mm = parseInt(w, 10)
+    if (Number.isFinite(mm) && mm > 0) extensionTotal += qty * mm
   }
   for (const [w, qty] of Object.entries(bQtys)) {
-    extensionTotal += qty * parseInt(w)
+    const mm = parseInt(w, 10)
+    if (Number.isFinite(mm) && mm > 0) extensionTotal += qty * mm
   }
   total += extensionTotal
 
@@ -747,6 +873,143 @@ export function calcSidePanelHeight(
 
 export function isRushOrderSequence(sequence: string | undefined | null): boolean {
   return String(sequence ?? '').trim().toUpperCase() === 'X'
+}
+
+// ---------------------------------------------------------------------------
+// Przeterminowane zamówienia
+// ---------------------------------------------------------------------------
+
+const PRODUCTION_DAY_WEEKDAY: Record<string, number> = {
+  'PONIEDZIAŁEK': 1,
+  'WTOREK':       2,
+  'ŚRODA':        3,
+  'CZWARTEK':     4,
+  'PIĄTEK':       5,
+}
+
+/**
+ * Zwraca docelową datę produkcji dla zamówienia:
+ * pierwsza data >= order_date w której wypada production_day.
+ * Jeśli production_day pokrywa się z dniem order_date — zwraca order_date.
+ */
+export function getOrderTargetProductionDate(
+  orderDate: string | null | undefined,
+  productionDay: string | null | undefined,
+): Date | null {
+  if (!orderDate || !productionDay) return null
+  const targetWeekday = PRODUCTION_DAY_WEEKDAY[productionDay.toUpperCase().trim()]
+  if (targetWeekday === undefined) return null
+
+  const base = new Date(orderDate)
+  if (isNaN(base.getTime())) return null
+  base.setHours(0, 0, 0, 0)
+
+  // getDay(): 0=niedziela … 6=sobota → przelicz na 1=pon … 7=niedz
+  const baseWeekday = base.getDay() === 0 ? 7 : base.getDay()
+  let daysToAdd = targetWeekday - baseWeekday
+  if (daysToAdd < 0) daysToAdd += 7   // cofnij do następnego tygodnia
+
+  const target = new Date(base)
+  target.setDate(base.getDate() + daysToAdd)
+  return target
+}
+
+/**
+ * Zwraca true gdy zamówienie jest przeterminowane:
+ * jego docelowa data produkcji minęła, a zamówienie nie zostało jeszcze wydane.
+ */
+export function isOrderOverdue(order: {
+  order_date?: string | null
+  production_day?: string | null
+  release_date?: string | null
+  extra_fields?: unknown
+}): boolean {
+  const extra = order.extra_fields as Record<string, unknown> | null
+  if (extra?.cancelled === true) return false
+  if (order.release_date && !isReleaseDateEmpty(order.release_date)) return false
+
+  const target = getOrderTargetProductionDate(order.order_date, order.production_day)
+  if (!target) return false
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  return target < today
+}
+
+/**
+ * Liczba dni, które upłynęły od daty złożenia zamówienia (order_date).
+ */
+export function getDaysElapsed(order: {
+  order_date?: string | null
+}): number {
+  if (!order.order_date) return 0
+  // Parsuj "YYYY-MM-DD" jako datę LOKALNĄ (nie UTC), by uniknąć przesunięcia o dzień
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(order.order_date.trim())
+  const base = m
+    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    : new Date(order.order_date)
+  if (isNaN(base.getTime())) return 0
+  base.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.max(0, Math.floor((today.getTime() - base.getTime()) / 86_400_000))
+}
+
+export function hasGlassExtra(order: Order): boolean {
+  const check = (v: string | null | undefined) => {
+    const s = String(v ?? '').trim()
+    return s !== '' && s.toUpperCase() !== 'NIE'
+  }
+  return (
+    check(order.top_light) ||
+    check(order.side_panel) ||
+    check(order.side_panel_a) ||
+    check(order.side_panel_b)
+  )
+}
+
+/**
+ * Zwraca status wiekowy zamówienia na podstawie konfigurowalnych reguł terminów realizacji.
+ * Reguły są sprawdzane malejąco według priorytetu — wygrywa pierwsza pasująca.
+ * Jeśli żadna reguła nie pasuje, stosowane są domyślne progi 7/14 dni.
+ */
+export function getOrderAgeStatus(
+  order: Order,
+  rules: LeadTimeRule[],
+): OrderAgeStatus {
+  const extra = order.extra_fields as Record<string, unknown> | null
+  if (extra?.cancelled === true) return 'ok'
+  if (order.release_date && !isReleaseDateEmpty(order.release_date)) return 'ok'
+
+  const days = getDaysElapsed(order)
+
+  const activeRules = [...rules]
+    .filter((r) => r.is_active)
+    .sort((a, b) => b.priority - a.priority)
+
+  let matchedRule: LeadTimeRule | null = null
+  for (const rule of activeRules) {
+    if (rule.match_category && rule.match_category !== order.category) continue
+    if (rule.match_has_glass_extra !== null) {
+      if (rule.match_has_glass_extra !== hasGlassExtra(order)) continue
+    }
+    if (rule.match_bastion_frame_type) {
+      const frameType = String(
+        (order as Record<string, unknown>).bastion_frame_type ?? '',
+      ).toLowerCase()
+      if (!frameType.includes(rule.match_bastion_frame_type.toLowerCase())) continue
+    }
+    matchedRule = rule
+    break
+  }
+
+  const warningDays = matchedRule?.warning_days ?? 7
+  const overdueDays = matchedRule?.overdue_days ?? 14
+
+  if (days >= overdueDays) return 'overdue'
+  if (days >= warningDays) return 'warning'
+  return 'ok'
 }
 
 export function supabaseNumericFromForm(value: unknown): number | null {
@@ -844,6 +1107,7 @@ export function orderToStaForm(order: Order): StaOrderFormData {
     quantity: Number(order.quantity) || 1,
     notes: order.notes ?? '',
     client_order_number: order.client_order_number ?? '',
+    wykonawca: String((order.extra_fields as Record<string, unknown> | null)?.wykonawca ?? ''),
   }
 }
 

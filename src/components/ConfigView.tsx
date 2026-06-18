@@ -8,11 +8,15 @@ import type {
   ConfigSubTab,
   DimensionMap,
   GlassAllowance,
+  LeadTimeRule,
   Supplier,
+  ToastVariant,
 } from '../types'
 import SearchableSelect from './SearchableSelect'
 import SuppliersConfigView from './config/SuppliersConfigView'
 import CompanySettingsView from './config/CompanySettingsView'
+import LeadTimeRulesView from './config/LeadTimeRulesView'
+import Spinner from './Spinner'
 
 type ExclusionFormState = {
   category: string
@@ -103,7 +107,12 @@ type ConfigViewProps = {
   companySettings: CompanySettings | null
   companySettingsLoading: boolean
   onCompanySettingsSaved: () => void
-  pushToast: (message: string, variant: 'success' | 'error' | 'info') => void
+  leadTimeRules: LeadTimeRule[]
+  fetchLeadTimeRules: () => Promise<void>
+  onSaveLeadTimeRule: (payload: Omit<LeadTimeRule, 'id'> & { id?: number }) => Promise<void>
+  onDeleteLeadTimeRule: (id: number) => Promise<void>
+  onToggleLeadTimeRuleActive: (id: number, isActive: boolean) => Promise<void>
+  pushToast: (message: string, variant: ToastVariant) => void
 }
 
 export default function ConfigView({
@@ -167,6 +176,11 @@ export default function ConfigView({
   companySettings,
   companySettingsLoading,
   onCompanySettingsSaved,
+  leadTimeRules,
+  fetchLeadTimeRules,
+  onSaveLeadTimeRule,
+  onDeleteLeadTimeRule,
+  onToggleLeadTimeRuleActive,
   pushToast,
 }: ConfigViewProps) {
   const isBastionFrameDict =
@@ -219,6 +233,15 @@ export default function ConfigView({
             Dane firmy
           </button>
         )}
+        {isManager && (
+          <button
+            type="button"
+            className={`btn btn-sm ${activeConfigSubTab === 'Terminy realizacji' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveConfigSubTab('Terminy realizacji')}
+          >
+            Terminy realizacji
+          </button>
+        )}
       </div>
       {activeConfigSubTab === 'Słowniki' && (
         <div className="config-layout">
@@ -265,7 +288,7 @@ export default function ConfigView({
               </button>
             </div>
             {configOptionsLoading ? (
-              <p className="no-results">Ładowanie wartości...</p>
+              <Spinner center label="Ładowanie wartości…" />
             ) : (
               <div className="table-wrapper config-table-wrap">
                 <table className="orders-table contractors-table config-options-table">
@@ -883,6 +906,16 @@ export default function ConfigView({
           loading={companySettingsLoading}
           isManager={isManager}
           onSaved={onCompanySettingsSaved}
+          pushToast={pushToast}
+        />
+      )}
+      {activeConfigSubTab === 'Terminy realizacji' && isManager && (
+        <LeadTimeRulesView
+          rules={leadTimeRules}
+          onSave={onSaveLeadTimeRule}
+          onDelete={onDeleteLeadTimeRule}
+          onToggleActive={onToggleLeadTimeRuleActive}
+          onRefresh={async () => { await fetchLeadTimeRules() }}
           pushToast={pushToast}
         />
       )}

@@ -4,20 +4,38 @@ import { Activity } from 'lucide-react'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
 import type {
   Supplier,
+  Warehouse,
   WarehouseComponent,
   WarehouseComponentCreateInput,
   WarehouseComponentUpdateInput,
+  WarehouseStockRow,
 } from '../../types'
 import SkuLogisticsFields from './SkuLogisticsFields'
+import Spinner from '../Spinner'
+import { isInternalWarehouseCode } from '../../utils'
 
 const UNIT_OPTIONS = ['mb', 'szt', 'm2', 'kg'] as const
+
+function slugifyCode(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-')
+}
 
 type ComponentsViewProps = {
   isManager: boolean
   components: WarehouseComponent[]
+  warehouses: Warehouse[]
+  stock: WarehouseStockRow[]
   loading: boolean
-  onCreate: (data: WarehouseComponentCreateInput) => Promise<void>
+  onCreate: (data: WarehouseComponentCreateInput, warehouseIds?: number[]) => Promise<void>
   onUpdate: (id: number, data: WarehouseComponentUpdateInput) => Promise<void>
+  onSetComponentWarehouses: (componentId: number, warehouseIds: number[]) => Promise<void>
+  onCleanupStock: () => Promise<void>
   onDelete: (id: number) => Promise<void>
   onAddDoorComponent: () => void
   onEditDoorComponent: (component: WarehouseComponent) => void
@@ -45,9 +63,13 @@ const emptyForm = () => ({
 function ComponentsView({
   isManager,
   components,
+  warehouses,
+  stock,
   loading,
   onCreate,
   onUpdate,
+  onSetComponentWarehouses,
+  onCleanupStock,
   onDelete,
   onAddDoorComponent,
   onEditDoorComponent,
@@ -62,6 +84,27 @@ function ComponentsView({
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [selectedWarehouseIds, setSelectedWarehouseIds] = useState<number[]>([])
+  const [cleaning, setCleaning] = useState(false)
+
+  const warehousesSorted = useMemo(
+    () => [...warehouses].sort((a, b) => a.code.localeCompare(b.code)),
+    [warehouses],
+  )
+  const nonInternalIds = useMemo(
+    () => warehouses.filter((w) => !isInternalWarehouseCode(w.code)).map((w) => w.id),
+    [warehouses],
+  )
+  // mapa komponent -> magazyny w których ma półkę (z warehouse_stock)
+  const componentWarehouses = useMemo(() => {
+    const m = new Map<number, number[]>()
+    stock.forEach((s) => {
+      const arr = m.get(s.component_id) ?? []
+      arr.push(s.warehouse_id)
+      m.set(s.component_id, arr)
+    })
+    return m
+  }, [stock])
 
   const uniqueCategories = useMemo(() => {
     const set = new Set<string>()
@@ -97,12 +140,15 @@ function ComponentsView({
     setModalMode('create')
     setEditingId(null)
     setForm(emptyForm())
+    // surowiec domyślnie trafia do wszystkich magazynów oprócz WEWNETRZNE
+    setSelectedWarehouseIds(nonInternalIds)
     setModalOpen(true)
-  }, [])
+  }, [nonInternalIds])
 
   const openEdit = useCallback((row: WarehouseComponent) => {
     setModalMode('edit')
     setEditingId(row.id)
+    setSelectedWarehouseIds(componentWarehouses.get(row.id) ?? [])
     setForm({
       code: row.code ?? '',
       name: row.name,
@@ -118,7 +164,7 @@ function ComponentsView({
       notes: row.notes ?? '',
     })
     setModalOpen(true)
-  }, [])
+  }, [componentWarehouses])
 
   const closeModal = useCallback(() => {
     if (saving) return
@@ -136,11 +182,28 @@ function ComponentsView({
   )
 
   const handleSubmit = useCallback(async () => {
-    const code = form.code.trim()
     const name = form.name.trim()
-    if (!code || !name) {
-      window.alert('Uzupełnij kod i nazwę.')
+    if (!name) {
+      window.alert('Uzupełnij nazwę.')
       return
+    }
+    // Kod opcjonalny: jeśli pusty, generujemy automatycznie z nazwy i deduplikujemy
+    let code = form.code.trim()
+    if (!code) {
+      const slug = slugifyCode(name)
+      const base = (slug || 'KOMP').slice(0, 60)
+      const existing = new Set(
+        components
+          .filter((c) => c.id !== editingId)
+          .map((c) => (c.code ?? '').trim().toUpperCase())
+          .filter(Boolean),
+      )
+      code = base
+      let idx = 2
+      while (existing.has(code.toUpperCase())) {
+        code = `${base}-${idx}`
+        idx += 1
+      }
     }
     const categoryTrim = form.category.trim()
     const minRaw = form.min_stock_level
@@ -183,12 +246,17 @@ function ComponentsView({
       pallets_per_full_tir: pftNum,
       notes: form.notes.trim() ? form.notes.trim() : null,
     }
+    if (selectedWarehouseIds.length === 0) {
+      window.alert('Wybierz co najmniej jeden magazyn.')
+      return
+    }
     setSaving(true)
     try {
       if (modalMode === 'create') {
-        await onCreate({ ...payloadCommon, is_active: true })
+        await onCreate({ ...payloadCommon, is_active: true }, selectedWarehouseIds)
       } else if (editingId != null) {
         await onUpdate(editingId, payloadCommon)
+        await onSetComponentWarehouses(editingId, selectedWarehouseIds)
       }
       setModalOpen(false)
       setEditingId(null)
@@ -196,7 +264,7 @@ function ComponentsView({
     } finally {
       setSaving(false)
     }
-  }, [editingId, form, modalMode, onCreate, onUpdate])
+  }, [editingId, form, modalMode, onCreate, onUpdate, onSetComponentWarehouses, selectedWarehouseIds, components])
 
   const handleEdit = useCallback(
     (row: WarehouseComponent) => {
@@ -230,11 +298,28 @@ function ComponentsView({
             <button type="button" className="btn btn-sm btn-primary" onClick={onAddDoorComponent}>
               + Dodaj drzwi wewnętrzne
             </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              disabled={cleaning}
+              title="Usuwa zerowe półki tam, gdzie komponent nie pasuje do magazynu (surowce z Wewnętrznych, drzwi spoza Wewnętrznych)."
+              onClick={async () => {
+                if (!window.confirm('Usunąć błędne (zerowe) półki — surowce z magazynów wewnętrznych i drzwi wewnętrzne spoza nich?')) return
+                setCleaning(true)
+                try {
+                  await onCleanupStock()
+                } finally {
+                  setCleaning(false)
+                }
+              }}
+            >
+              {cleaning ? 'Czyszczę…' : 'Wyczyść błędne półki'}
+            </button>
           </div>
         </div>
       )}
       {loading ? (
-        <p className="no-results">Ładowanie komponentów...</p>
+        <Spinner center label="Ładowanie komponentów…" />
       ) : (
         <div className="table-wrapper">
           <div className="components-filter-pills">
@@ -408,10 +493,11 @@ function ComponentsView({
               </div>
               <div className="order-form-grid order-form-grid--sta">
                 <label className="order-field-full">
-                  <span className="order-field-label-text">Kod *</span>
+                  <span className="order-field-label-text">Kod (auto jeśli puste)</span>
                   <input
                     type="text"
                     value={form.code}
+                    placeholder="auto z nazwy"
                     onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
                     disabled={saving}
                   />
@@ -481,6 +567,32 @@ function ComponentsView({
                   setTargetStockLevel={(n) => setForm((p) => ({ ...p, target_stock_level: n }))}
                   suppliers={suppliers}
                 />
+                <div className="order-field-full">
+                  <span className="order-field-label-text">Magazyny</span>
+                  <div className="component-wh-picker">
+                    {warehousesSorted.map((w) => {
+                      const checked = selectedWarehouseIds.includes(w.id)
+                      return (
+                        <label key={w.id} className={`component-wh-chip ${checked ? 'component-wh-chip--on' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={saving}
+                            onChange={(e) =>
+                              setSelectedWarehouseIds((prev) =>
+                                e.target.checked ? [...prev, w.id] : prev.filter((id) => id !== w.id),
+                              )
+                            }
+                          />
+                          {w.code}
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <span className="component-wh-hint">
+                    Komponent będzie widoczny i przyjmowany tylko w zaznaczonych magazynach.
+                  </span>
+                </div>
               </div>
               <div className="order-form-actions">
                 <button

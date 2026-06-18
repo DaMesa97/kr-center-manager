@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import { useState, type RefObject } from 'react'
 import type { GlassAllowance, Order } from '../types'
 import { calcGlassDim, getGlassAllowance } from '../utils'
 
@@ -19,6 +19,23 @@ export default function GlassView({
   onGlassReceived,
   tableWrapperRef,
 }: GlassViewProps) {
+  // Guard przeciw podwójnej wysyłce zamówienia szyby (double-click)
+  const [sendingIds, setSendingIds] = useState<Set<number>>(new Set())
+
+  const handleSend = async (order: Order) => {
+    if (order.id === undefined || sendingIds.has(order.id)) return
+    setSendingIds((prev) => new Set(prev).add(order.id!))
+    try {
+      await onSendGlassOrder(order)
+    } finally {
+      setSendingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(order.id!)
+        return next
+      })
+    }
+  }
+
   return (
     <div className="glass-view">
       <div className="table-wrapper orders-table-wrapper" ref={tableWrapperRef}>
@@ -122,10 +139,11 @@ export default function GlassView({
                         <button
                           type="button"
                           className="release-checkbox-btn"
-                          onClick={() => void onSendGlassOrder(order)}
+                          onClick={() => void handleSend(order)}
+                          disabled={order.id !== undefined && sendingIds.has(order.id)}
                           title="Wyślij zamówienie szyby"
                         >
-                          □
+                          {order.id !== undefined && sendingIds.has(order.id) ? '…' : '□'}
                         </button>
                       )}
                     </td>

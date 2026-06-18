@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Supplier } from '../../types'
+import Spinner from '../Spinner'
 
 type Props = {
   suppliers: Supplier[]
@@ -61,7 +62,7 @@ export default function SuppliersConfigView({
       </div>
 
       {loading ? (
-        <p className="no-results">Ładowanie dostawców...</p>
+        <Spinner center label="Ładowanie dostawców…" />
       ) : (
         <div className="table-wrapper">
           <table className="orders-table">

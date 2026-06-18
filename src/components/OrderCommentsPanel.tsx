@@ -1,14 +1,19 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import type { DbProfileRow, OrderComment } from '../types'
+import Spinner from './Spinner'
+
+type MentionProfile = { id: string; full_name: string }
 
 type Props = {
   open: boolean
   orderId: number | null
   orderNumber: string
+  orderCategory?: string
   currentUserId: string
   currentUserRole: string
+  profiles?: MentionProfile[]
   onClose: () => void
   onCountChange?: (orderId: number, total: number) => void
 }
@@ -17,8 +22,10 @@ function OrderCommentsPanel({
   open,
   orderId,
   orderNumber,
+  orderCategory,
   currentUserId,
   currentUserRole,
+  profiles = [],
   onClose,
   onCountChange,
 }: Props) {
@@ -28,6 +35,58 @@ function OrderCommentsPanel({
   const [submitting, setSubmitting] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
+  // Autocomplete @wzmianka
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const mentionCandidates =
+    mentionQuery === null
+      ? []
+      : profiles
+          .filter((p) => p.full_name && p.id !== currentUserId)
+          .filter((p) => p.full_name.toLowerCase().includes(mentionQuery.toLowerCase()))
+          .slice(0, 6)
+
+  const handleTextChange = (value: string) => {
+    setNewText(value)
+    const caret = textareaRef.current?.selectionStart ?? value.length
+    const before = value.slice(0, caret)
+    const m = /@([\p{L}\s]{0,30})$/u.exec(before)
+    // pokaż podpowiedzi tylko gdy @ rozpoczyna wzmiankę (po spacji/początku) i query krótki
+    if (m && /(^|\s)@[\p{L}\s]*$/u.test(before)) {
+      setMentionQuery(m[1])
+    } else {
+      setMentionQuery(null)
+    }
+  }
+
+  const insertMention = (profile: MentionProfile) => {
+    const caret = textareaRef.current?.selectionStart ?? newText.length
+    const before = newText.slice(0, caret)
+    const after = newText.slice(caret)
+    const replaced = before.replace(/@[\p{L}\s]{0,30}$/u, `@${profile.full_name} `)
+    setNewText(replaced + after)
+    setMentionQuery(null)
+    setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
+  const createMentionNotifications = async (content: string) => {
+    if (!orderId || profiles.length === 0) return
+    const mentioned = profiles.filter(
+      (p) => p.id !== currentUserId && p.full_name && content.includes(`@${p.full_name}`),
+    )
+    if (mentioned.length === 0) return
+    const rows = mentioned.map((p) => ({
+      user_id: p.id,
+      type: 'mention',
+      title: 'Oznaczono Cię w komentarzu',
+      body: `Zlecenie ${orderNumber}: ${content.slice(0, 100)}`,
+      link_tab: orderCategory || null,
+      link_order_id: orderId,
+    }))
+    const { error } = await supabase.from('notifications').insert(rows)
+    if (error) console.warn('[mentions] notifications insert:', error.message)
+  }
 
   const fetchComments = useCallback(async () => {
     if (!orderId) return
@@ -116,7 +175,9 @@ function OrderCommentsPanel({
       return
     }
 
+    await createMentionNotifications(content)
     setNewText('')
+    setMentionQuery(null)
     await fetchComments()
   }
 
@@ -169,7 +230,7 @@ function OrderCommentsPanel({
         </header>
 
         <div className="order-comments-list">
-          {loading && <div className="order-comments-empty">Ładowanie...</div>}
+          {loading && <div className="order-comments-empty"><Spinner center label="Ładowanie…" /></div>}
           {!loading && comments.length === 0 && (
             <div className="order-comments-empty">Brak komentarzy. Dodaj pierwszy!</div>
           )}
@@ -241,14 +302,31 @@ function OrderCommentsPanel({
         </div>
 
         <footer className="order-comments-footer">
-          <textarea
-            className="order-comments-textarea"
-            placeholder="Napisz komentarz..."
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            rows={3}
-            disabled={submitting}
-          />
+          <div className="order-comments-input-wrap">
+            {mentionCandidates.length > 0 && (
+              <div className="mention-dropdown">
+                {mentionCandidates.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="mention-option"
+                    onClick={() => insertMention(p)}
+                  >
+                    @{p.full_name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              className="order-comments-textarea"
+              placeholder="Napisz komentarz… (wpisz @ aby oznaczyć osobę)"
+              value={newText}
+              onChange={(e) => handleTextChange(e.target.value)}
+              rows={3}
+              disabled={submitting}
+            />
+          </div>
           <button
             className="btn btn-primary"
             onClick={handleAdd}

@@ -21,10 +21,14 @@ export default function DeleteConfirmDialog({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCancel()
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onConfirm()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel])
+  }, [onCancel, onConfirm])
 
   return createPortal(
     <div className="confirm-dialog-overlay" role="presentation" onClick={onCancel}>

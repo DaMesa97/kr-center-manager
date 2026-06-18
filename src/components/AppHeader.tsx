@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, Layers, Database, ShieldCheck, Zap, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react'
 import packageJson from '../../package.json'
+import NotificationBell from './NotificationBell'
 
 // ---------------------------------------------------------------------------
 // IPC helper (tylko do invoke — bez globalnego augmentowania Window)
@@ -188,6 +189,8 @@ type AppHeaderProps = {
   isShippingTab: boolean
   isApiKeysTab: boolean
   currentUserFullName: string
+  currentUserId: string
+  onNavigateTab: (tab: string) => void
   onAddContractor: () => void
   onAddUser: () => void
   onNewOrder: () => void
@@ -208,6 +211,8 @@ export default function AppHeader({
   isShippingTab,
   isApiKeysTab,
   currentUserFullName,
+  currentUserId,
+  onNavigateTab,
   onAddContractor,
   onAddUser,
   onNewOrder,
@@ -224,7 +229,10 @@ export default function AppHeader({
     isArchiveTab ||
     isMyStationTab ||
     isShippingTab ||
-    isApiKeysTab
+    isApiKeysTab ||
+    activeTab === 'Pulpit' ||
+    activeTab === 'Zamawianie' ||
+    activeTab === 'Inwentaryzacja'
 
   const sectionTitle: Record<string, string> = {
     'Moje stanowisko': 'Moje stanowisko',
@@ -240,6 +248,9 @@ export default function AppHeader({
     Archiwum: 'Archiwum',
     Wysyłka: 'Wysyłka',
     Magazyn: 'Magazyn',
+    Zamawianie: 'Zamawianie towaru',
+    Inwentaryzacja: 'Inwentaryzacja',
+    Pulpit: 'Pulpit',
     Kontrahenci: 'Kontrahenci',
     Konfiguracja: 'Konfiguracja',
     Użytkownicy: 'Użytkownicy',
@@ -267,6 +278,7 @@ export default function AppHeader({
           )}
 
           <div className="app-toolbar-user">
+            <NotificationBell currentUserId={currentUserId} onNavigate={onNavigateTab} />
             <span className="app-toolbar-username">{currentUserFullName}</span>
             <button
               type="button"

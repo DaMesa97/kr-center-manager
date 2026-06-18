@@ -7,7 +7,6 @@ import {
 } from 'react'
 import ProductionStageCell from './ProductionStageCell'
 import StockStatusBadge from './StockStatusBadge'
-import { BotBadge } from './BotBadge'
 import { TopScrollTableWrapper } from './TopScrollTableWrapper'
 import type { GlassAllowance, Order, StageDef, StStageLayoutMode, ToastVariant } from '../types'
 import {
@@ -26,6 +25,7 @@ type StOrdersTableViewProps = {
   stOrdersStageLayout: { mode: StStageLayoutMode; defs: StageDef[] }
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
   isManager: boolean
+  canSeePrices?: boolean
   releaseDateUpdating: number | null
   rushUpdatingOrderId: number | null
   productionStageUpdating: string | null
@@ -50,6 +50,7 @@ export default function StOrdersTableView({
   stOrdersStageLayout,
   tableWrapperRef,
   isManager,
+  canSeePrices = true,
   releaseDateUpdating,
   rushUpdatingOrderId,
   productionStageUpdating,
@@ -167,14 +168,6 @@ export default function StOrdersTableView({
               {def.header}
             </th>
           ))}
-          {(stOrdersStageLayout.mode === 'titan' || stOrdersStageLayout.mode === 'mixed') && (
-            <th
-              className="production-stage-th sta-osc-pack-th col-osc-pack"
-              title="Skrzydło spakowane w STA (E5)"
-            >
-              SKR ✓
-            </th>
-          )}
           <th className="col-order-text" title="WYDANIE">
             WYDANIE
           </th>
@@ -190,9 +183,11 @@ export default function StOrdersTableView({
           <th className="col-order-text" title="WPISAŁ">
             WPISAŁ
           </th>
-          <th className="col-order-text" title="WARTOŚĆ KONFIGURATOR">
-            WARTOŚĆ KONFIGURATOR
-          </th>
+          {canSeePrices && (
+            <th className="col-order-text" title="WARTOŚĆ KONFIGURATOR">
+              WARTOŚĆ KONFIGURATOR
+            </th>
+          )}
           <th className="col-order-text" title="AIRTABLE ID">
             AIRTABLE ID
           </th>
@@ -212,7 +207,6 @@ export default function StOrdersTableView({
               colSpan={
                 18 +
                 stOrdersStageLayout.defs.length +
-                (stOrdersStageLayout.mode === 'titan' || stOrdersStageLayout.mode === 'mixed' ? 1 : 0) +
                 8 +
                 (isManager ? 1 : 0)
               }
@@ -277,7 +271,6 @@ export default function StOrdersTableView({
                   ) : null}
                   <span className="order-number-wrapper">
                     <span className="order-num-value order-number-value">{order.order_number}</span>
-                    <BotBadge order={order} />
                     {(() => {
                       const counts = order.id !== undefined ? orderCommentsCounts.get(order.id) : undefined
                       const total = counts?.total ?? 0
@@ -480,39 +473,7 @@ export default function StOrdersTableView({
                     </td>
                   )
                 })}
-                {stLayoutMode === 'titan' &&
-                  (() => {
-                    const skrInitials = String(rowStages.sta_e5 ?? '').trim()
-                    const skrDone = Boolean(skrInitials)
-                    return (
-                      <td
-                        className="production-stage-td sta-osc-pack-td col-osc-pack"
-                        title={
-                          skrDone
-                            ? 'Skrzydło spakowane w STA (E5)'
-                            : 'Oczekiwanie na pakowanie skrzydła w STA (E5)'
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span
-                          className={
-                            skrDone
-                              ? 'st-skr-pack-badge st-skr-pack-badge--done'
-                              : 'st-skr-pack-badge st-skr-pack-badge--wait'
-                          }
-                        >
-                          {skrDone ? (
-                            <>
-                              SKR ✓ <span className="sta-osc-badge-initials">{skrInitials}</span>
-                            </>
-                          ) : (
-                            'SKR —'
-                          )}
-                        </span>
-                      </td>
-                    )
-                  })()}
-                {stLayoutMode === 'mixed' &&
+                {false && stLayoutMode === 'mixed' &&
                   (() => {
                     const skrInitials = String(rowStages.sta_e5 ?? '').trim()
                     const skrDone = Boolean(skrInitials)
@@ -610,9 +571,11 @@ export default function StOrdersTableView({
                 <td className="col-order-text" title={orderCellTooltip(order.entered_by)}>
                   {order.entered_by}
                 </td>
-                <td className="col-order-text" title={orderCellTooltip(order.configurator_value)}>
-                  {order.configurator_value}
-                </td>
+                {canSeePrices && (
+                  <td className="col-order-text" title={orderCellTooltip(order.configurator_value)}>
+                    {order.configurator_value}
+                  </td>
+                )}
                 <td className="col-order-text" title={orderCellTooltip(order.airtable_id)}>
                   {order.airtable_id}
                 </td>

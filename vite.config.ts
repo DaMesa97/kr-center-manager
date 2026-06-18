@@ -22,6 +22,9 @@ export default defineConfig(({ mode }) => {
   const sentryUploadEnabled = Boolean(sentryAuthToken && sentryOrg && sentryProject)
 
   return {
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version),
+    },
     build: {
       sourcemap: 'hidden',
       // pdfmake zawsze będzie ~1 MB — to normalne, nie warto walczyć
