@@ -428,11 +428,24 @@ export function useOrders({
     // Snapshot kategorii — chroni przed race przy szybkim przełączaniu zakładek
     const fetchTab = activeTab
     latestFetchTabRef.current = fetchTab
-    // Paginacja — pobieramy partiami po 1000 żeby ominąć limit PostgREST
+    // Sortowanie: data malejąco, potem numer zlecenia malejąco (numerycznie)
+    const sortOrders = (arr: Order[]) =>
+      [...arr].sort((a, b) => {
+        const dateA = a.order_date ?? ''
+        const dateB = b.order_date ?? ''
+        if (dateA !== dateB) return dateB.localeCompare(dateA)
+        const numA = parseInt(String(a.order_number ?? '0'), 10) || 0
+        const numB = parseInt(String(b.order_number ?? '0'), 10) || 0
+        return numB - numA
+      })
+
+    // Progresywne ładowanie — pierwsza partia (500) pokazuje się od razu i wyłącza
+    // spinner; kolejne dochodzą w tle (szybciej odczuwalnie na słabym necie).
     const allOrders: Order[] = []
     let from = 0
-    const PAGE = 1000
+    const PAGE = 500
     let fetchError = null
+    let firstPaint = true
     while (true) {
       const { data, error: pageError } = await supabase
         .from('orders')
@@ -443,28 +456,21 @@ export function useOrders({
       if (pageError) { fetchError = pageError; break }
       if (!data || data.length === 0) break
       allOrders.push(...(data as Order[]))
+      // Jeśli user przełączył kategorię w trakcie — porzuć (nie nadpisuj)
+      if (latestFetchTabRef.current !== fetchTab) return
+      // Pokaż to co już mamy (po pierwszej partii zdejmij spinner)
+      setOrders(sortOrders(allOrders))
+      if (firstPaint) { setLoading(false); firstPaint = false }
       if (data.length < PAGE) break
       from += PAGE
     }
-    // Jeśli w międzyczasie user przełączył kategorię — porzuć wynik (nie nadpisuj)
-    if (latestFetchTabRef.current !== fetchTab) {
-      return
-    }
+    if (latestFetchTabRef.current !== fetchTab) return
     const error = fetchError
     const ordersData = allOrders
     if (error) {
       console.error(error)
     } else {
-      const loaded = ordersData as Order[]
-      // Sortuj: data malejąco, potem numer zlecenia malejąco (numerycznie)
-      loaded.sort((a, b) => {
-        const dateA = a.order_date ?? ''
-        const dateB = b.order_date ?? ''
-        if (dateA !== dateB) return dateB.localeCompare(dateA)
-        const numA = parseInt(String(a.order_number ?? '0'), 10) || 0
-        const numB = parseInt(String(b.order_number ?? '0'), 10) || 0
-        return numB - numA
-      })
+      const loaded = sortOrders(ordersData as Order[])
       setOrders(loaded)
 
       if (activeTab === 'DrzwiWewnetrzne') {

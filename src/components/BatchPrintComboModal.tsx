@@ -3,16 +3,18 @@ import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
+import { matchedDocsForOrder, type DopDocument } from '../lib/dopMatch'
 import type { Order, ToastVariant } from '../types'
 
 type Props = {
   orders: Order[]
   onClose: () => void
   onDone?: () => void
+  initialMode?: 'all' | 'docs'
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-type PrintDocument = { id: number; category: string; name: string; zpl_content: string; system?: string | null }
+type PrintDocument = DopDocument
 type WinPrinter = { name: string; displayName?: string; isDefault?: boolean }
 
 type IpcLike = { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> }
@@ -21,15 +23,14 @@ function getIpc(): IpcLike | undefined {
 }
 
 const PRINTER_LS_KEY = 'labelPrinterName'
-const norm = (v: unknown) => String(v ?? '').trim().toUpperCase()
 const hasRealDim = (v: unknown) => /[1-9]/.test(String(v ?? ''))
 
-export default function BatchPrintComboModal({ orders, onClose, onDone, pushToast }: Props) {
+export default function BatchPrintComboModal({ orders, onClose, onDone, initialMode = 'all', pushToast }: Props) {
   const [templates, setTemplates] = useState<LabelTemplate[]>([])
   const [documents, setDocuments] = useState<PrintDocument[]>([])
   const [printers, setPrinters] = useState<WinPrinter[]>([])
   const [printerName, setPrinterName] = useState('')
-  const [doLabels, setDoLabels] = useState(true)
+  const [doLabels, setDoLabels] = useState(initialMode !== 'docs')
   const [doDocs, setDoDocs] = useState(true)
   const [copiesByOrder, setCopiesByOrder] = useState<Record<number, number>>({})
   const [loading, setLoading] = useState(true)
@@ -78,10 +79,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, pushToas
     const forCat = templates.filter((t) => t.category === cat)
     return forCat.find((t) => t.is_default) ?? forCat[0]
   }
-  const docsForOrder = (order: Order): PrintDocument[] =>
-    documents.filter(
-      (d) => d.category === order.category && (!norm(d.system) || norm(d.system) === norm(order.system)),
-    )
+  const docsForOrder = (order: Order): PrintDocument[] => matchedDocsForOrder(order, documents)
 
   const handlePrint = async () => {
     const ipc = getIpc()

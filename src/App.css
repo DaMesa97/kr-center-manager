@@ -7289,6 +7289,7 @@ html, body, #root {
 .my-station-details-row td {
   background: var(--surface-2, #f8fafc);
   padding: 0.75rem 1rem;
+  white-space: normal; /* nadpisuje nowrap z .orders-table td — wartości mają się zawijać */
 }
 .my-station-details {
   display: grid;
@@ -7490,3 +7491,19 @@ html, body, #root {
 
 /* Combo druk — info o kanałach drukarki */
 .batch-printer-channels { font-size: 0.78rem; color: #475569; background: #f1f5f9; border-radius: 6px; padding: 6px 10px; }
+
+/* Podgląd szablonu etykiety — rzeczywisty rozmiar, z przewijaniem */
+.label-tpl-preview-frame {
+  overflow: auto;
+  max-height: 72vh;
+  padding: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Dokumenty — atrybuty doboru DWU */
+.print-docs-dwu-attrs { display: flex; gap: 8px; flex-wrap: wrap; }
+.print-docs-dwu-attrs select { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; }

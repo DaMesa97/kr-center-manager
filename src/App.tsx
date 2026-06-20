@@ -1405,6 +1405,7 @@ function App() {
   // #21 — masowy druk etykiet: zaznaczanie zamówień w tabelach
   const [labelSelection, setLabelSelection] = useState<Set<number>>(new Set())
   const [batchComboOpen, setBatchComboOpen] = useState(false)
+  const [dopOrder, setDopOrder] = useState<Order | null>(null)
   const toggleLabelSelect = useCallback((order: Order) => {
     const id = order.id
     if (id === undefined) return
@@ -2173,6 +2174,7 @@ function App() {
               usesStructuredOrderForm,
               onRequestClose: handleRequestCloseOrderModal,
               onPrintLabel: (o: Order) => setPrintLabelOrder(o),
+              onPrintDop: (o: Order) => setDopOrder(o),
               editingOrderId,
               editingOrderBaseline,
               newOrderFormNumber,
@@ -2253,11 +2255,12 @@ function App() {
           </div>
         )}
 
-        {batchComboOpen && (
+        {(batchComboOpen || dopOrder) && (
           <BatchPrintComboModal
-            orders={orders.filter((o) => o.id !== undefined && labelSelection.has(o.id))}
-            onClose={() => setBatchComboOpen(false)}
-            onDone={clearLabelSelection}
+            orders={dopOrder ? [dopOrder] : orders.filter((o) => o.id !== undefined && labelSelection.has(o.id))}
+            initialMode={dopOrder ? 'docs' : 'all'}
+            onClose={() => { setBatchComboOpen(false); setDopOrder(null) }}
+            onDone={() => { clearLabelSelection(); setDopOrder(null) }}
             pushToast={pushToast}
           />
         )}

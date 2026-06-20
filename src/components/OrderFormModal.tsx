@@ -65,6 +65,7 @@ function OrderFormModal(props: OrderFormModalProps) {
     usesStructuredOrderForm,
     onRequestClose,
     onPrintLabel,
+    onPrintDop,
     editingOrderId,
     editingOrderBaseline,
     newOrderFormNumber,
@@ -228,6 +229,16 @@ function OrderFormModal(props: OrderFormModalProps) {
                       title="Drukuj etykietę dla tego zlecenia"
                     >
                       🏷️ Drukuj etykietę
+                    </button>
+                  )}
+                  {editingOrderId !== null && onPrintDop && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => onPrintDop(editingOrderBaseline)}
+                      title="Drukuj dobraną deklarację (DWU) dla tego zlecenia"
+                    >
+                      📄 Drukuj DoP
                     </button>
                   )}
                   <button className="btn btn-icon btn-ghost" onClick={onRequestClose}>

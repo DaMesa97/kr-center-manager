@@ -195,8 +195,20 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
             </div>
           </div>
           <div className="label-tpl-preview">
-            <span className="order-field-label-text">Podgląd ({form.width_mm}×{form.height_mm}mm)</span>
-            <iframe title="Podgląd szablonu" srcDoc={preview} style={{ width: '100%', height: 380, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff' }} />
+            <span className="order-field-label-text">Podgląd ({form.width_mm}×{form.height_mm}mm — rozmiar rzeczywisty)</span>
+            <div className="label-tpl-preview-frame">
+              <iframe
+                title="Podgląd szablonu"
+                srcDoc={preview}
+                style={{
+                  width: `${form.width_mm}mm`,
+                  height: `${form.height_mm}mm`,
+                  border: '1px solid #cbd5e1',
+                  background: '#fff',
+                  display: 'block',
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

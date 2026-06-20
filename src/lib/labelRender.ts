@@ -65,6 +65,8 @@ export async function renderLabelHtml(template: LabelTemplate, order: Order): Pr
     const val = field.key === 'qr' ? qrImg : (field.value(order) || '-')
     body = body.split(`{{${field.key}}}`).join(val)
   }
+  // Nieznane/literówkowe placeholdery {{...}} → "-" (żeby nie drukować surowych klamr)
+  body = body.replace(/\{\{\s*[\wąćęłńóśźż.-]+\s*\}\}/gi, '-')
 
   const w = Number(template.width_mm) || 100
   const h = Number(template.height_mm) || 50

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Printer, Plus, Trash2, Upload } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import type { DopDocument } from '../lib/dopMatch'
 import type { CurrentUser, ToastVariant } from '../types'
 
 type Props = {
@@ -9,7 +10,7 @@ type Props = {
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-type PrintDocument = { id: number; category: string; name: string; zpl_content: string; system?: string | null }
+type PrintDocument = DopDocument
 type WinPrinter = { name: string; displayName?: string; isDefault?: boolean }
 
 const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
@@ -40,6 +41,9 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
   const [newName, setNewName] = useState('')
   const [newZpl, setNewZpl] = useState('')
   const [newSystem, setNewSystem] = useState('')
+  const [newWykonawca, setNewWykonawca] = useState('')
+  const [newGlazing, setNewGlazing] = useState('')
+  const [newFrameKind, setNewFrameKind] = useState('')
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
@@ -124,11 +128,17 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
     setSaving(true)
     try {
       const { error } = await supabase.from('print_documents').insert([
-        { category, name, zpl_content: zpl, system: newSystem.trim() || null },
+        {
+          category, name, zpl_content: zpl,
+          system: newSystem.trim() || null,
+          wykonawca: newWykonawca || null,
+          glazing_type: newGlazing || null,
+          frame_kind: newFrameKind || null,
+        },
       ])
       if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
       pushToast('Dokument dodany', 'success')
-      setAddOpen(false); setNewName(''); setNewZpl(''); setNewSystem('')
+      setAddOpen(false); setNewName(''); setNewZpl(''); setNewSystem(''); setNewWykonawca(''); setNewGlazing(''); setNewFrameKind('')
       await load()
     } finally {
       if (mountedRef.current) setSaving(false)
@@ -203,7 +213,25 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
       {isManager && addOpen && (
         <div className="print-docs-add">
           <input type="text" placeholder="Nazwa dokumentu (np. DoP STA 90)" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          <input type="text" placeholder="System (puste = cała kategoria, np. BASIC LOCK PLUS)" value={newSystem} onChange={(e) => setNewSystem(e.target.value)} />
+          <input type="text" placeholder="System (puste = dowolny, np. NORMAL PLUS)" value={newSystem} onChange={(e) => setNewSystem(e.target.value)} />
+          <div className="print-docs-dwu-attrs">
+            <select value={newWykonawca} onChange={(e) => setNewWykonawca(e.target.value)} title="Realizator">
+              <option value="">Realizator: dowolny</option>
+              <option value="Center">Center</option>
+              <option value="Profil">Profil</option>
+              <option value="WZ">WZ</option>
+            </select>
+            <select value={newGlazing} onChange={(e) => setNewGlazing(e.target.value)} title="Szklone / pełne">
+              <option value="">Szklenie: dowolne</option>
+              <option value="szklone">Szklone</option>
+              <option value="pelne">Pełne</option>
+            </select>
+            <select value={newFrameKind} onChange={(e) => setNewFrameKind(e.target.value)} title="Rodzaj ościeżnicy (gł. Bastion)">
+              <option value="">Ościeżnica: dowolna</option>
+              <option value="stalowa">Stalowa</option>
+              <option value="drewniana">Drewniana</option>
+            </select>
+          </div>
           <div className="print-docs-add-zpl">
             <textarea
               placeholder="Wklej treść ZPL (^XA…^XZ) albo wgraj plik"
@@ -240,9 +268,10 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
             <div key={doc.id} className="print-docs-row">
               <span className="print-docs-name">
                 {doc.name}
-                {doc.system && doc.system.trim() ? (
-                  <span className="print-docs-system-badge">{doc.system}</span>
-                ) : null}
+                {doc.system && doc.system.trim() ? <span className="print-docs-system-badge">{doc.system}</span> : null}
+                {doc.wykonawca ? <span className="print-docs-system-badge">{doc.wykonawca}</span> : null}
+                {doc.glazing_type ? <span className="print-docs-system-badge">{doc.glazing_type === 'pelne' ? 'pełne' : 'szklone'}</span> : null}
+                {doc.frame_kind ? <span className="print-docs-system-badge">ośc. {doc.frame_kind}</span> : null}
               </span>
               <div className="print-docs-actions">
                 <input

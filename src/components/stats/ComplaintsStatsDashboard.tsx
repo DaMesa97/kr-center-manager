@@ -173,7 +173,19 @@ export default function ComplaintsStatsDashboard({ complaints, loading }: Props)
                 cy="50%"
                 outerRadius={120}
                 minAngle={2}
-                label={({ name, value }) => (Number(value) > 0 ? `${name}: ${value}` : '')}
+                labelLine={false}
+                label={(p: any) => {
+                  if (!p.value || (typeof p.percent === 'number' && p.percent < 0.05)) return null
+                  const RAD = Math.PI / 180
+                  const r = p.innerRadius + (p.outerRadius - p.innerRadius) * 0.6
+                  const x = p.cx + r * Math.cos(-p.midAngle * RAD)
+                  const y = p.cy + r * Math.sin(-p.midAngle * RAD)
+                  return (
+                    <text x={x} y={y} fill="#fff" fontSize={13} fontWeight={700} textAnchor="middle" dominantBaseline="central">
+                      {p.value}
+                    </text>
+                  )
+                }}
               >
                 {byWhatComplained.map((entry, idx) => (
                   <Cell key={`${entry.name}-${idx}`} fill={COMPLAINT_COLORS[idx % COMPLAINT_COLORS.length]} />

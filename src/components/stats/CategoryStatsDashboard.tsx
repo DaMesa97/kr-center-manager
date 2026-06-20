@@ -4,6 +4,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Label,
   Legend,
   Line,
   LineChart,
@@ -335,26 +336,67 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
 
         <div className="stats-card">
           <h3>Status zamówień {category}</h3>
-          <ResponsiveContainer width="100%" height={300}>
+          {(() => {
+            const total = statusData.reduce((s, d) => s + (Number(d.value) || 0), 0)
+            return (
+          <ResponsiveContainer width="100%" height={320}>
             <PieChart>
               <Pie
                 data={statusData}
                 dataKey="value"
                 nameKey="name"
-                name="Ilość drzwi"
                 cx="50%"
                 cy="50%"
-                outerRadius={100}
-                minAngle={2}
-                label={({ name, value }) => (Number(value) > 0 ? `${name}: ${value}` : '')}
+                innerRadius={62}
+                outerRadius={98}
+                paddingAngle={2}
+                minAngle={3}
+                labelLine={false}
+                label={(p: any) => {
+                  // procent w środku tylko dla wystarczająco dużych wycinków
+                  if (!p.value || !p.percent || p.percent < 0.08) return null
+                  const RAD = Math.PI / 180
+                  const r = p.innerRadius + (p.outerRadius - p.innerRadius) * 0.5
+                  const x = p.cx + r * Math.cos(-p.midAngle * RAD)
+                  const y = p.cy + r * Math.sin(-p.midAngle * RAD)
+                  return (
+                    <text x={x} y={y} fill="#fff" fontSize={13} fontWeight={700} textAnchor="middle" dominantBaseline="central">
+                      {Math.round(p.percent * 100)}%
+                    </text>
+                  )
+                }}
               >
                 {statusData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
+                  <Cell key={entry.name} fill={entry.color} stroke="#fff" strokeWidth={2} />
                 ))}
+                <Label
+                  position="center"
+                  content={(props: any) => {
+                    const { cx, cy } = props.viewBox
+                    return (
+                      <g>
+                        <text x={cx} y={cy - 8} textAnchor="middle" fontSize={26} fontWeight={800} fill="#1e293b">{total}</text>
+                        <text x={cx} y={cy + 14} textAnchor="middle" fontSize={12} fill="#64748b">drzwi łącznie</text>
+                      </g>
+                    )
+                  }}
+                />
               </Pie>
-              <Tooltip />
+              <Tooltip formatter={(value: unknown, name: unknown) => [`${value} szt.`, String(name)]} />
+              <Legend
+                verticalAlign="bottom"
+                height={36}
+                formatter={(value: unknown) => {
+                  const item = statusData.find((d) => d.name === value)
+                  const v = item?.value ?? 0
+                  const pct = total > 0 ? Math.round((v / total) * 100) : 0
+                  return `${value}: ${v} (${pct}%)`
+                }}
+              />
             </PieChart>
           </ResponsiveContainer>
+            )
+          })()}
         </div>
 
         <div className="stats-card">
