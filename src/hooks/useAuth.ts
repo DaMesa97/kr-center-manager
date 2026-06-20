@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../supabaseClient'
@@ -29,6 +29,11 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
   const [loginSubmitting, setLoginSubmitting] = useState(false)
   const [sessionLastActivity, setSessionLastActivity] = useState<number>(Date.now())
   const [sessionWarningOpen, setSessionWarningOpen] = useState(false)
+  // Supabase odpala onAuthStateChange (SIGNED_IN) przy KAŻDYM powrocie focusu na okno.
+  // Bez tych guardów każdy taki event przeładowywał profil i sesję → ciężki re-render
+  // całego App → gubione kliknięcia/focus w inputach. Reagujemy tylko na realne zmiany.
+  const loadedUserIdRef = useRef<string | null>(null)
+  const authTokenRef = useRef<string | null>(null)
 
   const touchSession = useCallback(() => {
     setSessionLastActivity(Date.now())
@@ -53,6 +58,7 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
       }
       setCurrentUser(fallbackProfile)
       setSentryUserFromProfile(fallbackProfile)
+      loadedUserIdRef.current = user.id
       return
     }
     const role = String((data as { role?: string }).role ?? '')
@@ -71,6 +77,7 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
     }
     setCurrentUser(profile)
     setSentryUserFromProfile(profile)
+    loadedUserIdRef.current = user.id
   }, [])
 
   // Inicjalizacja sesji + nasłuch zmian
@@ -78,6 +85,7 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
     let cancelled = false
     void supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return
+      authTokenRef.current = session?.access_token ?? null
       setAuthSession(session)
       if (session) {
         touchSession()
@@ -91,11 +99,22 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthSession(session)
+      // Reaguj tylko gdy realnie zmienił się token (pomija eventy przy focusie okna,
+      // które inaczej wywoływały re-render całego App i gubiły focus/klik w inputach)
+      const token = session?.access_token ?? null
+      const tokenChanged = token !== authTokenRef.current
+      if (tokenChanged) {
+        authTokenRef.current = token
+        setAuthSession(session)
+      }
       if (session) {
-        touchSession()
-        void loadProfile(session.user)
+        if (tokenChanged) touchSession()
+        // Przeładuj profil tylko dla NOWEGO usera (nie przy każdym SIGNED_IN z focusu)
+        if (session.user.id !== loadedUserIdRef.current) {
+          void loadProfile(session.user)
+        }
       } else {
+        loadedUserIdRef.current = null
         clearSentryUserContext()
         setCurrentUser(null)
         setLoginPassword('')

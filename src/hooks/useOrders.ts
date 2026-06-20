@@ -769,6 +769,39 @@ export function useOrders({
     [pushToast, glassAllowances],
   )
 
+  // #23 — Disting Plus (STA↔Disting) oraz Titan (STA↔ST): edycja jednego rekordu
+  // przenosi wspólne pola produktowe na powiązany rekord (kolor, wymiar, model itd.).
+  // NIE rusza pól strukturalnych: numer, kategoria, linki, arkusze, etapy, wydanie, extra_fields.
+  const SHARED_LINKED_FIELDS = [
+    'company', 'production_day', 'quantity', 'system', 'model',
+    'wing_color', 'frame_color', 'threshold_color', 'width', 'direction', 'opening', 'height',
+    'glazing', 'decorative_panel', 'hardware', 'handle', 'peephole',
+    'top_light', 'top_light_glazing',
+    'side_panel', 'side_panel_glazing', 'side_panel_a', 'side_panel_b',
+    'side_panel_a_glazing', 'side_panel_b_glazing',
+    'extension', 'extension_a_dim', 'extension_b_dim', 'extension_top_dim', 'extension_qtys',
+    'notes', 'client_order_number', 'oslonki', 'zaczep',
+  ] as const
+
+  const syncSharedFieldsToLinkedPartner = async (
+    baseline: Order,
+    mapped: Record<string, unknown>,
+  ): Promise<void> => {
+    const partnerId = baseline.linked_order_id
+    if (partnerId == null) return
+    const partnerPayload: Record<string, unknown> = {}
+    for (const k of SHARED_LINKED_FIELDS) {
+      if (k in mapped && mapped[k] !== undefined) partnerPayload[k] = mapped[k]
+    }
+    if (Object.keys(partnerPayload).length === 0) return
+    const { error } = await supabase.from('orders').update(partnerPayload).eq('id', partnerId)
+    if (error) {
+      pushToast(`Powiązany rekord nie zsynchronizowany: ${error.message}`, 'error')
+      return
+    }
+    setOrders((prev) => prev.map((o) => (o.id === partnerId ? ({ ...o, ...partnerPayload } as Order) : o)))
+  }
+
   const handleSaveOrderImpl = async () => {
     setIsSaving(true)
 
@@ -921,6 +954,7 @@ export function useOrders({
         }
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
+        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
@@ -1221,6 +1255,7 @@ export function useOrders({
         }
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
+        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
@@ -1413,6 +1448,7 @@ export function useOrders({
         }
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
+        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
@@ -1535,6 +1571,7 @@ export function useOrders({
         }
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
+        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })

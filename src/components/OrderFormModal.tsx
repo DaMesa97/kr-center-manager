@@ -1,12 +1,61 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { EDITABLE_CATEGORIES, PRODUCTION_DAYS, type EditableCategory } from '../constants'
 import SearchableConfigSelect from './SearchableConfigSelect'
 import CompanyAutocomplete from './CompanyAutocomplete'
 import FormInput from './FormInput'
 import { getBotMetadata, getBotWarnings, isBotOrder } from '../utils/botOrder'
 import { findBestCompanyMatch, isCompanyInBase } from '../utils'
+
+// Ostrzeżenie + dopasowanie niedopasowanej firmy (gł. zamówienia z BOT-a).
+// Auto-podpowiedź (najlepsze dopasowanie) ORAZ ręczny wybór z pełnej listy kontrahentów.
+function CompanyMatchWarning({ companyValue, companies, onApply, onSaveAlias, onCreateCompany }) {
+  const [manual, setManual] = useState('')
+  if (!companyValue || !companyValue.trim()) return null
+  if (isCompanyInBase(companyValue, companies)) return null
+  const match = findBestCompanyMatch(companyValue, companies)
+  const sorted = [...companies].sort((a, b) => String(a.name).localeCompare(String(b.name), 'pl'))
+  const apply = (name) => {
+    if (!name) return
+    const c = companies.find((x) => x.name === name)
+    if (typeof onSaveAlias === 'function') void onSaveAlias(companyValue, name)
+    onApply(name, c?.production_day ?? '')
+  }
+  return (
+    <div className="company-match-warning order-field-full--keep">
+      <span className="company-match-warning-text">
+        ⚠️ Firma „{companyValue}" nie jest rozpoznana w bazie kontrahentów — dzień trasy i dane logistyczne mogą się nie wyświetlać.
+      </span>
+      {match && (
+        <button type="button" className="btn btn-sm btn-secondary company-match-btn" onClick={() => apply(match.name)}>
+          Dopasuj do: {match.name}
+        </button>
+      )}
+      <div className="company-match-manual">
+        <select value={manual} onChange={(e) => setManual(e.target.value)} className="company-match-select">
+          <option value="">— wybierz kontrahenta ręcznie —</option>
+          {sorted.map((c) => (
+            <option key={c.name} value={c.name}>{c.name}</option>
+          ))}
+        </select>
+        <button type="button" className="btn btn-sm btn-secondary company-match-btn" disabled={!manual} onClick={() => apply(manual)}>
+          Dopasuj ręcznie
+        </button>
+      </div>
+      {typeof onCreateCompany === 'function' && (
+        <button
+          type="button"
+          className="btn btn-sm btn-primary company-match-btn"
+          onClick={() => void onCreateCompany(companyValue)}
+          title="Dodaj tę firmę do bazy kontrahentów"
+        >
+          + Utwórz kontrahenta „{companyValue}"
+        </button>
+      )}
+    </div>
+  )
+}
 
 type OrderFormModalProps = Record<string, unknown>
 
@@ -71,47 +120,20 @@ function OrderFormModal(props: OrderFormModalProps) {
     onCreateCompany,
   } = props
 
-  // Ostrzeżenie o niedopasowanej firmie (gł. zamówienia z BOT-a) — tylko przy edycji/weryfikacji
   const companies = (allCompanies ?? []) as Array<{ name: string; production_day?: string; route_day?: string }>
   const renderCompanyMatchWarning = (
     companyValue: string,
     applyMatch: (name: string, productionDay: string) => void,
   ) => {
     if (editingOrderId === null) return null
-    if (!companyValue || !companyValue.trim()) return null
-    if (isCompanyInBase(companyValue, companies)) return null
-    const match = findBestCompanyMatch(companyValue, companies)
     return (
-      <div className="company-match-warning order-field-full--keep">
-        <span className="company-match-warning-text">
-          ⚠️ Firma „{companyValue}" nie jest rozpoznana w bazie kontrahentów — dzień trasy i dane logistyczne mogą się nie wyświetlać.
-        </span>
-        {match && (
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary company-match-btn"
-            onClick={() => {
-              // Zapamiętaj parę (nazwa z BOT → nazwa z bazy) na przyszłość
-              if (typeof onSaveCompanyAlias === 'function') {
-                void onSaveCompanyAlias(companyValue, match.name)
-              }
-              applyMatch(match.name, match.production_day ?? '')
-            }}
-          >
-            Dopasuj do: {match.name}
-          </button>
-        )}
-        {typeof onCreateCompany === 'function' && (
-          <button
-            type="button"
-            className="btn btn-sm btn-primary company-match-btn"
-            onClick={() => void onCreateCompany(companyValue)}
-            title="Dodaj tę firmę do bazy kontrahentów"
-          >
-            + Utwórz kontrahenta „{companyValue}"
-          </button>
-        )}
-      </div>
+      <CompanyMatchWarning
+        companyValue={companyValue}
+        companies={companies}
+        onApply={applyMatch}
+        onSaveAlias={onSaveCompanyAlias}
+        onCreateCompany={onCreateCompany}
+      />
     )
   }
 

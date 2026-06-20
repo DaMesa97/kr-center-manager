@@ -1,9 +1,11 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { autoUpdater } from 'electron-updater'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import os from 'node:os'
 import net from 'node:net'
+import { execFile } from 'node:child_process'
 import * as Sentry from '@sentry/electron/main'
 
 let appVersion = '0.0.0'
@@ -247,6 +249,58 @@ function setupPrinting(mainWin: BrowserWindow) {
         socket.on('error', (err) => done({ success: false, error: err.message }))
         socket.on('timeout', () => done({ success: false, error: 'Przekroczono czas połączenia z drukarką' }))
       })
+    },
+  )
+
+  // Druk ZPL na drukarkę WINDOWS (RAW spool) — surowe bajty prosto do urządzenia,
+  // z pominięciem sterownika (Zebra dostaje czysty ZPL). Wybór po nazwie z Windows,
+  // bez IP. Realizowane przez winspool.drv (WritePrinter, datatype RAW) z PowerShella.
+  ipcMain.handle(
+    'label:printRaw',
+    async (_e, args: { deviceName: string; zpl: string; copies?: number }) => {
+      const { deviceName, zpl, copies = 1 } = args
+      if (!deviceName || !zpl) return { success: false, error: 'Brak drukarki lub treści ZPL' }
+      if (process.platform !== 'win32') return { success: false, error: 'RAW spool tylko na Windows' }
+      const body = zpl.repeat(Math.max(1, copies))
+      const tmp = path.join(os.tmpdir(), `krzpl_${Date.now()}_${Math.floor(Math.random() * 1e6)}.bin`)
+      try {
+        writeFileSync(tmp, body, 'latin1')
+        const psScript = [
+          '$ErrorActionPreference="Stop"',
+          'Add-Type @"',
+          'using System;using System.Runtime.InteropServices;',
+          'public class KRRawPrint{',
+          '[StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] public struct DOCINFO{[MarshalAs(UnmanagedType.LPWStr)] public string pDocName;[MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;[MarshalAs(UnmanagedType.LPWStr)] public string pDataType;}',
+          '[DllImport("winspool.drv",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool OpenPrinter(string s,out IntPtr h,IntPtr d);',
+          '[DllImport("winspool.drv",SetLastError=true)] static extern bool ClosePrinter(IntPtr h);',
+          '[DllImport("winspool.drv",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool StartDocPrinter(IntPtr h,int l,ref DOCINFO di);',
+          '[DllImport("winspool.drv",SetLastError=true)] static extern bool EndDocPrinter(IntPtr h);',
+          '[DllImport("winspool.drv",SetLastError=true)] static extern bool StartPagePrinter(IntPtr h);',
+          '[DllImport("winspool.drv",SetLastError=true)] static extern bool EndPagePrinter(IntPtr h);',
+          '[DllImport("winspool.drv",SetLastError=true)] static extern bool WritePrinter(IntPtr h,byte[] b,int n,out int w);',
+          'public static void Send(string printer,byte[] bytes){IntPtr h;if(!OpenPrinter(printer,out h,IntPtr.Zero))throw new Exception("OpenPrinter failed");DOCINFO di=new DOCINFO();di.pDocName="KR ZPL";di.pDataType="RAW";if(!StartDocPrinter(h,1,ref di)){ClosePrinter(h);throw new Exception("StartDocPrinter failed");}StartPagePrinter(h);int w;WritePrinter(h,bytes,bytes.Length,out w);EndPagePrinter(h);EndDocPrinter(h);ClosePrinter(h);}',
+          '}',
+          '"@',
+          `$bytes=[System.IO.File]::ReadAllBytes(${JSON.stringify(tmp)})`,
+          `[KRRawPrint]::Send(${JSON.stringify(deviceName)},$bytes)`,
+        ].join('\n')
+        const result = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+          execFile(
+            'powershell.exe',
+            ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', psScript],
+            { timeout: 20000 },
+            (err, _stdout, stderr) => {
+              if (err) resolve({ success: false, error: (stderr || err.message || '').toString().trim() })
+              else resolve({ success: true })
+            },
+          )
+        })
+        return result
+      } catch (err) {
+        return { success: false, error: (err as Error).message }
+      } finally {
+        try { unlinkSync(tmp) } catch { /* ignore */ }
+      }
     },
   )
 }

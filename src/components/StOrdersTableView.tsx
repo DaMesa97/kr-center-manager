@@ -26,6 +26,8 @@ type StOrdersTableViewProps = {
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
   isManager: boolean
   canSeePrices?: boolean
+  selectedForLabel?: Set<number>
+  onToggleLabelSelect?: (order: Order) => void
   releaseDateUpdating: number | null
   rushUpdatingOrderId: number | null
   productionStageUpdating: string | null
@@ -51,6 +53,8 @@ export default function StOrdersTableView({
   tableWrapperRef,
   isManager,
   canSeePrices = true,
+  selectedForLabel,
+  onToggleLabelSelect,
   releaseDateUpdating,
   rushUpdatingOrderId,
   productionStageUpdating,
@@ -259,6 +263,16 @@ export default function StOrdersTableView({
                     .join(' ')}
                   title={orderNumberCellTooltip(order, partnerCancelBadgeLabel, rowReleased)}
                 >
+                  {onToggleLabelSelect && (
+                    <input
+                      type="checkbox"
+                      className="order-select-check"
+                      checked={order.id !== undefined && !!selectedForLabel?.has(order.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => onToggleLabelSelect(order)}
+                      title="Zaznacz do druku etykiety"
+                    />
+                  )}
                   {partnerCancelBadgeLabel ? (
                     <span className="linked-cancel-badge order-badge" title={partnerCancelBadgeLabel}>
                       {partnerCancelBadgeLabel}

@@ -24,6 +24,8 @@ type StaDistingOrdersTableViewProps = {
   orderStageColumnDefs: StageDef[]
   isManager: boolean
   canSeePrices?: boolean
+  selectedForLabel?: Set<number>
+  onToggleLabelSelect?: (order: Order) => void
   productionStageUpdating: string | null
   releaseDateUpdating: number | null
   rushUpdatingOrderId: number | null
@@ -54,6 +56,8 @@ export default function StaDistingOrdersTableView({
   orderStageColumnDefs,
   isManager,
   canSeePrices = true,
+  selectedForLabel,
+  onToggleLabelSelect,
   productionStageUpdating,
   releaseDateUpdating,
   rushUpdatingOrderId,
@@ -299,6 +303,16 @@ export default function StaDistingOrdersTableView({
                   .join(' ')}
                 title={orderNumberCellTooltip(order, partnerCancelBadgeLabel, rowReleased)}
               >
+                {onToggleLabelSelect && (
+                  <input
+                    type="checkbox"
+                    className="order-select-check"
+                    checked={order.id !== undefined && !!selectedForLabel?.has(order.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => onToggleLabelSelect(order)}
+                    title="Zaznacz do druku etykiety"
+                  />
+                )}
                 {partnerCancelBadgeLabel ? (
                   <span className="linked-cancel-badge order-badge" title={partnerCancelBadgeLabel}>
                     {partnerCancelBadgeLabel}

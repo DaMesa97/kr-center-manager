@@ -93,6 +93,7 @@ import HelpView from './components/HelpView'
 import FeedbackView from './components/FeedbackView'
 import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
+import BatchPrintComboModal from './components/BatchPrintComboModal'
 import { can, isManagerRole } from './lib/permissions'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
 import InternalDoorOrderDetailsModal from './components/InternalDoorOrderDetailsModal'
@@ -1401,6 +1402,20 @@ function App() {
   const isHelpTab = activeTab === 'Pomoc'
   const isFeedbackTab = activeTab === 'Zgłoszenia'
   const [printLabelOrder, setPrintLabelOrder] = useState<Order | null>(null)
+  // #21 — masowy druk etykiet: zaznaczanie zamówień w tabelach
+  const [labelSelection, setLabelSelection] = useState<Set<number>>(new Set())
+  const [batchComboOpen, setBatchComboOpen] = useState(false)
+  const toggleLabelSelect = useCallback((order: Order) => {
+    const id = order.id
+    if (id === undefined) return
+    setLabelSelection((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+  const clearLabelSelection = useCallback(() => setLabelSelection(new Set()), [])
   const isPulpitTab = activeTab === 'Pulpit'
 
   const handleDeleteWarehouseComponent = useCallback(
@@ -2226,6 +2241,27 @@ function App() {
           />
         )}
 
+        {labelSelection.size > 0 && (
+          <div className="label-batch-bar">
+            <span className="label-batch-bar-count">Zaznaczono {labelSelection.size}</span>
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => setBatchComboOpen(true)}>
+              Drukuj komplet ({labelSelection.size})
+            </button>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={clearLabelSelection}>
+              Wyczyść
+            </button>
+          </div>
+        )}
+
+        {batchComboOpen && (
+          <BatchPrintComboModal
+            orders={orders.filter((o) => o.id !== undefined && labelSelection.has(o.id))}
+            onClose={() => setBatchComboOpen(false)}
+            onDone={clearLabelSelection}
+            pushToast={pushToast}
+          />
+        )}
+
         {!isFeedbackTab && (
           <FeedbackFab currentUser={currentUser} page={activeTab} pushToast={pushToast} />
         )}
@@ -2925,6 +2961,8 @@ function App() {
                     orderStageColumnDefs={orderStageColumnDefs}
                     isManager={isManager}
                     canSeePrices={canSeePrices}
+                    selectedForLabel={labelSelection}
+                    onToggleLabelSelect={toggleLabelSelect}
                     productionStageUpdating={productionStageUpdating}
                     releaseDateUpdating={releaseDateUpdating}
                     rushUpdatingOrderId={rushUpdatingOrderId}
@@ -2985,6 +3023,8 @@ function App() {
                     tableWrapperRef={ordersTableWrapperRef}
                     isManager={isManager}
                     canSeePrices={canSeePrices}
+                    selectedForLabel={labelSelection}
+                    onToggleLabelSelect={toggleLabelSelect}
                     releaseDateUpdating={releaseDateUpdating}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     productionStageUpdating={productionStageUpdating}
@@ -3010,6 +3050,8 @@ function App() {
                     tableWrapperRef={ordersTableWrapperRef}
                     isManager={isManager}
                     canSeePrices={canSeePrices}
+                    selectedForLabel={labelSelection}
+                    onToggleLabelSelect={toggleLabelSelect}
                     releaseDateUpdating={releaseDateUpdating}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     glassAllowances={glassAllowances}

@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { User, DoorOpen, Factory, Package, Settings, ChevronRight, Key, LayoutDashboard, HelpCircle, MessageSquare } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { User, DoorOpen, Factory, Package, Settings, ChevronRight, ChevronLeft, Key, LayoutDashboard, HelpCircle, MessageSquare } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { CATEGORY_LABELS } from '../constants'
 
@@ -71,8 +71,17 @@ type Props = {
   overdueCount?: number
 }
 
+const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed'
+
 export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount = 0, warehouseAlertsCount = 0, overdueCount = 0 }: Props) {
   const visible = useMemo(() => new Set(visibleTabs), [visibleTabs])
+
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0') } catch { /* ignore */ }
+  }, [collapsed])
 
   const activeGroupId = useMemo(() => {
     for (const group of TAB_GROUPS) {
@@ -109,11 +118,24 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
   }, [activeGroupId])
 
   return (
-    <aside className="app-sidebar">
-      {/* Logo */}
+    <aside className={`app-sidebar ${collapsed ? 'app-sidebar--collapsed' : ''}`}>
+      {/* Logo + przycisk zwijania */}
       <div className="sidebar-logo">
-        <span className="sidebar-logo-name">KR Center</span>
-        <span className="sidebar-logo-sub">Manager Produkcji</span>
+        {!collapsed && (
+          <div className="sidebar-logo-text">
+            <span className="sidebar-logo-name">KR Center</span>
+            <span className="sidebar-logo-sub">Manager Produkcji</span>
+          </div>
+        )}
+        <button
+          type="button"
+          className="sidebar-collapse-btn"
+          onClick={() => setCollapsed((v) => !v)}
+          title={collapsed ? 'Rozwiń panel' : 'Zwiń panel'}
+          aria-label={collapsed ? 'Rozwiń panel' : 'Zwiń panel'}
+        >
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
       </div>
 
       {/* Nav */}
@@ -128,9 +150,10 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
                 type="button"
                 className={`sidebar-item ${activeTab === entry.tab ? 'sidebar-item--active' : ''}`}
                 onClick={() => onChange(entry.tab)}
+                title={collapsed ? entry.label : undefined}
               >
                 <Icon size={15} className="sidebar-item-icon" />
-                <span>{entry.label}</span>
+                <span className="sidebar-item-text">{entry.label}</span>
               </button>
             )
           }
@@ -147,7 +170,16 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
               <button
                 type="button"
                 className={`sidebar-group-header ${isGroupActive ? 'sidebar-group-header--active' : ''}`}
-                onClick={() => toggleGroup(entry.id)}
+                onClick={() => {
+                  if (collapsed) {
+                    // w trybie zwiniętym: rozwiń panel i otwórz tę grupę
+                    setCollapsed(false)
+                    setExpandedGroups(new Set([entry.id]))
+                  } else {
+                    toggleGroup(entry.id)
+                  }
+                }}
+                title={collapsed ? entry.label : undefined}
               >
                 <GroupIcon size={15} className="sidebar-item-icon" />
                 <span className="sidebar-group-label">{entry.label}</span>
@@ -160,7 +192,7 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
                 />
               </button>
 
-              {isExpanded && (
+              {!collapsed && isExpanded && (
                 <div className="sidebar-group-items">
                   {groupTabs.map((t) => (
                     <button

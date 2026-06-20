@@ -9,13 +9,14 @@ type Props = {
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-type PrintDocument = { id: number; category: string; name: string; zpl_content: string }
-type LabelPrinter = { id: number; name: string; ip: string; port: number; is_default: boolean }
+type PrintDocument = { id: number; category: string; name: string; zpl_content: string; system?: string | null }
+type WinPrinter = { name: string; displayName?: string; isDefault?: boolean }
 
 const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
 const CAT_LABEL: Record<string, string> = {
   STA: 'STA', Disting: 'Disting', ST: 'ST', Techniczne: 'Techniczne', Bastion: 'Bastion', DrzwiWewnetrzne: 'Wewnętrzne',
 }
+const PRINTER_LS_KEY = 'labelPrinterName'
 
 type IpcLike = { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> }
 function getIpc(): IpcLike | undefined {
@@ -24,12 +25,13 @@ function getIpc(): IpcLike | undefined {
 
 export default function PrintDocumentsView({ isManager, pushToast }: Props) {
   const [documents, setDocuments] = useState<PrintDocument[]>([])
-  const [printers, setPrinters] = useState<LabelPrinter[]>([])
+  const [printers, setPrinters] = useState<WinPrinter[]>([])
+  const [printerName, setPrinterName] = useState('')
   const [category, setCategory] = useState<string>('STA')
   const [loading, setLoading] = useState(true)
   const [printingId, setPrintingId] = useState<number | null>(null)
   const [copies, setCopies] = useState<Record<number, number>>({})
-  const [selectedPrinterId, setSelectedPrinterId] = useState<number | ''>('')
+  const [packagePrinting, setPackagePrinting] = useState(false)
   const mountedRef = useRef(true)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -37,30 +39,25 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newZpl, setNewZpl] = useState('')
+  const [newSystem, setNewSystem] = useState('')
   const [saving, setSaving] = useState(false)
-
-  // formularz drukarki
-  const [prnName, setPrnName] = useState('')
-  const [prnIp, setPrnIp] = useState('')
-  const [prnPort, setPrnPort] = useState('9100')
-  const [prnOpen, setPrnOpen] = useState(false)
-  const [editingPrinterId, setEditingPrinterId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [docsRes, prnRes] = await Promise.all([
+    const ipc = getIpc()
+    const [docsRes, winList] = await Promise.all([
       supabase.from('print_documents').select('*').order('category').order('name'),
-      supabase.from('label_printers').select('*').order('name'),
+      ipc ? (ipc.invoke('printers:list') as Promise<WinPrinter[]>) : Promise.resolve([]),
     ])
     if (!mountedRef.current) return
     setLoading(false)
     setDocuments((docsRes.data ?? []) as PrintDocument[])
-    const prn = (prnRes.data ?? []) as LabelPrinter[]
-    setPrinters(prn)
-    setSelectedPrinterId((prev) => {
-      if (prev !== '') return prev
-      const def = prn.find((p) => p.is_default) ?? prn[0]
-      return def ? def.id : ''
+    const prns = (winList ?? []) as WinPrinter[]
+    setPrinters(prns)
+    setPrinterName((prev) => {
+      if (prev && prns.some((p) => p.name === prev)) return prev
+      const saved = localStorage.getItem(PRINTER_LS_KEY)
+      return (saved && prns.some((p) => p.name === saved) && saved) || prns.find((p) => p.isDefault)?.name || prns[0]?.name || ''
     })
   }, [])
 
@@ -75,33 +72,45 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
     [documents, category],
   )
 
-  const handlePrint = async (doc: PrintDocument) => {
-    const printer = printers.find((p) => p.id === selectedPrinterId)
-    if (!printer) {
-      pushToast('Wybierz drukarkę Zebra', 'error')
-      return
-    }
-    const n = Math.max(1, Number(copies[doc.id]) || 1)
+  const printZplRaw = async (zpl: string, n: number): Promise<{ success: boolean; error?: string }> => {
     const ipc = getIpc()
-    if (!ipc) {
-      pushToast('Druk dostępny tylko w aplikacji desktop', 'error')
-      return
-    }
+    if (!ipc) return { success: false, error: 'Druk dostępny tylko w aplikacji desktop' }
+    return (await ipc.invoke('label:printRaw', { deviceName: printerName, zpl, copies: n })) as { success: boolean; error?: string }
+  }
+
+  const handlePrint = async (doc: PrintDocument) => {
+    if (!printerName) { pushToast('Wybierz drukarkę', 'error'); return }
+    const n = Math.max(1, Number(copies[doc.id]) || 1)
+    localStorage.setItem(PRINTER_LS_KEY, printerName)
     setPrintingId(doc.id)
     try {
-      const res = (await ipc.invoke('label:printZpl', {
-        ip: printer.ip,
-        port: printer.port,
-        zpl: doc.zpl_content,
-        copies: n,
-      })) as { success: boolean; error?: string }
-      if (res?.success) {
-        pushToast(`Wysłano ${n} szt. „${doc.name}" na ${printer.name}`, 'success')
-      } else {
-        pushToast(`Błąd druku: ${res?.error ?? 'nieznany'}`, 'error')
-      }
+      const res = await printZplRaw(doc.zpl_content, n)
+      if (res?.success) pushToast(`Wysłano ${n} szt. „${doc.name}" na ${printerName}`, 'success')
+      else pushToast(`Błąd druku: ${res?.error ?? 'nieznany'}`, 'error')
     } finally {
       if (mountedRef.current) setPrintingId(null)
+    }
+  }
+
+  const handlePrintPackage = async () => {
+    if (!printerName) { pushToast('Wybierz drukarkę', 'error'); return }
+    if (docsForCat.length === 0) { pushToast('Brak dokumentów w tej kategorii', 'error'); return }
+    localStorage.setItem(PRINTER_LS_KEY, printerName)
+    setPackagePrinting(true)
+    let ok = 0
+    let failed = 0
+    try {
+      for (const doc of docsForCat) {
+        const n = Math.max(1, Number(copies[doc.id]) || 1)
+        try {
+          const res = await printZplRaw(doc.zpl_content, n)
+          if (res?.success) ok++
+          else failed++
+        } catch { failed++ }
+      }
+      pushToast(`Paczka: wydrukowano ${ok}${failed ? `, błędów ${failed}` : ''}`, failed ? 'error' : 'success')
+    } finally {
+      if (mountedRef.current) setPackagePrinting(false)
     }
   }
 
@@ -114,10 +123,12 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
     }
     setSaving(true)
     try {
-      const { error } = await supabase.from('print_documents').insert([{ category, name, zpl_content: zpl }])
+      const { error } = await supabase.from('print_documents').insert([
+        { category, name, zpl_content: zpl, system: newSystem.trim() || null },
+      ])
       if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
       pushToast('Dokument dodany', 'success')
-      setAddOpen(false); setNewName(''); setNewZpl('')
+      setAddOpen(false); setNewName(''); setNewZpl(''); setNewSystem('')
       await load()
     } finally {
       if (mountedRef.current) setSaving(false)
@@ -143,136 +154,19 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
     await load()
   }
 
-  const resetPrinterForm = () => {
-    setPrnName(''); setPrnIp(''); setPrnPort('9100'); setEditingPrinterId(null)
-  }
-
-  const startEditPrinter = (p: LabelPrinter) => {
-    setEditingPrinterId(p.id)
-    setPrnName(p.name); setPrnIp(p.ip); setPrnPort(String(p.port))
-    setPrnOpen(true)
-  }
-
-  const handleAddPrinter = async () => {
-    const name = prnName.trim()
-    const ip = prnIp.trim()
-    const port = Number(prnPort) || 9100
-    if (!name || !ip) { pushToast('Podaj nazwę i IP drukarki', 'error'); return }
-    const { error } = await supabase
-      .from('label_printers')
-      .insert([{ name, ip, port, is_default: printers.length === 0 }])
-    if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
-    pushToast('Drukarka dodana', 'success')
-    resetPrinterForm(); setPrnOpen(false)
-    await load()
-  }
-
-  const handleUpdatePrinter = async () => {
-    if (editingPrinterId === null) return
-    const name = prnName.trim()
-    const ip = prnIp.trim()
-    const port = Number(prnPort) || 9100
-    if (!name || !ip) { pushToast('Podaj nazwę i IP drukarki', 'error'); return }
-    const { error } = await supabase
-      .from('label_printers')
-      .update({ name, ip, port })
-      .eq('id', editingPrinterId)
-    if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
-    pushToast('Drukarka zaktualizowana', 'success')
-    resetPrinterForm()
-    await load()
-  }
-
-  const handleSetDefaultPrinter = async (p: LabelPrinter) => {
-    if (p.is_default) return
-    // jedna domyślna — zdejmij flagę z reszty, ustaw na wybranej
-    const { error: clearErr } = await supabase
-      .from('label_printers')
-      .update({ is_default: false })
-      .neq('id', p.id)
-    if (clearErr) { pushToast(`Błąd: ${clearErr.message}`, 'error'); return }
-    const { error } = await supabase
-      .from('label_printers')
-      .update({ is_default: true })
-      .eq('id', p.id)
-    if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
-    pushToast(`Domyślna: ${p.name}`, 'success')
-    await load()
-  }
-
-  const handleDeletePrinter = async (p: LabelPrinter) => {
-    if (!window.confirm(`Usunąć drukarkę „${p.name}"?`)) return
-    const { error } = await supabase.from('label_printers').delete().eq('id', p.id)
-    if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
-    if (selectedPrinterId === p.id) setSelectedPrinterId('')
-    if (editingPrinterId === p.id) resetPrinterForm()
-    await load()
-  }
-
   return (
     <div className="print-docs-view">
       <div className="orders-filters" style={{ marginBottom: 12, alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <label className="movements-view-filter">
-          <span className="movements-view-filter-label">Drukarka Zebra</span>
-          <select
-            className="day-filter"
-            value={selectedPrinterId === '' ? '' : String(selectedPrinterId)}
-            onChange={(e) => setSelectedPrinterId(e.target.value === '' ? '' : Number(e.target.value))}
-          >
+          <span className="movements-view-filter-label">Drukarka</span>
+          <select className="day-filter" value={printerName} onChange={(e) => setPrinterName(e.target.value)}>
             <option value="">— wybierz —</option>
             {printers.map((p) => (
-              <option key={p.id} value={p.id}>{p.name} ({p.ip})</option>
+              <option key={p.name} value={p.name}>{p.displayName || p.name}{p.isDefault ? ' (domyślna)' : ''}</option>
             ))}
           </select>
         </label>
-        {isManager && (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPrnOpen((v) => !v)}>
-            Drukarki Zebra…
-          </button>
-        )}
       </div>
-
-      {isManager && prnOpen && (
-        <div className="print-docs-printers">
-          <div className="print-docs-printers-list">
-            {printers.length === 0 ? (
-              <span className="no-results">Brak skonfigurowanych drukarek</span>
-            ) : (
-              printers.map((p) => (
-                <div key={p.id} className={`print-docs-printer-row ${editingPrinterId === p.id ? 'print-docs-printer-row--editing' : ''}`}>
-                  <span><strong>{p.name}</strong> — {p.ip}:{p.port}{p.is_default ? ' (domyślna)' : ''}</span>
-                  <div className="print-docs-printer-row-actions">
-                    {!p.is_default && (
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => void handleSetDefaultPrinter(p)}>
-                        Ustaw domyślną
-                      </button>
-                    )}
-                    <button type="button" className="btn btn-sm btn-primary" onClick={() => startEditPrinter(p)}>
-                      Edytuj
-                    </button>
-                    <button type="button" className="btn btn-sm btn-danger" onClick={() => void handleDeletePrinter(p)}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="print-docs-printer-add">
-            <input type="text" placeholder="Nazwa" value={prnName} onChange={(e) => setPrnName(e.target.value)} />
-            <input type="text" placeholder="IP (np. 192.168.1.50)" value={prnIp} onChange={(e) => setPrnIp(e.target.value)} />
-            <input type="text" placeholder="Port" value={prnPort} onChange={(e) => setPrnPort(e.target.value)} style={{ width: 70 }} />
-            {editingPrinterId === null ? (
-              <button type="button" className="btn btn-sm btn-success" onClick={() => void handleAddPrinter()}>Dodaj</button>
-            ) : (
-              <>
-                <button type="button" className="btn btn-sm btn-success" onClick={() => void handleUpdatePrinter()}>Zapisz zmiany</button>
-                <button type="button" className="btn btn-sm btn-ghost" onClick={resetPrinterForm}>Anuluj</button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       <div className="components-filter-pills">
         {CATEGORIES.map((c) => (
@@ -287,17 +181,29 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
         ))}
       </div>
 
-      {isManager && (
-        <div style={{ margin: '12px 0' }}>
+      <div style={{ margin: '12px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {docsForCat.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-sm btn-success"
+            disabled={packagePrinting || !printerName}
+            onClick={() => void handlePrintPackage()}
+            title="Drukuj wszystkie dokumenty tej kategorii naraz"
+          >
+            <Printer size={14} /> {packagePrinting ? 'Drukuję paczkę…' : `Drukuj paczkę (${docsForCat.length})`}
+          </button>
+        )}
+        {isManager && (
           <button type="button" className="btn btn-sm btn-primary" onClick={() => setAddOpen((v) => !v)}>
             <Plus size={14} /> Dodaj dokument ({CAT_LABEL[category]})
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {isManager && addOpen && (
         <div className="print-docs-add">
           <input type="text" placeholder="Nazwa dokumentu (np. DoP STA 90)" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <input type="text" placeholder="System (puste = cała kategoria, np. BASIC LOCK PLUS)" value={newSystem} onChange={(e) => setNewSystem(e.target.value)} />
           <div className="print-docs-add-zpl">
             <textarea
               placeholder="Wklej treść ZPL (^XA…^XZ) albo wgraj plik"
@@ -332,7 +238,12 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
         <div className="print-docs-list">
           {docsForCat.map((doc) => (
             <div key={doc.id} className="print-docs-row">
-              <span className="print-docs-name">{doc.name}</span>
+              <span className="print-docs-name">
+                {doc.name}
+                {doc.system && doc.system.trim() ? (
+                  <span className="print-docs-system-badge">{doc.system}</span>
+                ) : null}
+              </span>
               <div className="print-docs-actions">
                 <input
                   type="number"
@@ -345,7 +256,7 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"
-                  disabled={printingId === doc.id || selectedPrinterId === ''}
+                  disabled={printingId === doc.id || !printerName}
                   onClick={() => void handlePrint(doc)}
                 >
                   <Printer size={14} /> {printingId === doc.id ? 'Drukuję…' : 'Drukuj'}

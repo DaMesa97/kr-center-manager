@@ -583,7 +583,48 @@ html, body, #root {
   padding: 1.25rem 1.1rem 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
+
+.sidebar-collapse-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.sidebar-collapse-btn:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+
+/* --- Sidebar zwinięty (rail z ikonami) --- */
+.app-sidebar--collapsed { width: 60px; }
+.app-sidebar--collapsed .sidebar-logo { justify-content: center; padding: 1.25rem 0 1rem; }
+.app-sidebar--collapsed .sidebar-item-text,
+.app-sidebar--collapsed .sidebar-group-label,
+.app-sidebar--collapsed .sidebar-group-arrow,
+.app-sidebar--collapsed .sidebar-version { display: none; }
+.app-sidebar--collapsed .sidebar-item,
+.app-sidebar--collapsed .sidebar-group-header {
+  justify-content: center;
+  padding: 9px 0;
+  gap: 0;
+}
+.app-sidebar--collapsed .sidebar-badge {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+}
+.app-sidebar--collapsed .sidebar-group { position: relative; }
+.app-sidebar--collapsed .sidebar-item { position: relative; }
 
 .sidebar-logo-name {
   display: block;
@@ -7142,6 +7183,19 @@ html, body, #root {
   min-width: 200px;
 }
 
+.company-match-manual {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.company-match-select {
+  padding: 5px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  max-width: 240px;
+}
+
 .company-match-btn {
   flex-shrink: 0;
 }
@@ -7398,3 +7452,41 @@ html, body, #root {
 }
 .user-cat-chip--on { border-color: #1b304a; background: #eef2f7; font-weight: 600; }
 .user-cat-chip input { margin: 0; }
+
+/* #21 — masowy druk etykiet */
+.order-select-check { margin-right: 6px; cursor: pointer; vertical-align: middle; }
+.label-batch-bar {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #1b304a;
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.label-batch-bar-count { font-weight: 600; font-size: 0.9rem; }
+
+/* #21 — lista zamówień w oknie druku wsadowego */
+.batch-label-list { max-height: 260px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.batch-label-row { display: flex; align-items: center; gap: 10px; padding: 4px 6px; border-radius: 6px; }
+.batch-label-row:hover { background: #f8fafc; }
+.batch-label-row-nr { font-weight: 600; min-width: 64px; flex-shrink: 0; }
+.batch-label-row-info { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.batch-label-row-sys { font-size: 0.82rem; font-weight: 600; color: #1e293b; }
+.batch-label-row-meta { font-size: 0.74rem; color: #64748b; }
+.batch-label-row-chips { display: flex; gap: 4px; margin-top: 2px; flex-wrap: wrap; }
+.batch-chip { font-size: 0.68rem; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+.batch-chip--panel { background: #dbeafe; color: #1e40af; }
+.batch-chip--light { background: #fef3c7; color: #92400e; }
+.batch-label-row-qty { width: 64px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 6px; flex-shrink: 0; }
+
+/* Dokumenty — badge systemu */
+.print-docs-system-badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-size: 0.7rem; font-weight: 600; }
+
+/* Combo druk — info o kanałach drukarki */
+.batch-printer-channels { font-size: 0.78rem; color: #475569; background: #f1f5f9; border-radius: 6px; padding: 6px 10px; }

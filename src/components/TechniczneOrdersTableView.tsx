@@ -19,6 +19,8 @@ type TechniczneOrdersTableViewProps = {
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
   isManager: boolean
   canSeePrices?: boolean
+  selectedForLabel?: Set<number>
+  onToggleLabelSelect?: (order: Order) => void
   releaseDateUpdating: number | null
   rushUpdatingOrderId: number | null
   glassAllowances: GlassAllowance[]
@@ -39,6 +41,8 @@ export default function TechniczneOrdersTableView({
   tableWrapperRef,
   isManager,
   canSeePrices = true,
+  selectedForLabel,
+  onToggleLabelSelect,
   releaseDateUpdating,
   rushUpdatingOrderId,
   glassAllowances,
@@ -218,6 +222,16 @@ export default function TechniczneOrdersTableView({
                   className="sticky-col sticky-1 col-order-number"
                   title={orderNumberCellTooltip(order, null, rowReleased)}
                 >
+                  {onToggleLabelSelect && (
+                    <input
+                      type="checkbox"
+                      className="order-select-check"
+                      checked={order.id !== undefined && !!selectedForLabel?.has(order.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => onToggleLabelSelect(order)}
+                      title="Zaznacz do druku etykiety"
+                    />
+                  )}
                   {rowReleased ? (
                     <span className="released-badge order-badge" title="Zrealizowane (wydanie)">
                       ZREALIZOWANE
