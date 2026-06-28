@@ -1528,6 +1528,18 @@ function OrderFormModal(props: OrderFormModalProps) {
                     }
                   />
 
+                  <div className="order-field-full">
+                    <span className="order-field-label-text">Panel boczny/górny (wykończenie — nie wlicza się do szerokości montażowej)</span>
+                    <div className="bastion-panel-grid">
+                      <FormInput label="Boczny KLAMKOWY — szer (mm)" value={bastionFormData.side_panel_k_w} onChange={(v) => handleBastionFormChange('side_panel_k_w', v)} />
+                      <FormInput label="Boczny PRZECIWKLAMKOWY — szer (mm)" value={bastionFormData.side_panel_p_w} onChange={(v) => handleBastionFormChange('side_panel_p_w', v)} />
+                      <FormInput label="Boczny — wys (mm, wspólna)" value={bastionFormData.side_panel_h} onChange={(v) => handleBastionFormChange('side_panel_h', v)} />
+                      <span />
+                      <FormInput label="Górny — szer (mm)" value={bastionFormData.top_panel_w} onChange={(v) => handleBastionFormChange('top_panel_w', v)} />
+                      <FormInput label="Górny — wys (mm)" value={bastionFormData.top_panel_h} onChange={(v) => handleBastionFormChange('top_panel_h', v)} />
+                    </div>
+                  </div>
+
                   <FormInput
                     label="Ilość"
                     type="number"

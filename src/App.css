@@ -7507,3 +7507,6 @@ html, body, #root {
 /* Dokumenty — atrybuty doboru DWU */
 .print-docs-dwu-attrs { display: flex; gap: 8px; flex-wrap: wrap; }
 .print-docs-dwu-attrs select { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; }
+
+/* Bastion — panel boczny/górny (siatka wymiarów w formularzu) */
+.bastion-panel-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 4px; }

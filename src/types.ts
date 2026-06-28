@@ -569,6 +569,11 @@ export type BastionOrderFormData = {
   collection: string
   frame_type: string
   frame_range: string
+  side_panel_k_w: string
+  side_panel_p_w: string
+  side_panel_h: string
+  top_panel_w: string
+  top_panel_h: string
   sales_changes: string
   rush_date: string
   day_of_week: string

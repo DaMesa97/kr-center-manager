@@ -166,6 +166,10 @@ const mapExcelRow = (row: Record<string, unknown>): Record<string, unknown> | nu
           bastion_frame_range: get('Regulacja ościeżnicy'),
           bastion_notes_2: get('Uwagi 2'),
           bastion_collection: system,
+          // Panel boczny/górny (wykończenie) — format "SZER×WYS"
+          bastion_side_panel_k: get('Panel boczny klamkowy') || get('Panel boczny'),
+          bastion_side_panel_p: get('Panel boczny przeciwklamkowy'),
+          bastion_top_panel: get('Panel górny'),
         }
       : {}
 

@@ -140,6 +140,9 @@ export default function BastionOrdersTableView({
           <th className="col-order-text">OŚCIEŻNICA</th>
           <th className="col-order-text">ZAKRES</th>
           <th className="col-order-text">PRÓG</th>
+          <th className="col-order-text">PANEL BOCZNY KLAMK.</th>
+          <th className="col-order-text">PANEL BOCZNY PRZECIWKL.</th>
+          <th className="col-order-text">PANEL GÓRNY</th>
           <th className="col-notes">UWAGI</th>
           <th className="col-order-text">ZMIANY-SPRZEDAŻ</th>
           <th className="col-order-text">PILNE/TERMIN WYKONANIA</th>
@@ -180,6 +183,9 @@ export default function BastionOrdersTableView({
           const collection = String(bastionRow.bastion_collection ?? '')
           const frameType = String(bastionRow.bastion_frame_type ?? '')
           const frameRange = String(bastionRow.bastion_frame_range ?? '')
+          const sidePanelK = String(bastionRow.bastion_side_panel_k ?? '')
+          const sidePanelP = String(bastionRow.bastion_side_panel_p ?? '')
+          const topPanel = String(bastionRow.bastion_top_panel ?? '')
           const salesChanges = String(bastionRow.bastion_sales_changes ?? '')
           const rushDate = String(bastionRow.bastion_rush_date ?? '')
           const dayOfWeek = String(bastionRow.bastion_day_of_week ?? '')
@@ -364,6 +370,15 @@ export default function BastionOrdersTableView({
               </td>
               <td className="col-order-text" title={orderCellTooltip(order.threshold_color)}>
                 {order.threshold_color}
+              </td>
+              <td className="col-order-text" title={orderCellTooltip(sidePanelK)}>
+                {sidePanelK}
+              </td>
+              <td className="col-order-text" title={orderCellTooltip(sidePanelP)}>
+                {sidePanelP}
+              </td>
+              <td className="col-order-text" title={orderCellTooltip(topPanel)}>
+                {topPanel}
               </td>
               <td className="col-notes" title={orderCellTooltip(order.notes)}>
                 {order.notes}

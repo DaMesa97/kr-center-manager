@@ -1550,6 +1550,15 @@ export function useOrders({
         bastion_collection: bastionFormData.collection,
         bastion_frame_type: bastionFormData.frame_type,
         bastion_frame_range: bastionFormData.frame_range,
+        bastion_side_panel_k: bastionFormData.side_panel_k_w.trim()
+          ? `${bastionFormData.side_panel_k_w.trim()}×${bastionFormData.side_panel_h.trim()}`
+          : '',
+        bastion_side_panel_p: bastionFormData.side_panel_p_w.trim()
+          ? `${bastionFormData.side_panel_p_w.trim()}×${bastionFormData.side_panel_h.trim()}`
+          : '',
+        bastion_top_panel: bastionFormData.top_panel_w.trim()
+          ? `${bastionFormData.top_panel_w.trim()}×${bastionFormData.top_panel_h.trim()}`
+          : '',
         bastion_sales_changes: bastionFormData.sales_changes,
         bastion_rush_date: bastionFormData.rush_date,
         bastion_day_of_week: bastionFormData.day_of_week,

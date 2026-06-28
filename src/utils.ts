@@ -1163,6 +1163,14 @@ export function orderToTechniczneForm(order: Order): TechniczneOrderFormData {
 
 export function orderToBastionForm(order: Order): BastionOrderFormData {
   const bastion = order as Record<string, unknown>
+  // "SZER×WYS" → [szer, wys] (obsługa × oraz x)
+  const splitDim = (v: unknown): [string, string] => {
+    const parts = String(v ?? '').split(/[×x]/)
+    return [String(parts[0] ?? '').trim(), String(parts[1] ?? '').trim()]
+  }
+  const [sideKW, sideKH] = splitDim(bastion.bastion_side_panel_k)
+  const [sidePW, sidePH] = splitDim(bastion.bastion_side_panel_p)
+  const [topW, topH] = splitDim(bastion.bastion_top_panel)
   return {
     order_number: order.order_number ?? '',
     category: order.category ?? 'Bastion',
@@ -1187,6 +1195,11 @@ export function orderToBastionForm(order: Order): BastionOrderFormData {
     collection: String(bastion.bastion_collection ?? ''),
     frame_type: String(bastion.bastion_frame_type ?? order.decorative_panel ?? ''),
     frame_range: String(bastion.bastion_frame_range ?? order.extension ?? ''),
+    side_panel_k_w: sideKW,
+    side_panel_p_w: sidePW,
+    side_panel_h: sideKH || sidePH,
+    top_panel_w: topW,
+    top_panel_h: topH,
     sales_changes: String(bastion.bastion_sales_changes ?? ''),
     rush_date: String(bastion.bastion_rush_date ?? ''),
     day_of_week: String(bastion.bastion_day_of_week ?? ''),
