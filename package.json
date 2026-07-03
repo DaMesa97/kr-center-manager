@@ -2,7 +2,7 @@
   "name": "kr-center-manager-produkcji",
   "productName": "KR Center",
   "private": true,
-  "version": "1.0.0-beta.25",
+  "version": "1.0.0-beta.26",
   "description": "System zarządzania zamówieniami i magazynem dla KR Center",
   "author": {
     "name": "Tymoteusz Węglorz",
@@ -17,6 +17,7 @@
     "build:mobile": "vite build --config vite.mobile.config.ts",
     "release": "tsc && vite build && node scripts/release.mjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "@supabase/supabase-js": "^2.102.1",
     "electron-updater": "^6.8.3",
     "lucide-react": "^1.11.0",
+    "marked": "^18.0.5",
     "pdfmake": "^0.3.7",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",
@@ -48,6 +50,7 @@
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
     "vite-plugin-electron": "^0.28.6",
-    "vite-plugin-electron-renderer": "^0.14.5"
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "vitest": "^4.1.9"
   }
 }

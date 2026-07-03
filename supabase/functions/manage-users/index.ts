@@ -47,7 +47,11 @@ serve(async (req) => {
       .eq('id', caller.id)
       .single()
 
-    if (profErr || profile?.role !== 'manager') {
+    // Zarządzać kontami może admin (nowe role) oraz legacy 'manager'
+    // (okres przejściowy przed migracją roles.sql — bez tego migracja
+    // manager→admin odcięłaby WSZYSTKICH od panelu użytkowników).
+    const ALLOWED_ROLES = ['manager', 'admin']
+    if (profErr || !ALLOWED_ROLES.includes(String(profile?.role ?? ''))) {
       return new Response(JSON.stringify({ error: 'Brak uprawnień' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

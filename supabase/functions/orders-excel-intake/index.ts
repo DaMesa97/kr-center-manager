@@ -9,7 +9,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.43.0'
 // obiekt albo tablicę obiektów.
 // =====================================================================
 
-const safeJsonParse = (text: string): unknown => {
+export const safeJsonParse = (text: string): unknown => {
   try { return JSON.parse(text) } catch { return null }
 }
 
@@ -27,7 +27,7 @@ const jsonResponse = (body: unknown, status = 200) =>
 // ---- Mapowania -------------------------------------------------------
 
 // Systemy Titana (CORE/GUARD RC2/RC3 — 'GUARD RC3' łapie też 'GUARD RC3 EI 30')
-const isTitanSystem = (system: unknown): boolean => {
+export const isTitanSystem = (system: unknown): boolean => {
   const u = String(system ?? '').toUpperCase()
   return u.includes('CORE') || u.includes('GUARD RC2') || u.includes('GUARD RC3')
 }
@@ -35,8 +35,8 @@ const isTitanSystem = (system: unknown): boolean => {
 // Systemy Bastiona (poki co): BASIC / BASIC PLUS / BASIC LOCK PLUS / PREMIUM /
 // PREMIUM RC2 / BOLD / BOLD PLUS / SILENT. Dopasowanie po słowie kluczowym
 // (łapie warianty: 'BASIC LOCK PLUS', 'PREMIUM RC2', 'BOLD PLUS').
-const BASTION_SYSTEM_KEYWORDS = ['BASIC', 'PREMIUM', 'BOLD', 'SILENT']
-const isBastionSystem = (system: unknown): boolean => {
+export const BASTION_SYSTEM_KEYWORDS = ['BASIC', 'PREMIUM', 'BOLD', 'SILENT']
+export const isBastionSystem = (system: unknown): boolean => {
   const u = String(system ?? '').toUpperCase()
   return BASTION_SYSTEM_KEYWORDS.some((k) => u.includes(k))
 }
@@ -47,7 +47,7 @@ const isBastionSystem = (system: unknown): boolean => {
 //  - TECHNIC* → Techniczne
 //  - ST* (ST68/ST72…) = stalowe → ST
 //  - reszta (NORMAL/BASIC…) → STA
-const determineCategory = (system: string): string => {
+export const determineCategory = (system: string): string => {
   const s = system.trim().toUpperCase()
   if (isTitanSystem(s)) return 'STA'
   if (s.includes('DISTING')) return 'Disting'
@@ -59,7 +59,7 @@ const determineCategory = (system: string): string => {
 
 // "Typ" → firma fakturująca (wykonawca).
 // CD/CA/C* oraz KR = Center; PD/P* = Profil; WZ/W*/Z* = WZ.
-const typToWykonawca = (typ: string): string => {
+export const typToWykonawca = (typ: string): string => {
   const t = typ.trim().toUpperCase()
   if (!t) return ''
   if (t === 'KR' || t.startsWith('C')) return 'Center'
@@ -69,15 +69,20 @@ const typToWykonawca = (typ: string): string => {
 }
 
 // Wymiar "S×W" tylko gdy są obie wartości (albo pojedyncza jeśli jedna)
-const combineDim = (w: string, h: string): string => {
+export const combineDim = (w: string, h: string): string => {
   const ww = w.trim(); const hh = h.trim()
   if (ww && hh) return `${ww}×${hh}`
   return ww || hh || ''
 }
 
-const emptyStagesFor = (category: string): Record<string, string> => {
-  if (category === 'STA' || category === 'Disting') {
+export const emptyStagesFor = (category: string): Record<string, string> => {
+  // Mirrory Disting Plus są ASYMETRYCZNE (spójnie z aplikacją):
+  // STA trzyma dist_* (podgląd ościeżnicy), Disting trzyma sta_e3/sta_e4 (podgląd skrzydła).
+  if (category === 'STA') {
     return { e1: '', e2_1: '', e2_2: '', e3: '', e4: '', e5: '', dist_e1: '', dist_e2_1: '', dist_e2_2: '', dist_e5: '' }
+  }
+  if (category === 'Disting') {
+    return { e1: '', e2_1: '', e2_2: '', e3: '', e4: '', e5: '', sta_e3: '', sta_e4: '' }
   }
   if (category === 'ST') {
     return { cnc: '', osc: '', skr: '', mon: '', mag: '', e1: '', e2: '', e3: '', e4: '', sta_e5: '' }
@@ -131,7 +136,7 @@ const todayISO = (): string => new Date().toISOString().split('T')[0]
 
 // Mapuje pojedynczy wiersz excelowego JSON-a na payload zamówienia.
 // Zwraca null jeśli brak kluczowych danych (firma + system).
-const mapExcelRow = (row: Record<string, unknown>): Record<string, unknown> | null => {
+export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknown> | null => {
   const get = (k: string) => String(row[k] ?? '').trim()
 
   const company = get('Nazwa firmy')
@@ -202,10 +207,16 @@ const mapExcelRow = (row: Record<string, unknown>): Record<string, unknown> | nu
     top_light_glazing: get('Szklenie naświetla'),
     // Dostawka — obsługa obu kształtów: pojedyncza ("Szerokość dostawki")
     // oraz osobne boki A/B ("Szerokość dostawki bocznej A/B"), wspólna wysokość/szklenie.
-    side_panel: combineDim(get('Szerokość dostawki'), get('Wysokość dostawki')),
+    // Dostawka istnieje TYLKO gdy ma szerokość — sama wysokość (wspólna kolumna)
+    // nie może tworzyć "dostawki-widmo" (bug znaleziony testem).
+    side_panel: get('Szerokość dostawki') ? combineDim(get('Szerokość dostawki'), get('Wysokość dostawki')) : '',
     side_panel_glazing: get('Szklenie dostawki'),
-    side_panel_a: combineDim(get('Szerokość dostawki bocznej A'), get('Wysokość dostawki')),
-    side_panel_b: combineDim(get('Szerokość dostawki bocznej B'), get('Wysokość dostawki')),
+    side_panel_a: get('Szerokość dostawki bocznej A')
+      ? combineDim(get('Szerokość dostawki bocznej A'), get('Wysokość dostawki'))
+      : '',
+    side_panel_b: get('Szerokość dostawki bocznej B')
+      ? combineDim(get('Szerokość dostawki bocznej B'), get('Wysokość dostawki'))
+      : '',
     side_panel_a_glazing: get('Szerokość dostawki bocznej A') ? get('Szklenie dostawki') : '',
     side_panel_b_glazing: get('Szerokość dostawki bocznej B') ? get('Szklenie dostawki') : '',
     extension: get('Poszerzenie'),

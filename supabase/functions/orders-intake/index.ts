@@ -11,9 +11,14 @@ const safeJsonParse = (text: string): unknown => {
 }
 
 // Puste etapy dla kategorii (zgodne z createEmptyProductionStages w aplikacji)
-const emptyStagesFor = (category: string): Record<string, string> => {
-  if (category === 'STA' || category === 'Disting') {
+export const emptyStagesFor = (category: string): Record<string, string> => {
+  // Mirrory Disting Plus są ASYMETRYCZNE (spójnie z aplikacją):
+  // STA trzyma dist_* (podgląd ościeżnicy), Disting trzyma sta_e3/sta_e4 (podgląd skrzydła).
+  if (category === 'STA') {
     return { e1: '', e2_1: '', e2_2: '', e3: '', e4: '', e5: '', dist_e1: '', dist_e2_1: '', dist_e2_2: '', dist_e5: '' }
+  }
+  if (category === 'Disting') {
+    return { e1: '', e2_1: '', e2_2: '', e3: '', e4: '', e5: '', sta_e3: '', sta_e4: '' }
   }
   if (category === 'ST') {
     return { cnc: '', osc: '', skr: '', mon: '', mag: '', e1: '', e2: '', e3: '', e4: '', sta_e5: '' }
@@ -28,7 +33,7 @@ const emptyStagesFor = (category: string): Record<string, string> => {
 }
 
 // Systemy Titana (CORE/GUARD RC2/RC3 — 'GUARD RC3' łapie też 'GUARD RC3 EI 30')
-const isTitanSystem = (system: unknown): boolean => {
+export const isTitanSystem = (system: unknown): boolean => {
   const u = String(system ?? '').toUpperCase()
   return u.includes('CORE') || u.includes('GUARD RC2') || u.includes('GUARD RC3')
 }

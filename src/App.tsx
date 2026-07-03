@@ -2810,7 +2810,7 @@ function App() {
             pushToast={pushToast}
           />
         ) : isHelpTab ? (
-          <HelpView />
+          <HelpView isManager={isManager} />
         ) : isFeedbackTab ? (
           <FeedbackView isManager={isManager} currentUser={currentUser} pushToast={pushToast} />
         ) : isWarehouseTab ? (

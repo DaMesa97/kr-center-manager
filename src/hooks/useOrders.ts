@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { supabase } from '../supabaseClient'
+import { buildPartnerSyncPayload } from '../lib/linkedSync'
 import {
   EDITABLE_CATEGORIES,
   INITIAL_BASTION_ORDER_FORM,
@@ -779,28 +780,14 @@ export function useOrders({
 
   // #23 — Disting Plus (STA↔Disting) oraz Titan (STA↔ST): edycja jednego rekordu
   // przenosi wspólne pola produktowe na powiązany rekord (kolor, wymiar, model itd.).
-  // NIE rusza pól strukturalnych: numer, kategoria, linki, arkusze, etapy, wydanie, extra_fields.
-  const SHARED_LINKED_FIELDS = [
-    'company', 'production_day', 'quantity', 'system', 'model',
-    'wing_color', 'frame_color', 'threshold_color', 'width', 'direction', 'opening', 'height',
-    'glazing', 'decorative_panel', 'hardware', 'handle', 'peephole',
-    'top_light', 'top_light_glazing',
-    'side_panel', 'side_panel_glazing', 'side_panel_a', 'side_panel_b',
-    'side_panel_a_glazing', 'side_panel_b_glazing',
-    'extension', 'extension_a_dim', 'extension_b_dim', 'extension_top_dim', 'extension_qtys',
-    'notes', 'client_order_number', 'oslonki', 'zaczep',
-  ] as const
-
+  // Lista pól + budowa payloadu: src/lib/linkedSync.ts (testowane).
   const syncSharedFieldsToLinkedPartner = async (
     baseline: Order,
     mapped: Record<string, unknown>,
   ): Promise<void> => {
     const partnerId = baseline.linked_order_id
     if (partnerId == null) return
-    const partnerPayload: Record<string, unknown> = {}
-    for (const k of SHARED_LINKED_FIELDS) {
-      if (k in mapped && mapped[k] !== undefined) partnerPayload[k] = mapped[k]
-    }
+    const partnerPayload = buildPartnerSyncPayload(mapped)
     if (Object.keys(partnerPayload).length === 0) return
     const { error } = await supabase.from('orders').update(partnerPayload).eq('id', partnerId)
     if (error) {
