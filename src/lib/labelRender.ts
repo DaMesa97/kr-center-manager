@@ -13,6 +13,16 @@ export type LabelTemplate = {
 
 const str = (v: unknown): string => (v == null ? '' : String(v)).trim()
 
+// Escape danych zamówienia wstawianych w HTML etykiety (firma/uwagi mogą zawierać
+// znaki HTML) — zapobiega wykonaniu np. <img onerror=...> w podglądzie iframe.
+const escapeHtml = (v: string): string =>
+  v
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
 // Wszystkie dostępne pola do wstawienia na etykiecie ({{key}}) + opis dla edytora.
 // 'qr' obsługiwane osobno (generuje kod QR z ID zlecenia).
 export const LABEL_FIELDS: { key: string; label: string; value: (o: Order) => string }[] = [
@@ -61,8 +71,8 @@ export async function renderLabelHtml(template: LabelTemplate, order: Order): Pr
 
   let body = template.html
   for (const field of LABEL_FIELDS) {
-    // Puste pole tekstowe → "-" (QR nie podlega tej regule)
-    const val = field.key === 'qr' ? qrImg : (field.value(order) || '-')
+    // Puste pole tekstowe → "-" (QR nie podlega tej regule; escapujemy dane usera)
+    const val = field.key === 'qr' ? qrImg : (escapeHtml(field.value(order)) || '-')
     body = body.split(`{{${field.key}}}`).join(val)
   }
   // Nieznane/literówkowe placeholdery {{...}} → "-" (żeby nie drukować surowych klamr)

@@ -469,6 +469,8 @@ export function useOrders({
     const ordersData = allOrders
     if (error) {
       console.error(error)
+      pushToast(`Nie udało się wczytać zamówień: ${error.message}`, 'error')
+      setLoading(false)
     } else {
       const loaded = sortOrders(ordersData as Order[])
       setOrders(loaded)
@@ -516,7 +518,7 @@ export function useOrders({
       }
     }
     setLoading(false)
-  }, [activeTab, fetchInternalDoorItemsForVisibleOrders, touchSession])
+  }, [activeTab, fetchInternalDoorItemsForVisibleOrders, touchSession, pushToast])
 
   const markProductionStageWithProfileInitials = useCallback(
     async (orderId: number, stageKey: string) => {

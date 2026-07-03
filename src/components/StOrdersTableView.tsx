@@ -143,6 +143,9 @@ export default function StOrdersTableView({
           <th className="col-order-text" title="KOLOR">
             KOLOR
           </th>
+          <th className="col-order-text" title="PRÓG">
+            PRÓG
+          </th>
           <th className="col-order-text" title="SZEROKOŚĆ">
             SZEROKOŚĆ
           </th>
@@ -209,7 +212,7 @@ export default function StOrdersTableView({
           <tr>
             <td
               colSpan={
-                18 +
+                19 +
                 stOrdersStageLayout.defs.length +
                 8 +
                 (isManager ? 1 : 0)
@@ -363,6 +366,9 @@ export default function StOrdersTableView({
                 </td>
                 <td className="col-order-text" title={orderCellTooltip(order.wing_color)}>
                   {order.wing_color}
+                </td>
+                <td className="col-order-text" title={orderCellTooltip(order.threshold_color)}>
+                  {order.threshold_color}
                 </td>
                 <td className="col-order-text" title={orderCellTooltip(order.width)}>
                   {order.width}
