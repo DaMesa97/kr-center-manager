@@ -211,6 +211,9 @@ const mapExcelRow = (row: Record<string, unknown>): Record<string, unknown> | nu
     extension: get('Poszerzenie'),
     notes: get('Uwagi'),
     client_order_number: get('Numer zamówienia'),
+    // Kto wpisał zamówienie — kolumna "Wpisał" w arkuszu (warianty nazw);
+    // formularz bota powinien ustawiać np. "Konfigurator". Puste = brak info.
+    entered_by: get('Wpisał') || get('Wpisal') || get('Operator') || get('Handlowiec'),
     category,
     source: 'excel',
     airtable_id: '',

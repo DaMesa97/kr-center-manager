@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -47,7 +48,8 @@ type StOrdersTableViewProps = {
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-export default function StOrdersTableView({
+// memo: tabela re-renderuje się tylko gdy zmienią się jej propsy (nie każdy toast/stan App)
+function StOrdersTableView({
   filteredOrders,
   stOrdersStageLayout,
   tableWrapperRef,
@@ -665,3 +667,5 @@ export default function StOrdersTableView({
     </TopScrollTableWrapper>
   )
 }
+
+export default memo(StOrdersTableView)

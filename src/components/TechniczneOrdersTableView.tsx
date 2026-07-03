@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -36,7 +37,8 @@ type TechniczneOrdersTableViewProps = {
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-export default function TechniczneOrdersTableView({
+// memo: tabela re-renderuje się tylko gdy zmienią się jej propsy (nie każdy toast/stan App)
+function TechniczneOrdersTableView({
   filteredOrders,
   tableWrapperRef,
   isManager,
@@ -462,3 +464,5 @@ export default function TechniczneOrdersTableView({
     </TopScrollTableWrapper>
   )
 }
+
+export default memo(TechniczneOrdersTableView)

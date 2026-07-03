@@ -2977,10 +2977,10 @@ function App() {
                     openEditOrderModal={openEditOrderModal}
                     handleRushToggle={handleRushToggle}
                     markProductionStageWithProfileInitials={guardedMarkProductionStage}
-                    setStageRevertTarget={(target) => guardedSetStageRevertTarget(target)}
+                    setStageRevertTarget={guardedSetStageRevertTarget}
                     applyReleaseDateUpdate={applyReleaseDateUpdate}
                     onToggleOscReceived={toggleOscReceived}
-                    setReleaseClearTarget={(target) => setReleaseClearTarget(target)}
+                    setReleaseClearTarget={setReleaseClearTarget}
                     handleDistingStaSheetNavigate={handleDistingStaSheetNavigate}
                     handleStaDistingSheetNavigate={handleStaDistingSheetNavigate}
                     handleCancelOrderClick={handleCancelOrderClick}
@@ -3005,9 +3005,9 @@ function App() {
                     openEditOrderModal={openEditOrderModal}
                     handleRushToggle={handleRushToggle}
                     markProductionStageWithProfileInitials={guardedMarkProductionStage}
-                    setStageRevertTarget={(target) => guardedSetStageRevertTarget(target)}
+                    setStageRevertTarget={guardedSetStageRevertTarget}
                     applyReleaseDateUpdate={applyReleaseDateUpdate}
-                    setReleaseClearTarget={(target) => setReleaseClearTarget(target)}
+                    setReleaseClearTarget={setReleaseClearTarget}
                     handleCancelOrderClick={handleCancelOrderClick}
                     handleRestoreOrder={handleRestoreOrder}
                     onShowHistory={handleShowOrderHistory}
@@ -3037,9 +3037,9 @@ function App() {
                     onOpenEditOrderModal={openEditOrderModal}
                     onHandleRushToggle={handleRushToggle}
                     onMarkProductionStageWithProfileInitials={guardedMarkProductionStage}
-                    onSetStageRevertTarget={(target) => guardedSetStageRevertTarget(target)}
+                    onSetStageRevertTarget={guardedSetStageRevertTarget}
                     onApplyReleaseDateUpdate={applyReleaseDateUpdate}
-                    onSetReleaseClearTarget={(target) => setReleaseClearTarget(target)}
+                    onSetReleaseClearTarget={setReleaseClearTarget}
                     onHandleStTitanStaSheetNavigate={handleStTitanStaSheetNavigate}
                     onHandleCancelOrderClick={handleCancelOrderClick}
                     onHandleRestoreOrder={handleRestoreOrder}
@@ -3063,7 +3063,7 @@ function App() {
                     onOpenEditOrderModal={openEditOrderModal}
                     onHandleRushToggle={handleRushToggle}
                     onApplyReleaseDateUpdate={applyReleaseDateUpdate}
-                    onSetReleaseClearTarget={(target) => setReleaseClearTarget(target)}
+                    onSetReleaseClearTarget={setReleaseClearTarget}
                     onHandleCancelOrderClick={handleCancelOrderClick}
                     onHandleRestoreOrder={handleRestoreOrder}
                     onShowHistory={handleShowOrderHistory}
@@ -3130,9 +3130,9 @@ function App() {
                       openEditOrderModal={openEditOrderModal}
                       handleRushToggle={handleRushToggle}
                       markProductionStageWithProfileInitials={guardedMarkProductionStage}
-                      setStageRevertTarget={(target) => guardedSetStageRevertTarget(target)}
+                      setStageRevertTarget={guardedSetStageRevertTarget}
                       applyReleaseDateUpdate={applyReleaseDateUpdate}
-                      setReleaseClearTarget={(target) => setReleaseClearTarget(target)}
+                      setReleaseClearTarget={setReleaseClearTarget}
                       handleCancelOrderClick={handleCancelOrderClick}
                       handleRestoreOrder={handleRestoreOrder}
                       onShowHistory={handleShowOrderHistory}

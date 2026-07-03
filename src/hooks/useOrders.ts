@@ -1865,7 +1865,7 @@ export function useOrders({
     [isManager, pushToast],
   )
 
-  const handleBastionLabelToggle = async (orderId: number, current: string) => {
+  const handleBastionLabelToggle = useCallback(async (orderId: number, current: string) => {
     const newValue = current ? '' : new Date().toISOString().split('T')[0]
     const { error } = await supabase
       .from('orders')
@@ -1876,7 +1876,7 @@ export function useOrders({
       return
     }
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, label: newValue } : o)))
-  }
+  }, [pushToast])
 
   const handleRestoreOrder = useCallback(
     async (order: Order) => {
@@ -2390,13 +2390,13 @@ export function useOrders({
     [isManager, openInternalDoorDetails, pushToast, setActiveTab, setActiveSubTab, setShowCompanyDropdown],
   )
 
-  const handleShowOrderHistory = (order: Order) => {
+  const handleShowOrderHistory = useCallback((order: Order) => {
     setHistoryModal({
       open: true,
       orderId: order.id ?? null,
       orderNumber: order.order_number ?? null,
     })
-  }
+  }, [])
 
   const handleGlassReceived = useCallback(
     async (orderId: number) => {

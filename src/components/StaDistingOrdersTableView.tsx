@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { MouseEvent, MutableRefObject } from 'react'
 import ProductionStageCell from './ProductionStageCell'
 import type { GlassAllowance, Order, StageDef, ToastVariant } from '../types'
@@ -49,7 +50,8 @@ type StaDistingOrdersTableViewProps = {
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-export default function StaDistingOrdersTableView({
+// memo: tabela re-renderuje się tylko gdy zmienią się jej propsy (nie każdy toast/stan App)
+function StaDistingOrdersTableView({
   activeTab,
   filteredOrders,
   tableWrapperRef,
@@ -836,3 +838,5 @@ export default function StaDistingOrdersTableView({
     </TopScrollTableWrapper>
   )
 }
+
+export default memo(StaDistingOrdersTableView)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, type MutableRefObject } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, type MutableRefObject } from 'react'
 import { BASTION_STAGE_DEFS, BASTION_TITAN_STAGE_DEFS } from '../constants'
 import StockStatusBadge from './StockStatusBadge'
 import { TopScrollTableWrapper } from './TopScrollTableWrapper'
@@ -50,7 +50,8 @@ type BastionOrdersTableViewProps = {
   onLabelToggle: (orderId: number, current: string) => void | Promise<void>
 }
 
-export default function BastionOrdersTableView({
+// memo: tabela re-renderuje się tylko gdy zmienią się jej propsy (nie każdy toast/stan App)
+function BastionOrdersTableView({
   filteredOrders,
   linkedOrders = [],
   isManager,
@@ -667,3 +668,5 @@ export default function BastionOrdersTableView({
     </TopScrollTableWrapper>
   )
 }
+
+export default memo(BastionOrdersTableView)
