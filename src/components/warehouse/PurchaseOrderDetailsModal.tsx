@@ -50,7 +50,10 @@ export default function PurchaseOrderDetailsModal({
   const [editing, setEditing] = useState(false)
   const [draftQtyByItem, setDraftQtyByItem] = useState<Record<number, number>>({})
   const [saving, setSaving] = useState(false)
-  const canOperate = isManager || (currentUser?.role === 'worker' && currentUser.department === 'magazyn')
+  const canOperate =
+    isManager ||
+    currentUser?.role === 'magazynier' ||
+    (currentUser?.role === 'worker' && currentUser.department === 'magazyn')
 
   useEffect(() => {
     setEditing(false)

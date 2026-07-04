@@ -3,6 +3,7 @@ import { supabase } from '../../supabaseClient'
 import { generateInventorySheet } from '../../utils/inventoryPdfGenerator'
 import Spinner from '../Spinner'
 import type { CurrentUser, InventoryLine, InventorySession, ToastVariant, Warehouse } from '../../types'
+import { isManagerRole } from '../../lib/permissions'
 
 type Props = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -27,7 +28,7 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
   const [saving, setSaving] = useState<Set<number>>(new Set())
   const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
 
-  const isManager = currentUser?.role === 'manager'
+  const isManager = isManagerRole(currentUser?.role)
 
   const fetchLines = async (sessionId: number): Promise<InventoryLine[]> => {
     const { data } = await supabase

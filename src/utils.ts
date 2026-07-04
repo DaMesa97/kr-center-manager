@@ -182,7 +182,9 @@ export function profileRoleLabel(role: string): string {
 
 export function canEditBastionSalesChanges(currentUser: CurrentUser | null): boolean {
   if (!currentUser) return false
-  return currentUser.role === 'manager' || currentUser.role === 'sprzedawca'
+  // kierownicy/admin (nowe role) + legacy manager/sprzedawca — bez tego po migracji
+  // ról kolumna ZMIANY-SPRZEDAŻ stałaby się nieedytowalna dla wszystkich
+  return isManagerRole(currentUser.role) || currentUser.role === 'sprzedawca'
 }
 
 export function profileDepartmentLabel(department: string, role: string): string {

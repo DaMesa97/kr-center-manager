@@ -1632,7 +1632,7 @@ function App() {
       didSetDefaultTabRef.current = true
       return
     }
-    if (currentUser.role !== 'worker') {
+    if (!['worker', 'pracownik_produkcji', 'magazynier'].includes(currentUser.role)) {
       didSetDefaultTabRef.current = true
       return
     }
@@ -2094,7 +2094,8 @@ function App() {
               : currentUser?.role === 'sprzedawca' || currentUser?.role === 'obsluga_klienta'
                 ? 'sprzedawca'
                 : 'worker',
-            department: currentUser?.department ?? 'all',
+            // magazynier (nowa rola) ma działać jak dawny worker z działu magazyn
+            department: currentUser?.role === 'magazynier' ? 'magazyn' : (currentUser?.department ?? 'all'),
             id: currentUser?.id ?? '',
             initials: currentUser?.initials ?? '',
           }}

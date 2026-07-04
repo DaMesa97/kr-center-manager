@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import type { DbProfileRow, OrderComment } from '../types'
+import { isManagerRole } from '../lib/permissions'
 import Spinner from './Spinner'
 
 type MentionProfile = { id: string; full_name: string }
@@ -204,7 +205,7 @@ function OrderCommentsPanel({
   }
 
   const handleDelete = async (c: OrderComment) => {
-    const canDelete = c.author_id === currentUserId || currentUserRole === 'manager'
+    const canDelete = c.author_id === currentUserId || isManagerRole(currentUserRole)
     if (!canDelete) return
     if (!window.confirm('Czy na pewno usunąć ten komentarz?')) return
 
@@ -237,7 +238,7 @@ function OrderCommentsPanel({
           {!loading &&
             comments.map((c) => {
               const isOwn = c.author_id === currentUserId
-              const canDelete = isOwn || currentUserRole === 'manager'
+              const canDelete = isOwn || isManagerRole(currentUserRole)
               const isEditing = editingId === c.id
               return (
                 <div key={c.id} className={`order-comment ${isOwn ? 'order-comment--own' : ''}`}>
