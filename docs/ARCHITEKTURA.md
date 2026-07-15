@@ -304,6 +304,13 @@ mówi co robi i kiedy odpalić. Ważne pliki:
    bazę jako dostępną dla każdego zalogowanego.
 10. **Sekrety** (klucze API, service role, GH_TOKEN, Sentry) — tylko w `.env`
     (jest w .gitignore). Nigdy w kodzie ani w czacie.
+11. **Role żyją też w POLITYKACH RLS.** Przy zmianie modelu ról nie wystarczy
+    przeczesać kodu — 37 polityk w 26 tabelach sprawdzało `role='manager'`
+    i po migracji blokowało zapisy (suppliers, komponenty, konfiguracja…).
+    Diagnostyka + hurtowa naprawa: `migrate/fix_policies_manager_roles.sql`.
+    Przy dodawaniu NOWEJ roli kierowniczej: dopisz ją do `permissions.ts`,
+    `current_user_is_manager()` w bazie ORAZ przejedź polityki tym skryptem
+    (po podmianie listy ról).
 
 ---
 
