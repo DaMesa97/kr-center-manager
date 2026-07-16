@@ -282,6 +282,8 @@ function WarehouseView({
           components={components}
           suppliers={suppliers}
           stock={stock}
+          componentsLoading={componentsLoading}
+          stockLoading={stockLoading}
           isManager={isManager}
           smartRopData={smartRopData}
           smartRopLoading={smartRopLoading}

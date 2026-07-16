@@ -27,6 +27,8 @@ type Props = {
   components: WarehouseComponent[]
   suppliers: Supplier[]
   stock: WarehouseStockRow[]
+  componentsLoading?: boolean
+  stockLoading?: boolean
   smartRopData: SmartRopRow[]
   smartRopLoading: boolean
   isManager: boolean
@@ -59,6 +61,8 @@ export default function ReorderDashboardView({
   components,
   suppliers,
   stock,
+  componentsLoading = false,
+  stockLoading = false,
   smartRopData,
   smartRopLoading,
   isManager,
@@ -303,8 +307,18 @@ export default function ReorderDashboardView({
     )
   }
 
-  if (components.length === 0 || stock.length === 0) {
+  // Spinner TYLKO gdy trwa ładowanie. Pusta kartoteka to stan, nie ładowanie —
+  // wcześniej pusta baza = spinner w nieskończoność (bug ze zgłoszeń).
+  if (componentsLoading || stockLoading) {
     return <Spinner center label="Ładowanie dashboardu zamawiania…" />
+  }
+  if (components.length === 0) {
+    return (
+      <p className="no-results">
+        Brak komponentów w kartotece. Dodaj komponenty w Magazyn → Komponenty —
+        wtedy pojawią się tu sugestie zamówień.
+      </p>
+    )
   }
 
   return (
