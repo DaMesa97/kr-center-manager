@@ -12,6 +12,8 @@ import type {
 } from '../../types'
 import SkuLogisticsFields from './SkuLogisticsFields'
 import Spinner from '../Spinner'
+import SortableTh from '../SortableTh'
+import { sortRows, toggleSort, type SortState } from '../../lib/tableSort'
 import { isInternalWarehouseCode } from '../../utils'
 
 const UNIT_OPTIONS = ['mb', 'szt', 'm2', 'kg'] as const
@@ -134,6 +136,30 @@ function ComponentsView({
   const suppliersById = useMemo(
     () => new Map(suppliers.map((s) => [s.id, s])),
     [suppliers],
+  )
+
+  // Sortowanie po kliknięciu nagłówka (3 stany: A→Z / Z→A / domyślne = kod)
+  const [sort, setSort] = useState<SortState>(null)
+  const handleSort = useCallback((key: string) => setSort((prev) => toggleSort(prev, key)), [])
+  const sortedComponents = useMemo(
+    () =>
+      sortRows(filtered, sort, {
+        name: (c) => c.name,
+        code: (c) => c.code,
+        category: (c) => PRODUCT_CATEGORY_LABELS[c.product_category] ?? c.product_category,
+        supplier: (c) => (c.supplier_id ? suppliersById.get(c.supplier_id)?.name ?? '' : ''),
+        model: (c) => c.door_model,
+        size: (c) => c.door_size,
+        direction: (c) => c.door_direction,
+        color: (c) => c.door_color,
+        frame_type: (c) => c.door_frame_type,
+        frame_code: (c) => c.door_frame_code,
+        shield: (c) => c.door_handle_shield,
+        unit: (c) => c.unit,
+        min: (c) => c.min_stock_level,
+        notes: (c) => c.notes,
+      }),
+    [filtered, sort, suppliersById],
   )
 
   const openCreate = useCallback(() => {
@@ -347,47 +373,49 @@ function ComponentsView({
           <table className="orders-table">
             <thead>
               <tr>
-                <th>NAZWA</th>
-                <th>KOD</th>
-                <th>KATEGORIA</th>
-                <th>DOSTAWCA</th>
+                <SortableTh label="NAZWA" sortKey="name" state={sort} onToggle={handleSort} />
+                <SortableTh label="KOD" sortKey="code" state={sort} onToggle={handleSort} />
+                <SortableTh label="KATEGORIA" sortKey="category" state={sort} onToggle={handleSort} />
+                <SortableTh label="DOSTAWCA" sortKey="supplier" state={sort} onToggle={handleSort} />
                 {categoryFilter === 'door_wing' && (
                   <>
-                    <th>MODEL</th>
-                    <th>ROZMIAR</th>
-                    <th>KIERUNEK</th>
-                    <th>KOLOR</th>
+                    <SortableTh label="MODEL" sortKey="model" state={sort} onToggle={handleSort} />
+                    <SortableTh label="ROZMIAR" sortKey="size" state={sort} onToggle={handleSort} />
+                    <SortableTh label="KIERUNEK" sortKey="direction" state={sort} onToggle={handleSort} />
+                    <SortableTh label="KOLOR" sortKey="color" state={sort} onToggle={handleSort} />
                   </>
                 )}
                 {categoryFilter === 'door_frame' && (
                   <>
-                    <th>TYP RAMKI</th>
-                    <th>FRAME CODE</th>
-                    <th>ROZMIAR</th>
-                    <th>KIERUNEK</th>
-                    <th>KOLOR</th>
+                    <SortableTh label="TYP RAMKI" sortKey="frame_type" state={sort} onToggle={handleSort} />
+                    <SortableTh label="FRAME CODE" sortKey="frame_code" state={sort} onToggle={handleSort} />
+                    <SortableTh label="ROZMIAR" sortKey="size" state={sort} onToggle={handleSort} />
+                    <SortableTh label="KIERUNEK" sortKey="direction" state={sort} onToggle={handleSort} />
+                    <SortableTh label="KOLOR" sortKey="color" state={sort} onToggle={handleSort} />
                   </>
                 )}
                 {categoryFilter === 'door_handle' && (
                   <>
-                    <th>MODEL</th>
-                    <th>KOLOR</th>
-                    <th>SZYLD</th>
+                    <SortableTh label="MODEL" sortKey="model" state={sort} onToggle={handleSort} />
+                    <SortableTh label="KOLOR" sortKey="color" state={sort} onToggle={handleSort} />
+                    <SortableTh label="SZYLD" sortKey="shield" state={sort} onToggle={handleSort} />
                   </>
                 )}
                 {categoryFilter === 'door_hinge_cover' && (
                   <>
-                    <th>KOLOR</th>
+                    <SortableTh label="KOLOR" sortKey="color" state={sort} onToggle={handleSort} />
                   </>
                 )}
-                <th>JEDNOSTKA</th>
-                <th>MIN / TARGET</th>
-                {(categoryFilter === 'all' || categoryFilter === 'raw') && <th>UWAGI</th>}
+                <SortableTh label="JEDNOSTKA" sortKey="unit" state={sort} onToggle={handleSort} />
+                <SortableTh label="MIN / TARGET" sortKey="min" state={sort} onToggle={handleSort} />
+                {(categoryFilter === 'all' || categoryFilter === 'raw') && (
+                  <SortableTh label="UWAGI" sortKey="notes" state={sort} onToggle={handleSort} />
+                )}
                 <th>AKCJE</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => (
+              {sortedComponents.map((row) => (
                 <tr key={row.id}>
                   <td>{row.name}</td>
                   <td>{row.code ?? '—'}</td>

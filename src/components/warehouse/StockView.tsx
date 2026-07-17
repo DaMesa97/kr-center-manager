@@ -1,6 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { Warehouse, WarehouseComponent, WarehouseStockRow } from '../../types'
 import Spinner from '../Spinner'
+import SortableTh from '../SortableTh'
+import { sortRows, toggleSort, type SortState } from '../../lib/tableSort'
+
+// ranga statusu do sortowania: minus (najgorszy) → niski → OK
+const statusRank = (s: StockStatus): number => (s === 'minus' ? 0 : s === 'low' ? 1 : 2)
 
 type StockStatus = 'ok' | 'low' | 'minus'
 
@@ -189,6 +194,42 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
     })
   }, [aggregatedRows, search, problemsOnly, matchCategory])
 
+  // Sortowanie po kliknięciu nagłówka (wspólny stan dla obu wariantów tabeli)
+  const [sort, setSort] = useState<SortState>(null)
+  const handleSort = useCallback((key: string) => setSort((prev) => toggleSort(prev, key)), [])
+
+  const displayAggregated = useMemo(() => {
+    if (!filteredAggregatedRows) return null
+    const getters: Record<string, (r: AggregatedRow) => unknown> = {
+      code: (r) => r.component_code,
+      name: (r) => r.component_name,
+      category: (r) => r.component_category,
+      unit: (r) => r.component_unit,
+      total: (r) => r.total,
+      min: (r) => r.component_min_stock_level,
+      status: (r) => statusRank(stockStatusAggregated(r.total, r.component_min_stock_level)),
+    }
+    for (const w of warehousesSorted) {
+      getters[`wh_${w.id}`] = (r) => r.quantities[w.id] ?? 0
+    }
+    return sortRows(filteredAggregatedRows, sort, getters)
+  }, [filteredAggregatedRows, sort, warehousesSorted])
+
+  const displayRows = useMemo(
+    () =>
+      sortRows(filteredRows, sort, {
+        code: (r) => r.component_code,
+        name: (r) => r.component_name,
+        category: (r) => r.component_category,
+        unit: (r) => r.component_unit,
+        warehouse: (r) => r.warehouse_code,
+        qty: (r) => r.quantity,
+        min: (r) => r.component_min_stock_level,
+        status: (r) => statusRank(stockStatus(r)),
+      }),
+    [filteredRows, sort],
+  )
+
   const renderStatusCell = (s: StockStatus) => {
     const dotColor = s === 'ok' ? '#2e7d32' : s === 'low' ? '#f9a825' : '#c62828'
     return (
@@ -304,21 +345,21 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
           <table className="orders-table">
             <thead>
               <tr>
-                <th>KOD</th>
-                <th>NAZWA</th>
-                <th>KATEGORIA</th>
-                <th>JEDNOSTKA</th>
+                <SortableTh label="KOD" sortKey="code" state={sort} onToggle={handleSort} />
+                <SortableTh label="NAZWA" sortKey="name" state={sort} onToggle={handleSort} />
+                <SortableTh label="KATEGORIA" sortKey="category" state={sort} onToggle={handleSort} />
+                <SortableTh label="JEDNOSTKA" sortKey="unit" state={sort} onToggle={handleSort} />
                 {warehousesSorted.map((w) => (
-                  <th key={w.id}>{w.code}</th>
+                  <SortableTh key={w.id} label={w.code} sortKey={`wh_${w.id}`} state={sort} onToggle={handleSort} />
                 ))}
-                <th>RAZEM</th>
-                <th>MIN. STAN</th>
-                <th>STATUS</th>
+                <SortableTh label="RAZEM" sortKey="total" state={sort} onToggle={handleSort} />
+                <SortableTh label="MIN. STAN" sortKey="min" state={sort} onToggle={handleSort} />
+                <SortableTh label="STATUS" sortKey="status" state={sort} onToggle={handleSort} />
                 <th>AKCJE</th>
               </tr>
             </thead>
             <tbody>
-              {filteredAggregatedRows.map((row) => {
+              {(displayAggregated ?? filteredAggregatedRows).map((row) => {
                 const s = stockStatusAggregated(row.total, row.component_min_stock_level)
                 return (
                   <tr key={row.component_id}>
@@ -360,19 +401,19 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
           <table className="orders-table">
             <thead>
               <tr>
-                <th>KOD</th>
-                <th>NAZWA</th>
-                <th>KATEGORIA</th>
-                <th>JEDNOSTKA</th>
-                <th>MAGAZYN</th>
-                <th>ILOŚĆ</th>
-                <th>MIN. STAN</th>
-                <th>STATUS</th>
+                <SortableTh label="KOD" sortKey="code" state={sort} onToggle={handleSort} />
+                <SortableTh label="NAZWA" sortKey="name" state={sort} onToggle={handleSort} />
+                <SortableTh label="KATEGORIA" sortKey="category" state={sort} onToggle={handleSort} />
+                <SortableTh label="JEDNOSTKA" sortKey="unit" state={sort} onToggle={handleSort} />
+                <SortableTh label="MAGAZYN" sortKey="warehouse" state={sort} onToggle={handleSort} />
+                <SortableTh label="ILOŚĆ" sortKey="qty" state={sort} onToggle={handleSort} />
+                <SortableTh label="MIN. STAN" sortKey="min" state={sort} onToggle={handleSort} />
+                <SortableTh label="STATUS" sortKey="status" state={sort} onToggle={handleSort} />
                 <th>AKCJE</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => {
+              {displayRows.map((row) => {
                 const s = stockStatus(row)
                 return (
                   <tr key={row.id}>

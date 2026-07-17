@@ -7562,3 +7562,10 @@ html, body, #root {
 .help-md ul, .help-md ol { margin: 8px 0; padding-left: 22px; }
 .help-md li { margin-bottom: 4px; }
 .help-md hr { border: none; border-top: 1px solid #e2e8f0; margin: 18px 0; }
+
+/* Sortowanie tabel po nagłówku */
+.th-sortable { cursor: pointer; user-select: none; }
+.th-sortable:hover { background: rgba(0, 0, 0, 0.06); }
+.th-sortable-inner { display: inline-flex; align-items: center; gap: 5px; }
+.th-sort-arrow { opacity: 0.35; font-size: 0.72em; }
+.th-sort-arrow--on { opacity: 1; }
