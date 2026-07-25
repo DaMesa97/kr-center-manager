@@ -1009,11 +1009,18 @@ export type WarehouseRecipeComponent = {
   notes?: string | null
 }
 
+// Dynamiczne kryterium dopasowania receptury: pole zlecenia + dozwolone wartości
+export type RecipeCriterion = {
+  field: string
+  values: string[]
+}
+
 export type RecipeFormState = {
   id?: number
   name: string
   category: string
   part: RecipePart
+  criteria: RecipeCriterion[]
   system: string
   model: string
   wing_color: string

@@ -1,85 +1,32 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { RECIPE_PARTS } from '../../constants'
-import type { RecipeFormState, RecipePart, WarehouseComponent, WarehouseRecipeComponent } from '../../types'
+import { RECIPE_CRITERIA_FIELD_DEFS, RECIPE_PARTS } from '../../constants'
+import type {
+  RecipeCriterion,
+  RecipeFormState,
+  RecipePart,
+  WarehouseComponent,
+  WarehouseRecipeComponent,
+} from '../../types'
 import { buildRecipeAutoName } from '../../utils'
 import FormInput from '../FormInput'
-import SearchableConfigSelect from '../SearchableConfigSelect'
 import SearchableSelect from '../SearchableSelect'
-
-type RecipeMatchFieldKey =
-  | 'system'
-  | 'model'
-  | 'wing_color'
-  | 'frame_color'
-  | 'width'
-  | 'direction'
-  | 'glazing'
-  | 'decorative_panel'
-  | 'hardware'
-  | 'handle'
-  | 'peephole'
-  | 'electric_strike'
-
-const RECIPE_MATCH_FIELDS: Record<RecipePart, readonly RecipeMatchFieldKey[]> = {
-  wing: ['system', 'model', 'wing_color', 'width', 'direction'],
-  frame: ['system', 'frame_color', 'width'],
-  hardware: ['system'],
-  fittings: ['hardware'],
-  handle: ['handle'],
-  peephole: ['peephole'],
-  electric_strike: ['electric_strike'],
-  glazing: ['system', 'model', 'glazing'],
-  decorative_panel: ['model', 'decorative_panel'],
-  other: [],
-}
-
-const MATCH_FIELD_LABELS: Record<RecipeMatchFieldKey, string> = {
-  system: 'System',
-  model: 'Model',
-  wing_color: 'Kolor skrzydła',
-  frame_color: 'Kolor ościeżnicy',
-  width: 'Rozmiar',
-  direction: 'Kierunek',
-  glazing: 'Szklenie',
-  decorative_panel: 'Panel dekoracyjny',
-  hardware: 'Okucia',
-  handle: 'Pochwyt',
-  peephole: 'Wizjer',
-  electric_strike: 'Elektrozaczep',
-}
 
 const RECIPE_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'] as const
 
-const DIRECTION_OPTIONS = ['PRAWE', 'LEWE'] as const
-
-const MATCH_FIELD_OPTION_TYPE: Record<Exclude<RecipeMatchFieldKey, 'direction'>, string> = {
-  system: 'system',
-  model: 'model',
-  wing_color: 'kolor',
-  frame_color: 'kolor_oscieznicy',
-  width: 'rozmiar',
-  glazing: 'szklenie',
-  decorative_panel: 'panel',
-  hardware: 'okucia',
-  handle: 'pochwyt',
-  peephole: 'wizjer',
-  electric_strike: 'zaczep',
-}
-
-function optionsForMatchField(
-  field: RecipeMatchFieldKey,
-  byType: Record<string, string[]>,
-): string[] {
-  if (field === 'direction') return [...DIRECTION_OPTIONS]
-  if (field === 'frame_color') {
+// Wartości dostępne dla pola kryterium (słownik z Konfiguracji albo lista stała)
+function optionsForCriterionField(fieldKey: string, byType: Record<string, string[]>): string[] {
+  const def = RECIPE_CRITERIA_FIELD_DEFS.find((d) => d.key === fieldKey)
+  if (!def) return []
+  if (def.options) return def.options
+  if (def.dict === 'kolor_oscieznicy') {
     const ko = byType.kolor_oscieznicy
     if (ko?.length) return ko
     return byType.kolor ?? []
   }
-  const typ = MATCH_FIELD_OPTION_TYPE[field]
-  return byType[typ] ?? []
+  return byType[def.dict ?? ''] ?? []
 }
+
 
 function componentOptionLabel(c: WarehouseComponent): string {
   return `${c.code} — ${c.name} (${c.unit})`
@@ -135,7 +82,36 @@ function RecipeEditorModal({
     return m
   }, [warehouseComponents])
 
-  const matchFields = RECIPE_MATCH_FIELDS[formData.part]
+  // Dynamiczne kryteria dopasowania
+  const criteria = formData.criteria ?? []
+  const setCriteria = (next: RecipeCriterion[]) => onChange('criteria', next)
+  const usedFields = new Set(criteria.map((c) => c.field))
+  const [customInputs, setCustomInputs] = useState<Record<number, string>>({})
+
+  const addCriterion = () => setCriteria([...criteria, { field: '', values: [] }])
+  const removeCriterion = (idx: number) => setCriteria(criteria.filter((_, i) => i !== idx))
+  const setCriterionField = (idx: number, field: string) =>
+    setCriteria(criteria.map((c, i) => (i === idx ? { field, values: [] } : c)))
+  const toggleCriterionValue = (idx: number, value: string) =>
+    setCriteria(
+      criteria.map((c, i) =>
+        i === idx
+          ? {
+              ...c,
+              values: c.values.includes(value)
+                ? c.values.filter((v) => v !== value)
+                : [...c.values, value],
+            }
+          : c,
+      ),
+    )
+  const addCustomValue = (idx: number) => {
+    const raw = (customInputs[idx] ?? '').trim()
+    if (!raw) return
+    const c = criteria[idx]
+    if (!c.values.includes(raw)) toggleCriterionValue(idx, raw)
+    setCustomInputs((p) => ({ ...p, [idx]: '' }))
+  }
 
   if (!open) return null
 
@@ -212,46 +188,97 @@ function RecipeEditorModal({
           </label>
 
           <h3 className="order-field-full" style={{ margin: '0.75rem 0 0', gridColumn: '1 / -1' }}>
-            Atrybuty dopasowania
+            Kryteria dopasowania
           </h3>
-          {matchFields.length === 0 ? (
-            <p className="order-field-full" style={{ margin: 0, color: '#666' }}>
-              Brak pól dopasowania dla wybranej części.
-            </p>
-          ) : (
-            <div
-              className="recipe-editor-match-attrs-grid"
-              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}
-            >
-              {matchFields.map((key) => {
-                if (key === 'direction') {
-                  return (
-                    <label key={key} className="order-field-full">
-                      <span className="order-field-label-text">{MATCH_FIELD_LABELS[key]}</span>
-                      <SearchableSelect
-                        value={formData.direction}
-                        onChange={(v) => onChange('direction', v)}
-                        options={[...DIRECTION_OPTIONS]}
-                        placeholder="— wybierz —"
-                        disabled={saving}
-                      />
-                    </label>
-                  )
-                }
-                const opts = optionsForMatchField(key, orderModalOptionsByType)
-                return (
-                  <SearchableConfigSelect
-                    key={key}
-                    label={MATCH_FIELD_LABELS[key]}
-                    value={formData[key] as string}
-                    options={opts}
-                    onChange={(v) => onChange(key, v)}
-                    disabled={saving}
-                  />
-                )
-              })}
-            </div>
-          )}
+          <p className="order-field-full recipe-crit-hint">
+            Sam decydujesz, po czym receptura dobiera się do zlecenia. Dodaj tylko potrzebne pola —
+            brak kryterium = „nie dotyczy". W jednym kryterium możesz zaznaczyć <b>kilka wartości</b>
+            (wystarczy, że zlecenie pasuje do którejkolwiek).
+          </p>
+          <div className="order-field-full recipe-crit-list">
+            {criteria.length === 0 && (
+              <p className="recipe-crit-empty">
+                Brak kryteriów — receptura zadziała dla <b>każdego</b> zlecenia kategorii {formData.category}.
+              </p>
+            )}
+            {criteria.map((c, idx) => {
+              const opts = optionsForCriterionField(c.field, orderModalOptionsByType)
+              const extraValues = c.values.filter((v) => !opts.includes(v))
+              return (
+                <div key={idx} className="recipe-crit-row">
+                  <div className="recipe-crit-row-head">
+                    <select
+                      value={c.field}
+                      onChange={(e) => setCriterionField(idx, e.target.value)}
+                      disabled={saving}
+                    >
+                      <option value="">— wybierz pole —</option>
+                      {RECIPE_CRITERIA_FIELD_DEFS.filter(
+                        (d) => d.key === c.field || !usedFields.has(d.key),
+                      ).map((d) => (
+                        <option key={d.key} value={d.key}>{d.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      onClick={() => removeCriterion(idx)}
+                      disabled={saving}
+                    >
+                      Usuń
+                    </button>
+                  </div>
+                  {c.field && (
+                    <>
+                      <div className="recipe-crit-values">
+                        {[...opts, ...extraValues].map((v) => {
+                          const on = c.values.includes(v)
+                          return (
+                            <label key={v} className={`user-cat-chip ${on ? 'user-cat-chip--on' : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                disabled={saving}
+                                onChange={() => toggleCriterionValue(idx, v)}
+                              />
+                              {v}
+                            </label>
+                          )
+                        })}
+                        {opts.length === 0 && extraValues.length === 0 && (
+                          <span className="recipe-crit-empty">Brak wartości w słowniku — dopisz własną poniżej.</span>
+                        )}
+                      </div>
+                      <div className="recipe-crit-custom">
+                        <input
+                          type="text"
+                          placeholder="Własna wartość spoza słownika…"
+                          value={customInputs[idx] ?? ''}
+                          onChange={(e) => setCustomInputs((p) => ({ ...p, [idx]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              addCustomValue(idx)
+                            }
+                          }}
+                          disabled={saving}
+                        />
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => addCustomValue(idx)} disabled={saving}>
+                          Dodaj
+                        </button>
+                      </div>
+                      {c.values.length === 0 && (
+                        <span className="recipe-crit-warn">Zaznacz co najmniej jedną wartość — puste kryterium zostanie pominięte.</span>
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })}
+            <button type="button" className="btn btn-sm btn-primary" onClick={addCriterion} disabled={saving}>
+              + Dodaj kryterium (np. system, kolor, zaczep…)
+            </button>
+          </div>
           </div>
 
           <div className="recipe-editor-positions-section">

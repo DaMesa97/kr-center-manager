@@ -2602,9 +2602,10 @@ html, body, #root {
 
 .toast-stack {
   position: fixed;
-  z-index: 1200;
+  /* nad pływającym „Zgłoś uwagę" (z-index 9000, bottom 18px) — FAB zasłaniał toasty */
+  z-index: 9100;
   right: 1rem;
-  bottom: 1rem;
+  bottom: 72px;
   display: flex;
   flex-direction: column-reverse;
   align-items: flex-end;
@@ -7569,3 +7570,15 @@ html, body, #root {
 .th-sortable-inner { display: inline-flex; align-items: center; gap: 5px; }
 .th-sort-arrow { opacity: 0.35; font-size: 0.72em; }
 .th-sort-arrow--on { opacity: 1; }
+
+/* Receptury — dynamiczne kryteria dopasowania */
+.recipe-crit-hint { margin: 0; font-size: 0.82rem; color: #64748b; }
+.recipe-crit-list { display: flex; flex-direction: column; gap: 10px; }
+.recipe-crit-row { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: #f8fafc; display: flex; flex-direction: column; gap: 8px; }
+.recipe-crit-row-head { display: flex; gap: 8px; align-items: center; }
+.recipe-crit-row-head select { flex: 1; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.recipe-crit-values { display: flex; flex-wrap: wrap; gap: 6px; }
+.recipe-crit-custom { display: flex; gap: 6px; }
+.recipe-crit-custom input { flex: 1; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; }
+.recipe-crit-empty { color: #94a3b8; font-size: 0.82rem; }
+.recipe-crit-warn { color: #b45309; font-size: 0.78rem; }

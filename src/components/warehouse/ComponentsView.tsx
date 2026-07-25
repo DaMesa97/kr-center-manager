@@ -13,6 +13,7 @@ import type {
 import SkuLogisticsFields from './SkuLogisticsFields'
 import Spinner from '../Spinner'
 import SortableTh from '../SortableTh'
+import { TopScrollTableWrapper } from '../TopScrollTableWrapper'
 import { sortRows, toggleSort, type SortState } from '../../lib/tableSort'
 import { isInternalWarehouseCode } from '../../utils'
 
@@ -20,6 +21,10 @@ const UNIT_OPTIONS = ['mb', 'szt', 'm2', 'kg'] as const
 
 function slugifyCode(input: string): string {
   return input
+    // Ł/ł nie rozkładają się w NFD (to nie znak diakrytyczny) — mapujemy ręcznie,
+    // inaczej "PŁYTA" → "P-YTA" (bug ze zgłoszeń)
+    .replace(/Ł/g, 'L')
+    .replace(/ł/g, 'l')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toUpperCase()
@@ -128,10 +133,23 @@ function ComponentsView({
     [components],
   )
 
+  // Wyszukiwarka + filtr po dostawcy (zgłoszenia z firmy)
+  const [search, setSearch] = useState('')
+  const [supplierFilter, setSupplierFilter] = useState<number | ''>('')
+
   const filtered = useMemo(() => {
-    if (categoryFilter === 'all') return components
-    return components.filter((c) => c.product_category === categoryFilter)
-  }, [components, categoryFilter])
+    const q = search.trim().toLowerCase()
+    return components.filter((c) => {
+      if (categoryFilter !== 'all' && c.product_category !== categoryFilter) return false
+      if (supplierFilter !== '' && c.supplier_id !== supplierFilter) return false
+      if (!q) return true
+      return (
+        c.name.toLowerCase().includes(q) ||
+        (c.code ?? '').toLowerCase().includes(q) ||
+        (c.category ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [components, categoryFilter, search, supplierFilter])
 
   const suppliersById = useMemo(
     () => new Map(suppliers.map((s) => [s.id, s])),
@@ -146,7 +164,8 @@ function ComponentsView({
       sortRows(filtered, sort, {
         name: (c) => c.name,
         code: (c) => c.code,
-        category: (c) => PRODUCT_CATEGORY_LABELS[c.product_category] ?? c.product_category,
+        category: (c) =>
+          c.category?.trim() ? c.category : (PRODUCT_CATEGORY_LABELS[c.product_category] ?? c.product_category),
         supplier: (c) => (c.supplier_id ? suppliersById.get(c.supplier_id)?.name ?? '' : ''),
         model: (c) => c.door_model,
         size: (c) => c.door_size,
@@ -347,7 +366,7 @@ function ComponentsView({
       {loading ? (
         <Spinner center label="Ładowanie komponentów…" />
       ) : (
-        <div className="table-wrapper">
+        <div>
           <div className="components-filter-pills">
             {[
               { key: 'all', label: 'Wszystkie' },
@@ -370,6 +389,30 @@ function ComponentsView({
               </button>
             ))}
           </div>
+          <div className="orders-filters" style={{ margin: '8px 0 10px', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Szukaj po nazwie, kodzie lub kategorii…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ minWidth: 240, flex: '1 1 220px' }}
+            />
+            <label className="day-filter" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>Dostawca</span>
+              <select
+                className="day-filter"
+                value={supplierFilter === '' ? '' : String(supplierFilter)}
+                onChange={(e) => setSupplierFilter(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">Wszyscy</option>
+                {[...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'pl')).map((s) => (
+                  <option key={s.id} value={String(s.id)}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <TopScrollTableWrapper className="table-wrapper">
           <table className="orders-table">
             <thead>
               <tr>
@@ -421,7 +464,9 @@ function ComponentsView({
                   <td>{row.code ?? '—'}</td>
                   <td>
                     <span className="component-category-badge">
-                      {PRODUCT_CATEGORY_LABELS[row.product_category] ?? row.product_category}
+                      {row.category?.trim()
+                        ? row.category
+                        : (PRODUCT_CATEGORY_LABELS[row.product_category] ?? row.product_category)}
                     </span>
                   </td>
                   <td>{row.supplier_id ? (suppliersById.get(row.supplier_id)?.name ?? '—') : '—'}</td>
@@ -503,8 +548,9 @@ function ComponentsView({
               ))}
             </tbody>
           </table>
+          </TopScrollTableWrapper>
           {filtered.length === 0 && (
-            <p className="no-results">Brak aktywnych komponentów.</p>
+            <p className="no-results">Brak komponentów spełniających kryteria.</p>
           )}
         </div>
       )}

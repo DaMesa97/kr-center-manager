@@ -26,6 +26,9 @@ type Props = {
 
 function slugifyCodePart(input: string): string {
   return input
+    // Ł/ł nie rozkładają się w NFD — mapujemy ręcznie (inaczej Ł → "-")
+    .replace(/Ł/g, 'L')
+    .replace(/ł/g, 'l')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()

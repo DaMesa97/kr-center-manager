@@ -1217,21 +1217,11 @@ export function buildRecipeAutoName(form: RecipeFormState): string {
   parts.push(form.category)
   const partLabel = RECIPE_PARTS.find((p) => p.value === form.part)?.label
   if (partLabel) parts.push(partLabel)
-  const attrs = [
-    form.system,
-    form.model,
-    form.wing_color,
-    form.frame_color,
-    form.width,
-    form.direction,
-    form.glazing,
-    form.decorative_panel,
-    form.hardware,
-    form.handle,
-    form.peephole,
-    form.electric_strike,
-  ].filter((v) => v && v.trim())
-  parts.push(...attrs)
+  // dynamiczne kryteria: multi-wartości sklejane przez "|"
+  for (const c of form.criteria ?? []) {
+    const vals = c.values.map((v) => v.trim()).filter(Boolean)
+    if (vals.length > 0) parts.push(vals.join('|'))
+  }
   return parts.join(' / ')
 }
 

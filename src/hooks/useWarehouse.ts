@@ -858,12 +858,16 @@ export function useWarehouse({
 
   const handleEditRecipe = useCallback(
     async (recipe: WarehouseRecipe) => {
-      const { data: components, error } = await supabase
-        .from('warehouse_recipe_components')
-        .select('*')
-        .eq('recipe_id', recipe.id)
+      const [{ data: components, error }, { data: criteriaRows, error: critError }] = await Promise.all([
+        supabase.from('warehouse_recipe_components').select('*').eq('recipe_id', recipe.id),
+        supabase.from('warehouse_recipe_criteria').select('*').eq('recipe_id', recipe.id).order('id'),
+      ])
       if (error) {
         pushToast(`Błąd: ${error.message}`, 'error')
+        return
+      }
+      if (critError) {
+        pushToast(`Błąd kryteriów: ${critError.message}`, 'error')
         return
       }
       setRecipeEditorMode('edit')
@@ -872,6 +876,10 @@ export function useWarehouse({
         name: recipe.name ?? '',
         category: recipe.category,
         part: recipe.part,
+        criteria: ((criteriaRows ?? []) as Array<{ field: string; allowed_values: string[] }>).map((c) => ({
+          field: c.field,
+          values: Array.isArray(c.allowed_values) ? c.allowed_values : [],
+        })),
         system: recipe.system ?? '',
         model: recipe.model ?? '',
         wing_color: recipe.wing_color ?? '',
@@ -925,22 +933,12 @@ export function useWarehouse({
     touchSession()
     setRecipeSaving(true)
     try {
+      // Kryteria dopasowania żyją teraz w warehouse_recipe_criteria (dynamiczne);
+      // starych kolumn atrybutów już nie zapisujemy.
       const payload = {
         name: buildRecipeAutoName(recipeFormData).trim() || null,
         category: recipeFormData.category,
         part: recipeFormData.part,
-        system: recipeFormData.system.trim() || null,
-        model: recipeFormData.model.trim() || null,
-        wing_color: recipeFormData.wing_color.trim() || null,
-        frame_color: recipeFormData.frame_color.trim() || null,
-        width: recipeFormData.width.trim() || null,
-        glazing: recipeFormData.glazing.trim() || null,
-        direction: recipeFormData.direction.trim() || null,
-        decorative_panel: recipeFormData.decorative_panel.trim() || null,
-        hardware: recipeFormData.hardware.trim() || null,
-        handle: recipeFormData.handle.trim() || null,
-        peephole: recipeFormData.peephole.trim() || null,
-        electric_strike: recipeFormData.electric_strike.trim() || null,
         is_active: recipeFormData.is_active,
         notes: recipeFormData.notes.trim() || null,
         updated_at: new Date().toISOString(),
@@ -962,6 +960,25 @@ export function useWarehouse({
           return
         }
         await supabase.from('warehouse_recipe_components').delete().eq('recipe_id', recipeId!)
+        await supabase.from('warehouse_recipe_criteria').delete().eq('recipe_id', recipeId!)
+      }
+
+      // Kryteria dopasowania (pole + wartości; puste pomijamy)
+      const validCriteria = (recipeFormData.criteria ?? []).filter(
+        (c) => c.field.trim() && c.values.some((v) => v.trim()),
+      )
+      if (validCriteria.length > 0) {
+        const { error: critErr } = await supabase.from('warehouse_recipe_criteria').insert(
+          validCriteria.map((c) => ({
+            recipe_id: recipeId,
+            field: c.field.trim(),
+            allowed_values: c.values.map((v) => v.trim()).filter(Boolean),
+          })),
+        )
+        if (critErr) {
+          pushToast(`Błąd zapisu kryteriów: ${critErr.message}`, 'error')
+          return
+        }
       }
 
       const valid = recipeFormData.components.filter((c) => c.component_id > 0 && c.quantity > 0)

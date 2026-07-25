@@ -175,10 +175,43 @@ export const RECIPE_PARTS: { value: RecipePart; label: string }[] = [
   { value: 'other', label: 'Inne' },
 ]
 
+// Katalog pól, po których receptura może dopasowywać (dynamiczne kryteria).
+// dict = typ słownika z Konfiguracji (config_options.type); options = wartości stałe.
+export const RECIPE_CRITERIA_FIELD_DEFS: Array<{
+  key: string
+  label: string
+  dict?: string
+  options?: string[]
+}> = [
+  { key: 'system', label: 'System', dict: 'system' },
+  { key: 'model', label: 'Model', dict: 'model' },
+  { key: 'wing_color', label: 'Kolor skrzydła', dict: 'kolor' },
+  { key: 'frame_color', label: 'Kolor ościeżnicy', dict: 'kolor_oscieznicy' },
+  { key: 'threshold_color', label: 'Kolor progu', dict: 'kolor_progu' },
+  { key: 'width', label: 'Rozmiar (szerokość)', dict: 'rozmiar' },
+  { key: 'height', label: 'Wysokość', dict: 'wysokosc' },
+  { key: 'direction', label: 'Kierunek', options: ['PRAWE', 'LEWE'] },
+  { key: 'opening', label: 'Otwieranie', options: ['ONZ', 'ONW'] },
+  { key: 'glazing', label: 'Szklenie', dict: 'szklenie' },
+  { key: 'top_light_glazing', label: 'Szklenie naświetla', dict: 'szklenie_dostawki' },
+  { key: 'side_panel_a_glazing', label: 'Szklenie dostawki A', dict: 'szklenie_dostawki' },
+  { key: 'side_panel_b_glazing', label: 'Szklenie dostawki B', dict: 'szklenie_dostawki' },
+  { key: 'decorative_panel', label: 'Panel dekoracyjny', dict: 'panel' },
+  { key: 'hardware', label: 'Okucia', dict: 'okucia' },
+  { key: 'handle', label: 'Pochwyt', dict: 'pochwyt' },
+  { key: 'peephole', label: 'Wizjer', dict: 'wizjer' },
+  { key: 'electric_strike', label: 'Elektrozaczep', dict: 'zaczep' },
+  { key: 'zaczep', label: 'Zaczep', dict: 'zaczep' },
+  { key: 'oslonki', label: 'Osłonki', dict: 'oslonki' },
+  { key: 'prog', label: 'Próg (rodzaj)', dict: 'prog' },
+  { key: 'bastion_frame_type', label: 'Ościeżnica (Bastion)', dict: 'oscieznica' },
+]
+
 export const INITIAL_RECIPE_FORM: RecipeFormState = {
   name: '',
   category: 'STA',
   part: 'wing',
+  criteria: [],
   system: '',
   model: '',
   wing_color: '',

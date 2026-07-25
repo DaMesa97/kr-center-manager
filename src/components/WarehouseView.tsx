@@ -221,6 +221,7 @@ function WarehouseView({
           warehouses={warehouses}
           components={components}
           stock={stock}
+          suppliers={suppliers}
           loading={stockLoading}
           isManager={isManager}
           onAddPz={onAddPzFromStock}

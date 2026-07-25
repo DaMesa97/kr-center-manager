@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildRecipeAutoName,
   calcGlassDim,
   mapConfigTypeToFormField,
   orderToStaForm,
   validateOrderForm,
 } from '../utils'
+import { INITIAL_RECIPE_FORM } from '../constants'
 import type { Order } from '../types'
 
 const order = (o: Record<string, unknown>): Order => o as unknown as Order
@@ -60,6 +62,24 @@ describe('orderToStaForm — wczytanie zlecenia do formularza (edycja)', () => {
     expect(form.stage1).toBe('TW')
     expect(form.stage3).toBe('MK')
     expect(form.wykonawca).toBe('Profil')
+  })
+})
+
+describe('buildRecipeAutoName — nazwa z dynamicznych kryteriów', () => {
+  it('kategoria / część / wartości kryteriów (multi przez |)', () => {
+    const name = buildRecipeAutoName({
+      ...INITIAL_RECIPE_FORM,
+      category: 'STA',
+      part: 'wing',
+      criteria: [
+        { field: 'system', values: ['NORMAL', 'NORMAL PLUS'] },
+        { field: 'wing_color', values: ['ANTRACYT'] },
+        { field: 'zaczep', values: [] }, // puste pomijane
+      ],
+    })
+    expect(name).toContain('STA')
+    expect(name).toContain('NORMAL|NORMAL PLUS')
+    expect(name).toContain('ANTRACYT')
   })
 })
 

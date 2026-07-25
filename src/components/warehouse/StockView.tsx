@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
-import type { Warehouse, WarehouseComponent, WarehouseStockRow } from '../../types'
+import type { Supplier, Warehouse, WarehouseComponent, WarehouseStockRow } from '../../types'
 import Spinner from '../Spinner'
 import SortableTh from '../SortableTh'
+import { TopScrollTableWrapper } from '../TopScrollTableWrapper'
 import { sortRows, toggleSort, type SortState } from '../../lib/tableSort'
 
 // ranga statusu do sortowania: minus (najgorszy) → niski → OK
@@ -45,16 +46,18 @@ type StockViewProps = {
   warehouses: Warehouse[]
   components: WarehouseComponent[]
   stock: WarehouseStockRow[]
+  suppliers?: Supplier[]
   loading: boolean
   isManager?: boolean
   onAddPz?: (warehouseId?: number) => void
   onShowHistory: (component: WarehouseComponent) => void
 }
 
-function StockView({ warehouses, components, stock, loading, isManager, onAddPz, onShowHistory }: StockViewProps) {
+function StockView({ warehouses, components, stock, suppliers = [], loading, isManager, onAddPz, onShowHistory }: StockViewProps) {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | ''>('')
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const [supplierFilter, setSupplierFilter] = useState<number | ''>('')
   const [problemsOnly, setProblemsOnly] = useState(false)
 
   const matchCategory = useCallback((rowCategory: string | null | undefined) => {
@@ -117,6 +120,7 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
     return sortedRows.filter((row) => {
       if (selectedWarehouseId !== '' && row.warehouse_id !== selectedWarehouseId) return false
       if (!matchCategory(row.component_category)) return false
+      if (supplierFilter !== '' && componentById.get(row.component_id)?.supplier_id !== supplierFilter) return false
       if (problemsOnly) {
         const s = stockStatus(row)
         if (s === 'ok') return false
@@ -126,7 +130,7 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
       const name = (row.component_name ?? '').toLowerCase()
       return code.includes(q) || name.includes(q)
     })
-  }, [sortedRows, selectedWarehouseId, categoryFilter, search, problemsOnly, matchCategory])
+  }, [sortedRows, selectedWarehouseId, categoryFilter, search, problemsOnly, matchCategory, supplierFilter, componentById])
 
   const aggregatedRows = useMemo((): AggregatedRow[] | null => {
     if (selectedWarehouseId !== '') return null
@@ -183,6 +187,7 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
     const q = search.trim().toLowerCase()
     return aggregatedRows.filter((row) => {
       if (!matchCategory(row.component_category)) return false
+      if (supplierFilter !== '' && componentById.get(row.component_id)?.supplier_id !== supplierFilter) return false
       if (problemsOnly) {
         const s = stockStatusAggregated(row.total, row.component_min_stock_level)
         if (s === 'ok') return false
@@ -192,7 +197,7 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
       const name = (row.component_name ?? '').toLowerCase()
       return code.includes(q) || name.includes(q)
     })
-  }, [aggregatedRows, search, problemsOnly, matchCategory])
+  }, [aggregatedRows, search, problemsOnly, matchCategory, supplierFilter, componentById])
 
   // Sortowanie po kliknięciu nagłówka (wspólny stan dla obu wariantów tabeli)
   const [sort, setSort] = useState<SortState>(null)
@@ -311,6 +316,19 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
             ))}
           </select>
         </label>
+        <label className="day-filter" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span>Dostawca</span>
+          <select
+            className="day-filter"
+            value={supplierFilter === '' ? '' : String(supplierFilter)}
+            onChange={(e) => setSupplierFilter(e.target.value === '' ? '' : Number(e.target.value))}
+          >
+            <option value="">Wszyscy</option>
+            {[...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'pl')).map((s) => (
+              <option key={s.id} value={String(s.id)}>{s.name}</option>
+            ))}
+          </select>
+        </label>
         <input
           type="text"
           className="search-input"
@@ -341,7 +359,7 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
       {loading ? (
         <Spinner center label="Ładowanie stanów…" />
       ) : isAllWarehouses && filteredAggregatedRows ? (
-        <div className="table-wrapper">
+        <TopScrollTableWrapper className="table-wrapper">
           <table className="orders-table">
             <thead>
               <tr>
@@ -395,9 +413,9 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
           {filteredAggregatedRows.length === 0 && (
             <p className="no-results">Brak wierszy spełniających kryteria.</p>
           )}
-        </div>
+        </TopScrollTableWrapper>
       ) : (
-        <div className="table-wrapper">
+        <TopScrollTableWrapper className="table-wrapper">
           <table className="orders-table">
             <thead>
               <tr>
@@ -445,7 +463,7 @@ function StockView({ warehouses, components, stock, loading, isManager, onAddPz,
             </tbody>
           </table>
           {filteredRows.length === 0 && <p className="no-results">Brak wierszy spełniających kryteria.</p>}
-        </div>
+        </TopScrollTableWrapper>
       )}
     </>
   )

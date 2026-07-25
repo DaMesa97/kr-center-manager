@@ -125,15 +125,9 @@ function RecipesView({
           <table className="orders-table">
             <thead>
               <tr>
-                <th>NAZWA</th>
+                <th>NAZWA (kryteria dopasowania)</th>
                 <th>KATEGORIA</th>
-                <th>PART</th>
-                <th>SYSTEM</th>
-                <th>MODEL</th>
-                <th>KOLOR SKRZ.</th>
-                <th>KOLOR OŚĆ.</th>
-                <th>ROZMIAR</th>
-                <th>KIERUNEK</th>
+                <th>CZĘŚĆ</th>
                 <th>POZYCJI</th>
                 {isManager && <th>AKCJE</th>}
               </tr>
@@ -144,12 +138,6 @@ function RecipesView({
                   <td>{displayCell(row.name)}</td>
                   <td>{displayCell(row.category)}</td>
                   <td>{partLabel(row.part)}</td>
-                  <td>{displayCell(row.system)}</td>
-                  <td>{displayCell(row.model)}</td>
-                  <td>{displayCell(row.wing_color)}</td>
-                  <td>{displayCell(row.frame_color)}</td>
-                  <td>{displayCell(row.width)}</td>
-                  <td>{displayCell(row.direction)}</td>
                   <td>{row.components_count ?? 0}</td>
                   {isManager && (
                     <td>
