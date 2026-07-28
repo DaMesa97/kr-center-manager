@@ -1418,6 +1418,7 @@ export function useOrders({
         hardware: techniczneFormData.hardware,
         handle: techniczneFormData.handle,
         peephole: techniczneFormData.peephole,
+        wentylacja: techniczneFormData.wentylacja,
         top_light: '',
         top_light_glazing: '',
         side_panel: '',

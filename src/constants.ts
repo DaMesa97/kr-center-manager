@@ -304,6 +304,7 @@ export const CONFIG_DICTIONARIES: ConfigDictionaryDef[] = [
   { key: 'tech-wizjer', label: 'Wizjery', category: 'Techniczne', type: 'wizjer' },
   { key: 'tech-okucia', label: 'Okucia', category: 'Techniczne', type: 'okucia' },
   { key: 'tech-pochwyt', label: 'Pochwyty', category: 'Techniczne', type: 'pochwyt' },
+  { key: 'tech-wentylacja', label: 'Wentylacja', category: 'Techniczne', type: 'wentylacja' },
 
   { key: 'bastion-system', label: 'Systemy', category: 'Bastion', type: 'system' },
   { key: 'bastion-model', label: 'Modele', category: 'Bastion', type: 'model' },
@@ -328,6 +329,7 @@ export const CONFIG_DICTIONARIES: ConfigDictionaryDef[] = [
   { key: 'wewnetrzne-rozmiar', label: 'Rozmiary', category: 'Wewnetrzne', type: 'rozmiar' },
   { key: 'wewnetrzne-szyld', label: 'Szyldy klamek', category: 'Wewnetrzne', type: 'szyld' },
   { key: 'wewnetrzne-model-klamki', label: 'Modele klamek', category: 'Wewnetrzne', type: 'model_klamki' },
+  { key: 'wewnetrzne-wentylacja', label: 'Wentylacja', category: 'Wewnetrzne', type: 'wentylacja' },
   { key: 'wewnetrzne-kolor-klamki', label: 'Kolory klamek', category: 'Wewnetrzne', type: 'kolor_klamki' },
   { key: 'wewnetrzne-kolor-oslonki', label: 'Kolory osłonek', category: 'Wewnetrzne', type: 'kolor_oslonki' },
   {
@@ -554,6 +556,7 @@ export const INITIAL_TECHNICZNE_ORDER_FORM: TechniczneOrderFormData = {
   peephole: '',
   hardware: '',
   handle: '',
+  wentylacja: '',
   quantity: 1,
   notes: '',
   client_order_number: '',

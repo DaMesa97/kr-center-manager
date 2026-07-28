@@ -1157,6 +1157,7 @@ export function orderToTechniczneForm(order: Order): TechniczneOrderFormData {
     peephole: order.peephole ?? '',
     hardware: order.hardware ?? '',
     handle: order.handle ?? '',
+    wentylacja: String((order as Record<string, unknown>).wentylacja ?? ''),
     quantity: Number(order.quantity) || 1,
     notes: order.notes ?? '',
     client_order_number: order.client_order_number ?? '',

@@ -1417,6 +1417,12 @@ function App() {
     })
   }, [])
   const clearLabelSelection = useCallback(() => setLabelSelection(new Set()), [])
+  // Zmiana zakładki czyści zaznaczenie do druku — pasek "Zaznaczono N" nie może
+  // wisieć nad zakładkami bez checkboxów (zgłoszenie z firmy)
+  useEffect(() => {
+    setLabelSelection(new Set())
+    setBatchComboOpen(false)
+  }, [activeTab])
   const isPulpitTab = activeTab === 'Pulpit'
 
   const handleDeleteWarehouseComponent = useCallback(

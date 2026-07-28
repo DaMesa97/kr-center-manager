@@ -42,6 +42,8 @@ function InternalDoorOrderModal({
 }: Props) {
   const [companyName, setCompanyName] = useState('')
   const [notes, setNotes] = useState('')
+  const [wentylacja, setWentylacja] = useState('')
+  const [wentylacjaOptions, setWentylacjaOptions] = useState<string[]>([])
   const [items, setItems] = useState<ItemDraft[]>([])
   const [stocks, setStocks] = useState<Record<number, number>>({})
   const [saving, setSaving] = useState(false)
@@ -52,9 +54,18 @@ function InternalDoorOrderModal({
 
   useEffect(() => {
     if (!open) return
+    // słownik wentylacji (Konfiguracja → Wewnętrzne → Wentylacja)
+    void supabase
+      .from('config_options')
+      .select('value')
+      .eq('category', 'Wewnetrzne')
+      .eq('type', 'wentylacja')
+      .order('sort_order')
+      .then(({ data }) => setWentylacjaOptions((data ?? []).map((r) => String((r as { value: string }).value))))
     if (mode === 'edit' && initialOrder) {
       setCompanyName(initialOrder.company ?? '')
       setNotes(initialOrder.notes ?? '')
+      setWentylacja(String((initialOrder as unknown as Record<string, unknown>).wentylacja ?? ''))
       const drafts: ItemDraft[] = (initialItems ?? []).map((it) => ({
         id: it.id,
         component_id: it.component_id,
@@ -68,6 +79,7 @@ function InternalDoorOrderModal({
     } else if (mode === 'create') {
       setCompanyName('')
       setNotes('')
+      setWentylacja('')
       setItems([])
     }
   }, [open, mode, initialOrder, initialItems, components])
@@ -174,6 +186,7 @@ function InternalDoorOrderModal({
           order_number: nextOrderNumber,
           company: companyName.trim(),
           notes: notes.trim(),
+          wentylacja: wentylacja.trim(),
           entered_by: currentUserId,
           quantity: items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0),
           sequence: '',
@@ -234,6 +247,7 @@ function InternalDoorOrderModal({
         .update({
           company: companyName.trim(),
           notes: notes.trim(),
+          wentylacja: wentylacja.trim(),
           quantity: items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0),
         })
         .eq('id', orderId)
@@ -390,6 +404,19 @@ function InternalDoorOrderModal({
                 <option key={c} value={c} />
               ))}
             </datalist>
+          </label>
+
+          <label className="order-field-full">
+            <span className="order-field-label-text">Wentylacja</span>
+            <select value={wentylacja} onChange={(e) => setWentylacja(e.target.value)}>
+              <option value="">— brak —</option>
+              {wentylacjaOptions.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+              {wentylacja && !wentylacjaOptions.includes(wentylacja) && (
+                <option value={wentylacja}>{wentylacja}</option>
+              )}
+            </select>
           </label>
 
           <label className="order-field-full">

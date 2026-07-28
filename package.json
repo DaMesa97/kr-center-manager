@@ -2,7 +2,7 @@
   "name": "kr-center-manager-produkcji",
   "productName": "KR Center",
   "private": true,
-  "version": "1.0.0-beta.32",
+  "version": "1.0.0-beta.33",
   "description": "System zarządzania zamówieniami i magazynem dla KR Center",
   "author": {
     "name": "Tymoteusz Węglorz",

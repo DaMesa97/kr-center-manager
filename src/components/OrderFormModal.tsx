@@ -1254,6 +1254,13 @@ function OrderFormModal(props: OrderFormModalProps) {
                       isFieldValueExcluded(exclusions, activeTab, techniczneExclusionFormData, 'peephole', opt)
                     }
                   />
+                  <SearchableConfigSelect
+                    label="Wentylacja"
+                    value={techniczneFormData.wentylacja}
+                    onChange={(v) => handleTechniczneFormChange('wentylacja', v)}
+                    options={orderModalOptionsByType.wentylacja ?? []}
+                    placeholder="— wybierz —"
+                  />
 
                   <FormInput
                     label="Ilość"

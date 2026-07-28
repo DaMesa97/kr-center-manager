@@ -185,6 +185,10 @@ export default function ConfigView({
 }: ConfigViewProps) {
   const isBastionFrameDict =
     selectedConfigCategory === 'Bastion' && selectedConfigDict?.type === 'oscieznica'
+  const isRozmiarDict = selectedConfigDict?.type === 'rozmiar'
+  // wymiary rozmiaru z dimension_map (kategoria + kod)
+  const dimsForCode = (code: string) =>
+    dimensionMap.find((d) => d.category === selectedConfigCategory && d.dimension_code === code)
 
   return (
     <>
@@ -296,6 +300,7 @@ export default function ConfigView({
                     <tr>
                       <th />
                       <th>Wartość</th>
+                      {isRozmiarDict && <th>Wymiary (S × W STD)</th>}
                       <th className="col-sort-order">Kolejność</th>
                       <th>Domyślne</th>
                       {isBastionFrameDict && <th>Etykiety</th>}
@@ -341,6 +346,14 @@ export default function ConfigView({
                       >
                         <td className="config-drag-handle">⠿</td>
                         <td>{row.value}</td>
+                        {isRozmiarDict && (
+                          <td>
+                            {(() => {
+                              const d = dimsForCode(row.value)
+                              return d ? `${d.width_mm} × ${d.height_mm} mm` : '⚠️ brak wymiarów'
+                            })()}
+                          </td>
+                        )}
                         <td className="col-sort-order">{row.sort_order}</td>
                         <td>
                           <input

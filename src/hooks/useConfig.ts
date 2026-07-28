@@ -482,10 +482,22 @@ export function useConfig({
       pushToast('Wystąpił błąd: podaj wartość', 'error')
       return
     }
-    if (editingConfigOption === null && dict.type === 'rozmiar') {
+    if (dict.type === 'rozmiar') {
+      // Rozmiar zawsze przechodzi przez krok wymiarów — także przy EDYCJI
+      // (wcześniej edycja pozwalała zmienić tylko nazwę; zgłoszenie z firmy).
       setPendingRozmiarValue(valueTrim)
       setConfigAddStep('dimensions')
-      setDimensionModalForm({ width_mm: 0, height_mm: 0 })
+      if (editingConfigOption !== null) {
+        const existing = dimensionMap.find(
+          (d) => d.category === dict.category && d.dimension_code === editingConfigOption.value,
+        )
+        setDimensionModalForm({
+          width_mm: existing?.width_mm ?? 0,
+          height_mm: existing?.height_mm ?? 0,
+        })
+      } else {
+        setDimensionModalForm({ width_mm: 0, height_mm: 0 })
+      }
       return
     }
     setIsConfigOptionSaving(true)
@@ -688,31 +700,64 @@ export function useConfig({
     if (!pendingRozmiarValue) return
     setGlobalLoading(true)
     try {
-      const { error: optError } = await supabase.from('config_options').insert({
-        category: selectedConfigCategory,
-        type: 'rozmiar',
-        value: pendingRozmiarValue,
-        sort_order: configOptionsList.length,
-      })
-      if (optError) {
-        pushToast(`Błąd zapisu: ${optError.message}`, 'error')
-        return
+      if (editingConfigOption !== null) {
+        // EDYCJA: aktualizuj nazwę + wymiary (wcześniej wymiarów nie dało się zmienić)
+        const oldCode = editingConfigOption.value
+        const { error: optError } = await supabase
+          .from('config_options')
+          .update({ value: pendingRozmiarValue, sort_order: configOptionForm.sort_order })
+          .eq('id', editingConfigOption.id)
+        if (optError) {
+          pushToast(`Błąd zapisu: ${optError.message}`, 'error')
+          return
+        }
+        const existing = dimensionMap.find(
+          (d) => d.category === selectedConfigCategory && d.dimension_code === oldCode,
+        )
+        const dimPayload = {
+          category: selectedConfigCategory,
+          dimension_code: pendingRozmiarValue,
+          width_mm: dimensionModalForm.width_mm,
+          height_mm: dimensionModalForm.height_mm,
+        }
+        const { error: dimError } = existing
+          ? await supabase.from('dimension_map').update(dimPayload).eq('id', existing.id)
+          : await supabase.from('dimension_map').insert(dimPayload)
+        if (dimError) {
+          pushToast(`Błąd zapisu wymiarów: ${dimError.message}`, 'error')
+          return
+        }
+        pushToast('Rozmiar zaktualizowany', 'success')
+      } else {
+        const { error: optError } = await supabase.from('config_options').insert({
+          category: selectedConfigCategory,
+          type: 'rozmiar',
+          value: pendingRozmiarValue,
+          sort_order: configOptionsList.length,
+        })
+        if (optError) {
+          pushToast(`Błąd zapisu: ${optError.message}`, 'error')
+          return
+        }
+        const { error: dimError } = await supabase.from('dimension_map').insert({
+          category: selectedConfigCategory,
+          dimension_code: pendingRozmiarValue,
+          width_mm: dimensionModalForm.width_mm,
+          height_mm: dimensionModalForm.height_mm,
+        })
+        if (dimError) {
+          pushToast(`Błąd zapisu wymiarów: ${dimError.message}`, 'error')
+          return
+        }
+        pushToast('Rozmiar dodany', 'success')
       }
-      const { error: dimError } = await supabase.from('dimension_map').insert({
-        category: selectedConfigCategory,
-        dimension_code: pendingRozmiarValue,
-        width_mm: dimensionModalForm.width_mm,
-        height_mm: dimensionModalForm.height_mm,
-      })
-      if (dimError) {
-        pushToast(`Błąd zapisu wymiarów: ${dimError.message}`, 'error')
-        return
-      }
-      pushToast('Rozmiar dodany', 'success')
+      // Zamknij modal i wyzeruj formularz (wcześniej okienko wisiało ze starą kolejnością)
       setConfigAddStep('value')
       setPendingRozmiarValue('')
       setDimensionModalForm({ width_mm: 0, height_mm: 0 })
-      setConfigOptionForm((p) => ({ ...p, value: '' }))
+      setConfigOptionForm({ value: '', sort_order: 0 })
+      setEditingConfigOption(null)
+      setIsConfigOptionModalOpen(false)
       void fetchConfigOptionsList()
       void fetchDimensionMap()
     } finally {

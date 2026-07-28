@@ -540,6 +540,7 @@ export type TechniczneOrderFormData = {
   peephole: string
   hardware: string
   handle: string
+  wentylacja: string
   quantity: number
   notes: string
   client_order_number: string

@@ -181,6 +181,13 @@ function InternalDoorOrderDetailsModal({
           )}
           {isReleased && <div className="internal-door-details-meta-info">Wydano {order.release_date}</div>}
 
+          {String((order as unknown as Record<string, unknown>).wentylacja ?? '').trim() && (
+            <div className="internal-door-details-section">
+              <h4>Wentylacja</h4>
+              <div>{String((order as unknown as Record<string, unknown>).wentylacja)}</div>
+            </div>
+          )}
+
           {String(order.notes ?? '').trim() && (
             <div className="internal-door-details-section">
               <h4>Uwagi</h4>

@@ -203,6 +203,7 @@ export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknow
     electric_strike: get('Elektrozaczep'),
     peephole: get('Wizjer'),
     oslonki: get('Oslonki'),
+    wentylacja: get('Wentylacja'),
     top_light: combineDim(get('Szerokość naświetla'), get('Wysokość naświetla')),
     top_light_glazing: get('Szklenie naświetla'),
     // Dostawka — obsługa obu kształtów: pojedyncza ("Szerokość dostawki")

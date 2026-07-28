@@ -156,6 +156,9 @@ function TechniczneOrdersTableView({
           <th className="col-order-text" title="WIZJER">
             WIZJER
           </th>
+          <th className="col-order-text" title="WENTYLACJA">
+            WENTYLACJA
+          </th>
           <th className="col-order-text" title="WYDANIE">
             WYDANIE
           </th>
@@ -189,7 +192,7 @@ function TechniczneOrdersTableView({
         {filteredOrders.length === 0 ? (
           <tr>
             <td
-              colSpan={26 + (isManager ? 1 : 0)}
+              colSpan={27 + (isManager ? 1 : 0)}
               style={{ textAlign: 'center', padding: '2rem', color: '#888' }}
             >
               Brak zamówień spełniających kryteria wyszukiwania.
@@ -346,6 +349,9 @@ function TechniczneOrdersTableView({
                 </td>
                 <td className="col-order-text" title={orderCellTooltip(order.peephole)}>
                   {order.peephole}
+                </td>
+                <td className="col-order-text" title={orderCellTooltip((order as Record<string, unknown>).wentylacja as string)}>
+                  {String((order as Record<string, unknown>).wentylacja ?? '')}
                 </td>
                 <td
                   className="release-date-td col-order-text"
