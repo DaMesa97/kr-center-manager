@@ -100,14 +100,31 @@ export function useConfig({
 
   // ── Fetch functions ─────────────────────────────────────────────────────────
   const fetchExclusions = useCallback(async () => {
-    const { data } = await supabase
-      .from('config_exclusions')
-      .select('*')
-      .order('category', { ascending: true })
-      .order('source_field', { ascending: true })
-      .order('source_value', { ascending: true })
-      .order('target_value', { ascending: true })
-    setExclusions((data || []) as ConfigExclusion[])
+    // Paginacja — PostgREST tnie po 1000 wierszy; wykluczeń jest już więcej
+    // (bez tego nowe wpisy zapisywały się, ale znikały z listy i dedupu).
+    const all: ConfigExclusion[] = []
+    let from = 0
+    const PAGE = 1000
+    while (true) {
+      const { data, error } = await supabase
+        .from('config_exclusions')
+        .select('*')
+        .order('category', { ascending: true })
+        .order('source_field', { ascending: true })
+        .order('source_value', { ascending: true })
+        .order('target_value', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (error) {
+        console.error('fetchExclusions:', error)
+        break
+      }
+      if (!data || data.length === 0) break
+      all.push(...(data as ConfigExclusion[]))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+    setExclusions(all)
   }, [])
 
   const fetchDimensionMap = useCallback(async () => {
@@ -315,15 +332,28 @@ export function useConfig({
   )
 
   const fetchConfigOptionsForExclusions = useCallback(async () => {
-    const { data } = await supabase
-      .from('config_options')
-      .select('category, type, value, sort_order')
-      .order('category', { ascending: true })
-      .order('type', { ascending: true })
-      .order('sort_order', { ascending: true })
-      .order('value', { ascending: true })
+    // Paginacja — pełny słownik wszystkich kategorii może przebić limit 1000 PostgREST
+    const rows: Array<Record<string, unknown>> = []
+    let from = 0
+    const PAGE = 1000
+    while (true) {
+      const { data, error } = await supabase
+        .from('config_options')
+        .select('category, type, value, sort_order, id')
+        .order('category', { ascending: true })
+        .order('type', { ascending: true })
+        .order('sort_order', { ascending: true })
+        .order('value', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (error) { console.error('fetchConfigOptionsForExclusions:', error); break }
+      if (!data || data.length === 0) break
+      rows.push(...(data as Array<Record<string, unknown>>))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
     const grouped: Record<string, Record<string, string[]>> = {}
-    for (const row of data || []) {
+    for (const row of rows) {
       const category = String((row as { category?: string }).category ?? '')
       const type = String((row as { type?: string }).type ?? '')
       const value = String((row as { value?: string }).value ?? '')

@@ -117,17 +117,31 @@ export function useWarehouse({
   const fetchWarehouseComponents = useCallback(async () => {
     touchSession()
     setWarehouseComponentsLoading(true)
-    const { data, error } = await supabase
-      .from('warehouse_components')
-      .select('*')
-      .eq('is_active', true)
-      .order('code')
+    // Paginacja — PostgREST tnie po 1000 wierszy (kartoteka rośnie)
+    const all: WarehouseComponent[] = []
+    let from = 0
+    const PAGE = 1000
+    let fetchError: { message: string } | null = null
+    while (true) {
+      const { data, error } = await supabase
+        .from('warehouse_components')
+        .select('*')
+        .eq('is_active', true)
+        .order('code')
+        .order('id')
+        .range(from, from + PAGE - 1)
+      if (error) { fetchError = error; break }
+      if (!data || data.length === 0) break
+      all.push(...(data as WarehouseComponent[]))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
     setWarehouseComponentsLoading(false)
-    if (error) {
-      pushToast(`Błąd: ${error.message}`, 'error')
+    if (fetchError) {
+      pushToast(`Błąd: ${fetchError.message}`, 'error')
       return
     }
-    setWarehouseComponents((data ?? []) as WarehouseComponent[])
+    setWarehouseComponents(all)
   }, [pushToast, touchSession])
 
   const fetchWarehouseRecipes = useCallback(async () => {
@@ -175,22 +189,36 @@ export function useWarehouse({
   const fetchWarehouseStock = useCallback(async () => {
     touchSession()
     setWarehouseStockLoading(true)
-    const { data, error } = await supabase
-      .from('warehouse_stock')
-      .select(
-        `
-        *,
-        warehouses(code),
-        warehouse_components(code, name, unit, min_stock_level, category)
-      `,
-      )
-      .order('warehouse_id')
+    // Paginacja — stany = komponenty × magazyny, sufit 1000 pęka szybko
+    const rows: Record<string, unknown>[] = []
+    let from = 0
+    const PAGE = 1000
+    let fetchError: { message: string } | null = null
+    while (true) {
+      const { data, error } = await supabase
+        .from('warehouse_stock')
+        .select(
+          `
+          *,
+          warehouses(code),
+          warehouse_components(code, name, unit, min_stock_level, category)
+        `,
+        )
+        .order('warehouse_id')
+        .order('id')
+        .range(from, from + PAGE - 1)
+      if (error) { fetchError = error; break }
+      if (!data || data.length === 0) break
+      rows.push(...(data as Record<string, unknown>[]))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
     setWarehouseStockLoading(false)
-    if (error) {
-      pushToast(`Błąd: ${error.message}`, 'error')
+    if (fetchError) {
+      pushToast(`Błąd: ${fetchError.message}`, 'error')
       return
     }
-    const mapped = (data ?? []).map((r: Record<string, unknown>) => {
+    const mapped = rows.map((r: Record<string, unknown>) => {
       const wh = r.warehouses as { code?: string } | { code?: string }[] | null | undefined
       const wc = r.warehouse_components as
         | {
