@@ -988,25 +988,42 @@ export function useWarehouse({
           return
         }
         await supabase.from('warehouse_recipe_components').delete().eq('recipe_id', recipeId!)
-        await supabase.from('warehouse_recipe_criteria').delete().eq('recipe_id', recipeId!)
       }
 
-      // Kryteria dopasowania (pole + wartości; puste pomijamy)
+      // Kryteria dopasowania (pole + wartości; puste pomijamy).
+      // ODPORNOŚĆ NA BŁĄD W POŁOWIE (np. zanik internetu): receptura bez kryteriów
+      // pasuje do CAŁEJ kategorii i zjada magazyn — nie wolno zostawić sieroty.
       const validCriteria = (recipeFormData.criteria ?? []).filter(
         (c) => c.field.trim() && c.values.some((v) => v.trim()),
       )
       if (validCriteria.length > 0) {
-        const { error: critErr } = await supabase.from('warehouse_recipe_criteria').insert(
+        // upsert: przy edycji stare kryteria zostają nietknięte, jeśli zapis padnie
+        const { error: critErr } = await supabase.from('warehouse_recipe_criteria').upsert(
           validCriteria.map((c) => ({
             recipe_id: recipeId,
             field: c.field.trim(),
             allowed_values: c.values.map((v) => v.trim()).filter(Boolean),
           })),
+          { onConflict: 'recipe_id,field' },
         )
         if (critErr) {
-          pushToast(`Błąd zapisu kryteriów: ${critErr.message}`, 'error')
+          if (recipeEditorMode === 'create') {
+            // wycofaj świeżo utworzoną recepturę — bez kryteriów łapałaby wszystko
+            await supabase.from('warehouse_recipes').delete().eq('id', recipeId!)
+          }
+          pushToast(`Błąd zapisu kryteriów — receptura NIE została zapisana: ${critErr.message}`, 'error')
           return
         }
+        // dopiero po udanym zapisie sprzątamy kryteria usunięte w edytorze
+        const keepFields = validCriteria.map((c) => c.field.trim())
+        await supabase
+          .from('warehouse_recipe_criteria')
+          .delete()
+          .eq('recipe_id', recipeId!)
+          .not('field', 'in', `(${keepFields.join(',')})`)
+      } else if (recipeEditorMode === 'edit') {
+        // świadome wyczyszczenie wszystkich kryteriów (receptura na całą kategorię)
+        await supabase.from('warehouse_recipe_criteria').delete().eq('recipe_id', recipeId!)
       }
 
       const valid = recipeFormData.components.filter((c) => c.component_id > 0 && c.quantity > 0)
