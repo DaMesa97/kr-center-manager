@@ -45,7 +45,23 @@ function mapRpcRow(row: Record<string, unknown>): StockAlert {
       : Number(row.r_days_until_empty),
     alert_level: row.r_alert_level as StockAlert['alert_level'],
     suggested_order_qty: Number(row.r_suggested_order_qty ?? 0),
+    reserved_quantity: Number(row.r_reserved_quantity ?? 0),
+    available: Number(row.r_available ?? row.r_current_stock ?? 0),
+    incoming_qty: Number(row.r_incoming_qty ?? 0),
+    earliest_eta: (row.r_earliest_eta as string | null) ?? null,
   }
+}
+
+// 'YYYY-MM-DD' → 'DD.MM'
+function formatEtaShort(eta: string | null): string {
+  if (!eta) return ''
+  const [, m, d] = eta.split('-')
+  return m && d ? `${d}.${m}` : eta
+}
+
+/** krytyczny i żadna dostawa nie jedzie — najpilniejsze do zamówienia */
+function isCriticalNoDelivery(a: StockAlert): boolean {
+  return a.alert_level === 'critical' && a.incoming_qty <= 0
 }
 
 function AlertsView({ isManager }: Props) {
@@ -100,6 +116,9 @@ function AlertsView({ isManager }: Props) {
     if (filterLevel === 'all_attention') {
       return alerts.filter((a) => ['critical', 'warning'].includes(a.alert_level))
     }
+    if (filterLevel === 'critical_no_delivery') {
+      return alerts.filter(isCriticalNoDelivery)
+    }
     return alerts.filter((a) => a.alert_level === filterLevel)
   }, [alerts, filterLevel])
 
@@ -122,6 +141,7 @@ function AlertsView({ isManager }: Props) {
   const counts = useMemo(
     () => ({
       critical: alerts.filter((a) => a.alert_level === 'critical').length,
+      critical_no_delivery: alerts.filter(isCriticalNoDelivery).length,
       warning: alerts.filter((a) => a.alert_level === 'warning').length,
       observation: alerts.filter((a) => a.alert_level === 'observation').length,
       ok: alerts.filter((a) => a.alert_level === 'ok').length,
@@ -253,6 +273,15 @@ function AlertsView({ isManager }: Props) {
         </button>
         <button
           type="button"
+          className={`alerts-filter-pill alerts-filter-pill--critical ${filterLevel === 'critical_no_delivery' ? 'alerts-filter-pill--active' : ''}`}
+          onClick={() => setFilterLevel('critical_no_delivery')}
+          title="Krytyczne, dla których NIC nie jedzie z otwartych ZD — zamów w pierwszej kolejności"
+        >
+          Krytyczne bez dostawy
+          <span className={countClass(counts.critical_no_delivery, true)}>{counts.critical_no_delivery}</span>
+        </button>
+        <button
+          type="button"
           className={`alerts-filter-pill alerts-filter-pill--warning ${filterLevel === 'warning' ? 'alerts-filter-pill--active' : ''}`}
           onClick={() => setFilterLevel('warning')}
         >
@@ -323,9 +352,13 @@ function AlertsView({ isManager }: Props) {
                 <th>Poziom</th>
                 <th>Komponent</th>
                 <th>Magazyn</th>
-                <th>Stan</th>
+                <th title="Stan fizyczny na półce">Fizyczne</th>
+                <th title="Fizyczne − zarezerwowane pod zamówienia">Dostępne</th>
+                <th title="Niedostarczone pozycje z wysłanych ZD">W drodze</th>
                 <th>Zużycie dzienne</th>
-                <th>Dni do wyczerpania</th>
+                <th title="Symulacja: dostępne minus dzienne zużycie, dostawy wpadają w swoich terminach">
+                  Dni do wyczerpania
+                </th>
                 <th>Sugerowane zam.</th>
               </tr>
             </thead>
@@ -345,6 +378,26 @@ function AlertsView({ isManager }: Props) {
                   </td>
                   <td>{a.warehouse_code}</td>
                   <td>{a.current_stock}</td>
+                  <td>
+                    <strong style={a.available < 0 ? { color: '#c62828' } : undefined}>{a.available}</strong>
+                    {a.reserved_quantity > 0 && (
+                      <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>rez. {a.reserved_quantity}</div>
+                    )}
+                  </td>
+                  <td>
+                    {a.incoming_qty > 0 ? (
+                      <>
+                        {a.incoming_qty}
+                        {a.earliest_eta && (
+                          <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>
+                            {formatEtaShort(a.earliest_eta)}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td>{a.daily_consumption}</td>
                   <td>{a.days_until_empty === null ? '—' : `${a.days_until_empty} dni`}</td>
                   <td>

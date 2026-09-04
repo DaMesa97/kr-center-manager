@@ -823,6 +823,13 @@ export type StockAlert = {
   days_until_empty: number | null
   alert_level: 'critical' | 'warning' | 'observation' | 'ok' | 'no_data'
   suggested_order_qty: number
+  /** zarezerwowane pod zamówienia (Tura 6) */
+  reserved_quantity: number
+  /** fizyczne − zarezerwowane; punkt startu symulacji dni do wyczerpania */
+  available: number
+  /** w drodze z otwartych ZD */
+  incoming_qty: number
+  earliest_eta: string | null
 }
 
 export type SmartRopRow = {
