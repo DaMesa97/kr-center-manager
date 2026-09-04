@@ -414,6 +414,7 @@ function App() {
     handleCleanupOrphanStock,
     consumeStockForOrderWithToasts,
     reserveStockForOrderWithToasts,
+    cancelOrderReservations,
     incomingStock,
     incomingStockLoading,
     fetchIncomingStock,
@@ -2889,6 +2890,12 @@ function App() {
             stockReservationsLoading={stockReservationsLoading}
             onRefreshReservations={fetchStockReservations}
             onReleaseReservation={releaseReservationById}
+            onReleaseOrderReservations={async (orderId: number) => {
+              await cancelOrderReservations(orderId)
+              await fetchStockReservations()
+              void fetchWarehouseStock()
+              pushToast('Zwolniono rezerwacje zlecenia', 'success')
+            }}
             onRefreshStock={fetchWarehouseStock}
             components={warehouseComponents}
             componentsLoading={warehouseComponentsLoading}
