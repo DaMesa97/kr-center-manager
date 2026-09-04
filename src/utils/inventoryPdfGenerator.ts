@@ -26,23 +26,21 @@ export function generateInventorySheet(
 ): void {
   const dateStr = session.counted_date
 
+  // ŚLEPY SPIS: bez kolumny stanu systemowego — liczący nie może „podciągać"
+  // wyniku pod system. Zamiast tego KOD komponentu (identyfikacja na hali).
   const tableBody: unknown[][] = [
     [
       { text: 'Lp.', style: 'tableHeader', alignment: 'center' },
+      { text: 'Kod', style: 'tableHeader' },
       { text: 'Nazwa komponentu', style: 'tableHeader' },
       { text: 'J.m.', style: 'tableHeader', alignment: 'center' },
-      { text: 'Stan systemowy', style: 'tableHeader', alignment: 'center' },
       { text: 'Ilość rzeczywista', style: 'tableHeader', alignment: 'center' },
     ],
     ...lines.map((line, i) => [
       { text: String(i + 1), alignment: 'center', fontSize: 9 },
+      { text: line.component_code ?? '', fontSize: 8, bold: true },
       { text: line.component_name ?? `#${line.component_id}`, fontSize: 9 },
       { text: line.component_unit ?? '', alignment: 'center', fontSize: 9 },
-      {
-        text: line.system_qty != null ? String(line.system_qty) : '',
-        alignment: 'center',
-        fontSize: 9,
-      },
       {
         text: line.counted_qty != null ? String(line.counted_qty) : '',
         alignment: 'center',
@@ -77,7 +75,7 @@ export function generateInventorySheet(
       {
         table: {
           headerRows: 1,
-          widths: [30, '*', 40, 80, 90],
+          widths: [26, 90, '*', 36, 90],
           body: tableBody as unknown as import('pdfmake/interfaces').TableCell[][],
         },
         layout: {

@@ -3564,6 +3564,10 @@ html, body, #root {
   background: #fef3c7;
   color: #854d0e;
 }
+.movement-type-badge--inw {
+  background: #ede9fe;
+  color: #6d28d9;
+}
 
 .monthly-consumption-view {
   display: flex;

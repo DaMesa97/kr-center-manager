@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
 import { generateInventorySheet } from '../../utils/inventoryPdfGenerator'
 import Spinner from '../Spinner'
@@ -146,13 +147,15 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
     }
   }
 
-  const handleCloseSession = async (sd: SessionWithLines) => {
-    const whName = warehouses.find((w) => w.id === sd.session.warehouse_id)?.name ?? 'magazyn'
-    const confirmed = window.confirm(
-      `Zamknąć sesję dla magazynu "${whName}" z dnia ${sd.session.counted_date}?\n\n` +
-      `Korekty stanów zostaną wygenerowane dla pozycji z wpisaną ilością.`,
-    )
-    if (!confirmed) return
+  // Krok 1: pokaż różnice do zatwierdzenia (decyzja: kierownik widzi listę
+  // ZANIM korekty się zaksięgują — literówka w liczeniu nie wjeżdża w stany)
+  const handleCloseSession = (sd: SessionWithLines) => {
+    setCloseReview(sd)
+  }
+
+  // Krok 2: zatwierdzone → księguj (korekty INW w bazie)
+  const handleConfirmClose = async (sd: SessionWithLines) => {
+    setCloseReview(null)
     setClosing(sd.session.id)
     try {
       // Flush — zapisz wartości czekające w debounce zanim zamkniemy sesję
@@ -184,6 +187,31 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
     }
   }
 
+  const [closeReview, setCloseReview] = useState<SessionWithLines | null>(null)
+
+  // Różnice liczone z draftów (ostatnie wpisy mogą jeszcze czekać w debounce)
+  const reviewDiffs = useMemo(() => {
+    if (!closeReview) return []
+    return closeReview.lines
+      .map((l) => {
+        const raw = draftCounts[l.id]
+        const counted =
+          raw != null && raw.trim() !== '' ? Number(raw.replace(',', '.')) : l.counted_qty
+        return { line: l, counted: counted != null && !isNaN(counted) ? counted : null }
+      })
+      .filter((x) => x.counted != null && x.counted !== x.line.system_qty)
+      .map((x) => ({ ...x, diff: (x.counted as number) - x.line.system_qty }))
+  }, [closeReview, draftCounts])
+
+  const reviewUncounted = useMemo(() => {
+    if (!closeReview) return 0
+    return closeReview.lines.filter((l) => {
+      const raw = draftCounts[l.id]
+      const counted = raw != null && raw.trim() !== '' ? raw : l.counted_qty
+      return counted == null || String(counted).trim() === ''
+    }).length
+  }, [closeReview, draftCounts])
+
   const handleExportPdf = (sd: SessionWithLines) => {
     generateInventorySheet(sd.session, sd.lines)
   }
@@ -203,7 +231,6 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
         const sd = openSessions.find((s) => s.session.warehouse_id === wh.id)
         const filledCount = sd?.lines.filter((l) => l.counted_qty != null).length ?? 0
         const totalCount = sd?.lines.length ?? 0
-        const diffCount = sd?.lines.filter((l) => l.counted_qty != null && l.counted_qty !== l.system_qty).length ?? 0
 
         return (
           <div key={wh.id} className="inventory-warehouse-section">
@@ -232,10 +259,10 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
                       <button
                         type="button"
                         className="btn btn-sm btn-danger"
-                        onClick={() => void handleCloseSession(sd)}
+                        onClick={() => handleCloseSession(sd)}
                         disabled={closing === sd.session.id}
                       >
-                        {closing === sd.session.id ? 'Zamykanie…' : 'Zamknij i zatwierdź korekty'}
+                        {closing === sd.session.id ? 'Zamykanie…' : 'Zamknij — pokaż różnice'}
                       </button>
                     )}
                   </div>
@@ -250,30 +277,27 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
                   </div>
                   <span className="inventory-progress-label">
                     {filledCount} / {totalCount} pozycji
-                    {diffCount > 0 && <> · <strong className="inventory-diff-count">{diffCount} rozbieżności</strong></>}
                   </span>
                 </div>
 
                 <div className="table-wrapper">
                   <table className="orders-table inventory-table">
                     <thead>
+                      {/* ŚLEPY SPIS: bez stanu systemowego i różnicy — liczący
+                          wpisuje to, co widzi na półce; różnice zobaczy kierownik
+                          przy zatwierdzaniu zamknięcia */}
                       <tr>
                         <th style={{ textAlign: 'center', width: '3rem' }}>Lp.</th>
                         <th>Nazwa komponentu</th>
                         <th style={{ textAlign: 'center', width: '5rem' }}>J.m.</th>
-                        <th style={{ textAlign: 'center', width: '8rem' }}>Stan systemu</th>
                         <th style={{ textAlign: 'center', width: '10rem' }}>Policzono</th>
-                        <th style={{ textAlign: 'center', width: '7rem' }}>Różnica</th>
                       </tr>
                     </thead>
                     <tbody>
                       {sd.lines.map((line, i) => {
                         const draft = draftCounts[line.id] ?? ''
-                        const draftNum = draft.trim() === '' ? null : Number(draft.replace(',', '.'))
-                        const diff = draftNum != null && !isNaN(draftNum) ? draftNum - line.system_qty : null
-                        const hasDiff = diff != null && diff !== 0
                         return (
-                          <tr key={line.id} className={hasDiff ? 'inventory-row--diff' : ''}>
+                          <tr key={line.id}>
                             <td style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>{i + 1}</td>
                             <td>
                               <div className="inventory-component-name">
@@ -282,7 +306,6 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
                               </div>
                             </td>
                             <td style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>{line.component_unit}</td>
-                            <td style={{ textAlign: 'center', fontWeight: 500 }}>{line.system_qty}</td>
                             <td style={{ textAlign: 'center' }}>
                               <div className="inventory-input-wrap">
                                 <input
@@ -296,13 +319,6 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
                                 />
                                 {saving.has(line.id) && <span className="inventory-saving-dot" title="Zapisywanie…">●</span>}
                               </div>
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              {diff != null && !isNaN(diff) ? (
-                                <span className={`inventory-diff-badge ${diff > 0 ? 'inventory-diff-badge--plus' : diff < 0 ? 'inventory-diff-badge--minus' : 'inventory-diff-badge--zero'}`}>
-                                  {diff > 0 ? `+${diff}` : diff}
-                                </span>
-                              ) : <span style={{ color: '#cbd5e1' }}>—</span>}
                             </td>
                           </tr>
                         )
@@ -387,6 +403,82 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
           </table>
         </div>
       )}
+
+      {/* ── Zatwierdzenie różnic przed zaksięgowaniem korekt ── */}
+      {closeReview &&
+        createPortal(
+          <div className="confirm-dialog-overlay" role="presentation" onClick={() => setCloseReview(null)}>
+            <div
+              className="confirm-dialog-card shortage-dialog-card"
+              role="alertdialog"
+              aria-modal="true"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="confirm-dialog-title">Zatwierdź inwentaryzację</h2>
+              <p className="shortage-dialog-subtitle">
+                Magazyn{' '}
+                <strong>
+                  {warehouses.find((w) => w.id === closeReview.session.warehouse_id)?.name ?? '—'}
+                </strong>{' '}
+                · {closeReview.session.counted_date}
+              </p>
+
+              {reviewDiffs.length === 0 ? (
+                <p className="shortage-dialog-hint">
+                  Wszystkie policzone pozycje zgadzają się ze stanem systemu — żadnych korekt.
+                </p>
+              ) : (
+                <div className="shortage-dialog-list" style={{ borderColor: '#bfdbfe', background: '#eff6ff' }}>
+                  {reviewDiffs.map(({ line, counted, diff }) => (
+                    <div key={line.id} className="shortage-dialog-row">
+                      <div className="shortage-dialog-name">
+                        {line.component_name}
+                        <span className="shortage-dialog-wh">
+                          system {line.system_qty} → policzono {counted}
+                        </span>
+                      </div>
+                      <div className="shortage-dialog-qty">
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color: diff > 0 ? '#15803d' : '#b91c1c',
+                          }}
+                        >
+                          {diff > 0 ? `+${diff}` : diff}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="shortage-dialog-hint">
+                Korekt do zaksięgowania: <strong>{reviewDiffs.length}</strong>
+                {reviewUncounted > 0 && (
+                  <>
+                    {' '}· <span style={{ color: '#b45309' }}>
+                      {reviewUncounted} pozycji NIEPOLICZONYCH — zostaną pominięte (bez korekty)
+                    </span>
+                  </>
+                )}
+              </p>
+
+              <div className="confirm-dialog-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setCloseReview(null)}>
+                  Wróć do liczenia
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => void handleConfirmClose(closeReview)}
+                >
+                  Zatwierdź i zaksięguj ({reviewDiffs.length})
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
