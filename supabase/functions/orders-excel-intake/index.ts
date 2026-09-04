@@ -96,6 +96,17 @@ export const emptyStagesFor = (category: string): Record<string, string> => {
   return {}
 }
 
+// Rezerwacja magazynowa po utworzeniu zlecenia (best-effort — błąd nie blokuje intake'u).
+// Frontend robi to samo po ręcznym zapisie; guard w RPC chroni przed dublem.
+const reserveStock = async (supabase: any, orderId: number): Promise<void> => {
+  try {
+    const { error } = await supabase.rpc('reserve_stock_for_order', { p_order_id: orderId })
+    if (error) console.error(`reserve_stock_for_order(${orderId}):`, error.message)
+  } catch (e) {
+    console.error(`reserve_stock_for_order(${orderId}):`, e)
+  }
+}
+
 // STA Titan → dorób ST (ościeżnica) + Bastion (skrzydło do okuwania). Grupa w extra_fields.titan_group.
 const createTitanLegs = async (supabase: any, orderId: number): Promise<void> => {
   const { data: base, error } = await supabase.from('orders').select('*').eq('id', orderId).single()
@@ -117,6 +128,7 @@ const createTitanLegs = async (supabase: any, orderId: number): Promise<void> =>
     production_stages: emptyStagesFor('ST'), extra_fields: { ...ef, titan_group: group, titan_role: 'ST' },
   }
   const { data: stRow } = await supabase.from('orders').insert([stPayload]).select('id, order_number').single()
+  if (stRow) await reserveStock(supabase, Number(stRow.id))
 
   // Bastion (skrzydło do okuwania)
   const bNr = await nextOrderNumber(supabase, 'Bastion')
@@ -124,7 +136,8 @@ const createTitanLegs = async (supabase: any, orderId: number): Promise<void> =>
     ...rest, order_number: bNr, category: 'Bastion', airtable_id: '', linked_order_id: null, release_date: null,
     production_stages: emptyStagesFor('Bastion'), extra_fields: { ...ef, titan_group: group, titan_role: 'Bastion' },
   }
-  await supabase.from('orders').insert([bPayload])
+  const { data: bRow } = await supabase.from('orders').insert([bPayload]).select('id').single()
+  if (bRow) await reserveStock(supabase, Number(bRow.id))
 
   // dopnij linki na STA
   const upd: Record<string, unknown> = { extra_fields: { ...ef, titan_group: group, titan_role: 'STA' } }
@@ -279,6 +292,8 @@ const createDistingPlusPartner = async (supabase: any, orderId: number): Promise
   if (baseCat === 'Disting') baseUpdate.sta_sheet = partnerRow.order_number
   else baseUpdate.disting_sheet = partnerRow.order_number
   await supabase.from('orders').update(baseUpdate).eq('id', base.id)
+
+  await reserveStock(supabase, Number(partnerRow.id))
 }
 
 // ---- HTTP ------------------------------------------------------------
@@ -358,6 +373,9 @@ serve(async (req) => {
       catch (pairErr) { console.error('pairing error:', pairErr) }
       try { await createTitanLegs(supabase, Number(inserted.id)) }
       catch (titanErr) { console.error('titan legs error:', titanErr) }
+
+      // rezerwacja magazynowa (nogi rezerwują się w helperach)
+      await reserveStock(supabase, Number(inserted.id))
 
       results.push({ index: i, status: 'created', order_id: inserted.id, order_number: inserted.order_number, category: inserted.category })
     }
