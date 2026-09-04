@@ -3639,6 +3639,64 @@ html, body, #root {
   text-align: right;
   padding: 5px 8px;
 }
+.damage-stage-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.damage-stage-pill {
+  border: 1px solid var(--color-border, #cbd5e1);
+  background: transparent;
+  color: var(--color-text, #334155);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.damage-stage-pill:hover {
+  border-color: #f59e0b;
+}
+.damage-stage-pill--active {
+  background: #b45309;
+  border-color: #b45309;
+  color: #fff;
+  font-weight: 600;
+}
+.damage-reason-textarea {
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.45;
+  resize: vertical;
+  min-height: 68px;
+}
+.damage-reason-textarea:focus {
+  outline: none;
+  border-color: #b45309;
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.15);
+}
+.damage-reason-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.damage-reason-hint {
+  border: 1px dashed var(--color-border, #cbd5e1);
+  background: transparent;
+  color: var(--color-text-muted, #64748b);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+.damage-reason-hint:hover {
+  border-color: #b45309;
+  color: #b45309;
+}
 
 .monthly-consumption-view {
   display: flex;

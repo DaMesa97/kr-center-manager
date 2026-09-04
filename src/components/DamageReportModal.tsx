@@ -360,21 +360,31 @@ export default function DamageReportModal({
             </label>
           )}
           {!stageKey && stageOptions && stageOptions.length > 0 && (
-            <label className="damage-field">
-              <span className="order-field-label-text">Etap (opcjonalnie — gdzie doszło do uszkodzenia)</span>
-              <select
-                value={selectedStage}
-                onChange={(e) => setSelectedStage(e.target.value)}
-                disabled={saving}
-              >
-                <option value="">— bez etapu —</option>
+            <div className="damage-field">
+              <span className="order-field-label-text">Gdzie doszło do uszkodzenia? (opcjonalnie)</span>
+              <div className="damage-stage-pills">
+                <button
+                  type="button"
+                  className={`damage-stage-pill${selectedStage === '' ? ' damage-stage-pill--active' : ''}`}
+                  onClick={() => setSelectedStage('')}
+                  disabled={saving}
+                >
+                  bez etapu
+                </button>
                 {stageOptions.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
+                  <button
+                    key={s.key}
+                    type="button"
+                    className={`damage-stage-pill${selectedStage === s.key ? ' damage-stage-pill--active' : ''}`}
+                    onClick={() => setSelectedStage(selectedStage === s.key ? '' : s.key)}
+                    disabled={saving}
+                    title={s.label}
+                  >
+                    {s.label.split(' — ')[0]}
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
           )}
           {!orderMode && (
             <label className="damage-field">
@@ -392,13 +402,31 @@ export default function DamageReportModal({
           <label className="damage-field">
             <span className="order-field-label-text">Powód * (co się stało)</span>
             <textarea
+              className="damage-reason-textarea"
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="np. skrzydło porysowane przy frezowaniu — drugi gatunek"
               disabled={saving}
-              style={{ resize: 'vertical' }}
             />
+            <div className="damage-reason-hints">
+              {[
+                'drugi gatunek — uszkodzone przy frezowaniu',
+                'uszkodzone przy okuwaniu',
+                'uszkodzone w transporcie wewnętrznym',
+                'wada fabryczna komponentu',
+              ].map((hint) => (
+                <button
+                  key={hint}
+                  type="button"
+                  className="damage-reason-hint"
+                  disabled={saving}
+                  onClick={() => setReason(hint)}
+                >
+                  {hint}
+                </button>
+              ))}
+            </div>
           </label>
         </div>
 
