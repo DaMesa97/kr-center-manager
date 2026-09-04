@@ -64,7 +64,7 @@ from stock_reservations sr where sr.order_id = 12939;
 -- RES-<id> w notatkach dla śladu):
 select m.movement_type, m.component_id, m.quantity, m.reference_doc, m.notes
 from warehouse_movements m
-where m.order_id = 12939 and m.reference_doc like 'WZ-ORDER-%';
+where m.order_id = 12939 and m.reference_doc like 'WZ-%';
 
 -- ponowne wydanie tego samego etapu = 0 wierszy:
 select * from release_stock_for_stage(12939, 'e3');

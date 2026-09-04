@@ -392,7 +392,8 @@ begin
     ) values (
       'WZ', v_res.warehouse_id, v_res.component_id, v_remaining,
       p_order_id,
-      'WZ-ORDER-' || p_order_id || '-' || p_stage_key,
+      -- format nadpisany w tura4: 'WZ-{kategoria}-{nr zlecenia}-{etap}'
+      'WZ-' || v_order.category || '-' || coalesce(nullif(trim(v_order.order_number), ''), p_order_id::text) || '-' || p_stage_key,
       'Wydanie na etap ' || p_stage_key || ' — zamówienie ' || v_order.category
         || ' #' || coalesce(v_order.order_number, p_order_id::text)
         || ' [RES-' || v_res.id || ']',

@@ -3,7 +3,7 @@ import type { Warehouse, WarehouseComponent, WarehouseMovementRow } from '../../
 import Spinner from '../Spinner'
 
 // Zgrupowany dokument magazynowy: wszystkie pozycje z tym samym reference_doc
-// (np. zbiorcze WZ 'WZ-ORDER-123-e4') zwijamy do jednego wiersza z pozycjami.
+// (np. zbiorcze WZ 'WZ-STA-2388-e4') zwijamy do jednego wiersza z pozycjami.
 type MovementDocGroup = {
   key: string
   movement_type: WarehouseMovementRow['movement_type']

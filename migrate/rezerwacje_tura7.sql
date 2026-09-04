@@ -11,7 +11,7 @@
 --
 -- Mechanika jak release_stock_for_stage: bez p_force braki blokują
 -- (zero zmian, lista braków); p_force wydaje na minus z [WYMUSZONE].
--- Zbiorcze WZ: reference 'WZ-ORDER-{id}-wydanie'.
+-- Zbiorcze WZ: reference 'WZ-{kategoria}-{nr zlecenia}-wydanie'.
 -- =====================================================================
 
 create or replace function public.release_remaining_for_order(
@@ -112,7 +112,7 @@ begin
     ) values (
       'WZ', v_res.warehouse_id, v_res.component_id, v_remaining,
       p_order_id,
-      'WZ-ORDER-' || p_order_id || '-wydanie',
+      'WZ-' || v_order.category || '-' || coalesce(nullif(trim(v_order.order_number), ''), p_order_id::text) || '-wydanie',
       'Wydanie końcowe (oznaczenie wydania) — zamówienie ' || v_order.category
         || ' #' || coalesce(v_order.order_number, p_order_id::text)
         || ' [RES-' || v_res.id || ']'
