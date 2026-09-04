@@ -44,7 +44,7 @@ function StockWarningBanner({ summary, loading }: { summary: StockPreviewSummary
                       <>
                         {' '}
                         · w drodze {s.r_incoming_qty}
-                        {s.r_earliest_eta ? ` (ETA ${formatEtaShort(s.r_earliest_eta)})` : ''}
+                        {s.r_earliest_eta ? ` (dostawa ${formatEtaShort(s.r_earliest_eta)})` : ''}
                       </>
                     )}
                   </li>
