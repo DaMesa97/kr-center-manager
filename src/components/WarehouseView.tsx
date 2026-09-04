@@ -33,7 +33,6 @@ import PzView from './warehouse/PzView'
 import RecipesView from './warehouse/RecipesView'
 import StockView from './warehouse/StockView'
 import ReservationsView from './warehouse/ReservationsView'
-import IncomingView from './warehouse/IncomingView'
 import ReorderDashboardView from './warehouse/ReorderDashboardView'
 import PurchaseOrdersView from './warehouse/PurchaseOrdersView'
 import InventoryView from './warehouse/InventoryView'
@@ -254,13 +253,6 @@ function WarehouseView({
           onRelease={onReleaseReservation}
           onRefresh={onRefreshReservations}
         />
-      ) : activeSubTab === 'W drodze' ? (
-        <IncomingView
-          incoming={incomingStock}
-          components={components}
-          loading={incomingStockLoading}
-          onRefresh={onRefreshIncoming}
-        />
       ) : activeSubTab === 'Receptury' ? (
         <RecipesView
           isManager={isManager}
@@ -340,6 +332,9 @@ function WarehouseView({
           currentUser={currentUser}
           onShowDetails={onShowPurchaseOrderDetails}
           pushToast={pushToast}
+          incoming={incomingStock}
+          incomingLoading={incomingStockLoading}
+          onRefreshIncoming={onRefreshIncoming}
         />
       ) : activeSubTab === 'Inwentaryzacja' ? (
         <InventoryView pushToast={pushToast} currentUser={currentUser} />

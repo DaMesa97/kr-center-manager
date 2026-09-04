@@ -851,7 +851,6 @@ export type WarehouseSubTab =
   | 'Komponenty'
   | 'Stany'
   | 'Rezerwacje'
-  | 'W drodze'
   | 'Receptury'
   | 'Ruchy'
   | 'Przyjęcia'

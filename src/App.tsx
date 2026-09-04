@@ -1781,9 +1781,9 @@ function App() {
     }
   }, [isWarehouseTab, activeWarehouseSubTab, fetchPzGroups])
 
-  // "W drodze" zasila i własną podzakładkę, i kolumny W DRODZE/PROGNOZA w Stanach
+  // "W drodze" zasila kolumny W DRODZE/PROGNOZA w Stanach i widok per komponent w Zamówieniach
   useEffect(() => {
-    if (isWarehouseTab && (activeWarehouseSubTab === 'Stany' || activeWarehouseSubTab === 'W drodze')) {
+    if (isWarehouseTab && (activeWarehouseSubTab === 'Stany' || activeWarehouseSubTab === 'Zamówienia')) {
       void fetchIncomingStock()
     }
   }, [isWarehouseTab, activeWarehouseSubTab, fetchIncomingStock])

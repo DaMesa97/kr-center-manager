@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type {
   CompanySettings,
   CurrentUser,
+  IncomingStockRow,
   PurchaseOrder,
   PurchaseOrderItem,
   Supplier,
@@ -12,6 +13,7 @@ import type {
 import { generateZdPdf } from '../../utils/zdPdfGenerator'
 import { PURCHASE_ORDER_STATUS_LABELS } from '../../constants'
 import Spinner from '../Spinner'
+import IncomingView from './IncomingView'
 
 type Props = {
   purchaseOrders: PurchaseOrder[]
@@ -25,6 +27,9 @@ type Props = {
   currentUser: CurrentUser | null
   onShowDetails: (po: PurchaseOrder) => void
   pushToast: (msg: string, type: ToastVariant) => void
+  incoming?: IncomingStockRow[]
+  incomingLoading?: boolean
+  onRefreshIncoming?: () => void
 }
 
 type StatusFilter = 'all' | PurchaseOrder['status']
@@ -38,7 +43,12 @@ export default function PurchaseOrdersView({
   companySettings,
   onShowDetails,
   pushToast,
+  incoming = [],
+  incomingLoading = false,
+  onRefreshIncoming = () => {},
 }: Props) {
+  // dwa spojrzenia na dostawy: per dokument ZD i zagregowane per komponent
+  const [viewMode, setViewMode] = useState<'lista' | 'w_drodze'>('lista')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [supplierFilter, setSupplierFilter] = useState<number | 'all'>('all')
 
@@ -124,8 +134,38 @@ export default function PurchaseOrdersView({
     <div className="reorder-dashboard">
       <div className="reorder-header">
         <h2>Zamówienia do dostawców</h2>
+        <div className="subtab-bar" role="tablist" aria-label="Widok dostaw" style={{ marginLeft: 12 }}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'lista'}
+            className={`btn btn-sm ${viewMode === 'lista' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setViewMode('lista')}
+          >
+            Lista ZD
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'w_drodze'}
+            className={`btn btn-sm ${viewMode === 'w_drodze' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setViewMode('w_drodze')}
+            title="Niedostarczone pozycje z wysłanych ZD, zagregowane per komponent"
+          >
+            W drodze (per komponent)
+          </button>
+        </div>
       </div>
 
+      {viewMode === 'w_drodze' ? (
+        <IncomingView
+          incoming={incoming}
+          components={components}
+          loading={incomingLoading}
+          onRefresh={onRefreshIncoming}
+        />
+      ) : (
+      <>
       <div className="alerts-filter-pills">
         <button type="button" className={`alerts-filter-pill ${statusFilter === 'all' ? 'alerts-filter-pill--active' : ''}`} onClick={() => setStatusFilter('all')}>
           Wszystkie <span className="alerts-filter-pill-count">{counts.all}</span>
@@ -211,6 +251,8 @@ export default function PurchaseOrdersView({
           </p>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }
