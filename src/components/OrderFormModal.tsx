@@ -7,6 +7,9 @@ import CompanyAutocomplete from './CompanyAutocomplete'
 import FormInput from './FormInput'
 import { getBotMetadata, getBotWarnings, isBotOrder } from '../utils/botOrder'
 import { findBestCompanyMatch, isCompanyInBase } from '../utils'
+import StockWarningBanner from './StockWarningBanner'
+import { useStockPreview } from '../hooks/useStockPreview'
+import { buildPreviewPayload } from '../lib/stockPreview'
 
 // Ostrzeżenie + dopasowanie niedopasowanej firmy (gł. zamówienia z BOT-a).
 // Auto-podpowiedź (najlepsze dopasowanie) ORAZ ręczny wybór z pełnej listy kontrahentów.
@@ -177,6 +180,18 @@ function OrderFormModal(props: OrderFormModalProps) {
     return () => window.removeEventListener('keydown', handler)
   }, [onRequestClose])
 
+  // Podgląd braków magazynowych — tylko przy TWORZENIU (edycja przerezerwowuje po zapisie)
+  const stockPreviewPayload =
+    editingOrderId === null
+      ? buildPreviewPayload(activeTab, {
+          sta: staFormData,
+          st: stFormData,
+          techniczne: techniczneFormData,
+          bastion: bastionFormData,
+        })
+      : null
+  const { summary: stockPreviewSummary, loading: stockPreviewLoading } = useStockPreview(stockPreviewPayload)
+
   const renderCategoryField = (categoryValue: string, onChange: (value: string) => void) => {
     const hasUnknownCategory =
       !!categoryValue && !EDITABLE_CATEGORIES.includes(categoryValue as EditableCategory)
@@ -293,6 +308,8 @@ function OrderFormModal(props: OrderFormModalProps) {
                   </section>
                 )
               })()}
+
+              <StockWarningBanner summary={stockPreviewSummary} loading={stockPreviewLoading} />
 
               {activeTab === 'STA' || activeTab === 'Disting' ? (
                 <>

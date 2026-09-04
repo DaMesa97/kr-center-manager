@@ -99,6 +99,7 @@ type UseOrdersParams = {
   extensionProfileWidths: { category: string; profile_width_mm: number }[]
   // z useWarehouse:
   consumeStockForOrderWithToasts: (orderId: number, category?: string) => Promise<void>
+  reserveStockForOrderWithToasts: (orderId: number) => Promise<void>
   syncWarehouseStockAfterOrderEdit: (orderId: number, oldOrder: Order, newData: Record<string, unknown>) => Promise<void>
   fetchOrdersNeedingReview: () => Promise<void>
   setOrdersNeedingReview: React.Dispatch<React.SetStateAction<OrderNeedingReview[]>>
@@ -126,7 +127,7 @@ export function useOrders({
   dimensionMap,
   glassAllowances,
   extensionProfileWidths,
-  consumeStockForOrderWithToasts,
+  reserveStockForOrderWithToasts,
   syncWarehouseStockAfterOrderEdit,
   fetchOrdersNeedingReview,
   setOrdersNeedingReview: _setOrdersNeedingReview,
@@ -1039,8 +1040,8 @@ export function useOrders({
           .eq('id', staId)
         if (linkErr) pushToast(`Powiązanie STA↔ST nie zapisane: ${linkErr.message}`, 'error')
 
-        await consumeStockForOrderWithToasts(staId)
-        await consumeStockForOrderWithToasts(stId)
+        await reserveStockForOrderWithToasts(staId)
+        await reserveStockForOrderWithToasts(stId)
 
         pushToast(`Utworzono Titan: STA ${staNr} + ST ${stNr} + Bastion ${bastionNrNext}`, 'success')
         setIsModalOpen(false)
@@ -1124,8 +1125,8 @@ export function useOrders({
           pushToast(`Powiązanie zamówień nie zostało zapisane: ${linkErr.message}`, 'error')
         }
 
-        await consumeStockForOrderWithToasts(distId)
-        await consumeStockForOrderWithToasts(staId)
+        await reserveStockForOrderWithToasts(distId)
+        await reserveStockForOrderWithToasts(staId)
 
         pushToast(`Utworzono powiązane zamówienie w STA nr ${staNr}`, 'success')
         setIsModalOpen(false)
@@ -1150,7 +1151,7 @@ export function useOrders({
       pushToast('Zamówienie dodane', 'success')
 
       const savedId = (savedOrder as Order).id
-      await consumeStockForOrderWithToasts(savedId!)
+      await reserveStockForOrderWithToasts(savedId!)
 
       const hasRealDim = (val: string | null | undefined) => {
         if (!val) return false
@@ -1342,8 +1343,8 @@ export function useOrders({
           pushToast(`Powiązanie ST↔STA nie zostało zapisane: ${linkErr.message}`, 'error')
         }
 
-        await consumeStockForOrderWithToasts(stId)
-        await consumeStockForOrderWithToasts(staId)
+        await reserveStockForOrderWithToasts(stId)
+        await reserveStockForOrderWithToasts(staId)
 
         pushToast(`Utworzono ST nr ${stNr} oraz powiązaną STA nr ${staNr}`, 'success')
         setIsModalOpen(false)
@@ -1362,7 +1363,7 @@ export function useOrders({
         return
       }
 
-      await consumeStockForOrderWithToasts(Number((stInserted as { id: number }).id))
+      await reserveStockForOrderWithToasts(Number((stInserted as { id: number }).id))
 
       setIsModalOpen(false)
       setStFormData(INITIAL_ST_ORDER_FORM)
@@ -1473,7 +1474,7 @@ export function useOrders({
         return
       }
 
-      await consumeStockForOrderWithToasts(Number((techInserted as { id: number }).id))
+      await reserveStockForOrderWithToasts(Number((techInserted as { id: number }).id))
 
       setIsModalOpen(false)
       setTechniczneFormData(INITIAL_TECHNICZNE_ORDER_FORM)
@@ -1605,7 +1606,7 @@ export function useOrders({
         return
       }
 
-      await consumeStockForOrderWithToasts(Number((bastionInserted as { id: number }).id))
+      await reserveStockForOrderWithToasts(Number((bastionInserted as { id: number }).id))
 
       setIsModalOpen(false)
       setBastionFormData(INITIAL_BASTION_ORDER_FORM)
@@ -1672,7 +1673,7 @@ export function useOrders({
       return
     }
 
-    await consumeStockForOrderWithToasts(Number((genericInserted as { id: number }).id))
+    await reserveStockForOrderWithToasts(Number((genericInserted as { id: number }).id))
 
     setIsModalOpen(false)
     setFormData(INITIAL_FORM_DATA)
@@ -1893,7 +1894,7 @@ export function useOrders({
         return
       }
 
-      await consumeStockForOrderWithToasts(id)
+      await reserveStockForOrderWithToasts(id)
 
       if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
         const { data: linkedRow, error: fetchErr } = await supabase
@@ -1922,13 +1923,13 @@ export function useOrders({
       }
 
       if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
-        await consumeStockForOrderWithToasts(linkedId)
+        await reserveStockForOrderWithToasts(linkedId)
       }
 
       await fetchWarehouseStock()
       void fetchOrders()
     },
-    [isManager, orders, linkedOrders, fetchOrders, pushToast, consumeStockForOrderWithToasts, fetchWarehouseStock],
+    [isManager, orders, linkedOrders, fetchOrders, pushToast, reserveStockForOrderWithToasts, fetchWarehouseStock],
   )
 
   const handleCancelOrderClick = useCallback((order: Order) => {
@@ -2003,8 +2004,8 @@ export function useOrders({
             .single()
           if (fetchErr) {
             pushToast(`Nie udało się odczytać powiązanego zamówienia: ${fetchErr.message}`, 'error')
-            // Główne zamówienie jest już anulowane — zwróć przynajmniej jego stock
-            try { await supabase.rpc('return_stock_for_order', { p_order_id: id }) } catch (e) { console.error(e) }
+            // Główne zamówienie jest już anulowane — zwolnij przynajmniej jego rezerwacje
+            try { await supabase.rpc('cancel_order_reservations', { p_order_id: id }) } catch (e) { console.error(e) }
             await fetchWarehouseStock()
             void fetchOrders()
             return
@@ -2019,7 +2020,7 @@ export function useOrders({
             .eq('id', linkedId)
           if (linkUpErr) {
             pushToast(`Nie udało się oznaczyć powiązania: ${linkUpErr.message}`, 'error')
-            try { await supabase.rpc('return_stock_for_order', { p_order_id: id }) } catch (e) { console.error(e) }
+            try { await supabase.rpc('cancel_order_reservations', { p_order_id: id }) } catch (e) { console.error(e) }
             await fetchWarehouseStock()
             void fetchOrders()
             return
@@ -2036,23 +2037,23 @@ export function useOrders({
         }
 
         try {
-          const { error: retErr } = await supabase.rpc('return_stock_for_order', { p_order_id: id })
+          const { error: retErr } = await supabase.rpc('cancel_order_reservations', { p_order_id: id })
           if (retErr) {
-            pushToast(`Ostrzeżenie: błąd zwrotu do magazynu: ${retErr.message}`, 'error')
+            pushToast(`Ostrzeżenie: błąd zwolnienia rezerwacji: ${retErr.message}`, 'error')
           }
         } catch (err) {
-          console.error('return_stock_for_order error:', err)
-          pushToast('Ostrzeżenie: nie udało się zwrócić stanów do magazynu', 'error')
+          console.error('cancel_order_reservations error:', err)
+          pushToast('Ostrzeżenie: nie udało się zwolnić rezerwacji magazynowych', 'error')
         }
         if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
           try {
-            const { error: retErr2 } = await supabase.rpc('return_stock_for_order', { p_order_id: linkedId })
+            const { error: retErr2 } = await supabase.rpc('cancel_order_reservations', { p_order_id: linkedId })
             if (retErr2) {
-              pushToast(`Ostrzeżenie: błąd zwrotu do magazynu (powiązane): ${retErr2.message}`, 'error')
+              pushToast(`Ostrzeżenie: błąd zwolnienia rezerwacji (powiązane): ${retErr2.message}`, 'error')
             }
           } catch (err) {
-            console.error('return_stock_for_order error (linked):', err)
-            pushToast('Ostrzeżenie: nie udało się zwrócić stanów do magazynu (powiązane)', 'error')
+            console.error('cancel_order_reservations error (linked):', err)
+            pushToast('Ostrzeżenie: nie udało się zwolnić rezerwacji magazynowych (powiązane)', 'error')
           }
         }
         await fetchWarehouseStock()

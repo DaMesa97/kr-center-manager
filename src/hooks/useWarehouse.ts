@@ -738,6 +738,71 @@ export function useWarehouse({
   // Stock operations
   // ---------------------------------------------------------------------------
 
+  // NOWY FLOW (rezerwacje): przy tworzeniu zamówienia rezerwujemy zamiast
+  // zdejmować fizycznie. Wydanie (WZ) następuje przy "Zrobione" na etapie.
+  const reserveStockForOrderWithToasts = useCallback(
+    async (insertedOrderId: number | null | undefined) => {
+      if (!insertedOrderId) return
+      try {
+        const { data: result, error } = await supabase.rpc('reserve_stock_for_order', {
+          p_order_id: insertedOrderId,
+        })
+
+        if (error) {
+          pushToast(`Ostrzeżenie: błąd rezerwacji magazynowej: ${error.message}`, 'error')
+        } else if (result && Array.isArray(result) && result.length > 0) {
+          type Row = {
+            r_status?: string
+            r_component_name?: string
+            r_available_after?: number
+            r_incoming_qty?: number
+            r_earliest_eta?: string | null
+          }
+          const rows = result as Row[]
+          const already = rows.some((r) => r.r_status === 'already_reserved')
+          const noRecipe = rows.some((r) => r.r_status === 'no_recipe')
+          const insufficient = rows.filter((r) => r.r_status === 'insufficient')
+          const ok = rows.filter((r) => r.r_status === 'ok')
+
+          if (already) {
+            // retry-safe: nic nie dublujemy, cicho
+          } else if (noRecipe) {
+            pushToast('Brak receptur dla tego zamówienia — nic nie zarezerwowano', 'info')
+          } else if (insufficient.length > 0) {
+            const covered = insufficient.filter(
+              (r) => Number(r.r_incoming_qty ?? 0) + Number(r.r_available_after ?? 0) >= 0,
+            ).length
+            pushToast(
+              `Zarezerwowano ${rows.length} pozycji — ${insufficient.length} ponad dostępny stan` +
+                (covered > 0 ? ` (${covered} pokryje dostawa w drodze)` : ''),
+              'info',
+            )
+          } else {
+            pushToast(`Zarezerwowano w magazynie ${ok.length} pozycji`, 'success')
+          }
+        }
+
+        if (!error) {
+          const { data: updatedOrder } = await supabase
+            .from('orders').select('*').eq('id', insertedOrderId).single()
+          if (updatedOrder) {
+            setOrders((prev) =>
+              prev.map((o) => (o.id === insertedOrderId ? { ...o, ...(updatedOrder as Order) } : o)),
+            )
+          }
+        }
+      } catch (err) {
+        console.error('reserve_stock_for_order error:', err)
+        pushToast('Ostrzeżenie: nie udało się zarezerwować w magazynie', 'error')
+      }
+      if (activeTab === 'Magazyn') {
+        await fetchWarehouseStock()
+      }
+      void fetchAlertsBadgeCount()
+    },
+    [activeTab, fetchWarehouseStock, fetchAlertsBadgeCount, pushToast, setOrders],
+  )
+
   const consumeStockForOrderWithToasts = useCallback(
     async (insertedOrderId: number | null | undefined) => {
       if (!insertedOrderId) return
@@ -815,12 +880,37 @@ export function useWarehouse({
 
       if (!changed) return
 
-      await supabase.rpc('return_stock_for_order', {
-        p_order_id: orderId,
-      })
-      await consumeStockForOrderWithToasts(orderId)
+      // NOWY FLOW: edycja przerezerwowuje (cancel + reserve). Jeśli COKOLWIEK
+      // zostało już fizycznie wydane, nie ruszamy automatem — kierownik dostaje
+      // ostrzeżenie i koryguje ręcznie (wydane komponenty nie wracają same).
+      const { data: released } = await supabase
+        .from('stock_reservations')
+        .select('id')
+        .eq('order_id', orderId)
+        .in('status', ['released', 'partially_released'])
+        .limit(1)
+      if (released && released.length > 0) {
+        pushToast(
+          'Zamówienie ma już wydane komponenty — rezerwacje NIE zostały przeliczone. Zweryfikuj recepturowo ręcznie.',
+          'error',
+        )
+        return
+      }
+      await supabase.rpc('cancel_order_reservations', { p_order_id: orderId })
+      await reserveStockForOrderWithToasts(orderId)
     },
-    [consumeStockForOrderWithToasts],
+    [reserveStockForOrderWithToasts, pushToast],
+  )
+
+  // Anulowanie zamówienia — zwalnia niewydane rezerwacje (wydane zostają: audit)
+  const cancelOrderReservations = useCallback(
+    async (orderId: number) => {
+      const { error } = await supabase.rpc('cancel_order_reservations', { p_order_id: orderId })
+      if (error) {
+        pushToast(`Ostrzeżenie: nie udało się zwolnić rezerwacji: ${error.message}`, 'error')
+      }
+    },
+    [pushToast],
   )
 
   // ---------------------------------------------------------------------------
@@ -1573,6 +1663,8 @@ export function useWarehouse({
     handleCleanupOrphanStock,
     // Stock operations
     consumeStockForOrderWithToasts,
+    reserveStockForOrderWithToasts,
+    cancelOrderReservations,
     syncWarehouseStockAfterOrderEdit,
     // Recipe operations
     handleDeleteRecipe,

@@ -383,15 +383,19 @@ begin
     v_remaining := v_res.quantity_reserved - v_res.quantity_released;
     if v_remaining <= 0 then continue; end if;
 
+    -- ZBIORCZE WZ: wszystkie pozycje jednego wydania (zamówienie × etap)
+    -- dzielą reference_doc — UI (DocumentDetailsModal) pokaże je jako
+    -- jeden dokument z listą pozycji. Ślad rezerwacji w notes (RES-id).
     insert into warehouse_movements(
       movement_type, warehouse_from_id, component_id, quantity,
       order_id, reference_doc, notes, created_by
     ) values (
       'WZ', v_res.warehouse_id, v_res.component_id, v_remaining,
       p_order_id,
-      'RES-' || v_res.id,
+      'WZ-ORDER-' || p_order_id || '-' || p_stage_key,
       'Wydanie na etap ' || p_stage_key || ' — zamówienie ' || v_order.category
-        || ' #' || coalesce(v_order.order_number, p_order_id::text),
+        || ' #' || coalesce(v_order.order_number, p_order_id::text)
+        || ' [RES-' || v_res.id || ']',
       auth.uid()
     );
 
