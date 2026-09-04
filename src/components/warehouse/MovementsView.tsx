@@ -1,6 +1,18 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type { Warehouse, WarehouseComponent, WarehouseMovementRow } from '../../types'
 import Spinner from '../Spinner'
+
+// Zgrupowany dokument magazynowy: wszystkie pozycje z tym samym reference_doc
+// (np. zbiorcze WZ 'WZ-ORDER-123-e4') zwijamy do jednego wiersza z pozycjami.
+type MovementDocGroup = {
+  key: string
+  movement_type: WarehouseMovementRow['movement_type']
+  reference_doc: string
+  newest_at: string
+  order_number: string
+  warehouse_codes: string
+  rows: WarehouseMovementRow[]
+}
 
 type MovementsViewProps = {
   movements: WarehouseMovementRow[]
@@ -49,6 +61,8 @@ function MovementsView({ movements, loading, warehouses, components }: Movements
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [search, setSearch] = useState('')
+  const [groupDocs, setGroupDocs] = useState(true)
+  const [expandedDoc, setExpandedDoc] = useState<string | null>(null)
 
   const warehousesSorted = useMemo(
     () => [...warehouses].sort((a, b) => a.code.localeCompare(b.code)),
@@ -93,6 +107,44 @@ function MovementsView({ movements, loading, warehouses, components }: Movements
       ),
     [filteredRows],
   )
+
+  // Grupowanie w dokumenty: wiersze dzielące (typ, reference_doc) → jeden
+  // wiersz dokumentu; ruchy bez dokumentu zostają pojedynczo (grupa 1-elementowa).
+  const docGroups = useMemo((): MovementDocGroup[] => {
+    if (!groupDocs) return []
+    const byKey = new Map<string, MovementDocGroup>()
+    const order: string[] = []
+    for (const row of sortedFiltered) {
+      const ref = (row.reference_doc ?? '').trim()
+      const key = ref ? `${row.movement_type}|${ref}` : `single|${row.id}`
+      let g = byKey.get(key)
+      if (!g) {
+        g = {
+          key,
+          movement_type: row.movement_type,
+          reference_doc: ref,
+          newest_at: row.created_at,
+          order_number: row.order_number ?? '',
+          warehouse_codes: '',
+          rows: [],
+        }
+        byKey.set(key, g)
+        order.push(key)
+      }
+      g.rows.push(row)
+      if (row.created_at > g.newest_at) g.newest_at = row.created_at
+      if (!g.order_number && row.order_number) g.order_number = row.order_number
+    }
+    for (const g of byKey.values()) {
+      const codes = new Set<string>()
+      g.rows.forEach((r) => {
+        if (r.warehouse_from_code) codes.add(r.warehouse_from_code)
+        if (r.warehouse_to_code) codes.add(r.warehouse_to_code)
+      })
+      g.warehouse_codes = Array.from(codes).sort().join(', ')
+    }
+    return order.map((k) => byKey.get(k)!)
+  }, [sortedFiltered, groupDocs])
 
   return (
     <div className="movements-view">
@@ -175,6 +227,14 @@ function MovementsView({ movements, loading, warehouses, components }: Movements
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
+        <label
+          className="movements-view-filter"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-end' }}
+          title="Pozycje jednego dokumentu (np. zbiorczego WZ na zamówienie×etap) zwinięte do jednego wiersza"
+        >
+          <input type="checkbox" checked={groupDocs} onChange={(e) => setGroupDocs(e.target.checked)} />
+          <span>Grupuj dokumenty</span>
+        </label>
       </div>
 
       {loading ? (
@@ -202,6 +262,87 @@ function MovementsView({ movements, loading, warehouses, components }: Movements
                     Brak ruchów do wyświetlenia.
                   </td>
                 </tr>
+              ) : groupDocs ? (
+                docGroups.map((g) => {
+                  const single = g.rows.length === 1 ? g.rows[0] : null
+                  if (single) {
+                    const compLabel = single.component_code || single.component_name
+                      ? `${single.component_code ?? '—'} — ${single.component_name ?? ''} (${single.component_unit ?? ''})`
+                      : '—'
+                    return (
+                      <tr key={g.key}>
+                        <td>{formatMovementDate(single.created_at)}</td>
+                        <td>
+                          <span
+                            className={`movement-type-badge movement-type-badge--${String(single.movement_type).toLowerCase()}`}
+                            title={MOVEMENT_TYPE_DESCRIPTIONS[single.movement_type] ?? single.movement_type}
+                          >
+                            {single.movement_type}
+                          </span>
+                        </td>
+                        <td title={compLabel}>{compLabel}</td>
+                        <td>{formatQuantityDisplay(single)}</td>
+                        <td>{single.warehouse_from_code ?? ''}</td>
+                        <td>{single.warehouse_to_code ?? ''}</td>
+                        <td>{single.order_number ?? ''}</td>
+                        <td>{single.reference_doc ?? ''}</td>
+                        <td>{single.notes ?? ''}</td>
+                      </tr>
+                    )
+                  }
+                  const expanded = expandedDoc === g.key
+                  return (
+                    <Fragment key={g.key}>
+                      <tr
+                        className="movements-doc-row"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setExpandedDoc(expanded ? null : g.key)}
+                        title="Kliknij, aby rozwinąć pozycje dokumentu"
+                      >
+                        <td>{formatMovementDate(g.newest_at)}</td>
+                        <td>
+                          <span
+                            className={`movement-type-badge movement-type-badge--${String(g.movement_type).toLowerCase()}`}
+                            title={MOVEMENT_TYPE_DESCRIPTIONS[g.movement_type] ?? g.movement_type}
+                          >
+                            {g.movement_type}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontWeight: 600 }}>
+                            {expanded ? '▾' : '▸'} {g.rows.length} pozycji
+                          </span>
+                        </td>
+                        <td>—</td>
+                        <td colSpan={2}>{g.warehouse_codes}</td>
+                        <td>{g.order_number}</td>
+                        <td>{g.reference_doc}</td>
+                        <td></td>
+                      </tr>
+                      {expanded &&
+                        g.rows.map((row) => {
+                          const compLabel = row.component_code || row.component_name
+                            ? `${row.component_code ?? '—'} — ${row.component_name ?? ''} (${row.component_unit ?? ''})`
+                            : '—'
+                          return (
+                            <tr key={row.id} className="movements-doc-item-row" style={{ background: 'var(--color-bg-muted, #f8fafc)' }}>
+                              <td style={{ paddingLeft: 24, fontSize: '0.82rem', color: '#64748b' }}>
+                                {formatMovementDate(row.created_at)}
+                              </td>
+                              <td></td>
+                              <td title={compLabel}>{compLabel}</td>
+                              <td>{formatQuantityDisplay(row)}</td>
+                              <td>{row.warehouse_from_code ?? ''}</td>
+                              <td>{row.warehouse_to_code ?? ''}</td>
+                              <td></td>
+                              <td></td>
+                              <td>{row.notes ?? ''}</td>
+                            </tr>
+                          )
+                        })}
+                    </Fragment>
+                  )
+                })
               ) : (
                 sortedFiltered.map((row) => {
                   const compLabel = [row.component_code, row.component_name, row.component_unit]
