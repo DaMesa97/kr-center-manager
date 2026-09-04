@@ -155,6 +155,7 @@ export default function MyStationView({
           message={`Zamówienie nr ${confirmTask.order.order_number}, etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`}
           confirmLabel="Tak, oznacz jako zrobione"
           cancelLabel="Anuluj"
+          tone="success"
           onConfirm={() => {
             const run = async () => {
               if (!confirmTask) return

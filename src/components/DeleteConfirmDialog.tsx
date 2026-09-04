@@ -8,6 +8,9 @@ type DeleteConfirmDialogProps = {
   title?: string
   confirmLabel?: string
   cancelLabel?: string
+  /** 'danger' (domyślnie, ⚠️ + czerwony przycisk) albo 'success' (✓ + zielony) —
+   *  pozytywne potwierdzenia (np. "Zrobione") nie powinny straszyć ostrzeżeniem */
+  tone?: 'danger' | 'success'
 }
 
 export default function DeleteConfirmDialog({
@@ -17,6 +20,7 @@ export default function DeleteConfirmDialog({
   title = 'Potwierdzenie usunięcia',
   confirmLabel = 'Usuń',
   cancelLabel = 'Anuluj',
+  tone = 'danger',
 }: DeleteConfirmDialogProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -43,8 +47,12 @@ export default function DeleteConfirmDialog({
         <h2 id="confirm-dialog-title" className="confirm-dialog-title">
           {title}
         </h2>
-        <div className="confirm-dialog-icon-wrap" aria-hidden>
-          <span className="confirm-dialog-icon-warning">⚠️</span>
+        <div
+          className="confirm-dialog-icon-wrap"
+          aria-hidden
+          style={tone === 'success' ? { background: '#dcfce7', borderColor: '#86efac' } : undefined}
+        >
+          <span className="confirm-dialog-icon-warning">{tone === 'success' ? '✅' : '⚠️'}</span>
         </div>
         <p id="confirm-dialog-message" className="confirm-dialog-message">
           {message}
@@ -53,7 +61,11 @@ export default function DeleteConfirmDialog({
           <button type="button" className="btn btn-secondary" onClick={onCancel}>
             {cancelLabel}
           </button>
-          <button type="button" className="btn btn-danger" onClick={onConfirm}>
+          <button
+            type="button"
+            className={`btn ${tone === 'success' ? 'btn-success' : 'btn-danger'}`}
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </button>
         </div>

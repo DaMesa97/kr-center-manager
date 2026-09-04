@@ -192,7 +192,9 @@ export const RECIPE_CRITERIA_FIELD_DEFS: Array<{
   { key: 'width', label: 'Rozmiar (szerokość)', dict: 'rozmiar' },
   { key: 'height', label: 'Wysokość', dict: 'wysokosc' },
   { key: 'direction', label: 'Kierunek', options: ['PRAWE', 'LEWE'] },
-  { key: 'opening', label: 'Otwieranie', options: ['ONZ', 'ONW'] },
+  // ODW, nie ONW — formularze zamówień używają ONZ/ODW; ONW w recepturze
+  // nigdy nie pasowało do zlecenia (zgłoszenie Dawida 31.07)
+  { key: 'opening', label: 'Otwieranie', options: ['ONZ', 'ODW'] },
   { key: 'glazing', label: 'Szklenie', dict: 'szklenie' },
   { key: 'top_light_glazing', label: 'Szklenie naświetla', dict: 'szklenie_dostawki' },
   { key: 'side_panel_a_glazing', label: 'Szklenie dostawki A', dict: 'szklenie_dostawki' },
