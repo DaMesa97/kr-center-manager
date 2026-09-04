@@ -2718,6 +2718,7 @@ function App() {
             onStageComplete={handleStageComplete}
             loading={myStationLoading}
             pushToast={pushToast}
+            isManager={isManager}
           />
         ) : isShippingTab && isManager ? (
           <ShippingView

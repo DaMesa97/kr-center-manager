@@ -473,14 +473,16 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
                         >
                           Historia
                         </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-ghost"
-                          title="Zgłoś zniszczenie (drugi gatunek) — zdejmie z magazynu"
-                          onClick={() => setDamageTarget({ componentId: row.component_id, warehouseId: null })}
-                        >
-                          ⚠️
-                        </button>
+                        {isManager && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            title="Zgłoś zniszczenie (drugi gatunek) — zdejmie z magazynu"
+                            onClick={() => setDamageTarget({ componentId: row.component_id, warehouseId: null })}
+                          >
+                            ⚠️
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -545,14 +547,16 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
                         >
                           Historia
                         </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-ghost"
-                          title="Zgłoś zniszczenie (drugi gatunek) — zdejmie z magazynu"
-                          onClick={() => setDamageTarget({ componentId: row.component_id, warehouseId: row.warehouse_id })}
-                        >
-                          ⚠️
-                        </button>
+                        {isManager && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            title="Zgłoś zniszczenie (drugi gatunek) — zdejmie z magazynu"
+                            onClick={() => setDamageTarget({ componentId: row.component_id, warehouseId: row.warehouse_id })}
+                          >
+                            ⚠️
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

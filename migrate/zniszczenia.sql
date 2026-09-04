@@ -66,6 +66,12 @@ declare
   v_order record;
   v_notes text;
 begin
+  -- Tylko kierownik — zgłoszenie zdejmuje towar ze stanu, zwykły pracownik
+  -- nie może tą drogą wyprowadzać komponentów z magazynu.
+  if not current_user_is_manager() then
+    raise exception 'Tylko kierownik może zgłaszać zniszczenia';
+  end if;
+
   if p_quantity is null or p_quantity <= 0 then
     raise exception 'Ilość musi być większa od zera';
   end if;

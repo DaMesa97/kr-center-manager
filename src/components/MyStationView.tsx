@@ -21,6 +21,8 @@ type Props = {
   ) => Promise<StageCompleteResult>
   loading: boolean
   pushToast: (msg: string, variant: ToastVariant) => void
+  /** zgłaszanie zniszczeń tylko dla kierownika (wyprowadza towar ze stanu) */
+  isManager: boolean
 }
 
 export default function MyStationView({
@@ -30,6 +32,7 @@ export default function MyStationView({
   onStageComplete,
   loading,
   pushToast,
+  isManager,
 }: Props) {
   void currentUserId
   const [confirmTask, setConfirmTask] = useState<MyTask | null>(null)
@@ -117,18 +120,23 @@ export default function MyStationView({
                           }}
                         >
                           ✓ Zrobione
-                        </button>{' '}
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-ghost"
-                          title="Zgłoś zniszczony komponent (drugi gatunek) — zdejmie z magazynu sztuki wzięte na poprawkę"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setDamageTask(task)
-                          }}
-                        >
-                          ⚠️
                         </button>
+                        {isManager && (
+                          <>
+                            {' '}
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-ghost"
+                              title="Zgłoś zniszczony komponent (drugi gatunek) — zdejmie z magazynu sztuki wzięte na poprawkę"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setDamageTask(task)
+                              }}
+                            >
+                              ⚠️
+                            </button>
+                          </>
+                        )}
                       </td>
                       <td>
                         {task.readyToWork ? (
