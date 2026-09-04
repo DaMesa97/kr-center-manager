@@ -3568,6 +3568,10 @@ html, body, #root {
   background: #ede9fe;
   color: #6d28d9;
 }
+.movement-type-badge--zn {
+  background: #ffe4e6;
+  color: #9f1239;
+}
 
 .monthly-consumption-view {
   display: flex;

@@ -2717,6 +2717,7 @@ function App() {
             workerStages={workerStagesForCurrent}
             onStageComplete={handleStageComplete}
             loading={myStationLoading}
+            pushToast={pushToast}
           />
         ) : isShippingTab && isManager ? (
           <ShippingView
@@ -2885,6 +2886,7 @@ function App() {
             stockReservationsLoading={stockReservationsLoading}
             onRefreshReservations={fetchStockReservations}
             onReleaseReservation={releaseReservationById}
+            onRefreshStock={fetchWarehouseStock}
             components={warehouseComponents}
             componentsLoading={warehouseComponentsLoading}
             onCreateComponent={handleCreateWarehouseComponent}

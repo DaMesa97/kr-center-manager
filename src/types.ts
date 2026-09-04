@@ -668,7 +668,7 @@ export type StockReservationRow = {
 
 export type WarehouseMovementRow = {
   id: number
-  movement_type: 'WZ' | 'PZ' | 'MM' | 'ZWR' | 'INW'
+  movement_type: 'WZ' | 'PZ' | 'MM' | 'ZWR' | 'INW' | 'ZN'
   warehouse_from_id?: number | null
   warehouse_to_id?: number | null
   component_id: number

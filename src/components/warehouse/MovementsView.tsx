@@ -38,6 +38,7 @@ const MOVEMENT_TYPE_DESCRIPTIONS: Record<string, string> = {
   MM: 'MM — Przesunięcie międzymagazynowe',
   ZWR: 'ZWR — Zwrot (np. z anulowanego zamówienia)',
   INW: 'INW — Korekta inwentaryzacyjna (spis z natury)',
+  ZN: 'ZN — Zniszczenie / drugi gatunek',
 }
 
 function formatQuantityDisplay(m: WarehouseMovementRow): string {
@@ -47,6 +48,7 @@ function formatQuantityDisplay(m: WarehouseMovementRow): string {
     case 'ZWR':
       return `+${abs}`
     case 'WZ':
+    case 'ZN':
       return `-${abs}`
     case 'MM':
       return String(abs)
@@ -166,6 +168,7 @@ function MovementsView({ movements, loading, warehouses, components }: Movements
             <option value="MM">MM</option>
             <option value="ZWR">ZWR</option>
             <option value="INW">INW (korekty spisu)</option>
+            <option value="ZN">ZN (zniszczenia)</option>
           </select>
         </label>
         <label className="movements-view-filter">

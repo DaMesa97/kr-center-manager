@@ -5,7 +5,9 @@ import { buildTasks, fieldsForStage, type MyTask } from '../lib/stationLogic'
 import type { StageCompleteResult, StockReleaseRow } from '../hooks/useMyStation'
 import DeleteConfirmDialog from './DeleteConfirmDialog'
 import StockShortageDialog from './StockShortageDialog'
+import DamageReportModal from './DamageReportModal'
 import Spinner from './Spinner'
+import type { ToastVariant } from '../types'
 
 type Props = {
   currentUserId: string
@@ -18,6 +20,7 @@ type Props = {
     opts?: { force?: boolean },
   ) => Promise<StageCompleteResult>
   loading: boolean
+  pushToast: (msg: string, variant: ToastVariant) => void
 }
 
 export default function MyStationView({
@@ -26,9 +29,11 @@ export default function MyStationView({
   workerStages,
   onStageComplete,
   loading,
+  pushToast,
 }: Props) {
   void currentUserId
   const [confirmTask, setConfirmTask] = useState<MyTask | null>(null)
+  const [damageTask, setDamageTask] = useState<MyTask | null>(null)
   const [shortageDialog, setShortageDialog] = useState<{
     task: MyTask
     shortages: StockReleaseRow[]
@@ -112,6 +117,17 @@ export default function MyStationView({
                           }}
                         >
                           ✓ Zrobione
+                        </button>{' '}
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          title="Zgłoś zniszczony komponent (drugi gatunek) — zdejmie z magazynu sztuki wzięte na poprawkę"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDamageTask(task)
+                          }}
+                        >
+                          ⚠️
                         </button>
                       </td>
                       <td>
@@ -171,6 +187,16 @@ export default function MyStationView({
           onCancel={() => setConfirmTask(null)}
         />
       )}
+
+      <DamageReportModal
+        open={damageTask !== null}
+        onClose={() => setDamageTask(null)}
+        pushToast={pushToast}
+        orderId={damageTask?.order.id ?? null}
+        orderNumber={String(damageTask?.order.order_number ?? '') || null}
+        stageKey={damageTask ? damageTask.actualStageKey : null}
+        stageLabel={damageTask ? `${damageTask.stageHeader} — ${damageTask.stageTitle}` : null}
+      />
 
       {shortageDialog && (
         <StockShortageDialog

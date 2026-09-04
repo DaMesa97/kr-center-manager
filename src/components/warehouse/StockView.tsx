@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
-import type { IncomingStockRow, Supplier, Warehouse, WarehouseComponent, WarehouseStockRow } from '../../types'
+import type { IncomingStockRow, Supplier, ToastVariant, Warehouse, WarehouseComponent, WarehouseStockRow } from '../../types'
+import DamageReportModal from '../DamageReportModal'
 import Spinner from '../Spinner'
 import SortableTh from '../SortableTh'
 import { TopScrollTableWrapper } from '../TopScrollTableWrapper'
@@ -60,9 +61,12 @@ type StockViewProps = {
   isManager?: boolean
   onAddPz?: (warehouseId?: number) => void
   onShowHistory: (component: WarehouseComponent) => void
+  pushToast?: (msg: string, variant: ToastVariant) => void
+  onStockChanged?: () => void
 }
 
-function StockView({ warehouses, components, stock, suppliers = [], incoming = [], loading, isManager, onAddPz, onShowHistory }: StockViewProps) {
+function StockView({ warehouses, components, stock, suppliers = [], incoming = [], loading, isManager, onAddPz, onShowHistory, pushToast, onStockChanged }: StockViewProps) {
+  const [damageTarget, setDamageTarget] = useState<{ componentId: number; warehouseId: number | null } | null>(null)
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | ''>('')
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
@@ -458,16 +462,26 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
                     </td>
                     <td>{renderStatusCell(s)}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={() => {
-                          const component = componentById.get(row.component_id)
-                          if (component) onShowHistory(component)
-                        }}
-                      >
-                        Historia
-                      </button>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          onClick={() => {
+                            const component = componentById.get(row.component_id)
+                            if (component) onShowHistory(component)
+                          }}
+                        >
+                          Historia
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          title="Zgłoś zniszczenie (drugi gatunek) — zdejmie z magazynu"
+                          onClick={() => setDamageTarget({ componentId: row.component_id, warehouseId: null })}
+                        >
+                          ⚠️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -520,16 +534,26 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
                     </td>
                     <td>{renderStatusCell(s)}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={() => {
-                          const component = componentById.get(row.component_id)
-                          if (component) onShowHistory(component)
-                        }}
-                      >
-                        Historia
-                      </button>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          onClick={() => {
+                            const component = componentById.get(row.component_id)
+                            if (component) onShowHistory(component)
+                          }}
+                        >
+                          Historia
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          title="Zgłoś zniszczenie (drugi gatunek) — zdejmie z magazynu"
+                          onClick={() => setDamageTarget({ componentId: row.component_id, warehouseId: row.warehouse_id })}
+                        >
+                          ⚠️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -538,6 +562,17 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
           </table>
           {filteredRows.length === 0 && <p className="no-results">Brak wierszy spełniających kryteria.</p>}
         </TopScrollTableWrapper>
+      )}
+
+      {pushToast && (
+        <DamageReportModal
+          open={damageTarget !== null}
+          onClose={() => setDamageTarget(null)}
+          pushToast={pushToast}
+          onReported={onStockChanged}
+          defaultComponentId={damageTarget?.componentId ?? null}
+          defaultWarehouseId={damageTarget?.warehouseId ?? null}
+        />
       )}
     </>
   )

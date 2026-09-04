@@ -52,6 +52,7 @@ type WarehouseViewProps = {
   stockReservationsLoading?: boolean
   onRefreshReservations?: () => void
   onReleaseReservation?: (reservationId: number) => Promise<void>
+  onRefreshStock?: () => void
   components: WarehouseComponent[]
   componentsLoading: boolean
   onCreateComponent: (data: WarehouseComponentCreateInput, warehouseIds?: number[]) => Promise<void>
@@ -124,6 +125,7 @@ function WarehouseView({
   stockReservationsLoading = false,
   onRefreshReservations = () => {},
   onReleaseReservation = async () => {},
+  onRefreshStock = () => {},
   components,
   componentsLoading,
   onCreateComponent,
@@ -244,6 +246,8 @@ function WarehouseView({
           isManager={isManager}
           onAddPz={onAddPzFromStock}
           onShowHistory={onShowHistory}
+          pushToast={pushToast}
+          onStockChanged={onRefreshStock}
         />
       ) : activeSubTab === 'Rezerwacje' ? (
         <ReservationsView
