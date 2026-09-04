@@ -1,6 +1,6 @@
-import { BASTION_STAGE_DEFS, STA_DISTING_STAGE_DEFS, ST_STAGE_DEFS, ST_TITAN_STAGE_DEFS } from '../constants'
+import { BASTION_STAGE_DEFS, BASTION_TITAN_STAGE_DEFS, STA_DISTING_STAGE_DEFS, ST_STAGE_DEFS, ST_TITAN_STAGE_DEFS } from '../constants'
 import type { Order, StageDef, WorkerStage } from '../types'
-import { hasGlassExtra, isRushOrderSequence, isStaTitanLinked, isStTitanOrder, parseProductionStages } from '../utils'
+import { hasGlassExtra, isRushOrderSequence, isStaTitanLinked, isStTitanOrder, isTitanBastionOrder, parseProductionStages } from '../utils'
 
 export type MyTask = {
   order: Order
@@ -70,7 +70,10 @@ function blockedStationKeys(order: Order, category: string, allOrders: Order[]):
 
 function defsForCategory(order: Order, category: string): StageDef[] {
   if (category === 'STA' || category === 'Disting') return STA_DISTING_STAGE_DEFS
-  if (category === 'Bastion') return BASTION_STAGE_DEFS
+  // Noga Titana w Bastionie robi TYLKO okuwanie/montaż/pakowanie (tit_*) —
+  // standardowe etapy Bastiona (CNC, okleinowanie, OŚCIEŻNICA…) nie są jej
+  // zadaniami: ościeżnicę dla Titana składa ST (zgłoszenie Mariusza).
+  if (category === 'Bastion') return isTitanBastionOrder(order) ? BASTION_TITAN_STAGE_DEFS : BASTION_STAGE_DEFS
   if (category === 'ST') return isStTitanOrder(order) ? ST_TITAN_STAGE_DEFS : ST_STAGE_DEFS
   return []
 }

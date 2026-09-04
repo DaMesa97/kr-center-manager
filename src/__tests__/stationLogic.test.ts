@@ -58,6 +58,34 @@ describe('buildTasks — zadania pracownika', () => {
     expect(tasks.map((t) => t.actualStageKey)).toEqual(['e3'])
   })
 
+  it('Titan Bastion — standardowe etapy (ościeżnica, CNC…) NIE są zadaniami; zostają tit_* (zgłoszenie Mariusza)', () => {
+    const titanBastion = order({
+      id: 9,
+      category: 'Bastion',
+      order_number: '900',
+      production_stages: {},
+      extra_fields: { titan_group: 7 },
+    })
+    // pracownik od składania ościeżnic + od okuwania Titana
+    const tasks = buildTasks(
+      [titanBastion],
+      [ws('Bastion', 'oscieznica_skrecanie'), ws('Bastion', 'oscieznica_cnc'), ws('Bastion', 'tit_oku')],
+    )
+    expect(tasks.map((t) => t.actualStageKey)).toEqual(['tit_oku'])
+  })
+
+  it('zwykły Bastion — etapy ościeżnicy działają normalnie', () => {
+    const bastion = order({
+      id: 10,
+      category: 'Bastion',
+      order_number: '901',
+      production_stages: {},
+      extra_fields: {},
+    })
+    const tasks = buildTasks([bastion], [ws('Bastion', 'oscieznica_skrecanie'), ws('Bastion', 'tit_oku')])
+    expect(tasks.map((t) => t.actualStageKey)).toEqual(['oscieznica_skrecanie'])
+  })
+
   it('Titan ST — tylko ościeżnica (e1); e2/e3/e4 robią inni', () => {
     const stTitan = order({
       id: 2, category: 'ST', order_number: '7', system: 'CORE',
