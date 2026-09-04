@@ -8,7 +8,7 @@ import type {
   WarehouseComponent,
   WarehouseRecipeComponent,
 } from '../../types'
-import { buildRecipeAutoName } from '../../utils'
+import { buildRecipeAutoName, getOrderStageDefinitions } from '../../utils'
 import FormInput from '../FormInput'
 import SearchableSelect from '../SearchableSelect'
 
@@ -112,6 +112,13 @@ function RecipeEditorModal({
     if (!c.values.includes(raw)) toggleCriterionValue(idx, raw)
     setCustomInputs((p) => ({ ...p, [idx]: '' }))
   }
+
+  // Etapy produkcji dla kategorii — komponent wydaje się z magazynu przy
+  // "Zrobione" na tym etapie; bez etapu = przy pierwszym ukończonym etapie.
+  const stageDefs = getOrderStageDefinitions(formData.category)
+  const noStageCount = formData.components.filter(
+    (c) => c.component_id > 0 && !c.stage_key,
+  ).length
 
   if (!open) return null
 
@@ -284,6 +291,14 @@ function RecipeEditorModal({
           <div className="recipe-editor-positions-section">
           <h3 className="order-field-full" style={{ margin: '0.75rem 0 0', gridColumn: '1 / -1' }}>
             Pozycje receptury
+            {stageDefs.length > 0 && noStageCount > 0 && (
+              <span
+                style={{ marginLeft: 10, fontSize: 12, fontWeight: 500, color: '#a16207' }}
+                title="Te komponenty wydadzą się z magazynu przy pierwszym ukończonym etapie zamówienia"
+              >
+                ⚠️ {noStageCount} bez etapu (wydanie przy pierwszym ukończonym)
+              </span>
+            )}
           </h3>
             <div className="recipe-editor-positions-scroll">
               <div className="table-wrapper recipe-editor-positions-wrap">
@@ -292,15 +307,19 @@ function RecipeEditorModal({
                   style={{ width: '100%', tableLayout: 'fixed' }}
                 >
                   <colgroup>
-                    <col style={{ width: '55%' }} />
-                    <col style={{ width: '15%' }} />
-                    <col style={{ width: '22%' }} />
+                    <col style={{ width: '40%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '21%' }} />
+                    <col style={{ width: '20%' }} />
                     <col style={{ width: '8%' }} />
                   </colgroup>
                   <thead>
                     <tr>
                       <th className="recipe-editor-component-th">KOMPONENT</th>
                       <th>ILOŚĆ</th>
+                      <th title="Etap produkcji, na którym komponent schodzi fizycznie z magazynu">
+                        ETAP WYDANIA
+                      </th>
                       <th>UWAGI</th>
                       <th className="recipe-editor-actions-th">AKCJA</th>
                     </tr>
@@ -334,6 +353,32 @@ function RecipeEditorModal({
                             }
                             disabled={saving}
                           />
+                        </td>
+                        <td>
+                          {stageDefs.length > 0 ? (
+                            <select
+                              value={row.stage_key ?? ''}
+                              onChange={(e) =>
+                                onComponentChange(index, 'stage_key', e.target.value || null)
+                              }
+                              disabled={saving}
+                              style={{ width: '100%' }}
+                            >
+                              <option value="">— pierwszy ukończony —</option>
+                              {stageDefs.map((d) => (
+                                <option key={d.key} value={d.key}>
+                                  {d.header} — {d.title}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span
+                              className="recipe-crit-empty"
+                              title="Ta kategoria nie ma etapów produkcji — wydanie nastąpi przy realizacji zamówienia"
+                            >
+                              przy realizacji
+                            </span>
+                          )}
                         </td>
                         <td>
                           <input

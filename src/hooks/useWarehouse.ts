@@ -1036,7 +1036,7 @@ export function useWarehouse({
   const handleAddRecipeComponent = useCallback(() => {
     setRecipeFormData((prev) => ({
       ...prev,
-      components: [...prev.components, { component_id: 0, quantity: 1, notes: '' }],
+      components: [...prev.components, { component_id: 0, quantity: 1, notes: '', stage_key: null }],
     }))
   }, [])
 
@@ -1124,6 +1124,7 @@ export function useWarehouse({
             component_id: c.component_id,
             quantity: c.quantity,
             notes: c.notes?.trim() || null,
+            stage_key: c.stage_key || null,
           })),
         )
         if (error) {

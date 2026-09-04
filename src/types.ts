@@ -1008,6 +1008,8 @@ export type WarehouseRecipeComponent = {
   component_id: number
   quantity: number
   notes?: string | null
+  /** etap produkcji, na którym komponent jest fizycznie wydawany (null = pierwszy ukończony etap) */
+  stage_key?: string | null
 }
 
 // Dynamiczne kryterium dopasowania receptury: pole zlecenia + dozwolone wartości
