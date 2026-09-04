@@ -264,7 +264,7 @@ export default function DamageReportModal({
         if (!saving) onClose()
       }}
     >
-      <div className="order-modal order-modal--config-option" onClick={(e) => e.stopPropagation()}>
+      <div className="order-modal damage-modal" onClick={(e) => e.stopPropagation()}>
         <div className="order-modal-header">
           <h2>⚠️ Zgłoś zniszczenie</h2>
           <button type="button" className="btn btn-icon btn-ghost" onClick={onClose} disabled={saving}>
@@ -280,57 +280,49 @@ export default function DamageReportModal({
           </p>
         )}
 
-        <div className="order-form-grid order-form-grid--sta">
+        <div className="damage-modal-body">
           {orderMode ? (
-            <div className="order-field-full order-field-full--keep">
+            <div className="damage-field">
               <span className="order-field-label-text">
                 Zniszczone komponenty * (z receptury zamówienia — ilości na komplet, możesz poprawić)
               </span>
-              <div
-                style={{
-                  maxHeight: '38vh',
-                  overflowY: 'auto',
-                  border: '1px solid var(--color-border, #e2e8f0)',
-                  borderRadius: 8,
-                  padding: '4px 0',
-                }}
-              >
+              <div className="damage-comp-list">
                 {orderComponents.map((oc) => {
                   const key = `${oc.component_id}|${oc.warehouse_id}`
                   const checked = !!selectedKeys[key]
                   return (
                     <div
                       key={key}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '5px 10px',
-                        borderBottom: '1px solid var(--color-border, #f1f5f9)',
-                      }}
+                      className={`damage-comp-row${checked ? ' damage-comp-row--checked' : ''}`}
+                      onClick={() =>
+                        !saving && setSelectedKeys((prev) => ({ ...prev, [key]: !prev[key] }))
+                      }
+                      style={{ cursor: 'pointer' }}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         disabled={saving}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={(e) =>
                           setSelectedKeys((prev) => ({ ...prev, [key]: e.target.checked }))
                         }
                       />
-                      <div style={{ flex: 1, minWidth: 0, fontSize: '0.87rem', lineHeight: 1.3 }}>
+                      <div className="damage-comp-name">
                         {oc.name}
-                        <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-muted, #94a3b8)' }}>
+                        <span className="damage-comp-meta">
                           mag. {oc.warehouse_code} · z receptury: {oc.per_set_qty} {oc.unit}
                         </span>
                       </div>
                       <input
                         type="number"
+                        className="damage-comp-qty"
                         min={0}
                         step="0.001"
                         value={qtyByKey[key] ?? ''}
                         disabled={saving || !checked}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={(e) => setQtyByKey((prev) => ({ ...prev, [key]: e.target.value }))}
-                        style={{ width: 80, textAlign: 'right' }}
                         title="Ilość do zdjęcia z magazynu"
                       />
                     </div>
@@ -339,7 +331,7 @@ export default function DamageReportModal({
               </div>
             </div>
           ) : (
-            <label className="order-field-full order-field-full--keep">
+            <div className="damage-field">
               <span className="order-field-label-text">Komponent *</span>
               <SearchableSelect
                 value={componentId != null ? (idToOption.get(componentId) ?? '') : ''}
@@ -348,10 +340,10 @@ export default function DamageReportModal({
                 placeholder="— wybierz zniszczony komponent —"
                 disabled={saving}
               />
-            </label>
+            </div>
           )}
           {!orderMode && (
-            <label className="order-field-full">
+            <label className="damage-field">
               <span className="order-field-label-text">Magazyn *</span>
               <select
                 value={warehouseId != null ? String(warehouseId) : ''}
@@ -368,7 +360,7 @@ export default function DamageReportModal({
             </label>
           )}
           {!stageKey && stageOptions && stageOptions.length > 0 && (
-            <label className="order-field-full">
+            <label className="damage-field">
               <span className="order-field-label-text">Etap (opcjonalnie — gdzie doszło do uszkodzenia)</span>
               <select
                 value={selectedStage}
@@ -385,7 +377,7 @@ export default function DamageReportModal({
             </label>
           )}
           {!orderMode && (
-            <label className="order-field-full">
+            <label className="damage-field">
               <span className="order-field-label-text">Ilość *</span>
               <input
                 type="number"
@@ -397,7 +389,7 @@ export default function DamageReportModal({
               />
             </label>
           )}
-          <label className="order-field-full order-field-full--keep">
+          <label className="damage-field">
             <span className="order-field-label-text">Powód * (co się stało)</span>
             <textarea
               rows={3}

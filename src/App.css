@@ -3573,6 +3573,73 @@ html, body, #root {
   color: #9f1239;
 }
 
+/* ── Modal zgłoszenia zniszczenia (drugi gatunek) ─────────────────── */
+.damage-modal {
+  width: min(680px, 94vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+.damage-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 16px 4px;
+  overflow-y: auto;
+}
+.damage-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.damage-field > textarea,
+.damage-field > select,
+.damage-field > input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.damage-comp-list {
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.damage-comp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border, #f1f5f9);
+}
+.damage-comp-row:last-child {
+  border-bottom: none;
+}
+.damage-comp-row--checked {
+  background: #fff7ed;
+}
+.damage-comp-row input[type='checkbox'] {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+}
+.damage-comp-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+.damage-comp-meta {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #94a3b8);
+}
+.damage-comp-qty {
+  flex: 0 0 90px;
+  width: 90px;
+  text-align: right;
+  padding: 5px 8px;
+}
+
 .monthly-consumption-view {
   display: flex;
   flex-direction: column;
