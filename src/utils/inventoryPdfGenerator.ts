@@ -52,6 +52,13 @@ export function generateInventorySheet(
   const docDefinition: TDocumentDefinitions = {
     pageSize: 'A4',
     pageMargins: [30, 40, 30, 40],
+    footer: (currentPage: number, pageCount: number) => ({
+      text: `Strona ${currentPage} z ${pageCount}`,
+      alignment: 'center',
+      fontSize: 8,
+      color: '#888',
+      margin: [0, 8, 0, 0],
+    }),
     content: [
       {
         columns: [
