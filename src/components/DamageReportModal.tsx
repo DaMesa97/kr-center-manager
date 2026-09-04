@@ -6,6 +6,15 @@ import type { ToastVariant } from '../types'
 
 type ComponentOption = { id: number; code: string; name: string; unit: string }
 type WarehouseOption = { id: number; code: string; name: string }
+/** komponent z rezerwacji zamówienia — wybór ustawia też magazyn */
+type OrderComponentOption = {
+  component_id: number
+  warehouse_id: number
+  code: string
+  name: string
+  unit: string
+  warehouse_code: string
+}
 
 type Props = {
   open: boolean
@@ -48,6 +57,7 @@ export default function DamageReportModal({
   const [selectedStage, setSelectedStage] = useState<string>('')
   const [components, setComponents] = useState<ComponentOption[]>([])
   const [warehouses, setWarehouses] = useState<WarehouseOption[]>([])
+  const [orderComponents, setOrderComponents] = useState<OrderComponentOption[]>([])
   const [componentId, setComponentId] = useState<number | null>(defaultComponentId)
   const [warehouseId, setWarehouseId] = useState<number | null>(defaultWarehouseId)
   const [quantity, setQuantity] = useState('1')
@@ -61,12 +71,49 @@ export default function DamageReportModal({
     setQuantity('1')
     setReason('')
     setSelectedStage('')
+    setOrderComponents([])
     void (async () => {
-      const [whRes] = await Promise.all([
-        supabase.from('warehouses').select('id, code, name').eq('is_active', true).order('code'),
-      ])
-      setWarehouses((whRes.data ?? []) as WarehouseOption[])
-      // komponenty paczkami (limit 1000 PostgREST)
+      const { data: whData } = await supabase
+        .from('warehouses')
+        .select('id, code, name')
+        .eq('is_active', true)
+        .order('code')
+      setWarehouses((whData ?? []) as WarehouseOption[])
+
+      // Kontekst zamówienia: TYLKO komponenty z jego rezerwacji (to, co
+      // faktycznie idzie na te drzwi) — wybór ustawia też magazyn.
+      if (orderId != null) {
+        const { data: resData } = await supabase
+          .from('stock_reservations')
+          .select('component_id, warehouse_id, warehouse_components(code, name, unit), warehouses(code)')
+          .eq('order_id', orderId)
+          .neq('status', 'cancelled')
+        const seen = new Set<string>()
+        const opts: OrderComponentOption[] = []
+        for (const r of (resData ?? []) as Array<Record<string, unknown>>) {
+          const key = `${r.component_id}|${r.warehouse_id}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          const wc = r.warehouse_components as { code?: string; name?: string; unit?: string } | { code?: string; name?: string; unit?: string }[] | null
+          const wh = r.warehouses as { code?: string } | { code?: string }[] | null
+          const c = Array.isArray(wc) ? wc[0] : wc
+          const w = Array.isArray(wh) ? wh[0] : wh
+          opts.push({
+            component_id: r.component_id as number,
+            warehouse_id: r.warehouse_id as number,
+            code: c?.code ?? '',
+            name: c?.name ?? `#${r.component_id}`,
+            unit: c?.unit ?? '',
+            warehouse_code: w?.code ?? '',
+          })
+        }
+        opts.sort((a, b) => a.name.localeCompare(b.name, 'pl'))
+        setOrderComponents(opts)
+        if (opts.length > 0) return // pełna lista niepotrzebna
+      }
+
+      // Bez kontekstu zamówienia (albo zamówienie bez rezerwacji): pełna
+      // lista komponentów paczkami (limit 1000 PostgREST)
       const all: ComponentOption[] = []
       let from = 0
       const PAGE = 1000
@@ -84,12 +131,21 @@ export default function DamageReportModal({
       }
       setComponents(all)
     })()
-  }, [open, defaultComponentId, defaultWarehouseId])
+  }, [open, defaultComponentId, defaultWarehouseId, orderId])
 
-  const componentOptions = useMemo(
-    () => components.map((c) => `${c.code} — ${c.name} (${c.unit})`),
-    [components],
-  )
+  const orderMode = orderComponents.length > 0
+
+  const componentOptions = useMemo(() => {
+    if (orderMode) return orderComponents.map((c) => `${c.name} (${c.code}) · mag. ${c.warehouse_code}`)
+    return components.map((c) => `${c.code} — ${c.name} (${c.unit})`)
+  }, [orderMode, orderComponents, components])
+
+  const optionToOrderComp = useMemo(() => {
+    const m = new Map<string, OrderComponentOption>()
+    orderComponents.forEach((c) => m.set(`${c.name} (${c.code}) · mag. ${c.warehouse_code}`, c))
+    return m
+  }, [orderComponents])
+
   const optionToId = useMemo(() => {
     const m = new Map<string, number>()
     components.forEach((c) => m.set(`${c.code} — ${c.name} (${c.unit})`, c.id))
@@ -97,9 +153,13 @@ export default function DamageReportModal({
   }, [components])
   const idToOption = useMemo(() => {
     const m = new Map<number, string>()
+    if (orderMode) {
+      orderComponents.forEach((c) => m.set(c.component_id, `${c.name} (${c.code}) · mag. ${c.warehouse_code}`))
+      return m
+    }
     components.forEach((c) => m.set(c.id, `${c.code} — ${c.name} (${c.unit})`))
     return m
-  }, [components])
+  }, [orderMode, orderComponents, components])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -163,30 +223,42 @@ export default function DamageReportModal({
 
         <div className="order-form-grid order-form-grid--sta">
           <label className="order-field-full order-field-full--keep">
-            <span className="order-field-label-text">Komponent *</span>
+            <span className="order-field-label-text">
+              {orderMode ? 'Komponent * (z receptury tego zamówienia)' : 'Komponent *'}
+            </span>
             <SearchableSelect
               value={componentId != null ? (idToOption.get(componentId) ?? '') : ''}
-              onChange={(val) => setComponentId(optionToId.get(val) ?? null)}
+              onChange={(val) => {
+                if (orderMode) {
+                  const oc = optionToOrderComp.get(val)
+                  setComponentId(oc?.component_id ?? null)
+                  setWarehouseId(oc?.warehouse_id ?? null)
+                } else {
+                  setComponentId(optionToId.get(val) ?? null)
+                }
+              }}
               options={componentOptions}
               placeholder="— wybierz zniszczony komponent —"
               disabled={saving}
             />
           </label>
-          <label className="order-field-full">
-            <span className="order-field-label-text">Magazyn *</span>
-            <select
-              value={warehouseId != null ? String(warehouseId) : ''}
-              onChange={(e) => setWarehouseId(e.target.value === '' ? null : Number(e.target.value))}
-              disabled={saving}
-            >
-              <option value="">— wybierz —</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={String(w.id)}>
-                  {w.code} — {w.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {!orderMode && (
+            <label className="order-field-full">
+              <span className="order-field-label-text">Magazyn *</span>
+              <select
+                value={warehouseId != null ? String(warehouseId) : ''}
+                onChange={(e) => setWarehouseId(e.target.value === '' ? null : Number(e.target.value))}
+                disabled={saving}
+              >
+                <option value="">— wybierz —</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={String(w.id)}>
+                    {w.code} — {w.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {!stageKey && stageOptions && stageOptions.length > 0 && (
             <label className="order-field-full">
               <span className="order-field-label-text">Etap (opcjonalnie — gdzie doszło do uszkodzenia)</span>
