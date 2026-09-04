@@ -2738,6 +2738,8 @@ html, body, #root {
   line-height: 1.5;
   color: var(--color-text);
   text-align: center;
+  /* listy braków magazynowych itp. — komunikaty wielolinijkowe */
+  white-space: pre-line;
 }
 
 .confirm-dialog-actions {

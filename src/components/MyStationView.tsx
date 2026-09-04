@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import type { Order, WorkerStage } from '../types'
 import { isRushOrderSequence } from '../utils'
 import { buildTasks, fieldsForStage, type MyTask } from '../lib/stationLogic'
+import type { StageCompleteResult, StockReleaseRow } from '../hooks/useMyStation'
 import DeleteConfirmDialog from './DeleteConfirmDialog'
 import Spinner from './Spinner'
 
@@ -9,7 +10,12 @@ type Props = {
   currentUserId: string
   orders: Order[]
   workerStages: WorkerStage[]
-  onStageComplete: (order: Order, stageKey: string, category: string) => Promise<void>
+  onStageComplete: (
+    order: Order,
+    stageKey: string,
+    category: string,
+    opts?: { force?: boolean },
+  ) => Promise<StageCompleteResult>
   loading: boolean
 }
 
@@ -22,6 +28,10 @@ export default function MyStationView({
 }: Props) {
   void currentUserId
   const [confirmTask, setConfirmTask] = useState<MyTask | null>(null)
+  const [shortageDialog, setShortageDialog] = useState<{
+    task: MyTask
+    shortages: StockReleaseRow[]
+  } | null>(null)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const tasks = useMemo(() => buildTasks(orders, workerStages), [orders, workerStages])
   const readyCount = tasks.filter((t) => t.readyToWork).length
@@ -147,12 +157,42 @@ export default function MyStationView({
           onConfirm={() => {
             const run = async () => {
               if (!confirmTask) return
-              await onStageComplete(confirmTask.order, confirmTask.stageKey, confirmTask.category)
+              const task = confirmTask
+              const result = await onStageComplete(task.order, task.stageKey, task.category)
               setConfirmTask(null)
+              if (result.status === 'shortage') {
+                setShortageDialog({ task, shortages: result.shortages })
+              }
             }
             void run()
           }}
           onCancel={() => setConfirmTask(null)}
+        />
+      )}
+
+      {shortageDialog && (
+        <DeleteConfirmDialog
+          title="Brak na magazynie!"
+          message={[
+            `Do etapu ${shortageDialog.task.stageHeader} brakuje fizycznie:`,
+            ...shortageDialog.shortages.map(
+              (s) => `• ${s.r_component_name} — potrzeba ${s.r_quantity}, brakuje ${s.r_shortage} (mag. ${s.r_warehouse_code})`,
+            ),
+            '',
+            'Możesz wydać mimo braku — stan zejdzie na minus i trafi do wyjaśnienia. Wymuszenie zostanie zapisane w historii.',
+          ].join('\n')}
+          confirmLabel="Wydaj mimo braku"
+          cancelLabel="Anuluj"
+          onConfirm={() => {
+            const run = async () => {
+              if (!shortageDialog) return
+              const { task } = shortageDialog
+              await onStageComplete(task.order, task.stageKey, task.category, { force: true })
+              setShortageDialog(null)
+            }
+            void run()
+          }}
+          onCancel={() => setShortageDialog(null)}
         />
       )}
     </div>
