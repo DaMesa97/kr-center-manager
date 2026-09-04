@@ -59,6 +59,19 @@ import type {
   WarehouseMovementRow,
 } from '../types'
 import type React from 'react'
+import type { StockReleaseRow } from './useMyStation'
+
+/** Dialog braków przy wydaniu z tabeli zamówień / oznaczeniu wydania */
+export type StageReleaseShortageState = {
+  kind: 'stage' | 'final'
+  orderId: number
+  stageKey: string
+  orderNumber: string
+  category: string
+  shortages: StockReleaseRow[]
+  /** kind='final': data wydania czekająca na potwierdzenie wymuszenia */
+  pendingValue?: string | null
+}
 
 const emptyOrderMeta = {
   disting_sheet: '',
@@ -308,7 +321,59 @@ export function useOrders({
     [pushToast],
   )
 
-  const applyReleaseDateUpdate = useCallback(
+  // ── Fizyczne wydanie z magazynu (rezerwacje → WZ) ───────────────────
+  // Wspólne dla: oznaczania etapu w tabeli i wydania końcowego zamówienia.
+  // stageKey=null → release_remaining_for_order (wszystko co zostało).
+  // Braki bez force → { shortage } (UI pokazuje dialog "Wydaj mimo braku").
+  // Błąd RPC nie blokuje operacji — produkcja ważniejsza niż magazyn.
+  const runStockRelease = useCallback(
+    async (
+      orderId: number,
+      stageKey: string | null,
+      force: boolean,
+    ): Promise<{ status: 'ok' } | { status: 'shortage'; shortages: StockReleaseRow[] }> => {
+      try {
+        const { data, error } = stageKey === null
+          ? await supabase.rpc('release_remaining_for_order', {
+              p_order_id: orderId,
+              p_force: force,
+            })
+          : await supabase.rpc('release_stock_for_stage', {
+              p_order_id: orderId,
+              p_stage_key: stageKey,
+              p_force: force,
+            })
+        if (error) {
+          console.error('stock release error:', error)
+          pushToast(`Ostrzeżenie: wydanie z magazynu nie powiodło się: ${error.message}`, 'error')
+          return { status: 'ok' }
+        }
+        const rows = (data ?? []) as StockReleaseRow[]
+        const shortages = rows.filter((r) => r.r_status === 'insufficient')
+        if (shortages.length > 0) return { status: 'shortage', shortages }
+        const released = rows.filter((r) => r.r_status === 'released').length
+        const forced = rows.filter((r) => r.r_status === 'released' && r.r_shortage > 0).length
+        if (forced > 0) {
+          pushToast(
+            `Wydano ${released} pozycji z magazynu — w tym ${forced} MIMO BRAKU (stan na minusie)`,
+            'info',
+          )
+        } else if (released > 0) {
+          pushToast(`Wydano z magazynu ${released} pozycji`, 'success')
+        }
+        return { status: 'ok' }
+      } catch (err) {
+        console.error('stock release error:', err)
+        return { status: 'ok' }
+      }
+    },
+    [pushToast],
+  )
+
+  const [stageReleaseShortage, setStageReleaseShortage] = useState<StageReleaseShortageState | null>(null)
+  const cancelStageRelease = useCallback(() => setStageReleaseShortage(null), [])
+
+  const applyReleaseDateCore = useCallback(
     async (orderId: number, value: string | null) => {
       setReleaseDateUpdating(orderId)
       const { error } = await supabase
@@ -328,6 +393,34 @@ export function useOrders({
       setReleaseDateUpdating(null)
     },
     [pushToast],
+  )
+
+  // Oznaczenie wydania = WZ na wszystkie pozostałe rezerwacje (catch-all,
+  // także dla kategorii bez etapów). Czyszczenie daty niczego nie cofa.
+  const applyReleaseDateUpdate = useCallback(
+    async (orderId: number, value: string | null) => {
+      const order = orders.find((o) => o.id === orderId)
+      const marking =
+        value != null && String(value).trim() !== '' &&
+        (!order || isReleaseDateEmpty(order.release_date))
+      if (marking) {
+        const rel = await runStockRelease(orderId, null, false)
+        if (rel.status === 'shortage') {
+          setStageReleaseShortage({
+            kind: 'final',
+            orderId,
+            stageKey: '',
+            orderNumber: String(order?.order_number ?? orderId),
+            category: String(order?.category ?? ''),
+            shortages: rel.shortages,
+            pendingValue: value,
+          })
+          return
+        }
+      }
+      await applyReleaseDateCore(orderId, value)
+    },
+    [orders, runStockRelease, applyReleaseDateCore],
   )
 
   // Ręczny znacznik odbioru ościeżnicy na Marklowickiej (Disting Plus) — niezależny od etapów.
@@ -531,11 +624,56 @@ export function useOrders({
       }
       const order = orders.find((o) => o.id === orderId)
       if (!order) return
+
+      // Oznaczenie etapu w TABELI wydaje z magazynu tak samo jak Moje stanowisko
+      // (tylko przejście pusty → zrobione; mirrory NIE wydają — robota fizycznie
+      // dzieje się na zamówieniu źródłowym).
+      const current = parseProductionStages(order.production_stages, order.category)
+      const wasEmpty = !String(current[stageKey] ?? '').trim()
+      if (wasEmpty) {
+        const rel = await runStockRelease(orderId, stageKey, false)
+        if (rel.status === 'shortage') {
+          setStageReleaseShortage({
+            kind: 'stage',
+            orderId,
+            stageKey,
+            orderNumber: String(order.order_number ?? orderId),
+            category: order.category,
+            shortages: rel.shortages,
+          })
+          return
+        }
+      }
+
       await applyProductionStagesUpdate(orderId, stageKey, initials)
       await syncMirrorStagesToLinkedOrder(order, stageKey, initials)
     },
-    [currentUser?.initials, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast],
+    [currentUser?.initials, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast, runStockRelease],
   )
+
+  // "Wydaj mimo braku" z dialogu braków (tabela zamówień / oznaczenie wydania)
+  const confirmStageReleaseForce = useCallback(async () => {
+    const t = stageReleaseShortage
+    if (!t) return
+    setStageReleaseShortage(null)
+    await runStockRelease(t.orderId, t.kind === 'stage' ? t.stageKey : null, true)
+    if (t.kind === 'stage') {
+      const order = orders.find((o) => o.id === t.orderId)
+      const initials = (currentUser?.initials ?? '').trim() || 'X'
+      await applyProductionStagesUpdate(t.orderId, t.stageKey, initials)
+      if (order) await syncMirrorStagesToLinkedOrder(order, t.stageKey, initials)
+    } else {
+      await applyReleaseDateCore(t.orderId, t.pendingValue ?? null)
+    }
+  }, [
+    stageReleaseShortage,
+    orders,
+    currentUser?.initials,
+    runStockRelease,
+    applyProductionStagesUpdate,
+    syncMirrorStagesToLinkedOrder,
+    applyReleaseDateCore,
+  ])
 
   const handleFormChange = (field: keyof NewOrderFormData, value: string) => {
     if (field === 'quantity') {
@@ -2525,6 +2663,9 @@ export function useOrders({
     applyProductionStagesUpdate,
     syncMirrorStagesToLinkedOrder,
     applyReleaseDateUpdate,
+    stageReleaseShortage,
+    confirmStageReleaseForce,
+    cancelStageRelease,
     toggleOscReceived,
     fetchNextOrderNumber,
     markProductionStageWithProfileInitials,

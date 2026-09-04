@@ -42,6 +42,7 @@ import {
   calcExtensionDims,
   getExtQty,
   getOrderAgeStatus,
+  getOrderStageDefinitions,
   getTableStageDefinitions,
   isExtSideActive,
   isFieldValueExcluded,
@@ -54,6 +55,7 @@ import {
   tabsForUserDepartment,
 } from './utils'
 import DeleteConfirmDialog from './components/DeleteConfirmDialog'
+import StockShortageDialog from './components/StockShortageDialog'
 import GlobalSpinner from './components/GlobalSpinner'
 import ToastStack from './components/ToastStack'
 import StageRevertPopup from './components/StageRevertPopup'
@@ -606,6 +608,9 @@ function App() {
     fetchAlertsBadgeCount,
     submitOnEnterInInput,
     applyReleaseDateUpdate,
+    stageReleaseShortage,
+    confirmStageReleaseForce,
+    cancelStageRelease,
     toggleOscReceived,
     markProductionStageWithProfileInitials,
     fetchInternalDoorItemsForVisibleOrders,
@@ -2041,6 +2046,29 @@ function App() {
           onConfirm={() => void confirmReleaseClear()}
         />
       )}
+      {stageReleaseShortage && (() => {
+        const def = getOrderStageDefinitions(stageReleaseShortage.category).find(
+          (d) => d.key === stageReleaseShortage.stageKey,
+        )
+        return (
+          <StockShortageDialog
+            stageHeader={
+              stageReleaseShortage.kind === 'final'
+                ? 'WYDANIE'
+                : (def?.header ?? stageReleaseShortage.stageKey)
+            }
+            stageTitle={
+              stageReleaseShortage.kind === 'final'
+                ? 'wydanie końcowe zamówienia'
+                : (def?.title ?? '')
+            }
+            orderNumber={stageReleaseShortage.orderNumber}
+            shortages={stageReleaseShortage.shortages}
+            onForce={() => void confirmStageReleaseForce()}
+            onCancel={cancelStageRelease}
+          />
+        )
+      })()}
       <SessionWarningModal
         open={sessionWarningOpen}
         onExtend={handleExtendSession}
