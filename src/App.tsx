@@ -2229,6 +2229,8 @@ function App() {
             {...{
               activeTab,
               usesStructuredOrderForm,
+              isManager,
+              pushToast,
               onRequestClose: handleRequestCloseOrderModal,
               onPrintLabel: (o: Order) => setPrintLabelOrder(o),
               onPrintDop: (o: Order) => setDopOrder(o),

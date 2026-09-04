@@ -18,6 +18,10 @@ type Props = {
   orderNumber?: string | null
   stageKey?: string | null
   stageLabel?: string | null
+  /** gdy etap nie jest z góry znany (wejście ze szczegółów zamówienia) —
+   *  lista etapów kategorii do opcjonalnego wyboru */
+  stageOptions?: Array<{ key: string; label: string }>
+
   /** preselekcja (np. wejście ze Stanów) */
   defaultComponentId?: number | null
   defaultWarehouseId?: number | null
@@ -37,9 +41,11 @@ export default function DamageReportModal({
   orderNumber = null,
   stageKey = null,
   stageLabel = null,
+  stageOptions,
   defaultComponentId = null,
   defaultWarehouseId = null,
 }: Props) {
+  const [selectedStage, setSelectedStage] = useState<string>('')
   const [components, setComponents] = useState<ComponentOption[]>([])
   const [warehouses, setWarehouses] = useState<WarehouseOption[]>([])
   const [componentId, setComponentId] = useState<number | null>(defaultComponentId)
@@ -54,6 +60,7 @@ export default function DamageReportModal({
     setWarehouseId(defaultWarehouseId)
     setQuantity('1')
     setReason('')
+    setSelectedStage('')
     void (async () => {
       const [whRes] = await Promise.all([
         supabase.from('warehouses').select('id, code, name').eq('is_active', true).order('code'),
@@ -117,7 +124,7 @@ export default function DamageReportModal({
       p_quantity: qtyNum,
       p_reason: reason.trim(),
       p_order_id: orderId,
-      p_stage_key: stageKey,
+      p_stage_key: stageKey ?? (selectedStage || null),
     })
     setSaving(false)
     if (error) {
@@ -180,6 +187,23 @@ export default function DamageReportModal({
               ))}
             </select>
           </label>
+          {!stageKey && stageOptions && stageOptions.length > 0 && (
+            <label className="order-field-full">
+              <span className="order-field-label-text">Etap (opcjonalnie — gdzie doszło do uszkodzenia)</span>
+              <select
+                value={selectedStage}
+                onChange={(e) => setSelectedStage(e.target.value)}
+                disabled={saving}
+              >
+                <option value="">— bez etapu —</option>
+                {stageOptions.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="order-field-full">
             <span className="order-field-label-text">Ilość *</span>
             <input

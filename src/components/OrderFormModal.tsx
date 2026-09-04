@@ -8,8 +8,10 @@ import FormInput from './FormInput'
 import { getBotMetadata, getBotWarnings, isBotOrder } from '../utils/botOrder'
 import { findBestCompanyMatch, isCompanyInBase } from '../utils'
 import StockWarningBanner from './StockWarningBanner'
+import DamageReportModal from './DamageReportModal'
 import { useStockPreview } from '../hooks/useStockPreview'
 import { buildPreviewPayload } from '../lib/stockPreview'
+import { getOrderStageDefinitions } from '../utils'
 
 // Ostrzeżenie + dopasowanie niedopasowanej firmy (gł. zamówienia z BOT-a).
 // Auto-podpowiedź (najlepsze dopasowanie) ORAZ ręczny wybór z pełnej listy kontrahentów.
@@ -122,7 +124,12 @@ function OrderFormModal(props: OrderFormModalProps) {
     allCompanies,
     onSaveCompanyAlias,
     onCreateCompany,
+    isManager,
+    pushToast,
   } = props
+
+  // Zgłoszenie zniszczenia z poziomu szczegółów zamówienia (tylko kierownik)
+  const [damageOpen, setDamageOpen] = useState(false)
 
   const companies = (allCompanies ?? []) as Array<{ name: string; production_day?: string; route_day?: string }>
   const renderCompanyMatchWarning = (
@@ -236,6 +243,16 @@ function OrderFormModal(props: OrderFormModalProps) {
                         : 'Nowe zamówienie'}
                 </h2>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {editingOrderId !== null && isManager && typeof pushToast === 'function' && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      onClick={() => setDamageOpen(true)}
+                      title="Zgłoś zniszczony komponent przy tym zamówieniu (drugi gatunek) — zdejmie z magazynu"
+                    >
+                      ⚠️ Zniszczenie
+                    </button>
+                  )}
                   {editingOrderId !== null && onPrintLabel && (
                     <button
                       type="button"
@@ -310,6 +327,19 @@ function OrderFormModal(props: OrderFormModalProps) {
               })()}
 
               <StockWarningBanner summary={stockPreviewSummary} loading={stockPreviewLoading} />
+
+              {editingOrderId !== null && typeof pushToast === 'function' && (
+                <DamageReportModal
+                  open={damageOpen}
+                  onClose={() => setDamageOpen(false)}
+                  pushToast={pushToast}
+                  orderId={editingOrderId}
+                  orderNumber={String(editingOrderBaseline?.order_number ?? '') || null}
+                  stageOptions={getOrderStageDefinitions(
+                    String(editingOrderBaseline?.category ?? activeTab ?? ''),
+                  ).map((d) => ({ key: d.key, label: `${d.header} — ${d.title}` }))}
+                />
+              )}
 
               {activeTab === 'STA' || activeTab === 'Disting' ? (
                 <>
