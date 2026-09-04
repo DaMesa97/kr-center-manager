@@ -119,6 +119,8 @@ export const DEPARTMENT_LABELS: Record<string, string> = {
 export const WAREHOUSE_SUB_TABS: WarehouseSubTab[] = [
   'Komponenty',
   'Stany',
+  'Rezerwacje',
+  'W drodze',
   'Receptury',
   'Ruchy',
   'Przyjęcia',

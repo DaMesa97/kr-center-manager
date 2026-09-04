@@ -412,6 +412,13 @@ function App() {
     handleCleanupOrphanStock,
     consumeStockForOrderWithToasts,
     reserveStockForOrderWithToasts,
+    incomingStock,
+    incomingStockLoading,
+    fetchIncomingStock,
+    stockReservations,
+    stockReservationsLoading,
+    fetchStockReservations,
+    releaseReservationById,
     syncWarehouseStockAfterOrderEdit,
     handleDeleteRecipe,
     handleToggleRecipeActive,
@@ -1774,6 +1781,19 @@ function App() {
     }
   }, [isWarehouseTab, activeWarehouseSubTab, fetchPzGroups])
 
+  // "W drodze" zasila i własną podzakładkę, i kolumny W DRODZE/PROGNOZA w Stanach
+  useEffect(() => {
+    if (isWarehouseTab && (activeWarehouseSubTab === 'Stany' || activeWarehouseSubTab === 'W drodze')) {
+      void fetchIncomingStock()
+    }
+  }, [isWarehouseTab, activeWarehouseSubTab, fetchIncomingStock])
+
+  useEffect(() => {
+    if (isWarehouseTab && activeWarehouseSubTab === 'Rezerwacje') {
+      void fetchStockReservations()
+    }
+  }, [isWarehouseTab, activeWarehouseSubTab, fetchStockReservations])
+
   useEffect(() => {
     if (isWarehouseTab && activeWarehouseSubTab === 'Przesunięcia') {
       void fetchMmGroups()
@@ -2830,6 +2850,13 @@ function App() {
             warehouses={warehouses}
             stock={warehouseStock}
             stockLoading={warehouseStockLoading}
+            incomingStock={incomingStock}
+            incomingStockLoading={incomingStockLoading}
+            onRefreshIncoming={fetchIncomingStock}
+            stockReservations={stockReservations}
+            stockReservationsLoading={stockReservationsLoading}
+            onRefreshReservations={fetchStockReservations}
+            onReleaseReservation={releaseReservationById}
             components={warehouseComponents}
             componentsLoading={warehouseComponentsLoading}
             onCreateComponent={handleCreateWarehouseComponent}

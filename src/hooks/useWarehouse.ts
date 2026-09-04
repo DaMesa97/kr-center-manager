@@ -5,7 +5,8 @@ import {
   INITIAL_MM_FORM, INITIAL_PZ_FORM, INITIAL_RECIPE_FORM
 } from '../constants'
 import type {
-  CompanySettings, DeleteConfirmState, MmFormState, MmGroupRow, MmItem,
+  CompanySettings, DeleteConfirmState, IncomingStockRow, MmFormState, MmGroupRow, MmItem,
+  StockReservationRow,
   MonthlyConsumptionPivot, MonthlyConsumptionRow, Order, OrderNeedingReview,
   PurchaseOrder, PurchaseOrderItem, PzFormState, PzGroupRow, PzItem,
   RecipeFormState, ShoppingListItem, SmartRopRow, Supplier,
@@ -244,6 +245,8 @@ export function useWarehouse({
         warehouse_id: r.warehouse_id as number,
         component_id: r.component_id as number,
         quantity: Number(r.quantity),
+        reserved_quantity: Number(r.reserved_quantity ?? 0),
+        available_quantity: Number(r.quantity) - Number(r.reserved_quantity ?? 0),
         updated_at: String(r.updated_at ?? ''),
         warehouse_code: whObj?.code,
         component_code: wcObj?.code,
@@ -900,6 +903,109 @@ export function useWarehouse({
       await reserveStockForOrderWithToasts(orderId)
     },
     [reserveStockForOrderWithToasts, pushToast],
+  )
+
+  // ── "W drodze" — niedostarczone pozycje z otwartych ZD ──────────────
+  const [incomingStock, setIncomingStock] = useState<IncomingStockRow[]>([])
+  const [incomingStockLoading, setIncomingStockLoading] = useState(false)
+  const fetchIncomingStock = useCallback(async () => {
+    setIncomingStockLoading(true)
+    const { data, error } = await supabase.rpc('get_incoming_stock_per_component')
+    setIncomingStockLoading(false)
+    if (error) {
+      pushToast(`Błąd pobierania "w drodze": ${error.message}`, 'error')
+      return
+    }
+    setIncomingStock(
+      ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+        component_id: Number(r.r_component_id),
+        incoming_qty: Number(r.r_incoming_qty ?? 0),
+        earliest_eta: (r.r_earliest_eta as string | null) ?? null,
+        latest_eta: (r.r_latest_eta as string | null) ?? null,
+        open_pos: Number(r.r_open_pos ?? 0),
+      })),
+    )
+  }, [pushToast])
+
+  // ── Rezerwacje magazynowe (podzakładka) ─────────────────────────────
+  const [stockReservations, setStockReservations] = useState<StockReservationRow[]>([])
+  const [stockReservationsLoading, setStockReservationsLoading] = useState(false)
+  const fetchStockReservations = useCallback(async () => {
+    setStockReservationsLoading(true)
+    // Paginacja jak w stanach — limit 1000 PostgREST
+    const rows: Record<string, unknown>[] = []
+    let from = 0
+    const PAGE = 1000
+    let fetchError: { message: string } | null = null
+    while (true) {
+      const { data, error } = await supabase
+        .from('stock_reservations')
+        .select(
+          `
+          *,
+          orders(order_number, category, company),
+          warehouse_components(code, name, unit),
+          warehouses(code)
+        `,
+        )
+        .order('id', { ascending: false })
+        .range(from, from + PAGE - 1)
+      if (error) { fetchError = error; break }
+      if (!data || data.length === 0) break
+      rows.push(...(data as Record<string, unknown>[]))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+    setStockReservationsLoading(false)
+    if (fetchError) {
+      pushToast(`Błąd pobierania rezerwacji: ${fetchError.message}`, 'error')
+      return
+    }
+    const one = <T,>(v: T | T[] | null | undefined): T | undefined =>
+      Array.isArray(v) ? v[0] : (v ?? undefined)
+    setStockReservations(
+      rows.map((r) => {
+        const o = one(r.orders as { order_number?: string; category?: string; company?: string } | null)
+        const c = one(r.warehouse_components as { code?: string; name?: string; unit?: string } | null)
+        const w = one(r.warehouses as { code?: string } | null)
+        return {
+          id: r.id as number,
+          order_id: r.order_id as number,
+          warehouse_id: r.warehouse_id as number,
+          component_id: r.component_id as number,
+          stage_key: (r.stage_key as string | null) ?? null,
+          quantity_reserved: Number(r.quantity_reserved),
+          quantity_released: Number(r.quantity_released ?? 0),
+          status: r.status as StockReservationRow['status'],
+          created_at: String(r.created_at ?? ''),
+          updated_at: String(r.updated_at ?? ''),
+          order_number: o?.order_number,
+          order_category: o?.category,
+          order_company: o?.company,
+          component_code: c?.code,
+          component_name: c?.name,
+          component_unit: c?.unit,
+          warehouse_code: w?.code,
+        } as StockReservationRow
+      }),
+    )
+  }, [pushToast])
+
+  // Ręczne zwolnienie pojedynczej rezerwacji (kierownik, z audytem)
+  const releaseReservationById = useCallback(
+    async (reservationId: number) => {
+      const { data, error } = await supabase.rpc('cancel_reservation', {
+        p_reservation_id: reservationId,
+      })
+      if (error) {
+        pushToast(`Błąd zwolnienia rezerwacji: ${error.message}`, 'error')
+        return
+      }
+      pushToast(`Zwolniono rezerwację (${Number(data ?? 0)} szt. wróciło do dostępnych)`, 'success')
+      await fetchStockReservations()
+      void fetchWarehouseStock()
+    },
+    [pushToast, fetchStockReservations, fetchWarehouseStock],
   )
 
   // Anulowanie zamówienia — zwalnia niewydane rezerwacje (wydane zostają: audit)
@@ -1666,6 +1772,13 @@ export function useWarehouse({
     consumeStockForOrderWithToasts,
     reserveStockForOrderWithToasts,
     cancelOrderReservations,
+    incomingStock,
+    incomingStockLoading,
+    fetchIncomingStock,
+    stockReservations,
+    stockReservationsLoading,
+    fetchStockReservations,
+    releaseReservationById,
     syncWarehouseStockAfterOrderEdit,
     // Recipe operations
     handleDeleteRecipe,

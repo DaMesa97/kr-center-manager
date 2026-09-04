@@ -624,6 +624,10 @@ export type WarehouseStockRow = {
   warehouse_id: number
   component_id: number
   quantity: number
+  /** zarezerwowane pod zamówienia (jeszcze niewydane fizycznie) */
+  reserved_quantity?: number
+  /** quantity - reserved_quantity (może być ujemne — sygnał planistyczny) */
+  available_quantity?: number
   updated_at: string
   warehouse_code?: string
   component_code?: string
@@ -631,6 +635,35 @@ export type WarehouseStockRow = {
   component_unit?: string
   component_category?: string | null
   component_min_stock_level?: number | null
+}
+
+/** "W drodze" — suma niedostarczonych pozycji z otwartych ZD (get_incoming_stock_per_component) */
+export type IncomingStockRow = {
+  component_id: number
+  incoming_qty: number
+  earliest_eta: string | null
+  latest_eta: string | null
+  open_pos: number
+}
+
+export type StockReservationRow = {
+  id: number
+  order_id: number
+  warehouse_id: number
+  component_id: number
+  stage_key: string | null
+  quantity_reserved: number
+  quantity_released: number
+  status: 'reserved' | 'partially_released' | 'released' | 'cancelled'
+  created_at: string
+  updated_at: string
+  order_number?: string
+  order_category?: string
+  order_company?: string
+  component_code?: string
+  component_name?: string
+  component_unit?: string
+  warehouse_code?: string
 }
 
 export type WarehouseMovementRow = {
@@ -817,6 +850,8 @@ export type AlertThresholds = {
 export type WarehouseSubTab =
   | 'Komponenty'
   | 'Stany'
+  | 'Rezerwacje'
+  | 'W drodze'
   | 'Receptury'
   | 'Ruchy'
   | 'Przyjęcia'

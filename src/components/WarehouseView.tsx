@@ -3,7 +3,9 @@ import { WAREHOUSE_SUB_TABS } from '../constants'
 import type {
   CompanySettings,
   CurrentUser,
+  IncomingStockRow,
   MmGroupRow,
+  StockReservationRow,
   MonthlyConsumptionPivot,
   PurchaseOrder,
   PurchaseOrderItem,
@@ -30,6 +32,8 @@ import MonthlyConsumptionView from './warehouse/MonthlyConsumptionView'
 import PzView from './warehouse/PzView'
 import RecipesView from './warehouse/RecipesView'
 import StockView from './warehouse/StockView'
+import ReservationsView from './warehouse/ReservationsView'
+import IncomingView from './warehouse/IncomingView'
 import ReorderDashboardView from './warehouse/ReorderDashboardView'
 import PurchaseOrdersView from './warehouse/PurchaseOrdersView'
 import InventoryView from './warehouse/InventoryView'
@@ -42,6 +46,13 @@ type WarehouseViewProps = {
   warehouses: Warehouse[]
   stock: WarehouseStockRow[]
   stockLoading: boolean
+  incomingStock?: IncomingStockRow[]
+  incomingStockLoading?: boolean
+  onRefreshIncoming?: () => void
+  stockReservations?: StockReservationRow[]
+  stockReservationsLoading?: boolean
+  onRefreshReservations?: () => void
+  onReleaseReservation?: (reservationId: number) => Promise<void>
   components: WarehouseComponent[]
   componentsLoading: boolean
   onCreateComponent: (data: WarehouseComponentCreateInput, warehouseIds?: number[]) => Promise<void>
@@ -107,6 +118,13 @@ function WarehouseView({
   warehouses,
   stock,
   stockLoading,
+  incomingStock = [],
+  incomingStockLoading = false,
+  onRefreshIncoming = () => {},
+  stockReservations = [],
+  stockReservationsLoading = false,
+  onRefreshReservations = () => {},
+  onReleaseReservation = async () => {},
   components,
   componentsLoading,
   onCreateComponent,
@@ -222,10 +240,26 @@ function WarehouseView({
           components={components}
           stock={stock}
           suppliers={suppliers}
+          incoming={incomingStock}
           loading={stockLoading}
           isManager={isManager}
           onAddPz={onAddPzFromStock}
           onShowHistory={onShowHistory}
+        />
+      ) : activeSubTab === 'Rezerwacje' ? (
+        <ReservationsView
+          reservations={stockReservations}
+          loading={stockReservationsLoading}
+          isManager={isManager}
+          onRelease={onReleaseReservation}
+          onRefresh={onRefreshReservations}
+        />
+      ) : activeSubTab === 'W drodze' ? (
+        <IncomingView
+          incoming={incomingStock}
+          components={components}
+          loading={incomingStockLoading}
+          onRefresh={onRefreshIncoming}
         />
       ) : activeSubTab === 'Receptury' ? (
         <RecipesView
