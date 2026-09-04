@@ -113,7 +113,8 @@ begin
       where i.r_component_id = v_rec_comp.comp_id;
 
       r_available := v_available;
-      r_shortage := greatest(0, r_required - v_available);
+      -- brak TEGO zamówienia (cap na required): dostępne -2, potrzeba 1 → brakuje 1, nie 3
+      r_shortage := least(r_required, greatest(0, r_required - v_available));
       r_incoming_qty := coalesce(v_incoming.r_incoming_qty, 0);
       r_earliest_eta := v_incoming.r_earliest_eta;
       r_status := case when r_shortage > 0 then 'insufficient' else 'ok' end;

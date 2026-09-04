@@ -128,6 +128,7 @@ export default function ConfigOptionModal({
                 value={configOptionForm.value}
                 onChange={(e) => onFormChange({ value: e.target.value })}
                 disabled={isConfigOptionSaving}
+                autoFocus
               />
             </label>
             <label className="order-field-full">

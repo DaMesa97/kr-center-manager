@@ -399,10 +399,57 @@ export function useConfig({
     [],
   )
 
+  // Ustawia pozycję na zadanym miejscu i renumeruje CAŁY słownik 1..n —
+  // wpisanie "3" w edycji przesuwa pozostałe, zamiast zostawiać duplikat numeru
+  // (zgłoszenie Dawida: dwie pozycje z tym samym numerem po edycji).
+  const placeConfigOptionAt = useCallback(
+    async (
+      category: string,
+      type: string,
+      optionId: number | string,
+      desiredOrder: number,
+    ): Promise<boolean> => {
+      const { data, error } = await supabase
+        .from('config_options')
+        .select('id, sort_order, value')
+        .eq('category', category)
+        .eq('type', type)
+      if (error) {
+        console.error(error)
+        return false
+      }
+      const rows = [...(data || [])].sort((a, b) => {
+        const byOrder = Number(a.sort_order) - Number(b.sort_order)
+        if (byOrder !== 0) return byOrder
+        return String(a.value ?? '').localeCompare(String(b.value ?? ''))
+      })
+      const idx = rows.findIndex((r) => r.id === optionId)
+      if (idx === -1) return false
+      const [moved] = rows.splice(idx, 1)
+      const target = Math.min(Math.max(1, Math.round(desiredOrder) || 1), rows.length + 1)
+      rows.splice(target - 1, 0, moved)
+      for (let i = 0; i < rows.length; i++) {
+        if (Number(rows[i].sort_order) === i + 1) continue
+        const { error: updateError } = await supabase
+          .from('config_options')
+          .update({ sort_order: i + 1 })
+          .eq('id', rows[i].id)
+        if (updateError) {
+          console.error(updateError)
+          return false
+        }
+      }
+      return true
+    },
+    [],
+  )
+
   const handleReorderConfigOptions = async (reorderedItems: ConfigOptionRecord[]) => {
     setGlobalLoading(true)
     try {
-      const updates = reorderedItems.map((item, index) => ({ id: item.id, sort_order: index }))
+      // 1-based — spójnie z renumeracją po usunięciu/edycji (wcześniej 0-based,
+      // co po przeplocie z tamtymi ścieżkami potrafiło zostawić duplikaty)
+      const updates = reorderedItems.map((item, index) => ({ id: item.id, sort_order: index + 1 }))
       await Promise.all(
         updates.map((update) =>
           supabase
@@ -504,15 +551,22 @@ export function useConfig({
     setGlobalLoading(true)
     try {
       if (editingConfigOption === null) {
-        const { error } = await supabase.from('config_options').insert({
-          category: dict.category,
-          type: dict.type,
-          value: valueTrim,
-          sort_order: configOptionForm.sort_order,
-        })
+        const { data: inserted, error } = await supabase
+          .from('config_options')
+          .insert({
+            category: dict.category,
+            type: dict.type,
+            value: valueTrim,
+            sort_order: configOptionForm.sort_order,
+          })
+          .select('id')
+          .single()
         if (error) {
           pushToast(`Wystąpił błąd: ${error.message}`, 'error')
         } else {
+          if (inserted) {
+            await placeConfigOptionAt(dict.category, dict.type, (inserted as { id: number }).id, configOptionForm.sort_order)
+          }
           pushToast('Wartość została dodana', 'success')
           setConfigAddStep('value')
           setPendingRozmiarValue('')
@@ -528,6 +582,7 @@ export function useConfig({
         if (error) {
           pushToast(`Wystąpił błąd: ${error.message}`, 'error')
         } else {
+          await placeConfigOptionAt(dict.category, dict.type, editingConfigOption.id, configOptionForm.sort_order)
           pushToast('Wartość została zaktualizowana', 'success')
           setConfigAddStep('value')
           setPendingRozmiarValue('')
@@ -711,6 +766,7 @@ export function useConfig({
           pushToast(`Błąd zapisu: ${optError.message}`, 'error')
           return
         }
+        await placeConfigOptionAt(selectedConfigCategory, 'rozmiar', editingConfigOption.id, configOptionForm.sort_order)
         const existing = dimensionMap.find(
           (d) => d.category === selectedConfigCategory && d.dimension_code === oldCode,
         )
@@ -733,7 +789,7 @@ export function useConfig({
           category: selectedConfigCategory,
           type: 'rozmiar',
           value: pendingRozmiarValue,
-          sort_order: configOptionsList.length,
+          sort_order: configOptionsList.length + 1,
         })
         if (optError) {
           pushToast(`Błąd zapisu: ${optError.message}`, 'error')

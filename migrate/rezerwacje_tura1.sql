@@ -221,7 +221,9 @@ begin
           'type', 'shortage',
           'component_code', v_rec_comp.comp_code,
           'component_name', v_rec_comp.name,
-          'shortage', -v_available_after,
+          -- brak TEGO zamówienia (nie skumulowany deficyt: przy dostępnych -2
+          -- i potrzebie 1 brakuje 1, a nie 3)
+          'shortage', least(v_total, -v_available_after),
           'warehouse', v_wh_code,
           'part', v_match.part,
           'incoming_qty', coalesce(v_incoming.r_incoming_qty, 0),

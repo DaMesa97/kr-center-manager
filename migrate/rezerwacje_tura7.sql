@@ -75,7 +75,7 @@ begin
         r_quantity := v_remaining;
         r_warehouse_code := v_res.wh_code;
         r_status := 'insufficient';
-        r_shortage := v_remaining - coalesce(v_phys, 0);
+        r_shortage := v_remaining - greatest(coalesce(v_phys, 0), 0); -- ujemny stan fizyczny liczymy jak 0
         return next;
       end if;
     end loop;
@@ -103,7 +103,7 @@ begin
     select ws.quantity into v_phys
     from warehouse_stock ws
     where ws.warehouse_id = v_res.warehouse_id and ws.component_id = v_res.component_id;
-    v_line_shortage := greatest(0, v_remaining - coalesce(v_phys, 0));
+    v_line_shortage := greatest(0, v_remaining - greatest(coalesce(v_phys, 0), 0));
     if v_line_shortage > 0 then v_forced_any := true; end if;
 
     insert into warehouse_movements(
