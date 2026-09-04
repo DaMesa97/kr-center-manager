@@ -33,7 +33,12 @@ function StockWarningBanner({ summary, loading }: { summary: StockPreviewSummary
               <ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>
                 {summary.shortages.map((s) => (
                   <li key={`${s.r_component_id}-${s.r_part}`}>
-                    {s.r_component_name} ({s.r_component_code}) — brakuje{' '}
+                    {s.r_component_name}
+                    {s.r_component_code &&
+                    !(s.r_component_name ?? '').toUpperCase().includes(s.r_component_code.toUpperCase())
+                      ? ` (${s.r_component_code})`
+                      : ''}{' '}
+                    — brakuje{' '}
                     <strong>{s.r_shortage}</strong>
                     {s.r_incoming_qty > 0 && (
                       <>
