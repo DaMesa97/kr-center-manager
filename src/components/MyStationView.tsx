@@ -4,6 +4,7 @@ import { isRushOrderSequence } from '../utils'
 import { buildTasks, fieldsForStage, type MyTask } from '../lib/stationLogic'
 import type { StageCompleteResult, StockReleaseRow } from '../hooks/useMyStation'
 import DeleteConfirmDialog from './DeleteConfirmDialog'
+import StockShortageDialog from './StockShortageDialog'
 import Spinner from './Spinner'
 
 type Props = {
@@ -171,19 +172,12 @@ export default function MyStationView({
       )}
 
       {shortageDialog && (
-        <DeleteConfirmDialog
-          title="Brak na magazynie!"
-          message={[
-            `Do etapu ${shortageDialog.task.stageHeader} brakuje fizycznie:`,
-            ...shortageDialog.shortages.map(
-              (s) => `• ${s.r_component_name} — potrzeba ${s.r_quantity}, brakuje ${s.r_shortage} (mag. ${s.r_warehouse_code})`,
-            ),
-            '',
-            'Możesz wydać mimo braku — stan zejdzie na minus i trafi do wyjaśnienia. Wymuszenie zostanie zapisane w historii.',
-          ].join('\n')}
-          confirmLabel="Wydaj mimo braku"
-          cancelLabel="Anuluj"
-          onConfirm={() => {
+        <StockShortageDialog
+          stageHeader={shortageDialog.task.stageHeader}
+          stageTitle={shortageDialog.task.stageTitle}
+          orderNumber={String(shortageDialog.task.order.order_number ?? '')}
+          shortages={shortageDialog.shortages}
+          onForce={() => {
             const run = async () => {
               if (!shortageDialog) return
               const { task } = shortageDialog
