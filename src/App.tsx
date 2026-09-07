@@ -100,6 +100,7 @@ import { can, isManagerRole } from './lib/permissions'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
 import InternalDoorOrderDetailsModal from './components/InternalDoorOrderDetailsModal'
 import OrdersNeedingReviewView from './components/OrdersNeedingReviewView'
+import { findSuspectedDuplicates } from './lib/duplicateDetect'
 import SupplierFormModal from './components/config/SupplierFormModal'
 import ShoppingListModal from './components/warehouse/ShoppingListModal'
 import PurchaseOrderDetailsModal from './components/warehouse/PurchaseOrderDetailsModal'
@@ -1440,6 +1441,12 @@ function App() {
   }, [activeTab])
   const isPulpitTab = activeTab === 'Pulpit'
 
+  // Podejrzane duble bot/excel — liczone tylko gdy otwarta Weryfikacja
+  const suspectedDuplicates = useMemo(
+    () => (isReviewTab ? findSuspectedDuplicates(orders) : []),
+    [isReviewTab, orders],
+  )
+
   const handleDeleteWarehouseComponent = useCallback(
     async (id: number) => {
       touchSession()
@@ -2697,6 +2704,7 @@ function App() {
             onEdit={handleOpenReviewOrder}
             onMarkVerified={handleMarkVerified}
             onCancel={handleCancelReviewOrder}
+            duplicates={suspectedDuplicates}
           />
         ) : isAuditTab && isManager ? (
           <AuditLogView

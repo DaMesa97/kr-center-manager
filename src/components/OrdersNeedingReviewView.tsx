@@ -1,4 +1,5 @@
 import type { OrderNeedingReview } from '../types'
+import type { DuplicateGroup } from '../lib/duplicateDetect'
 import Spinner from './Spinner'
 
 type Props = {
@@ -7,6 +8,13 @@ type Props = {
   onEdit: (orderId: number) => void
   onMarkVerified: (orderId: number) => Promise<void>
   onCancel: (orderId: number) => Promise<void>
+  duplicates: DuplicateGroup[]
+}
+
+const sourceBadge = (source: string | null | undefined) => {
+  if (source === 'bot') return <span className="badge badge-purple">BOT</span>
+  if (source === 'excel') return <span className="badge badge-info">EXCEL</span>
+  return <span className="badge badge-neutral">RĘCZNE</span>
 }
 
 const formatWhen = (value: string | null): string => {
@@ -23,7 +31,7 @@ const formatWhen = (value: string | null): string => {
   return `${absolute} (${diffMinutes} min temu)`
 }
 
-export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMarkVerified, onCancel }: Props) {
+export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMarkVerified, onCancel, duplicates }: Props) {
   return (
     <div className="orders-review-view">
       <div className="orders-review-header">
@@ -96,6 +104,59 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
                       >
                         Anuluj zamówienie
                       </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="orders-review-header" style={{ marginTop: 32 }}>
+        <h2>🔁 Podejrzane duble</h2>
+        <p>
+          Zlecenia o tym samym numerze zamówienia klienta, firmie i kategorii, z których co najmniej jedno
+          przyszło z konfiguratora (BOT). Najczęstsza przyczyna: to samo zamówienie weszło i przez API,
+          i przez Excel. Sprawdź parę i anuluj nadmiarowe zlecenie w jego tabeli.
+        </p>
+        <div className="orders-review-count">{duplicates.length} podejrzanych grup</div>
+      </div>
+
+      {duplicates.length === 0 ? (
+        <p className="no-results">🎉 Brak podejrzanych dubli.</p>
+      ) : (
+        <div className="table-wrapper">
+          <table className="orders-table orders-review-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Nr zam. klienta</th>
+                <th>Firma</th>
+                <th>Kategoria</th>
+                <th>Zlecenia w grupie</th>
+              </tr>
+            </thead>
+            <tbody>
+              {duplicates.map((group, index) => (
+                <tr key={`${group.category}-${group.clientOrderNumber}-${index}`} className="orders-review-row">
+                  <td>{index + 1}</td>
+                  <td>{group.clientOrderNumber}</td>
+                  <td>{group.company}</td>
+                  <td>{group.category}</td>
+                  <td>
+                    <div className="orders-review-actions">
+                      {group.orders.map((order) => (
+                        <button
+                          key={order.id}
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          title={`${order.model || ''} ${order.width || ''}×${order.height || ''} — otwórz zlecenie`}
+                          onClick={() => order.id !== undefined && onEdit(order.id)}
+                        >
+                          {sourceBadge(order.source)} #{order.order_number}
+                        </button>
+                      ))}
                     </div>
                   </td>
                 </tr>
