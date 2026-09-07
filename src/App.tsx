@@ -1458,7 +1458,9 @@ function App() {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, order_number, category, company, client_order_number, source, model, width, height, extra_fields')
+          .select(
+            'id, order_number, category, company, client_order_number, source, model, width, height, extra_fields, production_stages, top_light, side_panel, side_panel_a, side_panel_b',
+          )
           .order('id', { ascending: false })
           .range(from, from + PAGE - 1)
         if (error || !data || data.length === 0) break

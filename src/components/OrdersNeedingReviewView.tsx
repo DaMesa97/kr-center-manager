@@ -1,6 +1,15 @@
-import type { OrderNeedingReview } from '../types'
-import type { DuplicateGroup } from '../lib/duplicateDetect'
+import type { Order, OrderNeedingReview } from '../types'
+import type { DuplicateCandidate, DuplicateGroup } from '../lib/duplicateDetect'
+import { countCompletedStages } from '../utils'
 import Spinner from './Spinner'
+
+// Licznik etapów przy zleceniu w grupie dubli — kopia z postępem produkcji
+// powinna ZOSTAĆ, anuluje się tę bez postępu. Kategorie bez etapów → brak licznika.
+const stageCounter = (order: DuplicateCandidate): { label: string; started: boolean } | null => {
+  const { completed, total } = countCompletedStages(order as Order)
+  if (total === 0) return null
+  return { label: `${completed}/${total}`, started: completed > 0 }
+}
 
 type Props = {
   orders: OrderNeedingReview[]
@@ -146,17 +155,28 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
                   <td>{group.category}</td>
                   <td>
                     <div className="orders-review-actions">
-                      {group.orders.map((order) => (
-                        <button
-                          key={order.id}
-                          type="button"
-                          className="btn btn-sm btn-secondary"
-                          title={`${order.model || ''} ${order.width || ''}×${order.height || ''} — otwórz zlecenie`}
-                          onClick={() => order.id !== undefined && onEdit(order.id)}
-                        >
-                          {sourceBadge(order.source)} #{order.order_number}
-                        </button>
-                      ))}
+                      {group.orders.map((order) => {
+                        const stages = stageCounter(order)
+                        return (
+                          <button
+                            key={order.id}
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            title={`${order.model || ''} ${order.width || ''}×${order.height || ''} — otwórz zlecenie`}
+                            onClick={() => order.id !== undefined && onEdit(order.id)}
+                          >
+                            {sourceBadge(order.source)} #{order.order_number}
+                            {stages && (
+                              <span
+                                className={stages.started ? 'badge badge-warning' : 'badge badge-success'}
+                                title={stages.started ? 'Ma postęp produkcji — ta kopia powinna zostać' : 'Bez postępu — bezpieczna do anulowania'}
+                              >
+                                {stages.label} etap.
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
                     </div>
                   </td>
                 </tr>
