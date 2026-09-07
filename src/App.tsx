@@ -1275,6 +1275,9 @@ function App() {
           .includes(query) ||
         String(order.wing_color ?? '')
           .toLowerCase()
+          .includes(query) ||
+        String(order.client_order_number ?? '')
+          .toLowerCase()
           .includes(query)
 
       const matchDay = !filterByDay || order.production_day === selectedProductionDay
