@@ -248,6 +248,47 @@ export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknow
   }
 }
 
+// ---- Dedup krzyżowy bot↔excel ---------------------------------------
+// Gałąź Make dopisuje zamówienia konfiguratora TAKŻE do Excela (arkusz musi
+// je mieć — pracują z niego handlowcy), więc to samo zamówienie wchodziłoby
+// do bazy drugi raz przy imporcie. Wiersz pomijamy, gdy istnieje świeże
+// zlecenie z bota o tym samym numerze zamówienia klienta + firmie + kategorii.
+
+// Numer klienta nadający się do porównania: min. 3 znaki i choć jedna
+// litera/cyfra (odpada '-', '—', puste)
+export const isComparableClientNumber = (value: unknown): boolean => {
+  const n = String(value ?? '').trim().toUpperCase()
+  return n.length >= 3 && /[A-Z0-9]/.test(n)
+}
+
+const BOT_TWIN_WINDOW_DAYS = 21
+
+const findBotTwin = async (
+  supabase: any,
+  payload: Record<string, unknown>,
+): Promise<{ id: number; order_number: string } | null> => {
+  const clientNo = String(payload.client_order_number ?? '').trim().toUpperCase()
+  const company = String(payload.company ?? '').trim().toUpperCase()
+  if (!isComparableClientNumber(clientNo) || !company) return null
+
+  const since = new Date(Date.now() - BOT_TWIN_WINDOW_DAYS * 86400 * 1000).toISOString()
+  const { data } = await supabase
+    .from('orders')
+    .select('id, order_number, company, client_order_number')
+    .eq('category', String(payload.category ?? ''))
+    .eq('source', 'bot')
+    .gte('created_at', since)
+  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    if (
+      String(row.company ?? '').trim().toUpperCase() === company &&
+      String(row.client_order_number ?? '').trim().toUpperCase() === clientNo
+    ) {
+      return { id: Number(row.id), order_number: String(row.order_number ?? '') }
+    }
+  }
+  return null
+}
+
 // ---- Auto-parowanie DISTING PLUS (jedno zlecenie → para STA+Disting) ----
 
 const nextOrderNumber = async (supabase: any, category: string): Promise<string> => {
@@ -361,6 +402,16 @@ serve(async (req) => {
         }
       }
 
+      // Dedup krzyżowy: to zamówienie weszło już z konfiguratora przez API
+      const botTwin = await findBotTwin(supabase, payload)
+      if (botTwin) {
+        results.push({
+          index: i, status: 'duplicate_bot', order_number: orderNumber, category,
+          bot_order_id: botTwin.id, bot_order_number: botTwin.order_number,
+        })
+        continue
+      }
+
       const { data: inserted, error: insErr } = await supabase
         .from('orders').insert([payload]).select('id, order_number, category').single()
       if (insErr || !inserted) {
@@ -383,8 +434,13 @@ serve(async (req) => {
     statusCode = 200
     const created = results.filter((r) => r.status === 'created').length
     const duplicates = results.filter((r) => r.status === 'duplicate').length
+    const botDuplicates = results.filter((r) => r.status === 'duplicate_bot').length
     const errors = results.filter((r) => r.status === 'error').length
-    responseBody = { success: true, summary: { received: rows.length, created, duplicates, errors }, results }
+    responseBody = {
+      success: true,
+      summary: { received: rows.length, created, duplicates, bot_duplicates: botDuplicates, errors },
+      results,
+    }
     return jsonResponse(responseBody, statusCode)
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : String(err)

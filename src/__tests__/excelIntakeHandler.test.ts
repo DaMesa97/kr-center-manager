@@ -28,7 +28,7 @@ function makeFakeSupabase(
   const makeBuilder = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const b: any = {}
-    for (const m of ['select', 'eq', 'neq', 'in', 'is', 'limit', 'order', 'range', 'single', 'maybeSingle', 'update']) {
+    for (const m of ['select', 'eq', 'neq', 'in', 'is', 'gte', 'limit', 'order', 'range', 'single', 'maybeSingle', 'update']) {
       b[m] = () => b
     }
     b.insert = (rows: unknown[]) => {
@@ -187,6 +187,75 @@ describe('orders-excel-intake — handler HTTP', () => {
     const body = (await res.json()) as { summary: Record<string, number>; results: Array<{ status: string }> }
     expect(body.summary).toMatchObject({ received: 3, created: 1, duplicates: 1, errors: 0 })
     expect(body.results.map((r) => r.status)).toEqual(['created', 'duplicate', 'skipped'])
+    expect(calls.inserted).toHaveLength(1)
+  })
+
+  it('dedup krzyżowy: wiersz z numerem klienta istniejącym u bota → duplicate_bot, zero insertów', async () => {
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: [], error: null }, // dedup po (kategoria, numer): brak
+        {
+          // findBotTwin: świeże boty w kategorii
+          data: [{ id: 77, order_number: '4312', company: ' po drzwi ', client_order_number: '49360300/sendal' }],
+          error: null,
+        },
+      ],
+      VALID_KEY_RPCS,
+    )
+    __setSupabaseClient(supabase)
+
+    const row = {
+      'Nazwa firmy': 'PO DRZWI', System: 'NORMAL PLUS', 'Numer zlecenia': '2289',
+      'Numer zamówienia': ' 49360300/SENDAL ',
+    }
+    const res = await handler()(post([row]))
+    const body = (await res.json()) as { summary: Record<string, number>; results: Array<Record<string, unknown>> }
+    expect(body.summary).toMatchObject({ received: 1, created: 0, bot_duplicates: 1 })
+    expect(body.results[0]).toMatchObject({ status: 'duplicate_bot', bot_order_id: 77, bot_order_number: '4312' })
+    expect(calls.inserted).toHaveLength(0)
+  })
+
+  it('dedup krzyżowy: bot z innym numerem klienta NIE blokuje insertu', async () => {
+    const base = { id: 13, order_number: '2290', category: 'STA', system: 'NORMAL', extra_fields: {}, linked_order_id: null }
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: [], error: null }, // dedup po numerze: brak
+        { data: [{ id: 77, order_number: '4312', company: 'PO DRZWI', client_order_number: 'INNY/NUMER' }], error: null }, // findBotTwin
+        { data: base, error: null }, // insert
+        { data: base, error: null }, // partner check (stop)
+        { data: base, error: null }, // titan check (stop)
+      ],
+      VALID_KEY_RPCS,
+    )
+    __setSupabaseClient(supabase)
+
+    const row = {
+      'Nazwa firmy': 'PO DRZWI', System: 'NORMAL', 'Numer zlecenia': '2290',
+      'Numer zamówienia': '49360300/SENDAL',
+    }
+    const res = await handler()(post([row]))
+    const body = (await res.json()) as { summary: Record<string, number> }
+    expect(body.summary).toMatchObject({ received: 1, created: 1, bot_duplicates: 0 })
+    expect(calls.inserted).toHaveLength(1)
+  })
+
+  it('dedup krzyżowy: numer klienta "-" nie jest porównywany (wiersz wchodzi bez zapytania o boty)', async () => {
+    const base = { id: 14, order_number: '2291', category: 'STA', system: 'NORMAL', extra_fields: {}, linked_order_id: null }
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: [], error: null }, // dedup po numerze: brak (findBotTwin NIE zużywa kolejki)
+        { data: base, error: null }, // insert
+        { data: base, error: null }, // partner check
+        { data: base, error: null }, // titan check
+      ],
+      VALID_KEY_RPCS,
+    )
+    __setSupabaseClient(supabase)
+
+    const row = { 'Nazwa firmy': 'X', System: 'NORMAL', 'Numer zlecenia': '2291', 'Numer zamówienia': '-' }
+    const res = await handler()(post([row]))
+    const body = (await res.json()) as { summary: Record<string, number> }
+    expect(body.summary).toMatchObject({ received: 1, created: 1, bot_duplicates: 0 })
     expect(calls.inserted).toHaveLength(1)
   })
 
