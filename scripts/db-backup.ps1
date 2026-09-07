@@ -39,12 +39,20 @@ $dbUrl = (Get-Content $envFile | Where-Object { $_ -match '^\s*SUPABASE_DB_URL\s
   Select-Object -First 1) -replace '^\s*SUPABASE_DB_URL\s*=\s*', ''
 if (-not $dbUrl) { Log 'BLAD: brak SUPABASE_DB_URL w .env'; exit 1 }
 
+# ── pg_dump: z PATH albo z portable C:\Users\User\Tools\pgsql\bin ───────
+$pgDump = 'pg_dump'
+if (-not (Get-Command pg_dump -ErrorAction SilentlyContinue)) {
+  $portable = 'C:\Users\User\Tools\pgsql\bin\pg_dump.exe'
+  if (Test-Path $portable) { $pgDump = $portable }
+  else { Log 'BLAD: pg_dump nie znaleziony (PATH ani Tools\pgsql)'; exit 1 }
+}
+
 # ── Dump ────────────────────────────────────────────────────────────────
 $stamp = Get-Date -Format 'yyyy-MM-dd'
 $file  = Join-Path $dailyDir "kr-center-$stamp.dump"
 Log "Start backupu -> $file"
 
-& pg_dump $dbUrl --format=custom --schema=public --no-owner --no-privileges --file=$file
+& $pgDump $dbUrl --format=custom --schema=public --no-owner --no-privileges --file=$file
 if ($LASTEXITCODE -ne 0) { Log "BLAD: pg_dump zakonczyl sie kodem $LASTEXITCODE"; exit 1 }
 
 $sizeMB = [math]::Round((Get-Item $file).Length / 1MB, 1)
