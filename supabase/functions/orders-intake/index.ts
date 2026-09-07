@@ -38,6 +38,36 @@ export const isTitanSystem = (system: unknown): boolean => {
   return u.includes('CORE') || u.includes('GUARD RC2') || u.includes('GUARD RC3')
 }
 
+// Firma realizująca z payloadu konfiguratora → extra_fields.wykonawca
+// (wartości spójne z formularzem aplikacji: Center / Profil / WZ)
+export const wykonawcaFromPayload = (payload: Record<string, unknown> | null): string | null => {
+  const raw = String(payload?.firmaRealizujaca ?? '').trim().toUpperCase()
+  if (raw === 'KR') return 'Center' // KR Center
+  if (raw === 'MR') return 'Profil' // MR Profil
+  return null
+}
+
+// Dopisanie wykonawcy do extra_fields zlecenia — wołane PRZED tworzeniem pary
+// Disting Plus i nóg Titana, żeby partnerzy odziedziczyli wartość.
+// Best-effort; istniejącego wykonawcy nie nadpisuje.
+const applyWykonawca = async (
+  supabase: any,
+  orderId: number,
+  payload: Record<string, unknown> | null,
+): Promise<void> => {
+  const wykonawca = wykonawcaFromPayload(payload)
+  if (!wykonawca) return
+  try {
+    const { data: base, error } = await supabase.from('orders').select('id, extra_fields').eq('id', orderId).single()
+    if (error || !base) return
+    const ef = (base.extra_fields && typeof base.extra_fields === 'object') ? base.extra_fields as Record<string, unknown> : {}
+    if (String(ef.wykonawca ?? '').trim()) return
+    await supabase.from('orders').update({ extra_fields: { ...ef, wykonawca } }).eq('id', orderId)
+  } catch (e) {
+    console.error(`applyWykonawca(${orderId}):`, e)
+  }
+}
+
 // Rezerwacja magazynowa po utworzeniu zlecenia (best-effort — błąd nie blokuje intake'u).
 // Frontend robi to samo po ręcznym zapisie; guard w RPC chroni przed dublem.
 const reserveStock = async (supabase: any, orderId: number): Promise<void> => {
@@ -258,6 +288,8 @@ serve(async (req) => {
 
     // 3b) DISTING PLUS → utwórz powiązanego partnera (best-effort, nie blokuje odpowiedzi)
     if (result?.order_id) {
+      // firma realizująca (KR/MR) z payloadu — przed parą/nogami, żeby odziedziczyły
+      await applyWykonawca(supabase, Number(result.order_id), body)
       try {
         await createDistingPlusPartner(supabase, Number(result.order_id))
       } catch (pairErr) {

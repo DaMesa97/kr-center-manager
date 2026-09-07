@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 // Test INTEGRACYJNY handlera orders-intake (konfigurator) — w tym najbardziej
 // krucha logika biznesowa: auto-tworzenie pary DISTING PLUS i nóg Titana.
-import '../../supabase/functions/orders-intake/index'
+import { wykonawcaFromPayload } from '../../supabase/functions/orders-intake/index'
 import { __handlers } from './stubs/deno-http-server'
 import { __setSupabaseClient } from './stubs/esm-supabase'
 
@@ -109,6 +109,57 @@ describe('orders-intake — DISTING PLUS: automatyczna para STA↔Disting', () =
 
     // bazowe zlecenie dostaje link zwrotny + nr arkusza STA
     expect(calls.updated[0]).toMatchObject({ linked_order_id: 77, sta_sheet: '42' })
+  })
+})
+
+describe('orders-intake — firma realizująca (firmaRealizujaca → extra_fields.wykonawca)', () => {
+  it('mapuje KR→Center, MR→Profil; śmieci/brak → null', () => {
+    expect(wykonawcaFromPayload({ firmaRealizujaca: 'KR' })).toBe('Center')
+    expect(wykonawcaFromPayload({ firmaRealizujaca: ' mr ' })).toBe('Profil')
+    expect(wykonawcaFromPayload({ firmaRealizujaca: 'XX' })).toBeNull()
+    expect(wykonawcaFromPayload({})).toBeNull()
+    expect(wykonawcaFromPayload(null)).toBeNull()
+  })
+
+  it('zapisuje wykonawcę do extra_fields zlecenia przed parą/nogami', async () => {
+    const base = {
+      id: 10, order_number: '900', category: 'STA', system: 'ZWYKŁY',
+      company: 'X', linked_order_id: null, extra_fields: {},
+    }
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: { id: 10, extra_fields: {} }, error: null }, // applyWykonawca: odczyt
+        { data: null, error: null },                          // applyWykonawca: update
+        { data: base, error: null },                          // DISTING PLUS check (nie DP → stop)
+        { data: base, error: null },                          // createTitanLegs check (nie Titan → stop)
+      ],
+      RPCS_OK(10, '900'),
+    )
+    __setSupabaseClient(supabase)
+
+    const res = await handler()(post({ category: 'STA', system: 'ZWYKŁY', firmaRealizujaca: 'MR' }))
+    expect(res.status).toBe(200)
+    expect(calls.updated[0]).toMatchObject({ extra_fields: { wykonawca: 'Profil' } })
+  })
+
+  it('nie nadpisuje już ustawionego wykonawcy', async () => {
+    const base = {
+      id: 10, order_number: '900', category: 'STA', system: 'ZWYKŁY',
+      company: 'X', linked_order_id: null, extra_fields: { wykonawca: 'WZ' },
+    }
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: { id: 10, extra_fields: { wykonawca: 'WZ' } }, error: null }, // applyWykonawca: odczyt → stop
+        { data: base, error: null }, // DISTING PLUS check
+        { data: base, error: null }, // createTitanLegs check
+      ],
+      RPCS_OK(10, '900'),
+    )
+    __setSupabaseClient(supabase)
+
+    const res = await handler()(post({ category: 'STA', system: 'ZWYKŁY', firmaRealizujaca: 'KR' }))
+    expect(res.status).toBe(200)
+    expect(calls.updated).toHaveLength(0)
   })
 })
 
