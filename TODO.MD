@@ -1,5 +1,7 @@
 # KR Center App — TODO Roadmap
 
+> Ostatnia aktualizacja: 2026-09-07 (beta.34). Szczegóły architektury: `docs/ARCHITEKTURA.md`.
+
 ## ✅ ZROBIONE
 
 ### Backend & API
@@ -31,6 +33,33 @@
   - beforeSend filtering + denyUrls
   - Environment tagging (production/development)
   - Source maps upload przy build (dotenv + .env.sentry-build-plugin)
+
+### RBAC + RLS (lipiec 2026, beta.27+)
+- [x] Migracja ról: 8 ról + kategorie per user (`roles_migrate_now.sql`, backfill wg działów)
+- [x] RLS hardening: `current_user_is_manager()`, trigger anty-eskalacja roli, polityki tabel pomocniczych (`rls_hardening.sql`)
+- [x] Fix 37 polityk RLS ze starym `role='manager'` w 26 tabelach (`fix_policies_manager_roles.sql`) — pułapka #9 w ARCHITEKTURA.md
+- [x] Fix limitu 1000 wierszy PostgREST (beta.31) — paginacja `.range()` w wykluczeniach, kartotece, stanach, słownikach
+
+### Magazyn — model rezerwacji (wrzesień 2026, beta.34) — Tury 1–8
+- [x] Receptury z DYNAMICZNYMI kryteriami doboru (beta.30, `recipes_dynamic_criteria.sql`)
+- [x] Tura 1 — fundament SQL: `stock_reservations`, `reserved_quantity` + `available_quantity` (GENERATED), rezerwacja przy utworzeniu zamiast konsumpcji
+- [x] Tura 2 — baner braków przed zapisem (`preview_order_stock` + ETA dostaw)
+- [x] Tura 3 — mapowanie komponentów receptur na etapy (`stage_key`, kolumna ETAP WYDANIA)
+- [x] Tura 4 — wydanie z magazynu przy „Zrobione" w Moje stanowisko (miękka blokada, „Wydaj mimo braku" → stan na minus + [WYMUSZONE])
+- [x] Tura 5 — widoki: Stany 5 kolumn, podzakładki Rezerwacje i W drodze, ręczne zwolnienie rezerwacji (kierownik)
+- [x] Tura 6 — alerty świadome rezerwacji i dostaw w drodze (symulacja dni do wyczerpania)
+- [x] Tura 7 — wydanie końcowe przy oznaczeniu wydania (`release_remaining_for_order`, catch-all)
+- [x] Tura 8 — inwentaryzacja pod model rezerwacji (spis ślepy per magazyn, ruch INW, ujemne stany prostowane spisem)
+- [x] Rezerwacja także z API intake (konfigurator + excel)
+- [x] Ruchy grupowane w dokumenty (zbiorcze WZ/PZ, numer WZ-STA-2388-e4)
+- [x] Zniszczenia / drugi gatunek: `report_damage` (tylko kierownik), zgłoszenie z Mojego stanowiska / Stanów / detali zamówienia, ruch ZN
+- [x] Rezerwacje zgrupowane po zleceniach + „Zwolnij wszystkie" per zlecenie
+
+### Inne (lipiec–wrzesień 2026)
+- [x] Wentylacja: Techniczne + Drzwi wewnętrzne (beta.33, `orders_wentylacja.sql`)
+- [x] Sortowanie po nagłówkach w Komponentach i Stanach (beta.29)
+- [x] Moje stanowisko: noga Titan w Bastionie bez standardowych etapów (ościeżnica robiona w ST)
+- [x] Profesjonalna Pomoc w aplikacji + dokumentacja techniczna, ~145 testów vitest (beta.26+)
 
 ---
 
@@ -241,7 +270,7 @@
 - pdfmake + Recharts + Lucide
 - Sentry (error tracking + source maps)
 - electron-builder (NSIS installer)
-- git (local repo, brak remote jeszcze)
+- git + remote GitHub `DaMesa97/kr-center-manager` (releases = serwer auto-update)
 
 ### Klucze techniczne (NIE w czacie!):
 - Supabase project ref: `vwlabgmilckfhtuerzio`
@@ -279,11 +308,13 @@
 - Wysłać Titan (CORE/GUARD) z konfiguratora → czy `create_bot_order` daje kategorię STA i powstaje trójka STA+ST+Bastion
 
 ### Inne otwarte
-- Bastion + stock: czy okuwanie ma zdejmować komponenty
-- „Moje stanowisko" dla Titan-Bastion (osobny widok)
+- Bastion + stock: czy okuwanie ma zdejmować komponenty — po modelu rezerwacji do przeglądu: mapowanie `stage_key` w recepturach Bastiona (Tura 3 mapowała etapy STA/Disting)
+- ~~„Moje stanowisko" dla Titan-Bastion~~ ✅ zrobione (noga Titan bez standardowych etapów Bastiona)
 - Kopie backlogu Disting→STA (skrypt)
 - Druk etykiet dynamicznych HTML (Stage 3) — w toku
 - Multi-etykieta Bastion regulowana (główna + ~10 elementów) — później
 - Partie produkcyjne regulowanych — naprawa, później
-- Supabase max_rows = 1000 → podnieść
+- ~~Supabase max_rows = 1000~~ ✅ obejście w kodzie (beta.31 — paginacja wszystkich dużych odczytów); podniesienie limitu w Supabase już niekrytyczne
 - Martwy kod: wyłączona kolumna SKR w ST, nieużywane klasy CSS bastion-titan
+- Przetestować pełny cykl rezerwacji na produkcji: rezerwacja → wydanie per etap → wymuszenie przy braku → inwentaryzacja prostująca minusy
+- Zniszczenia: sprawdzić w praniu zgłoszenie z produkcji (zamiennik) vs z magazynu
