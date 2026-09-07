@@ -93,10 +93,12 @@
 - [x] Drugi monitor (HTTP na Supabase URL) usunięty — zbędny, Edge Function i tak odpytuje bazę
 - [ ] Public status page (opcjonalnie)
 
-### Backup własny
-- [ ] Script Node/Python pg_dump → Supabase Storage (gdy Pro)
-- [ ] Cron co dziennie
-- [ ] Rotacja: 30 dni dziennych + 12 miesięcznych
+### Backup własny — ✅ DZIAŁA od 2026-09-07
+- [x] `scripts/db-backup.ps1` — pg_dump (session pooler, portable PostgreSQL 18.1 z `C:\Users\User\Tools\pgsql`)
+- [x] Harmonogram Windows: zadanie „KR Center DB Backup" codziennie 07:30 (+ start po włączeniu, gdy zaspał)
+- [x] Rotacja: 30 dni dziennych + 12 miesięcznych → `%USERPROFILE%\KRCenter-Backups`
+- [ ] Kopia poza komputerem (OneDrive/NAS) — folder KRCenter-Backups do synchronizacji
+- [ ] Docelowo: przenieść backup na maszynę 24/7 u informatyka (skrypt gotowy do przekazania)
 
 ---
 
