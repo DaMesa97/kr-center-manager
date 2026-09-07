@@ -100,7 +100,7 @@ import { can, isManagerRole } from './lib/permissions'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
 import InternalDoorOrderDetailsModal from './components/InternalDoorOrderDetailsModal'
 import OrdersNeedingReviewView from './components/OrdersNeedingReviewView'
-import { findSuspectedDuplicates } from './lib/duplicateDetect'
+import { findSuspectedDuplicates, type DuplicateCandidate } from './lib/duplicateDetect'
 import SupplierFormModal from './components/config/SupplierFormModal'
 import ShoppingListModal from './components/warehouse/ShoppingListModal'
 import PurchaseOrderDetailsModal from './components/warehouse/PurchaseOrderDetailsModal'
@@ -1441,11 +1441,35 @@ function App() {
   }, [activeTab])
   const isPulpitTab = activeTab === 'Pulpit'
 
-  // Podejrzane duble bot/excel — liczone tylko gdy otwarta Weryfikacja
-  const suspectedDuplicates = useMemo(
-    () => (isReviewTab ? findSuspectedDuplicates(orders) : []),
-    [isReviewTab, orders],
-  )
+  // Podejrzane duble bot/excel — orders w App trzyma tylko aktywną kategorię,
+  // więc Weryfikacja dociąga WSZYSTKIE zlecenia okrojonym zapytaniem
+  // (stronicowanie .range() — limit 1000 wierszy PostgREST!)
+  const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([])
+  useEffect(() => {
+    if (!isReviewTab) return
+    let alive = true
+    void (async () => {
+      const all: DuplicateCandidate[] = []
+      let from = 0
+      const PAGE = 1000
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, order_number, category, company, client_order_number, source, model, width, height, extra_fields')
+          .order('id', { ascending: false })
+          .range(from, from + PAGE - 1)
+        if (error || !data || data.length === 0) break
+        all.push(...(data as DuplicateCandidate[]))
+        if (data.length < PAGE) break
+        from += PAGE
+      }
+      if (alive) setDuplicateCandidates(all)
+    })()
+    return () => {
+      alive = false
+    }
+  }, [isReviewTab])
+  const suspectedDuplicates = useMemo(() => findSuspectedDuplicates(duplicateCandidates), [duplicateCandidates])
 
   const handleDeleteWarehouseComponent = useCallback(
     async (id: number) => {
