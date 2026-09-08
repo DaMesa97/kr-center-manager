@@ -1444,6 +1444,40 @@ function App() {
   }, [activeTab])
   const isPulpitTab = activeTab === 'Pulpit'
 
+  // Wyszukiwarka tabel: input ma własny stan i reaguje natychmiast, a filtr
+  // (searchTerm) rusza dopiero po pauzie w pisaniu — filtrowanie co literkę
+  // zamulało wpisywanie (searchTerm był i wartością inputa, i filtrem w transition).
+  // Enter = szukaj od razu.
+  const SEARCH_DEBOUNCE_MS = 600
+  const [searchInput, setSearchInput] = useState(searchTerm)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    // programowe zmiany searchTerm (zmiana zakładki, globalna lupka) → zsynchronizuj
+    // input; nie nadpisuj trwającego wpisywania (pending debounce)
+    if (searchDebounceRef.current == null) setSearchInput(searchTerm)
+  }, [searchTerm])
+  const commitSearch = useCallback(
+    (v: string) => {
+      if (searchDebounceRef.current != null) {
+        clearTimeout(searchDebounceRef.current)
+        searchDebounceRef.current = null
+      }
+      startFilterTransition(() => setSearchTerm(v))
+    },
+    [setSearchTerm],
+  )
+  const handleSearchInputChange = useCallback(
+    (v: string) => {
+      setSearchInput(v)
+      if (searchDebounceRef.current != null) clearTimeout(searchDebounceRef.current)
+      searchDebounceRef.current = setTimeout(() => {
+        searchDebounceRef.current = null
+        commitSearch(v)
+      }, SEARCH_DEBOUNCE_MS)
+    },
+    [commitSearch],
+  )
+
   // Podejrzane duble bot/excel — orders w App trzyma tylko aktywną kategorię,
   // więc Weryfikacja dociąga WSZYSTKIE zlecenia okrojonym zapytaniem
   // (stronicowanie .range() — limit 1000 wierszy PostgREST!)
@@ -1455,6 +1489,7 @@ function App() {
       const all: DuplicateCandidate[] = []
       let from = 0
       const PAGE = 1000
+      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { data, error } = await supabase
           .from('orders')
@@ -2993,7 +3028,7 @@ function App() {
         ) : (
           <>
             <OrdersFilters
-              searchTerm={searchTerm}
+              searchTerm={searchInput}
               selectedProductionDay={selectedProductionDay}
               hideCompletedOrders={hideCompletedOrders}
               showCancelledOrders={showCancelledOrders}
@@ -3002,7 +3037,8 @@ function App() {
               showSourceFilter={['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'].includes(activeTab)}
               wykonawcaFilter={wykonawcaFilter}
               showWykonawcaFilter={activeTab === 'STA' || activeTab === 'Disting'}
-              onSearchChange={(v) => startFilterTransition(() => setSearchTerm(v))}
+              onSearchChange={handleSearchInputChange}
+              onSearchCommit={commitSearch}
               onDayChange={(v) => startFilterTransition(() => setSelectedProductionDay(v))}
               onHideCompletedChange={(v) => startFilterTransition(() => setHideCompletedOrders(v))}
               onShowCancelledChange={(v) => startFilterTransition(() => setShowCancelledOrders(v))}

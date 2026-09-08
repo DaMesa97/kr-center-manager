@@ -17,6 +17,8 @@ type OrdersFiltersProps = {
   wykonawcaFilter: string[]
   showWykonawcaFilter: boolean
   onSearchChange: (v: string) => void
+  // Enter w polu = wyszukaj natychmiast (bez czekania na debounce)
+  onSearchCommit?: (v: string) => void
   onDayChange: (v: string) => void
   onHideCompletedChange: (v: boolean) => void
   onShowCancelledChange: (v: boolean) => void
@@ -32,6 +34,7 @@ export default function OrdersFilters({
   wykonawcaFilter,
   showWykonawcaFilter,
   onSearchChange,
+  onSearchCommit,
   onDayChange,
   onHideCompletedChange,
   onShowCancelledChange,
@@ -54,6 +57,9 @@ export default function OrdersFilters({
         placeholder="Wyszukaj po numerze, firmie, systemie, modelu lub kolorze..."
         value={searchTerm}
         onChange={(event) => onSearchChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onSearchCommit?.(event.currentTarget.value)
+        }}
       />
       <select
         className="day-filter"
