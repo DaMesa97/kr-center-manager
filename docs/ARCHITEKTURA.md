@@ -107,7 +107,7 @@ aplikacji, automatyczne wyłącznie przez `orders-intake` (konfigurator).
 | `purchase_orders` / `purchase_order_items` | Zamówienia do dostawców. `suppliers` — dostawcy. |
 | `label_templates` | Szablony etykiet HTML per kategoria (pola `{{...}}` + QR). |
 | `print_documents` | Dokumenty DoP/DWU (ZPL) + cechy doboru: `system`, `wykonawca`, `glazing_type`, `frame_kind`. |
-| `api_keys` / `api_request_log` | Klucze API integracji + log żądań (rate limit). |
+| `api_keys` / `api_request_logs` | Klucze API integracji + log żądań (rate limit). W bazie są też `integration_api_keys` i `api_rate_limits`. |
 | `feedback` | Zgłoszenia beta (zakładka Zgłoszenia + pływający przycisk). |
 | `notifications`, `order_comments`, `order_photos` | Powiadomienia, komentarze @, zdjęcia pakowania (mobile). |
 
@@ -139,9 +139,14 @@ ale baza mogła odjechać od pliku — przed edycją i tak porównaj z `pg_get_f
 Wszystkie trzy kanały po utworzeniu zlecenia wołają `reserve_stock_for_order`
 (rezerwacja magazynowa — sekcja 6).
 
-⚠️ **Duble**: dopóki zlecenia konfiguratora wchodzą i endpointem, i przez formularz
-bota do Excela — powstają podwójnie (różne numery ⇒ dedup nie łapie krzyżowo).
-Rozwiązanie przejściowe: w Make wyciąć gałąź bot→Excel.
+**Duble bot↔excel** (rozwiązane 2026-09-08): zlecenia konfiguratora wchodzą i przez
+API, i przez Excel (arkusz musi je mieć — pracują z niego handlowcy), więc
+`orders-excel-intake` robi **dedup krzyżowy**: wiersz jest pomijany
+(`status: duplicate_bot`), gdy istnieje botowe zlecenie z ostatnich 21 dni o tej
+samej kategorii + firmie + numerze zamówienia klienta. Ograniczenia: numery
+puste/`-` nie są porównywane, a wiersz z Excela zaimportowany PRZED strzałem bota
+przejdzie — takie resztki łapie sekcja „Podejrzane duble" w zakładce Weryfikacja
+(detekcja po tej samej regule + liczniki etapów do decyzji, którą kopię anulować).
 
 **Autor zlecenia** (`entered_by`, kolumna WPISAŁ): Excel — z kolumny „Wpisał"
 (warianty: Wpisal/Operator/Handlowiec); bot — `BOT (Konfigurator)`.
@@ -396,7 +401,9 @@ mówi co robi i kiedy odpalić. Ważne pliki:
 6. **PostgREST limit 1000 wierszy** — wszystkie pełne odczyty (`orders`, wykluczenia,
    kartoteka, stany, słowniki — naprawione w beta.31) iterują `.range()` stronami;
    nowy kod czytający dużo wierszy też musi.
-7. **Duble bot/excel** — do czasu odcięcia gałęzi bot→Excel w Make (sekcja 4).
+7. **Duble bot/excel** — rozwiązane dedupem krzyżowym w `orders-excel-intake`
+   (sekcja 4); resztki i przypadki brzegowe łapie „Podejrzane duble" w Weryfikacji.
+   Zaległe duble sprzed 2026-09-08 do ręcznego wyklikania.
 8. **Numeracja STA ma dwie serie** (41xx aplikacyjne, 24xx z arkusza) — przy
    wygaszaniu Excela podjąć decyzję o ujednoliceniu.
 9. **Role żyją też w POLITYKACH RLS.** RLS jest wdrożone częściowo (rls_hardening:
