@@ -215,6 +215,27 @@ describe('orders-excel-intake — handler HTTP', () => {
     expect(calls.inserted).toHaveLength(0)
   })
 
+  it('dedup krzyżowy: łapie mimo różnie zapisanej firmy (bot: PO DRZWI, arkusz: PO DRZWI ŻORY)', async () => {
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: [], error: null },
+        { data: [{ id: 91, order_number: '4318', company: 'PO DRZWI', client_order_number: '49495368/Rog-stal' }], error: null },
+      ],
+      VALID_KEY_RPCS,
+    )
+    __setSupabaseClient(supabase)
+
+    const row = {
+      'Nazwa firmy': 'PO DRZWI ŻORY', System: 'NORMAL PLUS', 'Numer zlecenia': '2309',
+      'Numer zamówienia': '49495368/Rog-stal',
+    }
+    const res = await handler()(post([row]))
+    const body = (await res.json()) as { summary: Record<string, number>; results: Array<Record<string, unknown>> }
+    expect(body.summary).toMatchObject({ received: 1, created: 0, bot_duplicates: 1 })
+    expect(body.results[0]).toMatchObject({ status: 'duplicate_bot', bot_order_number: '4318' })
+    expect(calls.inserted).toHaveLength(0)
+  })
+
   it('dedup krzyżowy: bot z innym numerem klienta NIE blokuje insertu', async () => {
     const base = { id: 13, order_number: '2290', category: 'STA', system: 'NORMAL', extra_fields: {}, linked_order_id: null }
     const { supabase, calls } = makeFakeSupabase(

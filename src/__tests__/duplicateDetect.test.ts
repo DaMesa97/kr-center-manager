@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findSuspectedDuplicates, isComparableClientNumber } from '../lib/duplicateDetect'
+import { companiesMatch, findSuspectedDuplicates, isComparableClientNumber } from '../lib/duplicateDetect'
 import type { Order } from '../types'
 
 const mk = (over: Partial<Order>): Order =>
@@ -27,7 +27,42 @@ describe('isComparableClientNumber — filtr numerów nadających się do porów
   })
 })
 
+describe('companiesMatch — tolerancyjne porównanie firm z dwóch kanałów', () => {
+  it('równe i warianty z dopiskiem miasta pasują', () => {
+    expect(companiesMatch('PO DRZWI', 'PO DRZWI')).toBe(true)
+    expect(companiesMatch('PO DRZWI', 'PO DRZWI ŻORY')).toBe(true)
+    expect(companiesMatch('po drzwi żory', ' PO DRZWI ')).toBe(true)
+    expect(companiesMatch('MAJSTERPLUS ZGORZ # ŁAGÓW', 'MAJSTERPLUS ZGORZ')).toBe(true)
+  })
+  it('różne firmy nie pasują (także podobne prefiksy)', () => {
+    expect(companiesMatch('PO DRZWI', 'POL-DRZWI Sulechów')).toBe(false)
+    expect(companiesMatch('POL-DRZWI Sulechów', 'POL-DRZWI PRZENIOSŁO Bystre')).toBe(false)
+    expect(companiesMatch('', 'PO DRZWI')).toBe(false)
+  })
+})
+
 describe('findSuspectedDuplicates', () => {
+  it('łapie dubel mimo różnie zapisanej firmy (bot: alias, excel: surowa z arkusza)', () => {
+    const groups = findSuspectedDuplicates([
+      mk({ id: 1, order_number: '4318', company: 'PO DRZWI', client_order_number: '49495368/Rog-stal' }),
+      mk({
+        id: 2, order_number: '2309', company: 'PO DRZWI ŻORY',
+        client_order_number: '49495368/Rog-stal', source: 'excel' as Order['source'],
+      }),
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0].company).toBe('PO DRZWI ŻORY') // dłuższa nazwa do wyświetlenia
+    expect(groups[0].orders.map((o) => o.order_number)).toEqual(['4318', '2309'])
+  })
+
+  it('zbieżny numer klienta u ZUPEŁNIE innej firmy nie skleja się z botem', () => {
+    const groups = findSuspectedDuplicates([
+      mk({ id: 1, company: 'PO DRZWI', client_order_number: '39/08' }),
+      mk({ id: 2, company: 'ROMEX WARSZAWA', client_order_number: '39/08', source: 'excel' as Order['source'] }),
+    ])
+    expect(groups).toHaveLength(0)
+  })
+
   it('łapie klasyczny dubel bot+excel (ten sam klient, firma, kategoria)', () => {
     const groups = findSuspectedDuplicates([
       mk({ id: 1, order_number: '4312', source: 'bot' }),

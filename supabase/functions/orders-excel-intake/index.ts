@@ -263,6 +263,19 @@ export const isComparableClientNumber = (value: unknown): boolean => {
 
 const BOT_TWIN_WINDOW_DAYS = 21
 
+// Firmy z dwóch kanałów bywają zapisane różnie: bot dostaje nazwę kontrahenta
+// ze słownika aliasów ('PO DRZWI'), excel surową z arkusza ('PO DRZWI ŻORY').
+// Pasują, gdy są równe albo wszystkie słowa krótszej zawierają się w dłuższej.
+export const companiesMatch = (a: unknown, b: unknown): boolean => {
+  const tokens = (v: unknown): string[] =>
+    String(v ?? '').trim().toUpperCase().split(/[\s#,]+/).filter(Boolean)
+  const ta = tokens(a)
+  const tb = tokens(b)
+  if (ta.length === 0 || tb.length === 0) return false
+  const [shorter, longer] = ta.length <= tb.length ? [ta, tb] : [tb, ta]
+  return shorter.every((t) => longer.includes(t))
+}
+
 const findBotTwin = async (
   supabase: any,
   payload: Record<string, unknown>,
@@ -280,7 +293,7 @@ const findBotTwin = async (
     .gte('created_at', since)
   for (const row of (data ?? []) as Array<Record<string, unknown>>) {
     if (
-      String(row.company ?? '').trim().toUpperCase() === company &&
+      companiesMatch(row.company, company) &&
       String(row.client_order_number ?? '').trim().toUpperCase() === clientNo
     ) {
       return { id: Number(row.id), order_number: String(row.order_number ?? '') }
