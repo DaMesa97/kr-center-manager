@@ -1442,6 +1442,24 @@ function App() {
     setLabelSelection(new Set())
     setBatchComboOpen(false)
   }, [activeTab])
+  // Zaznaczenie nie może przeżyć zniknięcia zlecenia z listy (anulowanie/
+  // usunięcie) — inaczej "Zaznaczono N" liczy widmo i dolicza je do kolejnych
+  // zaznaczeń (zgłoszenie z firmy).
+  useEffect(() => {
+    setLabelSelection((prev) => {
+      if (prev.size === 0) return prev
+      const alive = new Set<number>()
+      for (const o of orders) {
+        if (o.id === undefined) continue
+        const ef = o.extra_fields
+        const cancelled =
+          typeof ef === 'object' && ef !== null && (ef as Record<string, unknown>).cancelled === true
+        if (!cancelled) alive.add(o.id)
+      }
+      const next = new Set([...prev].filter((id) => alive.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [orders])
   const isPulpitTab = activeTab === 'Pulpit'
 
   // Wyszukiwarka tabel: input ma własny stan i reaguje natychmiast, a filtr
