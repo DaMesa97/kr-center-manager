@@ -236,6 +236,8 @@ export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknow
     extension: get('Poszerzenie'),
     notes: get('Uwagi'),
     client_order_number: get('Numer zamówienia'),
+    // Rodzaj intarsji (tylko Titan): 'INTARSJA JEDNOSTRONNA'/'jednostronna' → 'JEDNOSTRONNA'
+    intarsja: (get('Rodzaj intarsji') || get('Intarsja')).toUpperCase().replace(/INTARSJA/g, '').trim(),
     // Kto wpisał zamówienie — kolumna "Wpisał" w arkuszu (warianty nazw);
     // formularz bota powinien ustawiać np. "Konfigurator". Puste = brak info.
     entered_by: get('Wpisał') || get('Wpisal') || get('Operator') || get('Handlowiec'),

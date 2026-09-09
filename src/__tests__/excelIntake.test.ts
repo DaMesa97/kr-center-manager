@@ -111,6 +111,15 @@ describe('mapExcelRow — mapowanie wiersza z arkusza (JSON po polsku)', () => {
     expect((p.extra_fields as Record<string, unknown>).kolor_skrzydla_wf).toBe('BIEL')
   })
 
+  it('intarsja: normalizacja wartości i warianty nagłówka; brak kolumny → puste', () => {
+    const p1 = mapExcelRow({ 'Nazwa firmy': 'X', System: 'CORE', 'Rodzaj intarsji': 'Intarsja jednostronna' })!
+    expect(p1.intarsja).toBe('JEDNOSTRONNA')
+    const p2 = mapExcelRow({ 'Nazwa firmy': 'X', System: 'CORE', Intarsja: 'dwustronna' })!
+    expect(p2.intarsja).toBe('DWUSTRONNA')
+    const p3 = mapExcelRow({ 'Nazwa firmy': 'X', System: 'NORMAL' })!
+    expect(p3.intarsja).toBe('')
+  })
+
   it('autor: łapie warianty nazw kolumny (Operator/Handlowiec)', () => {
     const p = mapExcelRow({ 'Nazwa firmy': 'X', System: 'NORMAL', Operator: 'Kasia' })!
     expect(p.entered_by).toBe('Kasia')

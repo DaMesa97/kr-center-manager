@@ -72,6 +72,8 @@ export type Order = {
   sta_sheet?: string
   oslonki?: string
   zaczep?: string
+  // Rodzaj intarsji — tylko systemy Titan (JEDNOSTRONNA/DWUSTRONNA), reszta pusta
+  intarsja?: string
   podwalina_1?: string
   podwalina_1_qty?: number | null
   podwalina_2?: string
@@ -439,6 +441,7 @@ export type StaOrderFormData = {
   handle: string
   oslonki: string
   zaczep: string
+  intarsja: string
   stage1: string
   stage2_1: string
   stage2_2: string

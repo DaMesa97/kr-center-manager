@@ -6,7 +6,7 @@ import SearchableConfigSelect from './SearchableConfigSelect'
 import CompanyAutocomplete from './CompanyAutocomplete'
 import FormInput from './FormInput'
 import { getBotMetadata, getBotWarnings, isBotOrder } from '../utils/botOrder'
-import { findBestCompanyMatch, isCompanyInBase } from '../utils'
+import { findBestCompanyMatch, isCompanyInBase, isTitanSystem } from '../utils'
 import StockWarningBanner from './StockWarningBanner'
 import DamageReportModal from './DamageReportModal'
 import { useStockPreview } from '../hooks/useStockPreview'
@@ -371,6 +371,32 @@ function OrderFormModal(props: OrderFormModalProps) {
                       })}
                     </div>
                   </div>
+                  {/* Intarsja — tylko systemy Titan (CORE/GUARD); dla SN/SN+/SN+RC2 pole ukryte i puste */}
+                  {isTitanSystem(staFormData.system) && (
+                    <div className="wykonawca-picker">
+                      <span className="wykonawca-picker-label">Intarsja</span>
+                      <div className="wykonawca-picker-buttons">
+                        {['JEDNOSTRONNA', 'DWUSTRONNA'].map((opt) => {
+                          const active = staFormData.intarsja === opt
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              className="wykonawca-picker-btn"
+                              style={{
+                                background: active ? '#7c3aed' : 'transparent',
+                                color: active ? '#fff' : '#7c3aed',
+                                borderColor: '#7c3aed',
+                              }}
+                              onClick={() => handleStaFormChange('intarsja', active ? '' : opt)}
+                            >
+                              {opt}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 <div
                   className="order-form-grid order-form-grid--sta"
                   onKeyDown={(e) => submitOnEnterInInput(e, () => void handleSaveOrder())}

@@ -1052,6 +1052,7 @@ export function useOrders({
         category: staFormData.category || activeTab,
         oslonki: staFormData.oslonki,
         zaczep: staFormData.zaczep,
+        intarsja: staFormData.intarsja,
         extra_fields: mergeOrderExtraFields(
           isEditing ? editingOrderBaseline.extra_fields : null,
           { wykonawca: staFormData.wykonawca || '' },
