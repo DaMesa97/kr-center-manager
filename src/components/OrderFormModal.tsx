@@ -371,32 +371,6 @@ function OrderFormModal(props: OrderFormModalProps) {
                       })}
                     </div>
                   </div>
-                  {/* Intarsja — tylko systemy Titan (CORE/GUARD); dla SN/SN+/SN+RC2 pole ukryte i puste */}
-                  {isTitanSystem(staFormData.system) && (
-                    <div className="wykonawca-picker">
-                      <span className="wykonawca-picker-label">Intarsja</span>
-                      <div className="wykonawca-picker-buttons">
-                        {['JEDNOSTRONNA', 'DWUSTRONNA'].map((opt) => {
-                          const active = staFormData.intarsja === opt
-                          return (
-                            <button
-                              key={opt}
-                              type="button"
-                              className="wykonawca-picker-btn"
-                              style={{
-                                background: active ? '#7c3aed' : 'transparent',
-                                color: active ? '#fff' : '#7c3aed',
-                                borderColor: '#7c3aed',
-                              }}
-                              onClick={() => handleStaFormChange('intarsja', active ? '' : opt)}
-                            >
-                              {opt}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
                 <div
                   className="order-form-grid order-form-grid--sta"
                   onKeyDown={(e) => submitOnEnterInInput(e, () => void handleSaveOrder())}
@@ -852,6 +826,17 @@ function OrderFormModal(props: OrderFormModalProps) {
                       isFieldValueExcluded(exclusions, activeTab, staExclusionFormData, 'electric_strike', opt)
                     }
                   />
+
+                  {/* Intarsja — tylko systemy Titan (CORE/GUARD); dla SN/SN+/SN+RC2 pole ukryte i puste */}
+                  {isTitanSystem(staFormData.system) && (
+                    <SearchableConfigSelect
+                      label="Intarsja"
+                      value={staFormData.intarsja}
+                      onChange={(v) => handleStaFormChange('intarsja', v)}
+                      options={['JEDNOSTRONNA', 'DWUSTRONNA']}
+                      placeholder="— wybierz —"
+                    />
+                  )}
 
                   <FormInput
                     label="Ilość"
