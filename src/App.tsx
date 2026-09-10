@@ -1514,7 +1514,7 @@ function App() {
         const { data, error } = await supabase
           .from('orders')
           .select(
-            'id, order_number, category, company, client_order_number, source, model, width, height, extra_fields, production_stages, top_light, side_panel, side_panel_a, side_panel_b',
+            'id, order_number, category, company, client_order_number, source, system, model, wing_color, frame_color, width, height, quantity, created_at, extra_fields, production_stages, top_light, side_panel, side_panel_a, side_panel_b',
           )
           .order('id', { ascending: false })
           .range(from, from + PAGE - 1)

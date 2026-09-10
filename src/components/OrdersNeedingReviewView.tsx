@@ -150,7 +150,17 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
               {duplicates.map((group, index) => (
                 <tr key={`${group.category}-${group.clientOrderNumber}-${index}`} className="orders-review-row">
                   <td>{index + 1}</td>
-                  <td>{group.clientOrderNumber}</td>
+                  <td>
+                    {group.clientOrderNumber}
+                    {group.matchedBy === 'tresc' && (
+                      <span
+                        className="badge badge-warning"
+                        title="Brak numeru zamówienia klienta — dopasowanie po produkcie (system, model, kolory, wymiary) w oknie 3 dni. Oceń ręcznie."
+                      >
+                        PO TREŚCI
+                      </span>
+                    )}
+                  </td>
                   <td>{group.company}</td>
                   <td>{group.category}</td>
                   <td>

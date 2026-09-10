@@ -18,15 +18,19 @@ import type { Order } from '../types'
 export type DuplicateCandidate = Pick<
   Order,
   | 'id' | 'order_number' | 'category' | 'company' | 'client_order_number' | 'source'
-  | 'model' | 'width' | 'height' | 'extra_fields'
+  | 'system' | 'model' | 'wing_color' | 'frame_color' | 'width' | 'height' | 'quantity'
+  | 'extra_fields'
   // pod licznik etapów (countCompletedStages + hasGlassExtra):
   | 'production_stages' | 'top_light' | 'side_panel' | 'side_panel_a' | 'side_panel_b'
->
+> & { created_at?: string | null }
 
 export type DuplicateGroup = {
   category: string
   company: string
   clientOrderNumber: string
+  // 'numer' = twarde (ten sam numer klienta); 'tresc' = pary bez numeru,
+  // zgodne co do produktu i bliskie w czasie — do ręcznej oceny
+  matchedBy: 'numer' | 'tresc'
   orders: DuplicateCandidate[]
 }
 
@@ -94,7 +98,57 @@ export function findSuspectedDuplicates(orders: DuplicateCandidate[]): Duplicate
       category: members[0].category,
       company: displayCompany,
       clientOrderNumber: members[0].client_order_number,
+      matchedBy: 'numer',
       orders: members,
+    })
+  }
+
+  // ── Fallback PO TREŚCI: pary bez porównywalnego numeru klienta ('-'/puste) ──
+  // Bot i excel bez numeru nie łapią się na regułę wyżej, więc porównujemy
+  // produkt (system+model+kolory+wymiary+ilość) w wąskim oknie czasowym.
+  // Tylko do ręcznej oceny w Weryfikacji — treść może się powtórzyć legalnie.
+  const CONTENT_WINDOW_MS = 3 * 24 * 3600 * 1000
+  const contentGroups = new Map<string, DuplicateCandidate[]>()
+  for (const order of orders) {
+    if (order.id === undefined) continue
+    if (isCancelled(order)) continue
+    if (isComparableClientNumber(order.client_order_number)) continue
+    const key = [
+      order.category, norm(order.system), norm(order.model), norm(order.wing_color),
+      norm(order.frame_color), norm(order.width), norm(order.height), Number(order.quantity) || 1,
+    ].join('|')
+    const bucket = contentGroups.get(key)
+    if (bucket) bucket.push(order)
+    else contentGroups.set(key, [order])
+  }
+  for (const bucket of contentGroups.values()) {
+    if (bucket.length < 2) continue
+    const bots = bucket.filter((o) => o.source === 'bot')
+    if (bots.length === 0) continue
+    const inWindow = (a: DuplicateCandidate, b: DuplicateCandidate): boolean => {
+      const ta = Date.parse(String(a.created_at ?? ''))
+      const tb = Date.parse(String(b.created_at ?? ''))
+      if (!Number.isFinite(ta) || !Number.isFinite(tb)) return false
+      return Math.abs(ta - tb) <= CONTENT_WINDOW_MS
+    }
+    // grupa sensowna tylko gdy jest bot + coś jeszcze blisko w czasie
+    const finalMembers = bucket.filter(
+      (o) => o.source === 'bot'
+        ? bucket.some((x) => x !== o && companiesMatch(o.company, x.company) && inWindow(o, x))
+        : bots.some((b) => companiesMatch(b.company, o.company) && inWindow(o, b)),
+    )
+    if (finalMembers.length < 2 || !finalMembers.some((o) => o.source === 'bot')) continue
+    finalMembers.sort((a, b) => String(a.source ?? '').localeCompare(String(b.source ?? '')) || (a.id ?? 0) - (b.id ?? 0))
+    const displayCompany = finalMembers.reduce(
+      (best, o) => (String(o.company ?? '').length > best.length ? String(o.company ?? '') : best),
+      '',
+    )
+    result.push({
+      category: finalMembers[0].category,
+      company: displayCompany,
+      clientOrderNumber: '(bez numeru)',
+      matchedBy: 'tresc',
+      orders: finalMembers,
     })
   }
 

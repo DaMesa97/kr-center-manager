@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { companiesMatch, findSuspectedDuplicates, isComparableClientNumber } from '../lib/duplicateDetect'
 import type { Order } from '../types'
 
-const mk = (over: Partial<Order>): Order =>
+const mk = (over: Partial<Order> & { created_at?: string }): Order =>
   ({
     order_number: '1',
     company: 'MAXDOOR',
@@ -102,6 +102,35 @@ describe('findSuspectedDuplicates', () => {
       mk({ id: 1, category: 'STA' }),
       mk({ id: 2, category: 'Bastion', source: 'excel' as Order['source'] }),
       mk({ id: 3, company: 'INNA FIRMA', source: 'excel' as Order['source'] }),
+    ])
+    expect(groups).toHaveLength(0)
+  })
+
+  it('PO TREŚCI: para bot+excel bez numeru klienta, identyczny produkt, blisko w czasie', () => {
+    const base = {
+      client_order_number: '-', system: 'NORMAL PLUS', model: 'NICOLO 12',
+      wing_color: 'ANTRACYT STRUKTURA', frame_color: 'ANTRACYT STRUKTURA',
+      width: '90E', height: 'STD', quantity: 1,
+    }
+    const groups = findSuspectedDuplicates([
+      mk({ id: 1, order_number: '4322', ...base, created_at: '2026-09-10T05:13:30Z' }),
+      mk({ id: 2, order_number: '2648', ...base, source: 'excel' as Order['source'], created_at: '2026-09-10T05:36:51Z' }),
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0].matchedBy).toBe('tresc')
+    expect(groups[0].orders.map((o) => o.order_number)).toEqual(['4322', '2648'])
+  })
+
+  it('PO TREŚCI: identyczny produkt POZA oknem czasowym albo inny wymiar → brak grupy', () => {
+    const base = {
+      client_order_number: '-', system: 'NORMAL', model: 'OTELLO 01',
+      wing_color: 'ORZECH', frame_color: 'ORZECH', width: '90E', height: 'STD', quantity: 1,
+    }
+    const groups = findSuspectedDuplicates([
+      mk({ id: 1, ...base, created_at: '2026-09-01T05:00:00Z' }),
+      mk({ id: 2, ...base, source: 'excel' as Order['source'], created_at: '2026-09-10T05:00:00Z' }),
+      mk({ id: 3, ...base, width: '100T', created_at: '2026-09-10T05:00:00Z' }),
+      mk({ id: 4, ...base, width: '100T', source: 'excel' as Order['source'], created_at: '2026-09-20T05:00:00Z' }),
     ])
     expect(groups).toHaveLength(0)
   })
