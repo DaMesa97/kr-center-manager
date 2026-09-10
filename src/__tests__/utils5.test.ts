@@ -115,4 +115,11 @@ describe('bastionFrameOptionForOrder — dopasowanie ościeżnic Bastion przez z
     const opts = [{ value: 'REGULOWANA' }, { value: 'DREWNIANA REGULOWANA' }]
     expect(bastionFrameOptionForOrder('DREWNIANA REGULOWANA', opts)?.value).toBe('DREWNIANA REGULOWANA')
   })
+  it('normalizacja: kropki w skrótach, polskie znaki i spacje nie psują dopasowania', () => {
+    const opts = [{ value: 'ZAB.OŚC.METAL.', add_to_batch: true }]
+    expect(bastionFrameOptionForOrder('ZAB. OSC. METAL.', opts)?.value).toBe('ZAB.OŚC.METAL.')
+    expect(bastionFrameOptionForOrder('zab.ośc.metal.', opts)?.value).toBe('ZAB.OŚC.METAL.')
+    expect(bastionFrameOptionForOrder('SYS.RENOW.OŚC.METAL.', opts)).toBeNull()
+    expect(bastionFrameOptionForOrder('ościeżnica drewniana regulowana interior', [{ value: 'Regulowana' }])?.value).toBe('Regulowana')
+  })
 })

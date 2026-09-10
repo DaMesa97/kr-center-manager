@@ -109,17 +109,32 @@ export function findBestCompanyMatch(input: string | null | undefined, companies
  * z match_bastion_frame_type w czasach realizacji. Przy wielu trafieniach
  * wygrywa najdłuższa (najbardziej szczegółowa) wartość słownika.
  */
+// Normalizacja nazw ościeżnic: różne źródła (konfigurator/excel/formularz)
+// piszą je różnie — wielkość liter, kropki w skrótach ('ZAB.OŚC.METAL.'),
+// polskie znaki ('OŚC' vs 'OSC'), nadmiarowe spacje.
+const normalizeBastionFrameName = (v: unknown): string =>
+  String(v ?? '')
+    .toUpperCase()
+    .replace(/[ĄĆĘŁŃÓŚŹŻ]/g, (ch) => ('ACELNOSZZ'['ĄĆĘŁŃÓŚŹŻ'.indexOf(ch)] ?? ch))
+    .replace(/[.,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
 export function bastionFrameOptionForOrder<T extends { value: string }>(
   frameType: string | null | undefined,
   options: T[],
 ): T | null {
-  const ft = String(frameType ?? '').trim().toUpperCase()
+  const ft = normalizeBastionFrameName(frameType)
   if (!ft) return null
   let best: T | null = null
+  let bestLen = 0
   for (const opt of options) {
-    const v = String(opt.value ?? '').trim().toUpperCase()
+    const v = normalizeBastionFrameName(opt.value)
     if (!v || !ft.includes(v)) continue
-    if (!best || v.length > String(best.value).trim().length) best = opt
+    if (!best || v.length > bestLen) {
+      best = opt
+      bestLen = v.length
+    }
   }
   return best
 }
