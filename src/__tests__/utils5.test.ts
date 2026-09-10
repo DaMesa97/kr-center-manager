@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bastionFrameOptionForOrder,
   buildRecipeAutoName,
   calcGlassDim,
   mapConfigTypeToFormField,
@@ -89,5 +90,29 @@ describe('mapConfigTypeToFormField — słownik Konfiguracji → pole formularza
     expect(mapConfigTypeToFormField('kolor')).toBe('wing_color')
     expect(mapConfigTypeToFormField('kolor_progu')).toBe('threshold_color')
     expect(mapConfigTypeToFormField('wysokosc')).toBe('height')
+  })
+})
+
+describe('bastionFrameOptionForOrder — dopasowanie ościeżnic Bastion przez zawieranie', () => {
+  const OPTS = [
+    { value: 'REGULOWANA', add_to_batch: true },
+    { value: 'STAŁA', add_to_batch: false },
+    { value: 'ZABUDOWA', add_to_batch: true },
+  ]
+  it('pełne nazwy z zleceń łapią ogólne wartości słownika (case-insensitive)', () => {
+    expect(bastionFrameOptionForOrder('DREWNIANA REGULOWANA', OPTS)?.value).toBe('REGULOWANA')
+    expect(bastionFrameOptionForOrder('OŚCIEŻNICA DREWNIANA REGULOWANA INTERIOR', OPTS)?.value).toBe('REGULOWANA')
+    expect(bastionFrameOptionForOrder('Zabudowa kątowa', OPTS)?.value).toBe('ZABUDOWA')
+    expect(bastionFrameOptionForOrder(' regulowana ', OPTS)?.value).toBe('REGULOWANA')
+  })
+  it('brak trafienia i puste → null', () => {
+    expect(bastionFrameOptionForOrder('DREWNIANA PEŁNA', OPTS)).toBeNull()
+    expect(bastionFrameOptionForOrder('ZAB.OŚC.METAL.', OPTS)).toBeNull()
+    expect(bastionFrameOptionForOrder('', OPTS)).toBeNull()
+    expect(bastionFrameOptionForOrder(null, OPTS)).toBeNull()
+  })
+  it('przy wielu trafieniach wygrywa najdłuższa wartość słownika', () => {
+    const opts = [{ value: 'REGULOWANA' }, { value: 'DREWNIANA REGULOWANA' }]
+    expect(bastionFrameOptionForOrder('DREWNIANA REGULOWANA', opts)?.value).toBe('DREWNIANA REGULOWANA')
   })
 })

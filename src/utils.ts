@@ -102,6 +102,28 @@ export function findBestCompanyMatch(input: string | null | undefined, companies
   return null
 }
 
+/**
+ * Opcja ościeżnicy Bastion pasująca do typu z zlecenia. Dopasowanie przez
+ * ZAWIERANIE (TRIM+UPPER): słownik ma nazwy ogólne ('REGULOWANA', 'ZABUDOWA'),
+ * a zlecenia pełne ('DREWNIANA REGULOWANA', 'ZABUDOWA KĄTOWA') — spójnie
+ * z match_bastion_frame_type w czasach realizacji. Przy wielu trafieniach
+ * wygrywa najdłuższa (najbardziej szczegółowa) wartość słownika.
+ */
+export function bastionFrameOptionForOrder<T extends { value: string }>(
+  frameType: string | null | undefined,
+  options: T[],
+): T | null {
+  const ft = String(frameType ?? '').trim().toUpperCase()
+  if (!ft) return null
+  let best: T | null = null
+  for (const opt of options) {
+    const v = String(opt.value ?? '').trim().toUpperCase()
+    if (!v || !ft.includes(v)) continue
+    if (!best || v.length > String(best.value).trim().length) best = opt
+  }
+  return best
+}
+
 /** Czy nazwa firmy odpowiada dokładnie (znormalizowanie) jakiemuś kontrahentowi z bazy */
 export function isCompanyInBase(input: string | null | undefined, companies: Company[]): boolean {
   const norm = normalizeCompanyName(input)

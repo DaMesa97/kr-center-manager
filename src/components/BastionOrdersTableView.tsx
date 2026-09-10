@@ -5,6 +5,7 @@ import { TopScrollTableWrapper } from './TopScrollTableWrapper'
 import type { ConfigOptionRecord, GlassAllowance, Order, ToastVariant } from '../types'
 import {
   isReleaseDateEmpty,
+  bastionFrameOptionForOrder,
   isRushOrderSequence,
   orderCellTooltip,
   orderNumberCellTooltip,
@@ -195,7 +196,7 @@ function BastionOrdersTableView({
           const labelValue = String(order.label ?? '').trim()
           const notes2 = String(bastionRow.bastion_notes_2 ?? '')
           const isPromo = Boolean(bastionRow.bastion_is_promo)
-          const frameOption = bastionFrameOptions.find((o) => o.value === frameType.trim())
+          const frameOption = bastionFrameOptionForOrder(frameType, bastionFrameOptions)
           const canEditPriority = !!frameOption?.add_to_batch && isManager && rowOrderId !== undefined
 
           // Titan: status dojazdu rodzeństwa (ościeżnica z ST, skrzydło ze STA) po wydaniu

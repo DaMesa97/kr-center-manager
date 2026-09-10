@@ -47,6 +47,7 @@ import {
   isExtSideActive,
   isFieldValueExcluded,
   isReleaseDateEmpty,
+  bastionFrameOptionForOrder,
   isStTitanOrder,
   isStTitanSystemLabel,
   profileDepartmentLabel,
@@ -1319,7 +1320,8 @@ function App() {
     return filteredOrders.filter((order) => {
       const frameType = String((order as Record<string, unknown>).bastion_frame_type ?? '').trim()
       if (!frameType) return false
-      const frameOption = bastionFrameOptions.find((o) => o.value === frameType)
+      // dopasowanie przez zawieranie — słownik ma nazwy ogólne, zlecenia pełne
+      const frameOption = bastionFrameOptionForOrder(frameType, bastionFrameOptions)
       return !!frameOption?.add_to_batch
     })
   }, [filteredOrders, bastionFrameOptions])

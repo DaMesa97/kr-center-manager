@@ -6,7 +6,7 @@ import SearchableConfigSelect from './SearchableConfigSelect'
 import CompanyAutocomplete from './CompanyAutocomplete'
 import FormInput from './FormInput'
 import { getBotMetadata, getBotWarnings, isBotOrder } from '../utils/botOrder'
-import { findBestCompanyMatch, isCompanyInBase, isTitanSystem } from '../utils'
+import { bastionFrameOptionForOrder, findBestCompanyMatch, isCompanyInBase, isTitanSystem } from '../utils'
 import StockWarningBanner from './StockWarningBanner'
 import DamageReportModal from './DamageReportModal'
 import { useStockPreview } from '../hooks/useStockPreview'
@@ -162,7 +162,7 @@ function OrderFormModal(props: OrderFormModalProps) {
 
   useEffect(() => {
     if (activeTab !== 'Bastion') return
-    const frameOption = bastionFrameOptions.find((o) => o.value === bastionFormData.frame_type)
+    const frameOption = bastionFrameOptionForOrder(bastionFormData.frame_type, bastionFrameOptions)
     const multiplier = frameOption?.label_multiplier ?? 1
     const qty = Math.max(1, bastionFormData.quantity || 1)
     const labelQty = multiplier * qty
