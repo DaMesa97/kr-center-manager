@@ -1472,6 +1472,18 @@ function OrderFormModal(props: OrderFormModalProps) {
                     />
                   )}
 
+                  {/* Intarsja — tylko nogi Titana (system CORE/GUARD kopiowany z bazowego STA);
+                      klejona na produkcji Bastion, zmiana synchronizuje się na całą trójkę */}
+                  {isTitanSystem(bastionFormData.system) && (
+                    <SearchableConfigSelect
+                      label="Intarsja"
+                      value={bastionFormData.intarsja}
+                      onChange={(v) => handleBastionFormChange('intarsja', v)}
+                      options={['JEDNOSTRONNA', 'DWUSTRONNA']}
+                      placeholder="— wybierz —"
+                    />
+                  )}
+
                   <SearchableConfigSelect
                     label="Kolor progu"
                     fieldKey="threshold_color"

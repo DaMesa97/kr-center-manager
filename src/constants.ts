@@ -590,6 +590,7 @@ export const INITIAL_BASTION_ORDER_FORM: BastionOrderFormData = {
   client_order_number: '',
   collection: '',
   frame_type: '',
+  intarsja: '',
   frame_range: '',
   side_panel_k_w: '',
   side_panel_p_w: '',

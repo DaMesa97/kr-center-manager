@@ -139,6 +139,7 @@ function BastionOrdersTableView({
           <th className="col-order-text">SZKLENIE</th>
           <th className="col-order-text">WIZJER</th>
           <th className="col-order-text">OKUCIA</th>
+          <th className="col-order-text" title="INTARSJA (Titan)">INTARSJA</th>
           <th className="col-order-text">OŚCIEŻNICA</th>
           <th className="col-order-text">ZAKRES</th>
           <th className="col-order-text">PRÓG</th>
@@ -363,6 +364,9 @@ function BastionOrdersTableView({
               </td>
               <td className="col-order-text" title={orderCellTooltip(order.hardware)}>
                 {order.hardware}
+              </td>
+              <td className="col-order-text" title={orderCellTooltip(order.intarsja ?? '')}>
+                {order.intarsja ?? ''}
               </td>
               <td className="col-order-text" title={orderCellTooltip(frameType)}>
                 {frameType}

@@ -1237,6 +1237,7 @@ export function orderToBastionForm(order: Order): BastionOrderFormData {
     collection: String(bastion.bastion_collection ?? ''),
     frame_type: String(bastion.bastion_frame_type ?? order.decorative_panel ?? ''),
     frame_range: String(bastion.bastion_frame_range ?? order.extension ?? ''),
+    intarsja: order.intarsja ?? '',
     side_panel_k_w: sideKW,
     side_panel_p_w: sidePW,
     side_panel_h: sideKH || sidePH,

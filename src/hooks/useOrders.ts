@@ -920,6 +920,33 @@ export function useOrders({
   // #23 — Disting Plus (STA↔Disting) oraz Titan (STA↔ST): edycja jednego rekordu
   // przenosi wspólne pola produktowe na powiązany rekord (kolor, wymiar, model itd.).
   // Lista pól + budowa payloadu: src/lib/linkedSync.ts (testowane).
+  // Intarsja żyje na całej trójce Titana (STA frezuje skrzydło, Bastion klei
+  // intarsję) — zmiana na dowolnej nodze przepisuje wartość na wszystkie
+  // rekordy grupy (titan_group w extra_fields).
+  const syncIntarsjaAcrossTitanGroup = async (
+    baseline: Order,
+    newIntarsja: unknown,
+  ): Promise<void> => {
+    const group = Number((baseline.extra_fields as Record<string, unknown> | null)?.titan_group)
+    if (!group || !Number.isFinite(group)) return
+    const next = String(newIntarsja ?? '')
+    if (String(baseline.intarsja ?? '') === next) return
+    const { error } = await supabase
+      .from('orders')
+      .update({ intarsja: next })
+      .eq('extra_fields->>titan_group', String(group))
+    if (error) {
+      console.error('syncIntarsjaAcrossTitanGroup:', error.message)
+      return
+    }
+    setOrders((prev) =>
+      prev.map((o) => {
+        const g = Number((o.extra_fields as Record<string, unknown> | null)?.titan_group)
+        return g === group ? { ...o, intarsja: next } : o
+      }),
+    )
+  }
+
   const syncSharedFieldsToLinkedPartner = async (
     baseline: Order,
     mapped: Record<string, unknown>,
@@ -1090,6 +1117,7 @@ export function useOrders({
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
+        await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
@@ -1678,6 +1706,7 @@ export function useOrders({
         client_order_number: bastionFormData.client_order_number,
         info: bastionFormData.notes_2,
         bastion_collection: bastionFormData.collection,
+        intarsja: bastionFormData.intarsja,
         bastion_frame_type: bastionFormData.frame_type,
         bastion_frame_range: bastionFormData.frame_range,
         bastion_side_panel_k: bastionFormData.side_panel_k_w.trim()
@@ -1717,6 +1746,7 @@ export function useOrders({
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
+        await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })

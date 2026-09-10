@@ -573,6 +573,7 @@ export type BastionOrderFormData = {
   collection: string
   frame_type: string
   frame_range: string
+  intarsja: string
   side_panel_k_w: string
   side_panel_p_w: string
   side_panel_h: string
