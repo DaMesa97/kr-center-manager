@@ -93,6 +93,15 @@ where o.category = 'STA'
   )
 order by o.id desc;
 
+-- ── 5. DOKŁADKA dla pominiętych z 4c (wykonane 2026-09-14 dla 13130,
+--       12939, 12930): dorzuca TYLKO brakujące komponenty wg aktualnych
+--       receptur, istniejących/wydanych rezerwacji nie dotyka.
+--       (Pełny DO-block w historii czatu / poniżej; podmień listę id.)
+-- do $$ ... for v_order in select * from orders where id in (<IDS>) ...
+--   guard: exists(stock_reservations komponentu, status<>'cancelled') → skip;
+--   insert warehouse_stock upsert(reserved += total) + stock_reservations,
+--   total = per_unit × orders.quantity, magazyn z resolve_warehouse_for_part.
+
 -- ── 4c. Pominięte (coś już wydane — ogarnąć ręcznie, jeśli dotyczy) ─────
 select distinct o.id, o.order_number, o.frame_color, o.threshold_color
 from orders o
