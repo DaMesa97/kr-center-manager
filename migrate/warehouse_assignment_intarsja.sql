@@ -11,6 +11,19 @@
 -- pierwszej takiej receptury.
 -- =====================================================================
 
+-- ── 0. CHECK constrainty nie znają części 'intarsja' — rozszerz OBA ─────
+-- (warehouse_assignment_part_check wywalał INSERT; analogiczny constraint
+-- na warehouse_recipes wywaliłby zapis pierwszej receptury)
+alter table warehouse_assignment drop constraint warehouse_assignment_part_check;
+alter table warehouse_assignment add constraint warehouse_assignment_part_check
+  check (part in ('wing','frame','hardware','fittings','handle','peephole',
+                  'electric_strike','glazing','decorative_panel','intarsja','other'));
+
+alter table warehouse_recipes drop constraint if exists warehouse_recipes_part_check;
+alter table warehouse_recipes add constraint warehouse_recipes_part_check
+  check (part in ('wing','frame','hardware','fittings','handle','peephole',
+                  'electric_strike','glazing','decorative_panel','intarsja','other'));
+
 -- ── 1. Podgląd: magazyny i obecne przypisania Bastiona ──────────────────
 select id, code, name from warehouses order by id;
 
