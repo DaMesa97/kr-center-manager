@@ -177,6 +177,10 @@ export const RECIPE_PARTS: { value: RecipePart; label: string }[] = [
   // nie konkurowały ze skrzydłem (jedna wygrana receptura per część!).
   // ⚠️ Wymaga wiersza w warehouse_assignment (migrate/warehouse_assignment_intarsja.sql)
   { value: 'intarsja', label: 'Intarsja' },
+  // Próg + wykończenie per kolor progu — osobna część, żeby receptury progów
+  // nie konkurowały z profilami ościeżnic (jedna wygrana receptura per część!).
+  // ⚠️ Wymaga wiersza w warehouse_assignment (migrate/recipes_part_prog.sql)
+  { value: 'prog', label: 'Próg' },
   { value: 'other', label: 'Inne' },
 ]
 
