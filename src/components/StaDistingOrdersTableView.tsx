@@ -138,6 +138,9 @@ function StaDistingOrdersTableView({
           <th className="col-order-text" title="PANEL DEKORACYJNY">
             PANEL DEKORACYJNY
           </th>
+          <th className="col-order-text" title="INTARSJA (Titan)">
+            INTARSJA
+          </th>
           <th className="col-order-text" title="OKUCIA">
             OKUCIA
           </th>
@@ -146,9 +149,6 @@ function StaDistingOrdersTableView({
           </th>
           <th className="col-order-text" title="ELEKTROZACZEP">
             ELEKTROZACZEP
-          </th>
-          <th className="col-order-text" title="INTARSJA (Titan)">
-            INTARSJA
           </th>
           <th className="col-order-text" title="WIZJER">
             WIZJER
@@ -439,6 +439,9 @@ function StaDistingOrdersTableView({
               <td className="col-order-text" title={orderCellTooltip(order.decorative_panel)}>
                 {order.decorative_panel}
               </td>
+              <td className="col-order-text" title={orderCellTooltip(order.intarsja ?? '')}>
+                {order.intarsja ?? ''}
+              </td>
               <td className="col-order-text" title={orderCellTooltip(order.hardware)}>
                 {order.hardware}
               </td>
@@ -447,9 +450,6 @@ function StaDistingOrdersTableView({
               </td>
               <td className="col-order-text" title={orderCellTooltip(order.electric_strike)}>
                 {order.electric_strike}
-              </td>
-              <td className="col-order-text" title={orderCellTooltip(order.intarsja ?? '')}>
-                {order.intarsja ?? ''}
               </td>
               <td className="col-order-text" title={orderCellTooltip(order.peephole)}>
                 {order.peephole}
