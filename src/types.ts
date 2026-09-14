@@ -1045,6 +1045,7 @@ export type RecipePart =
   | 'electric_strike'
   | 'glazing'
   | 'decorative_panel'
+  | 'intarsja'
   | 'other'
 
 export type WarehouseRecipeComponent = {

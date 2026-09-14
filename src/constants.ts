@@ -173,6 +173,10 @@ export const RECIPE_PARTS: { value: RecipePart; label: string }[] = [
   { value: 'electric_strike', label: 'Elektrozaczep' },
   { value: 'glazing', label: 'Szklenie' },
   { value: 'decorative_panel', label: 'Panel dekoracyjny' },
+  // Materiały intarsji (Titan) — osobna część, żeby receptury intarsji
+  // nie konkurowały ze skrzydłem (jedna wygrana receptura per część!).
+  // ⚠️ Wymaga wiersza w warehouse_assignment (migrate/warehouse_assignment_intarsja.sql)
+  { value: 'intarsja', label: 'Intarsja' },
   { value: 'other', label: 'Inne' },
 ]
 
