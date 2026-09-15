@@ -26,6 +26,9 @@ where r.part = 'frame'
               where c.recipe_id = r.id and c.field = 'threshold_color');
 
 -- ── B. Przypisania magazynu 'prog' dla każdej dotkniętej kategorii ──────
+-- (WHERE NOT EXISTS zamiast ON CONFLICT — unikalność pilnuje partial index
+-- idx_warehouse_assignment_default po (category, part), którego ON CONFLICT
+-- z listą kolumn nie łapie)
 insert into warehouse_assignment (category, system, part, warehouse_id)
 select distinct r.category, null, 'prog', wa.warehouse_id
 from warehouse_recipes r
@@ -34,7 +37,10 @@ join warehouse_assignment wa
 where r.part = 'frame'
   and exists (select 1 from warehouse_recipe_criteria c
               where c.recipe_id = r.id and c.field = 'threshold_color')
-on conflict (category, system, part) do nothing;
+  and not exists (
+    select 1 from warehouse_assignment wa2
+    where wa2.category = r.category and wa2.part = 'prog' and wa2.system is null
+  );
 
 -- ── C. Przeniesienie rodziny + uczciwe nazwy ────────────────────────────
 update warehouse_recipes r
