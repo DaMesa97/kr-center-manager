@@ -1,4 +1,7 @@
 -- =====================================================================
+-- ⚠️ NIEAKTUALNE od 2026-09-15: match_recipes_for_order ma nowszą wersję
+--    (składanie polskich znaków) w recipes_prog_family_i_ogonki.sql.
+-- =====================================================================
 -- RECEPTURY: DYNAMICZNE KRYTERIA (2026-07-24)
 -- Zamiast sztywnych kolumn (system/model/kolor/…) receptura ma listę
 -- kryteriów: pole zlecenia + dozwolone wartości (jedna lub WIELE).

@@ -1,4 +1,7 @@
 -- =====================================================================
+-- ⚠️ NIEAKTUALNE od 2026-09-15: preview_order_stock ma nowszą wersję
+--    (składanie polskich znaków) w recipes_prog_family_i_ogonki.sql.
+-- =====================================================================
 -- REZERWACJE — TURA 2: PODGLĄD STANÓW PRZED ZAPISEM (baner w formularzu)
 -- Wymaga: rezerwacje_tura1.sql wykonane wcześniej.
 --
