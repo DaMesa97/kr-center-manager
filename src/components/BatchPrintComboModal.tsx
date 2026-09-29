@@ -4,6 +4,7 @@ import { Printer, X } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
 import { matchedDocsForOrder, type DopDocument } from '../lib/dopMatch'
+import { renderPdfForPrint } from '../lib/pdfPrint'
 import type { Order, ToastVariant } from '../types'
 
 type Props = {
@@ -138,7 +139,20 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
         if (doDocs) {
           const doc = bestDocForOrder(order)
           if (!doc) docsSkip++
-          else zplParts.push(doc.zpl_content)
+          else if (doc.doc_type === 'pdf' && doc.pdf_base64) {
+            // deklaracja PDF: render pdfjs → druk jak etykieta
+            try {
+              const { html, widthMm, heightMm } = await renderPdfForPrint(doc.pdf_base64, doc.name)
+              const res = (await ipc.invoke('label:printHtml', {
+                html, deviceName: printerName, copies: 1, widthMm, heightMm,
+              })) as { success: boolean }
+              if (res?.success) docsOk++; else docsFail++
+            } catch { docsFail++ }
+          } else if (doc.zpl_content) {
+            zplParts.push(doc.zpl_content)
+          } else {
+            docsSkip++
+          }
         }
         if (!mountedRef.current) return
         setProgress(i + 1)
@@ -148,9 +162,9 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
           const res = (await ipc.invoke('label:printRaw', {
             deviceName: printerName, zpl: zplParts.join('\n'), copies: 1,
           })) as { success: boolean; error?: string }
-          if (res?.success) docsOk = zplParts.length
-          else docsFail = zplParts.length
-        } catch { docsFail = zplParts.length }
+          if (res?.success) docsOk += zplParts.length
+          else docsFail += zplParts.length
+        } catch { docsFail += zplParts.length }
       }
       const parts: string[] = []
       if (doLabels) parts.push(`etykiety ${labelsOk}${labelsFail ? `/bł.${labelsFail}` : ''}${labelsSkip ? `/brak szablonu ${labelsSkip}` : ''}`)

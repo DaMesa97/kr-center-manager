@@ -5,7 +5,10 @@ export type DopDocument = {
   id: number
   category: string
   name: string
-  zpl_content: string
+  zpl_content: string | null
+  /** 'zpl' (RAW spool) | 'pdf' (render pdfjs → druk HTML) */
+  doc_type?: 'zpl' | 'pdf' | null
+  pdf_base64?: string | null
   system?: string | null
   wykonawca?: string | null
   glazing_type?: string | null // 'szklone' | 'pelne'

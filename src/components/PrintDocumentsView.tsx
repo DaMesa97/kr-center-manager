@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Printer, Plus, Trash2, Upload } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import type { DopDocument } from '../lib/dopMatch'
+import { renderPdfForPrint, uint8ToBase64 } from '../lib/pdfPrint'
 import type { CurrentUser, ToastVariant } from '../types'
 
 type Props = {
@@ -41,6 +42,9 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newZpl, setNewZpl] = useState('')
+  // deklaracja w PDF: base64 + rozmiar do podglądu (alternatywa dla ZPL)
+  const [newPdfB64, setNewPdfB64] = useState('')
+  const [newPdfInfo, setNewPdfInfo] = useState('')
   const [newSystem, setNewSystem] = useState('')
   const [newWykonawca, setNewWykonawca] = useState('')
   const [newGlazing, setNewGlazing] = useState('')
@@ -83,13 +87,31 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
     return (await ipc.invoke('label:printRaw', { deviceName: printerName, zpl, copies: n })) as { success: boolean; error?: string }
   }
 
+  // Dokument PDF: pdfjs renderuje strony → druk jak etykieta (label:printHtml)
+  const printPdfDoc = async (doc: PrintDocument, n: number): Promise<{ success: boolean; error?: string }> => {
+    const ipc = getIpc()
+    if (!ipc) return { success: false, error: 'Druk dostępny tylko w aplikacji desktop' }
+    if (!doc.pdf_base64) return { success: false, error: 'Dokument nie ma zapisanego PDF-a' }
+    try {
+      const { html, widthMm, heightMm } = await renderPdfForPrint(doc.pdf_base64, doc.name)
+      return (await ipc.invoke('label:printHtml', {
+        html, deviceName: printerName, copies: n, widthMm, heightMm,
+      })) as { success: boolean; error?: string }
+    } catch (e) {
+      return { success: false, error: (e as Error).message }
+    }
+  }
+
+  const printDoc = async (doc: PrintDocument, n: number) =>
+    doc.doc_type === 'pdf' ? printPdfDoc(doc, n) : printZplRaw(doc.zpl_content ?? '', n)
+
   const handlePrint = async (doc: PrintDocument) => {
     if (!printerName) { pushToast('Wybierz drukarkę', 'error'); return }
     const n = Math.max(1, Number(copies[doc.id]) || 1)
     localStorage.setItem(PRINTER_LS_KEY, printerName)
     setPrintingId(doc.id)
     try {
-      const res = await printZplRaw(doc.zpl_content, n)
+      const res = await printDoc(doc, n)
       if (res?.success) pushToast(`Wysłano ${n} szt. „${doc.name}" na ${printerName}`, 'success')
       else pushToast(`Błąd druku: ${res?.error ?? 'nieznany'}`, 'error')
     } finally {
@@ -108,7 +130,7 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
       for (const doc of docsForCat) {
         const n = Math.max(1, Number(copies[doc.id]) || 1)
         try {
-          const res = await printZplRaw(doc.zpl_content, n)
+          const res = await printDoc(doc, n)
           if (res?.success) ok++
           else failed++
         } catch { failed++ }
@@ -122,15 +144,19 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
   const handleAddDocument = async () => {
     const name = newName.trim()
     const zpl = newZpl.trim()
-    if (!name || !zpl) {
-      pushToast('Podaj nazwę i treść ZPL', 'error')
+    const isPdf = !!newPdfB64
+    if (!name || (!zpl && !isPdf)) {
+      pushToast('Podaj nazwę i treść ZPL albo wgraj PDF', 'error')
       return
     }
     setSaving(true)
     try {
       const { error } = await supabase.from('print_documents').insert([
         {
-          category, name, zpl_content: zpl,
+          category, name,
+          doc_type: isPdf ? 'pdf' : 'zpl',
+          zpl_content: isPdf ? null : zpl,
+          pdf_base64: isPdf ? newPdfB64 : null,
           system: newSystem.trim() || null,
           wykonawca: newWykonawca || null,
           glazing_type: newGlazing || null,
@@ -139,7 +165,7 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
       ])
       if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
       pushToast('Dokument dodany', 'success')
-      setAddOpen(false); setNewName(''); setNewZpl(''); setNewSystem(''); setNewWykonawca(''); setNewGlazing(''); setNewFrameKind('')
+      setAddOpen(false); setNewName(''); setNewZpl(''); setNewPdfB64(''); setNewPdfInfo(''); setNewSystem(''); setNewWykonawca(''); setNewGlazing(''); setNewFrameKind('')
       await load()
     } finally {
       if (mountedRef.current) setSaving(false)
@@ -148,12 +174,23 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
 
   const handleFile = (file: File | undefined) => {
     if (!file) return
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
     const reader = new FileReader()
     reader.onload = () => {
-      setNewZpl(String(reader.result ?? ''))
-      if (!newName.trim()) setNewName(file.name.replace(/\.(zpl|prn|txt)$/i, ''))
+      if (isPdf) {
+        const bytes = new Uint8Array(reader.result as ArrayBuffer)
+        setNewPdfB64(uint8ToBase64(bytes))
+        setNewPdfInfo(`${file.name} · ${(bytes.length / 1024).toFixed(0)} KB`)
+        setNewZpl('')
+      } else {
+        setNewZpl(String(reader.result ?? ''))
+        setNewPdfB64('')
+        setNewPdfInfo('')
+      }
+      if (!newName.trim()) setNewName(file.name.replace(/\.(zpl|prn|txt|pdf)$/i, ''))
     }
-    reader.readAsText(file)
+    if (isPdf) reader.readAsArrayBuffer(file)
+    else reader.readAsText(file)
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -227,27 +264,40 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
               <option value="szklone">Szklone</option>
               <option value="pelne">Pełne</option>
             </select>
-            <select value={newFrameKind} onChange={(e) => setNewFrameKind(e.target.value)} title="Rodzaj ościeżnicy (gł. Bastion)">
-              <option value="">Ościeżnica: dowolna</option>
-              <option value="stalowa">Stalowa</option>
-              <option value="drewniana">Drewniana</option>
-            </select>
+            {/* rodzaj ościeżnicy to kryterium TYLKO dla Bastiona — w innych
+                kategoriach mylił (pytanie Tymka: "skąd to w STA?") */}
+            {category === 'Bastion' && (
+              <select value={newFrameKind} onChange={(e) => setNewFrameKind(e.target.value)} title="Rodzaj ościeżnicy (Bastion)">
+                <option value="">Ościeżnica: dowolna</option>
+                <option value="stalowa">Stalowa</option>
+                <option value="drewniana">Drewniana</option>
+              </select>
+            )}
           </div>
           <div className="print-docs-add-zpl">
-            <textarea
-              placeholder="Wklej treść ZPL (^XA…^XZ) albo wgraj plik"
-              value={newZpl}
-              onChange={(e) => setNewZpl(e.target.value)}
-              rows={6}
-            />
+            {newPdfB64 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8 }}>
+                <span>📄 PDF gotowy: <strong>{newPdfInfo}</strong></span>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => { setNewPdfB64(''); setNewPdfInfo('') }}>
+                  Usuń
+                </button>
+              </div>
+            ) : (
+              <textarea
+                placeholder="Wklej treść ZPL (^XA…^XZ) albo wgraj plik .zpl / .pdf"
+                value={newZpl}
+                onChange={(e) => setNewZpl(e.target.value)}
+                rows={6}
+              />
+            )}
             <div className="print-docs-add-actions">
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => fileRef.current?.click()}>
-                <Upload size={14} /> Wgraj plik .zpl
+                <Upload size={14} /> Wgraj plik .zpl / .pdf
               </button>
               <input
                 ref={fileRef}
                 type="file"
-                accept=".zpl,.prn,.txt"
+                accept=".zpl,.prn,.txt,.pdf,application/pdf"
                 style={{ display: 'none' }}
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
@@ -269,6 +319,12 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
             <div key={doc.id} className="print-docs-row">
               <span className="print-docs-name">
                 {doc.name}
+                <span
+                  className="print-docs-system-badge"
+                  style={doc.doc_type === 'pdf' ? { background: '#dbeafe', color: '#1d4ed8' } : undefined}
+                >
+                  {doc.doc_type === 'pdf' ? 'PDF' : 'ZPL'}
+                </span>
                 {doc.system && doc.system.trim() ? <span className="print-docs-system-badge">{doc.system}</span> : null}
                 {doc.wykonawca ? <span className="print-docs-system-badge">{doc.wykonawca}</span> : null}
                 {doc.glazing_type ? <span className="print-docs-system-badge">{doc.glazing_type === 'pelne' ? 'pełne' : 'szklone'}</span> : null}
