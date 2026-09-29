@@ -43,6 +43,7 @@ type BastionOrdersTableViewProps = {
   handleCancelOrderClick: (order: Order) => void
   handleRestoreOrder: (order: Order) => void | Promise<void>
   onShowHistory?: (order: Order) => void
+  onPrintOrder?: (order: Order) => void
   pushToast: (message: string, variant: ToastVariant) => void
   bastionFrameOptions: ConfigOptionRecord[]
   canEditSalesChanges: boolean
@@ -73,6 +74,7 @@ function BastionOrdersTableView({
   handleCancelOrderClick,
   handleRestoreOrder,
   onShowHistory,
+  onPrintOrder,
   pushToast,
   bastionFrameOptions,
   canEditSalesChanges,
@@ -632,6 +634,16 @@ function BastionOrdersTableView({
                       (ef as Record<string, unknown>).cancelled === true
                     return (
                       <>
+                        {onPrintOrder && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => onPrintOrder(order)}
+                            title="Drukuj etykietę / deklarację DoP"
+                          >
+                            🖨️
+                          </button>
+                        )}
                         {onShowHistory && (
                           <button
                             type="button"

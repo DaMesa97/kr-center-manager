@@ -1432,6 +1432,10 @@ function App() {
   const [labelSelection, setLabelSelection] = useState<Set<number>>(new Set())
   const [batchComboOpen, setBatchComboOpen] = useState(false)
   const [dopOrder, setDopOrder] = useState<Order | null>(null)
+  // Druk kompletu (etykieta+DoP) dla JEDNEGO zamówienia prosto z wiersza
+  // tabeli — bez otwierania modala edycji (Tura Druku; wcześniej druk
+  // pojedynczego zlecenia był możliwy tylko dla kierownika przez edycję)
+  const [printComboOrder, setPrintComboOrder] = useState<Order | null>(null)
   const toggleLabelSelect = useCallback((order: Order) => {
     const id = order.id
     if (id === undefined) return
@@ -2412,12 +2416,24 @@ function App() {
           </div>
         )}
 
-        {(batchComboOpen || dopOrder) && (
+        {(batchComboOpen || dopOrder || printComboOrder) && (
           <BatchPrintComboModal
-            orders={dopOrder ? [dopOrder] : orders.filter((o) => o.id !== undefined && labelSelection.has(o.id))}
+            orders={
+              printComboOrder
+                ? [printComboOrder]
+                : dopOrder
+                  ? [dopOrder]
+                  : orders.filter((o) => o.id !== undefined && labelSelection.has(o.id))
+            }
             initialMode={dopOrder ? 'docs' : 'all'}
-            onClose={() => { setBatchComboOpen(false); setDopOrder(null) }}
-            onDone={() => { clearLabelSelection(); setDopOrder(null) }}
+            onClose={() => { setBatchComboOpen(false); setDopOrder(null); setPrintComboOrder(null) }}
+            onDone={() => {
+              // zaznaczenie czyścimy tylko po druku ZBIORCZYM — druk
+              // pojedynczego zlecenia nie może kasować zaznaczenia (audyt)
+              if (!dopOrder && !printComboOrder) clearLabelSelection()
+              setDopOrder(null)
+              setPrintComboOrder(null)
+            }}
             pushToast={pushToast}
           />
         )}
@@ -3133,6 +3149,7 @@ function App() {
                   <>
                 {(activeTab === 'STA' || activeTab === 'Disting') && (
                   <StaDistingOrdersTableView
+                    onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
                     activeTab={activeTab}
                     filteredOrders={filteredOrders}
                     tableWrapperRef={ordersTableWrapperRef}
@@ -3166,6 +3183,7 @@ function App() {
                 )}
                 {activeTab === 'Bastion' && (
                   <BastionOrdersTableView
+                    onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
                     filteredOrders={filteredOrders}
                     linkedOrders={linkedOrders}
                     isManager={isManager}
@@ -3196,6 +3214,7 @@ function App() {
                 )}
                 {activeTab === 'ST' && stOrdersStageLayout && (
                   <StOrdersTableView
+                    onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
                     filteredOrders={filteredOrders}
                     stOrdersStageLayout={stOrdersStageLayout}
                     tableWrapperRef={ordersTableWrapperRef}
@@ -3224,6 +3243,7 @@ function App() {
                 )}
                 {activeTab === 'Techniczne' && (
                   <TechniczneOrdersTableView
+                    onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
                     filteredOrders={filteredOrders}
                     tableWrapperRef={ordersTableWrapperRef}
                     isManager={isManager}
@@ -3291,6 +3311,7 @@ function App() {
                 {activeSubTab === 'Ościeżnice regulowane' && activeTab === 'Bastion' && (
                   <>
                     <BastionOrdersTableView
+                    onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
                       filteredOrders={bastionBatchOrders}
                       linkedOrders={linkedOrders}
                       isManager={isManager}

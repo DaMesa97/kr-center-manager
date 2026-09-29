@@ -34,6 +34,7 @@ type TechniczneOrdersTableViewProps = {
   onHandleCancelOrderClick: (order: Order) => void
   onHandleRestoreOrder: (order: Order) => void | Promise<void>
   onShowHistory?: (order: Order) => void
+  onPrintOrder?: (order: Order) => void
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
@@ -57,6 +58,7 @@ function TechniczneOrdersTableView({
   onHandleCancelOrderClick,
   onHandleRestoreOrder,
   onShowHistory,
+  onPrintOrder,
   pushToast,
 }: TechniczneOrdersTableViewProps) {
   const syncStickyCol1Width = useCallback(() => {
@@ -428,7 +430,17 @@ function TechniczneOrdersTableView({
                         (ef as Record<string, unknown>).cancelled === true
                       return (
                         <>
-                          {onShowHistory && (
+                          {onPrintOrder && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => onPrintOrder(order)}
+                            title="Drukuj etykietę / deklarację DoP"
+                          >
+                            🖨️
+                          </button>
+                        )}
+                        {onShowHistory && (
                             <button
                               type="button"
                               className="btn btn-sm btn-primary"

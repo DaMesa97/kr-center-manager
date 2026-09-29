@@ -45,6 +45,7 @@ type StOrdersTableViewProps = {
   onHandleCancelOrderClick: (order: Order) => void
   onHandleRestoreOrder: (order: Order) => void | Promise<void>
   onShowHistory?: (order: Order) => void
+  onPrintOrder?: (order: Order) => void
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
@@ -73,6 +74,7 @@ function StOrdersTableView({
   onHandleCancelOrderClick,
   onHandleRestoreOrder,
   onShowHistory,
+  onPrintOrder,
   pushToast,
 }: StOrdersTableViewProps) {
   const syncStickyCol1Width = useCallback(() => {
@@ -625,7 +627,17 @@ function StOrdersTableView({
                         (ef as Record<string, unknown>).cancelled === true
                       return (
                         <>
-                          {onShowHistory && (
+                          {onPrintOrder && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => onPrintOrder(order)}
+                            title="Drukuj etykietę / deklarację DoP"
+                          >
+                            🖨️
+                          </button>
+                        )}
+                        {onShowHistory && (
                             <button
                               type="button"
                               className="btn btn-sm btn-primary"

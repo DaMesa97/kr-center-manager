@@ -42,14 +42,18 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
     () => Array.from(new Set(orders.map((o) => String(o.category)))),
     [orders],
   )
+  // klucz tekstowy — nowa TABLICA orders przy re-renderze App nie może
+  // przeładowywać modala i nadpisywać wybranej drukarki (audyt druku)
+  const categoriesKey = categories.slice().sort().join('|')
 
   useEffect(() => {
     mountedRef.current = true
+    const cats = categoriesKey.split('|').filter(Boolean)
     void (async () => {
       const ipc = getIpc()
       const [tplRes, docsRes, prnList] = await Promise.all([
-        supabase.from('label_templates').select('*').in('category', categories),
-        supabase.from('print_documents').select('*').in('category', categories),
+        supabase.from('label_templates').select('*').in('category', cats),
+        supabase.from('print_documents').select('*').in('category', cats),
         ipc ? (ipc.invoke('printers:list') as Promise<WinPrinter[]>) : Promise.resolve([]),
       ])
       if (!mountedRef.current) return
@@ -58,16 +62,24 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
       const prns = (prnList ?? []) as WinPrinter[]
       setPrinters(prns)
       const saved = localStorage.getItem(PRINTER_LS_KEY)
-      setPrinterName((saved && prns.some((p) => p.name === saved) && saved) || prns.find((p) => p.isDefault)?.name || prns[0]?.name || '')
+      // nie nadpisuj wyboru użytkownika, jeśli już coś wybrał
+      setPrinterName((prev) =>
+        prev && prns.some((p) => p.name === prev)
+          ? prev
+          : (saved && prns.some((p) => p.name === saved) && saved) || prns.find((p) => p.isDefault)?.name || prns[0]?.name || '',
+      )
       setLoading(false)
     })()
     return () => { mountedRef.current = false }
-  }, [categories])
+  }, [categoriesKey])
 
   const copiesFor = (order: Order): number => {
     const id = order.id
     if (id === undefined) return 1
-    return Math.max(1, copiesByOrder[id] ?? 1)
+    // domyślnie label_qty (Bastion: mnożnik ościeżnicy × ilość) — wcześniej
+    // wyliczane, ale nigdy nieużywane przy druku (audyt druku)
+    const fallback = Math.max(1, Number((order as { label_qty?: unknown }).label_qty) || 1)
+    return Math.max(1, copiesByOrder[id] ?? fallback)
   }
   const setCopiesForOrder = (order: Order, value: number) => {
     const id = order.id
@@ -76,10 +88,17 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
   }
 
   const templateForCategory = (cat: string): LabelTemplate | undefined => {
-    const forCat = templates.filter((t) => t.category === cat)
-    return forCat.find((t) => t.is_default) ?? forCat[0]
+    // deterministycznie: domyślny, potem alfabetycznie (wcześniej kolejność
+    // z bazy = przypadkowa, gdy brak szablonu domyślnego)
+    const forCat = templates
+      .filter((t) => t.category === cat)
+      .sort((a, b) => Number(b.is_default) - Number(a.is_default) || String(a.name).localeCompare(String(b.name), 'pl'))
+    return forCat[0]
   }
-  const docsForOrder = (order: Order): PrintDocument[] => matchedDocsForOrder(order, documents)
+  // JEDNA najlepiej dopasowana deklaracja (lista jest posortowana po
+  // szczegółowości) — wcześniej drukowały się WSZYSTKIE pasujące (audyt druku)
+  const bestDocForOrder = (order: Order): PrintDocument | undefined =>
+    matchedDocsForOrder(order, documents)[0]
 
   const handlePrint = async () => {
     const ipc = getIpc()
@@ -92,6 +111,9 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
     let labelsOk = 0, labelsFail = 0, labelsSkip = 0
     let docsOk = 0, docsFail = 0, docsSkip = 0
     try {
+      // ZPL zbieramy do JEDNEJ paczki — każde wywołanie printRaw to osobny
+      // PowerShell z kompilacją C# (sekundy!), więc paczka = jeden strzał
+      const zplParts: string[] = []
       for (let i = 0; i < orders.length; i++) {
         const order = orders[i]
         // 1) etykieta QR (HTML -> Windows)
@@ -112,21 +134,23 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
             } catch { labelsFail++ }
           }
         }
-        // 2) DoP / dokumenty (surowy ZPL -> ta sama drukarka Windows, RAW spool)
+        // 2) DoP — JEDNA najlepiej dopasowana deklaracja per zamówienie
         if (doDocs) {
-          const docs = docsForOrder(order)
-          if (docs.length === 0) { docsSkip++ }
-          for (const doc of docs) {
-            try {
-              const res = (await ipc.invoke('label:printRaw', {
-                deviceName: printerName, zpl: doc.zpl_content, copies: 1,
-              })) as { success: boolean }
-              if (res?.success) docsOk++; else docsFail++
-            } catch { docsFail++ }
-          }
+          const doc = bestDocForOrder(order)
+          if (!doc) docsSkip++
+          else zplParts.push(doc.zpl_content)
         }
         if (!mountedRef.current) return
         setProgress(i + 1)
+      }
+      if (doDocs && zplParts.length > 0) {
+        try {
+          const res = (await ipc.invoke('label:printRaw', {
+            deviceName: printerName, zpl: zplParts.join('\n'), copies: 1,
+          })) as { success: boolean; error?: string }
+          if (res?.success) docsOk = zplParts.length
+          else docsFail = zplParts.length
+        } catch { docsFail = zplParts.length }
       }
       const parts: string[] = []
       if (doLabels) parts.push(`etykiety ${labelsOk}${labelsFail ? `/bł.${labelsFail}` : ''}${labelsSkip ? `/brak szablonu ${labelsSkip}` : ''}`)
@@ -177,7 +201,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
                 <span className="order-field-label-text">Zamówienia</span>
                 <div className="batch-label-list">
                   {orders.map((o) => {
-                    const docCount = docsForOrder(o).length
+                    const bestDoc = bestDocForOrder(o)
                     return (
                       <div key={o.id ?? o.order_number} className="batch-label-row">
                         <span className="batch-label-row-nr">{o.order_number}</span>
@@ -188,7 +212,15 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
                               <span className="batch-chip batch-chip--panel">dostawka</span>
                             ) : null}
                             {hasRealDim(o.top_light) ? <span className="batch-chip batch-chip--light">naświetle</span> : null}
-                            {doDocs ? <span className="batch-chip">{docCount} DoP</span> : null}
+                            {doDocs ? (
+                              bestDoc ? (
+                                <span className="batch-chip" title={`Deklaracja: ${bestDoc.name}`}>
+                                  DoP: {String(bestDoc.name).slice(0, 28)}
+                                </span>
+                              ) : (
+                                <span className="batch-chip" style={{ color: '#b91c1c' }}>brak DoP</span>
+                              )
+                            ) : null}
                           </span>
                         </div>
                         {doLabels ? (

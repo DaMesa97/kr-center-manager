@@ -4,7 +4,6 @@ import { readFileSync, writeFileSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
-import net from 'node:net'
 import { execFile } from 'node:child_process'
 import * as Sentry from '@sentry/electron/main'
 
@@ -224,33 +223,8 @@ function setupPrinting(mainWin: BrowserWindow) {
     },
   )
 
-  // Druk ZPL (statyczne DoP) — surowy ZPL prosto do Zebry po TCP (domyślnie port 9100).
-  ipcMain.handle(
-    'label:printZpl',
-    async (_e, args: { ip: string; port?: number; zpl: string; copies?: number }) => {
-      const { ip, port = 9100, zpl, copies = 1 } = args
-      if (!ip || !zpl) return { success: false, error: 'Brak IP drukarki lub treści ZPL' }
-      // Każda kopia = osobny blok ZPL (przewidywalne, niezależne od ^PQ w pliku)
-      const body = zpl.repeat(Math.max(1, copies))
-      return await new Promise<{ success: boolean; error?: string }>((resolve) => {
-        const socket = new net.Socket()
-        let settled = false
-        const done = (res: { success: boolean; error?: string }) => {
-          if (settled) return
-          settled = true
-          socket.destroy()
-          resolve(res)
-        }
-        socket.setTimeout(7000)
-        socket.connect(port, ip, () => {
-          socket.write(body, 'utf8', () => socket.end())
-        })
-        socket.on('close', () => done({ success: true }))
-        socket.on('error', (err) => done({ success: false, error: err.message }))
-        socket.on('timeout', () => done({ success: false, error: 'Przekroczono czas połączenia z drukarką' }))
-      })
-    },
-  )
+  // (kanał label:printZpl po TCP 9100 usunięty — martwy od beta.21,
+  //  całość druku ZPL idzie przez label:printRaw / kolejkę Windows)
 
   // Druk ZPL na drukarkę WINDOWS (RAW spool) — surowe bajty prosto do urządzenia,
   // z pominięciem sterownika (Zebra dostaje czysty ZPL). Wybór po nazwie z Windows,
@@ -264,7 +238,9 @@ function setupPrinting(mainWin: BrowserWindow) {
       const body = zpl.repeat(Math.max(1, copies))
       const tmp = path.join(os.tmpdir(), `krzpl_${Date.now()}_${Math.floor(Math.random() * 1e6)}.bin`)
       try {
-        writeFileSync(tmp, body, 'latin1')
+        // UTF-8, nie latin1! latin1 gubiło polskie znaki ("ł" → "B") —
+        // Zebra z ^CI28 czyta UTF-8 poprawnie (Tura Druku, audyt 2026-09-29)
+        writeFileSync(tmp, body, 'utf8')
         const psScript = [
           '$ErrorActionPreference="Stop"',
           'Add-Type @"',
@@ -278,7 +254,7 @@ function setupPrinting(mainWin: BrowserWindow) {
           '[DllImport("winspool.drv",SetLastError=true)] static extern bool StartPagePrinter(IntPtr h);',
           '[DllImport("winspool.drv",SetLastError=true)] static extern bool EndPagePrinter(IntPtr h);',
           '[DllImport("winspool.drv",SetLastError=true)] static extern bool WritePrinter(IntPtr h,byte[] b,int n,out int w);',
-          'public static void Send(string printer,byte[] bytes){IntPtr h;if(!OpenPrinter(printer,out h,IntPtr.Zero))throw new Exception("OpenPrinter failed");DOCINFO di=new DOCINFO();di.pDocName="KR ZPL";di.pDataType="RAW";if(!StartDocPrinter(h,1,ref di)){ClosePrinter(h);throw new Exception("StartDocPrinter failed");}StartPagePrinter(h);int w;WritePrinter(h,bytes,bytes.Length,out w);EndPagePrinter(h);EndDocPrinter(h);ClosePrinter(h);}',
+          'public static void Send(string printer,byte[] bytes){IntPtr h;if(!OpenPrinter(printer,out h,IntPtr.Zero))throw new Exception("OpenPrinter failed");DOCINFO di=new DOCINFO();di.pDocName="KR ZPL";di.pDataType="RAW";if(!StartDocPrinter(h,1,ref di)){ClosePrinter(h);throw new Exception("StartDocPrinter failed");}if(!StartPagePrinter(h)){EndDocPrinter(h);ClosePrinter(h);throw new Exception("StartPagePrinter failed");}int w;bool ok=WritePrinter(h,bytes,bytes.Length,out w);EndPagePrinter(h);EndDocPrinter(h);ClosePrinter(h);if(!ok||w!=bytes.Length)throw new Exception("WritePrinter failed ("+w+"/"+bytes.Length+" B)");}',
           '}',
           '"@',
           `$bytes=[System.IO.File]::ReadAllBytes(${JSON.stringify(tmp)})`,
