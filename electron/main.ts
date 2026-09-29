@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { readFileSync, writeFileSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -202,23 +202,53 @@ function setupPrinting(mainWin: BrowserWindow) {
       try {
         writeFileSync(tmpHtml, html, 'utf8')
         await printWin.loadFile(tmpHtml)
+
+        // Wirtualna drukarka PDF: cichy druk czeka na NIEWIDOCZNY dialog
+        // zapisu i wisi w nieskończoność. Zamiast tego generujemy PDF sami
+        // i pokazujemy normalne okno zapisu (nazwa z <title> etykiety).
+        if (/print to pdf|pdfcreator|pdf24|dopdf/i.test(deviceName || '')) {
+          const titleMatch = /<title>([^<]*)<\/title>/i.exec(html)
+          const baseName = (titleMatch?.[1] || 'wydruk').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'wydruk'
+          const pdfData = await printWin.webContents.printToPDF({
+            printBackground: true,
+            margins: { top: 0, bottom: 0, left: 0, right: 0 },
+            ...(widthMm && heightMm
+              ? { pageSize: { width: widthMm / 25.4, height: heightMm / 25.4 } }
+              : {}),
+          })
+          const { canceled, filePath } = await dialog.showSaveDialog(mainWin, {
+            title: 'Zapisz PDF',
+            defaultPath: path.join(app.getPath('documents'), `${baseName}.pdf`),
+            filters: [{ name: 'PDF', extensions: ['pdf'] }],
+          })
+          if (canceled || !filePath) return { success: false, failureReason: 'Zapis PDF anulowany' }
+          writeFileSync(filePath, pdfData)
+          return { success: true }
+        }
+
         const pageSize =
           widthMm && heightMm
             ? { width: Math.round(widthMm * 1000), height: Math.round(heightMm * 1000) }
             : undefined
-        const result = await new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
-          printWin.webContents.print(
-            {
-              silent: true,
-              printBackground: true,
-              deviceName: deviceName || undefined,
-              copies: Math.max(1, copies),
-              margins: { marginType: 'none' },
-              ...(pageSize ? { pageSize } : {}),
-            },
-            (success, failureReason) => resolve({ success, failureReason }),
-          )
-        })
+        // bezpiecznik: druk nie może wisieć w nieskończoność (przycisk "Drukuję…")
+        const result = await Promise.race([
+          new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
+            printWin.webContents.print(
+              {
+                silent: true,
+                printBackground: true,
+                deviceName: deviceName || undefined,
+                copies: Math.max(1, copies),
+                margins: { marginType: 'none' },
+                ...(pageSize ? { pageSize } : {}),
+              },
+              (success, failureReason) => resolve({ success, failureReason }),
+            )
+          }),
+          new Promise<{ success: boolean; failureReason?: string }>((resolve) =>
+            setTimeout(() => resolve({ success: false, failureReason: 'Drukarka nie odpowiedziała (timeout 90 s)' }), 90000),
+          ),
+        ])
         return result
       } catch (err) {
         return { success: false, failureReason: (err as Error).message }
