@@ -59,6 +59,7 @@ import DeleteConfirmDialog from './components/DeleteConfirmDialog'
 import StockShortageDialog from './components/StockShortageDialog'
 import { AppDialogHost } from './lib/appDialogs'
 import { initColumnResize } from './lib/columnResize'
+import { initTopScroll } from './lib/topScroll'
 import GlobalSpinner from './components/GlobalSpinner'
 import ToastStack from './components/ToastStack'
 import StageRevertPopup from './components/StageRevertPopup'
@@ -314,6 +315,8 @@ function App() {
 
   // Resize kolumn na każdej tabeli (globalna delegacja — zgłoszenie #33)
   useEffect(() => initColumnResize(), [])
+  // Górny pasek przewijania na każdej tabeli (jak w zamówieniach)
+  useEffect(() => initTopScroll(), [])
 
   // Ładowanie konfiguracji przy starcie sesji
   useEffect(() => {
