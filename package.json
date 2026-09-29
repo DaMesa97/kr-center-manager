@@ -16,6 +16,7 @@
     "build": "tsc && vite build && electron-builder",
     "build:mobile": "vite build --config vite.mobile.config.ts",
     "release": "tsc && vite build && node scripts/release.mjs",
+    "backup:db": "node scripts/backup-db.mjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",
     "preview": "vite preview"
