@@ -4,9 +4,21 @@
 // drogą co etykiety. Zero zależności od zewnętrznych czytników PDF.
 
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+// ?worker = Vite tworzy prawdziwego workera modułowego (workerSrc przez ?url
+// potrafił nigdy nie wystartować → getDocument wisiał bez błędu)
+import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
 
-GlobalWorkerOptions.workerSrc = workerUrl
+GlobalWorkerOptions.workerPort = new PdfJsWorker()
+
+// twardy limit: lepszy czytelny błąd niż wieczne "Drukuję…"
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${what} — przekroczono ${ms / 1000}s`)), ms),
+    ),
+  ])
+}
 
 // ~180 dpi — ostry tekst deklaracji, rozsądny rozmiar danych
 const RENDER_SCALE = 2.5
@@ -32,13 +44,17 @@ export function uint8ToBase64(bytes: Uint8Array): string {
 export async function renderPdfPages(
   pdfBase64: string,
 ): Promise<{ imgs: string[]; widthMm: number; heightMm: number }> {
-  const pdf = await getDocument({ data: base64ToUint8(pdfBase64) }).promise
+  const pdf = await withTimeout(
+    getDocument({ data: base64ToUint8(pdfBase64) }).promise,
+    20000,
+    'Otwieranie PDF (pdfjs)',
+  )
   const imgs: string[] = []
   let widthMm = 210
   let heightMm = 297
 
   for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p)
+    const page = await withTimeout(pdf.getPage(p), 15000, `Strona ${p} PDF`)
     const base = page.getViewport({ scale: 1 })
     if (p === 1) {
       widthMm = Math.round(base.width * PT_TO_MM * 10) / 10
@@ -50,7 +66,11 @@ export async function renderPdfPages(
     canvas.height = Math.ceil(viewport.height)
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Brak kontekstu canvas')
-    await page.render({ canvas, canvasContext: ctx, viewport }).promise
+    await withTimeout(
+      page.render({ canvas, canvasContext: ctx, viewport }).promise,
+      20000,
+      `Render strony ${p} PDF`,
+    )
     imgs.push(canvas.toDataURL('image/png'))
   }
   return { imgs, widthMm, heightMm }

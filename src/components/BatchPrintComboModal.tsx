@@ -115,6 +115,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
     let docsSkip = 0
     let zplSkipped = 0
     try {
+      try {
       const sections: PdfSection[] = []
       for (let i = 0; i < orders.length; i++) {
         const order = orders[i]
@@ -164,6 +165,10 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
         onClose()
       } else if (res?.error !== 'Zapis PDF anulowany') {
         pushToast(`Błąd eksportu PDF: ${res?.error ?? 'nieznany'}`, 'error')
+      }
+      } catch (e) {
+        // każdy zonk (pdfjs, render, IPC) ląduje w toaście zamiast wiecznego "Drukuję…"
+        pushToast(`Błąd eksportu PDF: ${(e as Error).message}`, 'error')
       }
     } finally {
       if (mountedRef.current) setPrinting(false)
