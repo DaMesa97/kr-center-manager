@@ -111,6 +111,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
     localStorage.setItem(PRINTER_LS_KEY, printerName)
     let labelsOk = 0, labelsFail = 0, labelsSkip = 0
     let docsOk = 0, docsFail = 0, docsSkip = 0
+    let lastDocError = ''
     try {
       // ZPL zbieramy do JEDNEJ paczki — każde wywołanie printRaw to osobny
       // PowerShell z kompilacją C# (sekundy!), więc paczka = jeden strzał
@@ -145,9 +146,10 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
               const { html, widthMm, heightMm } = await renderPdfForPrint(doc.pdf_base64, doc.name)
               const res = (await ipc.invoke('label:printHtml', {
                 html, deviceName: printerName, copies: 1, widthMm, heightMm,
-              })) as { success: boolean }
-              if (res?.success) docsOk++; else docsFail++
-            } catch { docsFail++ }
+              })) as { success: boolean; failureReason?: string }
+              if (res?.success) docsOk++
+              else { docsFail++; lastDocError = res?.failureReason || 'druk HTML odrzucony' }
+            } catch (e) { docsFail++; lastDocError = (e as Error).message }
           } else if (doc.zpl_content) {
             zplParts.push(doc.zpl_content)
           } else {
@@ -163,14 +165,14 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
             deviceName: printerName, zpl: zplParts.join('\n'), copies: 1,
           })) as { success: boolean; error?: string }
           if (res?.success) docsOk += zplParts.length
-          else docsFail += zplParts.length
-        } catch { docsFail += zplParts.length }
+          else { docsFail += zplParts.length; lastDocError = res?.error || 'RAW odrzucony' }
+        } catch (e) { docsFail += zplParts.length; lastDocError = (e as Error).message }
       }
       const parts: string[] = []
       if (doLabels) parts.push(`etykiety ${labelsOk}${labelsFail ? `/bł.${labelsFail}` : ''}${labelsSkip ? `/brak szablonu ${labelsSkip}` : ''}`)
       if (doDocs) parts.push(`DoP ${docsOk}${docsFail ? `/bł.${docsFail}` : ''}${docsSkip ? `/bez dok. ${docsSkip}` : ''}`)
       const anyFail = labelsFail + docsFail > 0
-      pushToast(`Wydruk: ${parts.join(', ')}`, anyFail ? 'error' : 'success')
+      pushToast(`Wydruk: ${parts.join(', ')}${docsFail && lastDocError ? ` — ${lastDocError.slice(0, 160)}` : ''}`, anyFail ? 'error' : 'success')
       if (!anyFail) { onDone?.(); onClose() }
     } finally {
       if (mountedRef.current) setPrinting(false)
