@@ -122,7 +122,7 @@ begin
     incoming as (
       select
         i.component_id,
-        sum(i.quantity_ordered - i.quantity_received) as incoming_qty,
+        sum(i.quantity_ordered - i.quantity_received)::numeric as incoming_qty,
         min(po.expected_delivery_date)::date as earliest_eta,
         coalesce(
           jsonb_agg(
@@ -137,7 +137,7 @@ begin
       from purchase_order_items i
       join purchase_orders po on po.id = i.purchase_order_id
       where po.status in ('sent', 'partial')
-        and i.status in ('pending', 'partial')
+        and i.status_per_item in ('pending', 'partial')
         and (i.quantity_ordered - i.quantity_received) > 0
       group by i.component_id
     ),

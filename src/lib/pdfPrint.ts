@@ -67,7 +67,7 @@ export async function renderPdfPages(
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Brak kontekstu canvas')
     await withTimeout(
-      page.render({ canvas, canvasContext: ctx, viewport }).promise,
+      page.render({ canvasContext: ctx, viewport }).promise,
       20000,
       `Render strony ${p} PDF`,
     )
