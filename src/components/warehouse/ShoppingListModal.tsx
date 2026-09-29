@@ -1,3 +1,4 @@
+import { appConfirm } from '../../lib/appDialogs'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
@@ -247,8 +248,8 @@ export default function ShoppingListModal({
             <button
               type="button"
               className="btn btn-sm btn-danger"
-              onClick={() => {
-                if (!window.confirm('Wyczyścić całą listę zakupową?')) return
+              onClick={async () => {
+                if (!(await appConfirm('Wyczyścić całą listę zakupową?'))) return
                 onClear()
               }}
             >

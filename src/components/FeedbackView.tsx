@@ -1,3 +1,4 @@
+import { appConfirm } from '../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Trash2, RefreshCw } from 'lucide-react'
 import { supabase } from '../supabaseClient'
@@ -104,7 +105,7 @@ export default function FeedbackView({ isManager, currentUser, pushToast }: Prop
   }
 
   const handleDelete = async (item: FeedbackItem) => {
-    if (!window.confirm('Usunąć to zgłoszenie?')) return
+    if (!(await appConfirm('Usunąć to zgłoszenie?'))) return
     const { error } = await supabase.from('feedback').delete().eq('id', item.id)
     if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
     await load()

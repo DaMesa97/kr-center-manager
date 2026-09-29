@@ -1,3 +1,4 @@
+import { appConfirm } from '../../lib/appDialogs'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
@@ -181,7 +182,7 @@ export default function PurchaseOrderDetailsModal({
 
   const cancelOrder = async () => {
     if (!purchaseOrder) return
-    if (!window.confirm('Anulować zamówienie?')) return
+    if (!(await appConfirm('Anulować zamówienie?'))) return
     const { error } = await supabase.rpc('cancel_purchase_order', { p_po_id: purchaseOrder.id })
     if (error) {
       pushToast(`Błąd: ${error.message}`, 'error')

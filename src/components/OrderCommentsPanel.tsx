@@ -1,3 +1,4 @@
+import { appAlert, appConfirm } from '../lib/appDialogs'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
@@ -172,7 +173,7 @@ function OrderCommentsPanel({
     setSubmitting(false)
 
     if (error) {
-      alert(`Błąd: ${error.message}`)
+      void appAlert(`Błąd: ${error.message}`)
       return
     }
 
@@ -195,7 +196,7 @@ function OrderCommentsPanel({
     const { error } = await supabase.from('order_comments').update({ content }).eq('id', editingId)
 
     if (error) {
-      alert(`Błąd: ${error.message}`)
+      void appAlert(`Błąd: ${error.message}`)
       return
     }
 
@@ -207,12 +208,12 @@ function OrderCommentsPanel({
   const handleDelete = async (c: OrderComment) => {
     const canDelete = c.author_id === currentUserId || isManagerRole(currentUserRole)
     if (!canDelete) return
-    if (!window.confirm('Czy na pewno usunąć ten komentarz?')) return
+    if (!(await appConfirm('Czy na pewno usunąć ten komentarz?'))) return
 
     const { error } = await supabase.from('order_comments').delete().eq('id', c.id)
 
     if (error) {
-      alert(`Błąd: ${error.message}`)
+      void appAlert(`Błąd: ${error.message}`)
       return
     }
 

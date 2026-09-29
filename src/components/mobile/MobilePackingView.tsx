@@ -1,3 +1,4 @@
+import { appConfirm } from '../../lib/appDialogs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Search, ArrowLeft, Camera, Trash2 } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
@@ -148,7 +149,7 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
   }
 
   const deletePhoto = async (photo: Photo) => {
-    if (!window.confirm('Usunąć zdjęcie?')) return
+    if (!(await appConfirm('Usunąć zdjęcie?'))) return
     const { error } = await supabase.from('order_photos').delete().eq('id', photo.id)
     if (error) { flash('Błąd usuwania'); return }
     await supabase.storage.from(BUCKET).remove([photo.storage_path])

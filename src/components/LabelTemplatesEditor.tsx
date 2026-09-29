@@ -1,3 +1,4 @@
+import { appConfirm } from '../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
@@ -104,7 +105,7 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
   }
 
   const handleDelete = async (t: LabelTemplate) => {
-    if (!window.confirm(`Usunąć szablon „${t.name}"?`)) return
+    if (!(await appConfirm(`Usunąć szablon „${t.name}"?`))) return
     const { error } = await supabase.from('label_templates').delete().eq('id', t.id)
     if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
     pushToast('Usunięto', 'success')

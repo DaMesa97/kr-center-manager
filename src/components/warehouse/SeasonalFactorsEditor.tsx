@@ -1,3 +1,4 @@
+import { appAlert } from '../../lib/appDialogs'
 import { useCallback, useEffect, useState } from 'react'
 import { Settings } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
@@ -57,7 +58,7 @@ function SeasonalFactorsEditor({ isManager, onSaved }: Props) {
     setSaving(null)
 
     if (error) {
-      alert(`Błąd: ${error.message}`)
+      void appAlert(`Błąd: ${error.message}`)
       return
     }
 
@@ -142,7 +143,7 @@ function SeasonalFactorRow({
   const handleSave = async () => {
     const num = parseFloat(localFactor)
     if (Number.isNaN(num) || num < 0) {
-      alert('Mnożnik musi być liczbą ≥ 0')
+      void appAlert('Mnożnik musi być liczbą ≥ 0')
       return
     }
     await onUpdate(factor.month, num, localNote.trim() || null)

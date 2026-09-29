@@ -57,6 +57,7 @@ import {
 } from './utils'
 import DeleteConfirmDialog from './components/DeleteConfirmDialog'
 import StockShortageDialog from './components/StockShortageDialog'
+import { AppDialogHost } from './lib/appDialogs'
 import GlobalSpinner from './components/GlobalSpinner'
 import ToastStack from './components/ToastStack'
 import StageRevertPopup from './components/StageRevertPopup'
@@ -2097,6 +2098,7 @@ function App() {
     <>
       <UpdateBlocker />
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <AppDialogHost />
       {globalLoading && <GlobalSpinner />}
       {deleteConfirm && (
         <DeleteConfirmDialog

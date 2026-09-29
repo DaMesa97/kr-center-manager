@@ -1,3 +1,4 @@
+import { appAlert } from '../../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 import type { AlertThresholds, StockAlert } from '../../types'
@@ -164,7 +165,7 @@ function AlertsView({ isManager }: Props) {
 
   const handleSaveThresholds = async () => {
     if (tCritical >= tWarning || tWarning >= tObservation) {
-      alert('Progi muszą być w kolejności: krytyczny < ostrzeżenie < obserwacja')
+      void appAlert('Progi muszą być w kolejności: krytyczny < ostrzeżenie < obserwacja')
       return
     }
     const { error } = await supabase
@@ -176,7 +177,7 @@ function AlertsView({ isManager }: Props) {
       })
       .eq('id', 1)
     if (error) {
-      alert(`Błąd: ${error.message}`)
+      void appAlert(`Błąd: ${error.message}`)
       return
     }
     setEditingThresholds(false)

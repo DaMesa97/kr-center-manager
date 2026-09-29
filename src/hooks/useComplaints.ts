@@ -1,3 +1,4 @@
+import { appAlert } from '../lib/appDialogs'
 import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { INITIAL_COMPLAINT_FORM_DATA, TABS } from '../constants'
@@ -261,7 +262,7 @@ export function useComplaints({
 
       if (distError || !distComplaint) {
         console.error('Błąd zapisu reklamacji Disting:', JSON.stringify(distError))
-        alert('Błąd zapisu reklamacji Disting')
+        void appAlert('Błąd zapisu reklamacji Disting')
         setComplaintFormLoading(false)
         return
       }
@@ -321,7 +322,7 @@ export function useComplaints({
 
       if (staError || !staComplaint) {
         console.error(staError)
-        alert('Błąd zapisu reklamacji STA')
+        void appAlert('Błąd zapisu reklamacji STA')
         setComplaintFormLoading(false)
         return
       }
@@ -381,7 +382,7 @@ export function useComplaints({
       })
       if (error) {
         console.error(error)
-        alert('Błąd zapisu reklamacji')
+        void appAlert('Błąd zapisu reklamacji')
         setComplaintFormLoading(false)
         return
       }

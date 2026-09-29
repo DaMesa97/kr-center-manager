@@ -1,3 +1,4 @@
+import { appConfirm } from '../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Printer, Plus, Trash2, Upload } from 'lucide-react'
 import { supabase } from '../supabaseClient'
@@ -157,7 +158,7 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
   }
 
   const handleDeleteDocument = async (doc: PrintDocument) => {
-    if (!window.confirm(`Usunąć dokument „${doc.name}"?`)) return
+    if (!(await appConfirm(`Usunąć dokument „${doc.name}"?`))) return
     const { error } = await supabase.from('print_documents').delete().eq('id', doc.id)
     if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
     pushToast('Usunięto', 'success')

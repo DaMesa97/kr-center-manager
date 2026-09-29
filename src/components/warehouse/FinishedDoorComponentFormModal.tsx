@@ -1,3 +1,4 @@
+import { appAlert } from '../../lib/appDialogs'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ConfigOptionRecord, Supplier, WarehouseComponent } from '../../types'
@@ -195,23 +196,23 @@ function FinishedDoorComponentFormModal({
 
   const handleSave = async () => {
     if (productCategory === 'door_wing' && (!wingModel || !color || !size || !direction)) {
-      window.alert('Skrzydło wymaga: model, kolor, rozmiar i kierunek.')
+      void appAlert('Skrzydło wymaga: model, kolor, rozmiar i kierunek.')
       return
     }
     if (productCategory === 'door_frame_simple' && (!color || !size || !direction)) {
-      window.alert('Ościeżnica prosta wymaga: kolor, rozmiar i kierunek.')
+      void appAlert('Ościeżnica prosta wymaga: kolor, rozmiar i kierunek.')
       return
     }
     if (productCategory === 'door_frame_adjustable' && (!frameCode || !color || !size || !direction)) {
-      window.alert('Ościeżnica regulowana wymaga: typ regulacji, kolor, rozmiar i kierunek.')
+      void appAlert('Ościeżnica regulowana wymaga: typ regulacji, kolor, rozmiar i kierunek.')
       return
     }
     if (productCategory === 'door_handle' && (!handleModel || !handleColor || !handleShield)) {
-      window.alert('Klamka wymaga: model, kolor i szyld.')
+      void appAlert('Klamka wymaga: model, kolor i szyld.')
       return
     }
     if (productCategory === 'door_hinge_cover' && !hingeCoverColor) {
-      window.alert('Osłonka wymaga: kolor.')
+      void appAlert('Osłonka wymaga: kolor.')
       return
     }
 
@@ -244,7 +245,7 @@ function FinishedDoorComponentFormModal({
         .ilike('code', `${codeBase}%`)
       if (codeFetchError) {
         setSaving(false)
-        window.alert(`Błąd pobierania kodów: ${codeFetchError.message}`)
+        void appAlert(`Błąd pobierania kodów: ${codeFetchError.message}`)
         return
       }
       const existingCodes = new Set(
@@ -294,7 +295,7 @@ function FinishedDoorComponentFormModal({
       const { error } = await supabase.from('warehouse_components').insert(payload)
       if (error) {
         setSaving(false)
-        window.alert(`Błąd: ${error.message}`)
+        void appAlert(`Błąd: ${error.message}`)
         return
       }
     } else {
@@ -304,7 +305,7 @@ function FinishedDoorComponentFormModal({
         .eq('id', initialComponent!.id)
       if (error) {
         setSaving(false)
-        window.alert(`Błąd: ${error.message}`)
+        void appAlert(`Błąd: ${error.message}`)
         return
       }
     }

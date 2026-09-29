@@ -1,3 +1,4 @@
+import { appConfirm } from '../../lib/appDialogs'
 import { useState } from 'react'
 import type { LeadTimeRule, ToastVariant } from '../../types'
 
@@ -113,7 +114,7 @@ export default function LeadTimeRulesView({ rules, onSave, onDelete, onToggleAct
   }
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Usunąć regułę "${name}"?`)) return
+    if (!(await appConfirm(`Usunąć regułę "${name}"?`))) return
     setDeletingId(id)
     try {
       await onDelete(id)

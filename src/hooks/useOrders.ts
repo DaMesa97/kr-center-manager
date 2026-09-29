@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { supabase } from '../supabaseClient'
 import { buildPartnerSyncPayload } from '../lib/linkedSync'
+import { appConfirm } from '../lib/appDialogs'
 import {
   EDITABLE_CATEGORIES,
   INITIAL_BASTION_ORDER_FORM,
@@ -2444,8 +2445,11 @@ export function useOrders({
 
   const handleMarkVerified = useCallback(
     async (orderId: number) => {
-      const confirmed = window.confirm(
+      // appConfirm zamiast window.confirm — natywny dialog w Electronie
+      // potrafił zabić fokus klawiatury w całej apce (zgłoszenie #56)
+      const confirmed = await appConfirm(
         'Czy na pewno oznaczyć zamówienie jako zweryfikowane? Zniknie z listy weryfikacji.',
+        { title: 'Weryfikacja zamówienia', confirmLabel: 'Oznacz jako zweryfikowane' },
       )
       if (!confirmed) return
       const { error } = await supabase.rpc('mark_bot_order_verified', { p_order_id: orderId })

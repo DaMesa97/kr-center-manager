@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { RECIPE_PARTS } from '../../constants'
 import type { RecipePart, WarehouseRecipe } from '../../types'
 import { supabase } from '../../supabaseClient'
@@ -67,6 +67,30 @@ function RecipesView({
   const [componentsCache, setComponentsCache] = useState<Record<number, RecipeComponentLine[]>>({})
   const [componentsLoadingId, setComponentsLoadingId] = useState<number | null>(null)
 
+  // Indeks składników do wyszukiwania: receptura → "nazwy + kody komponentów"
+  // (zgłoszenie #55 Dawida: wpisuję "SKRZYDŁO DS68 STRATUS..." i widzę
+  // wszystkie receptury, które pobierają ten towar)
+  const [componentIndex, setComponentIndex] = useState<Map<number, string>>(new Map())
+  useEffect(() => {
+    void (async () => {
+      const { data, error } = await supabase
+        .from('warehouse_recipe_components')
+        .select('recipe_id, warehouse_components(name, code)')
+      if (error) {
+        console.error(error)
+        return
+      }
+      const idx = new Map<number, string>()
+      for (const r of (data ?? []) as Array<Record<string, unknown>>) {
+        const wc = r.warehouse_components as { name?: string; code?: string } | { name?: string; code?: string }[] | null
+        const c = Array.isArray(wc) ? wc[0] : wc
+        const rid = r.recipe_id as number
+        idx.set(rid, `${idx.get(rid) ?? ''} ${(c?.name ?? '').toLowerCase()} ${(c?.code ?? '').toLowerCase()}`)
+      }
+      setComponentIndex(idx)
+    })()
+  }, [recipes])
+
   const toggleExpand = (recipeId: number) => {
     if (expandedId === recipeId) {
       setExpandedId(null)
@@ -122,9 +146,11 @@ function RecipesView({
       const hay = [r.name, r.model, r.wing_color, r.frame_color]
         .map((x) => (x ?? '').toLowerCase())
         .join(' ')
-      return hay.includes(q)
+      if (hay.includes(q)) return true
+      // szukanie po SKŁADNIKU — receptury pobierające dany komponent
+      return (componentIndex.get(r.id) ?? '').includes(q)
     })
-  }, [recipes, categoryFilter, partFilter, search])
+  }, [recipes, categoryFilter, partFilter, search, componentIndex])
 
   return (
     <>
@@ -162,7 +188,7 @@ function RecipesView({
         <input
           type="text"
           className="search-input"
-          placeholder="Szukaj po nazwie, modelu, kolorze…"
+          placeholder="Szukaj po nazwie, kolorze lub SKŁADNIKU (np. kod/nazwa komponentu)…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ minWidth: 220, flex: '1 1 200px' }}

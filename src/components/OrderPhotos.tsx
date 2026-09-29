@@ -1,3 +1,4 @@
+import { appConfirm } from '../lib/appDialogs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Trash2, X } from 'lucide-react'
 import { supabase } from '../supabaseClient'
@@ -79,7 +80,7 @@ export default function OrderPhotos({ orderId, currentUserId, currentUserInitial
   }
 
   const handleDelete = async (photo: OrderPhoto) => {
-    if (!window.confirm('Usunąć to zdjęcie?')) return
+    if (!(await appConfirm('Usunąć to zdjęcie?'))) return
     const { error: dbErr } = await supabase.from('order_photos').delete().eq('id', photo.id)
     if (dbErr) {
       pushToast?.(`Błąd usuwania zdjęcia: ${dbErr.message}`, 'error')

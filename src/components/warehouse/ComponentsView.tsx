@@ -1,3 +1,4 @@
+import { appAlert, appConfirm } from '../../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity } from 'lucide-react'
@@ -220,7 +221,7 @@ function ComponentsView({
 
   const handleDeleteRow = useCallback(
     async (id: number) => {
-      if (!window.confirm('Czy na pewno chcesz usunąć ten komponent?')) return
+      if (!(await appConfirm('Czy na pewno chcesz usunąć ten komponent?'))) return
       await onDelete(id)
     },
     [onDelete],
@@ -229,7 +230,7 @@ function ComponentsView({
   const handleSubmit = useCallback(async () => {
     const name = form.name.trim()
     if (!name) {
-      window.alert('Uzupełnij nazwę.')
+      void appAlert('Uzupełnij nazwę.')
       return
     }
     // Kod opcjonalny: jeśli pusty, generujemy automatycznie z nazwy i deduplikujemy
@@ -264,19 +265,19 @@ function ComponentsView({
     const pftRaw = form.pallets_per_full_tir
     const pftNum = pftRaw === '' || pftRaw === null || pftRaw === undefined ? null : Number(pftRaw)
     if (minNum !== null && Number.isNaN(minNum)) {
-      window.alert('Minimalny stan musi być liczbą.')
+      void appAlert('Minimalny stan musi być liczbą.')
       return
     }
     if (targetNum !== null && Number.isNaN(targetNum)) {
-      window.alert('Docelowy stan musi być liczbą.')
+      void appAlert('Docelowy stan musi być liczbą.')
       return
     }
     if (uppNum !== null && (Number.isNaN(uppNum) || uppNum < 1)) {
-      window.alert('Sztuki na palecie muszą być >= 1.')
+      void appAlert('Sztuki na palecie muszą być >= 1.')
       return
     }
     if (pftNum !== null && (Number.isNaN(pftNum) || pftNum < 1)) {
-      window.alert('Palety na pełny TIR muszą być >= 1.')
+      void appAlert('Palety na pełny TIR muszą być >= 1.')
       return
     }
     const payloadCommon = {
@@ -292,7 +293,7 @@ function ComponentsView({
       notes: form.notes.trim() ? form.notes.trim() : null,
     }
     if (selectedWarehouseIds.length === 0) {
-      window.alert('Wybierz co najmniej jeden magazyn.')
+      void appAlert('Wybierz co najmniej jeden magazyn.')
       return
     }
     setSaving(true)
@@ -349,7 +350,7 @@ function ComponentsView({
               disabled={cleaning}
               title="Usuwa zerowe półki tam, gdzie komponent nie pasuje do magazynu (surowce z Wewnętrznych, drzwi spoza Wewnętrznych)."
               onClick={async () => {
-                if (!window.confirm('Usunąć błędne (zerowe) półki — surowce z magazynów wewnętrznych i drzwi wewnętrzne spoza nich?')) return
+                if (!(await appConfirm('Usunąć błędne (zerowe) półki — surowce z magazynów wewnętrznych i drzwi wewnętrzne spoza nich?'))) return
                 setCleaning(true)
                 try {
                   await onCleanupStock()
