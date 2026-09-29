@@ -134,6 +134,18 @@ function ComponentsView({
     [components],
   )
 
+  // Liczniki dla PRAWDZIWYCH kategorii (ZAMKI I OKUCIA, BLACHY, SKRZYDŁA…) —
+  // zgłoszenie #32: piguła "Surowce" wrzucała wszystko do jednego wora
+  const categoryCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    components.forEach((c) => {
+      const cat = c.category?.trim()
+      if (!cat) return
+      m.set(cat, (m.get(cat) ?? 0) + 1)
+    })
+    return m
+  }, [components])
+
   // Wyszukiwarka + filtr po dostawcy (zgłoszenia z firmy)
   const [search, setSearch] = useState('')
   const [supplierFilter, setSupplierFilter] = useState<number | ''>('')
@@ -141,7 +153,9 @@ function ComponentsView({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return components.filter((c) => {
-      if (categoryFilter !== 'all' && c.product_category !== categoryFilter) return false
+      if (categoryFilter.startsWith('cat:')) {
+        if ((c.category?.trim() ?? '') !== categoryFilter.slice(4)) return false
+      } else if (categoryFilter !== 'all' && c.product_category !== categoryFilter) return false
       if (supplierFilter !== '' && c.supplier_id !== supplierFilter) return false
       if (!q) return true
       return (
@@ -369,26 +383,47 @@ function ComponentsView({
       ) : (
         <div>
           <div className="components-filter-pills">
+            <button
+              type="button"
+              className={`alerts-filter-pill ${categoryFilter === 'all' ? 'alerts-filter-pill--active' : ''}`}
+              onClick={() => setCategoryFilter('all')}
+            >
+              Wszystkie
+              <span className="alerts-filter-pill-count">{counts.all}</span>
+            </button>
+            {/* prawdziwe kategorie zamiast worka "Surowce" (#32) */}
+            {uniqueCategories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                className={`alerts-filter-pill ${categoryFilter === `cat:${cat}` ? 'alerts-filter-pill--active' : ''}`}
+                onClick={() => setCategoryFilter(`cat:${cat}`)}
+              >
+                {cat}
+                <span className="alerts-filter-pill-count">{categoryCounts.get(cat) ?? 0}</span>
+              </button>
+            ))}
+            {/* moduł drzwi wewnętrznych — piguły tylko gdy coś w nich jest */}
             {[
-              { key: 'all', label: 'Wszystkie' },
-              { key: 'raw', label: 'Surowce' },
               { key: 'door_wing', label: 'Skrzydła wewnętrzne' },
               { key: 'door_frame', label: 'Ościeżnice wewnętrzne' },
               { key: 'door_handle', label: 'Klamki' },
               { key: 'door_hinge_cover', label: 'Osłonki na zawias' },
-            ].map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                className={`alerts-filter-pill ${categoryFilter === p.key ? 'alerts-filter-pill--active' : ''}`}
-                onClick={() => setCategoryFilter(p.key)}
-              >
-                {p.label}
-                <span className="alerts-filter-pill-count">
-                  {counts[p.key as keyof typeof counts]}
-                </span>
-              </button>
-            ))}
+            ]
+              .filter((p) => (counts[p.key as keyof typeof counts] as number) > 0)
+              .map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  className={`alerts-filter-pill ${categoryFilter === p.key ? 'alerts-filter-pill--active' : ''}`}
+                  onClick={() => setCategoryFilter(p.key)}
+                >
+                  {p.label}
+                  <span className="alerts-filter-pill-count">
+                    {counts[p.key as keyof typeof counts]}
+                  </span>
+                </button>
+              ))}
           </div>
           <div className="orders-filters" style={{ margin: '8px 0 10px', gap: 8, flexWrap: 'wrap' }}>
             <input
@@ -452,7 +487,7 @@ function ComponentsView({
                 )}
                 <SortableTh label="JEDNOSTKA" sortKey="unit" state={sort} onToggle={handleSort} />
                 <SortableTh label="MIN / TARGET" sortKey="min" state={sort} onToggle={handleSort} />
-                {(categoryFilter === 'all' || categoryFilter === 'raw') && (
+                {(categoryFilter === 'all' || categoryFilter === 'raw' || categoryFilter.startsWith('cat:')) && (
                   <SortableTh label="UWAGI" sortKey="notes" state={sort} onToggle={handleSort} />
                 )}
                 <th>AKCJE</th>
@@ -521,7 +556,7 @@ function ComponentsView({
                     {row.min_stock_level != null ? row.min_stock_level : '—'} /{' '}
                     {row.target_stock_level != null ? row.target_stock_level : '—'}
                   </td>
-                  {(categoryFilter === 'all' || categoryFilter === 'raw') && (
+                  {(categoryFilter === 'all' || categoryFilter === 'raw' || categoryFilter.startsWith('cat:')) && (
                     <td>{row.notes?.trim() ? row.notes : '—'}</td>
                   )}
                   <td>
