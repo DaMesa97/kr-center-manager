@@ -464,11 +464,21 @@ function ComponentsView({
                   <td>{row.name}</td>
                   <td>{row.code ?? '—'}</td>
                   <td>
-                    <span className="component-category-badge">
-                      {row.category?.trim()
-                        ? row.category
-                        : (PRODUCT_CATEGORY_LABELS[row.product_category] ?? row.product_category)}
-                    </span>
+                    {row.category?.trim() ? (
+                      <span className="component-category-badge">{row.category}</span>
+                    ) : row.product_category && row.product_category !== 'raw' ? (
+                      <span className="component-category-badge">
+                        {PRODUCT_CATEGORY_LABELS[row.product_category] ?? row.product_category}
+                      </span>
+                    ) : (
+                      // "Surowiec" mylił (zgłoszenie #32) — puste = do uzupełnienia
+                      <span
+                        style={{ color: '#b45309', fontSize: '0.8rem' }}
+                        title="Komponent bez kategorii — uzupełnij w edycji (np. Zamki i okucia, Szklenie, Blachy)"
+                      >
+                        — uzupełnij
+                      </span>
+                    )}
                   </td>
                   <td>{row.supplier_id ? (suppliersById.get(row.supplier_id)?.name ?? '—') : '—'}</td>
                   {categoryFilter === 'door_wing' && (
