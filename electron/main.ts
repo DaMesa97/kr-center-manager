@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { autoUpdater } from 'electron-updater'
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs'
+import { appendFileSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
@@ -367,6 +367,16 @@ function createWindow() {
 
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', new Date().toLocaleString())
+  })
+
+  // Diagnostyka: console renderera do pliku (%TEMP%\krcenter-renderer.log) —
+  // błędy druku/pdfjs widać bez otwierania DevTools na hali
+  const rlog = path.join(os.tmpdir(), 'krcenter-renderer.log')
+  win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    if (level < 2) return // tylko warning/error
+    try {
+      appendFileSync(rlog, `[${new Date().toISOString()}] [${level === 3 ? 'ERR' : 'WARN'}] ${message} (${sourceId}:${line})\n`)
+    } catch { /* ignore */ }
   })
 
   if (VITE_DEV_SERVER_URL) {
