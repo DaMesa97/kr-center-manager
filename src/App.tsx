@@ -3184,6 +3184,8 @@ function App() {
                 {activeTab === 'Bastion' && (
                   <BastionOrdersTableView
                     onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
+                    selectedForLabel={labelSelection}
+                    onToggleLabelSelect={toggleLabelSelect}
                     filteredOrders={filteredOrders}
                     linkedOrders={linkedOrders}
                     isManager={isManager}
@@ -3312,6 +3314,8 @@ function App() {
                   <>
                     <BastionOrdersTableView
                     onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
+                    selectedForLabel={labelSelection}
+                    onToggleLabelSelect={toggleLabelSelect}
                       filteredOrders={bastionBatchOrders}
                       linkedOrders={linkedOrders}
                       isManager={isManager}

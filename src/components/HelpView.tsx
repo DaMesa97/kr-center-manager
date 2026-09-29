@@ -221,7 +221,7 @@ const SECTIONS: Section[] = [
         <p>Otwórz zlecenie → <b>🏷️ Drukuj etykietę</b> (podgląd + liczba kopii) lub <b>📄 Drukuj DoP</b> (dobrana deklaracja).</p>
         <h4>Druk masowy — „Drukuj komplet"</h4>
         <ol>
-          <li>W tabeli zaznacz zlecenia <b>checkboxami przy numerze</b> (można z różnych kategorii).</li>
+          <li>W tabeli zaznacz zlecenia <b>checkboxami przy numerze</b> (w ramach jednej kategorii — zmiana zakładki czyści zaznaczenie).</li>
           <li>W prawym górnym rogu pojawi się <b>„Drukuj komplet (N)"</b>.</li>
           <li>W oknie: wybierz drukarkę, zaznacz co drukować (☑ etykieta QR, ☑ DoP), ustaw <b>liczbę etykiet per zlecenie</b> — np. drzwi z naświetlem i dostawką = 3 szt. Znaczniki <i>dostawka</i>/<i>naświetle</i> przy każdym wierszu podpowiadają ile dać.</li>
           <li>Program drukuje po kolei z paskiem postępu i raportem (ile OK, ile pominięto).</li>

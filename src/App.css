@@ -7557,13 +7557,6 @@ html, body, #root {
 
 /* Etykiety — Dokumenty do druku (ZPL/DoP) */
 .print-docs-view { padding: 4px 0; }
-.print-docs-printers { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-.print-docs-printers-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-.print-docs-printer-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.9rem; }
-.print-docs-printer-row--editing { background: #eef2f7; border-radius: 6px; padding: 2px 6px; }
-.print-docs-printer-row-actions { display: flex; gap: 6px; align-items: center; }
-.print-docs-printer-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.print-docs-printer-add input { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
 .print-docs-add { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
 .print-docs-add > input { padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 6px; max-width: 360px; }
 .print-docs-add-zpl { display: flex; flex-direction: column; gap: 8px; }
@@ -7683,7 +7676,6 @@ html, body, #root {
 .batch-label-row-nr { font-weight: 600; min-width: 64px; flex-shrink: 0; }
 .batch-label-row-info { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .batch-label-row-sys { font-size: 0.82rem; font-weight: 600; color: #1e293b; }
-.batch-label-row-meta { font-size: 0.74rem; color: #64748b; }
 .batch-label-row-chips { display: flex; gap: 4px; margin-top: 2px; flex-wrap: wrap; }
 .batch-chip { font-size: 0.68rem; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
 .batch-chip--panel { background: #dbeafe; color: #1e40af; }
@@ -7694,7 +7686,6 @@ html, body, #root {
 .print-docs-system-badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-size: 0.7rem; font-weight: 600; }
 
 /* Combo druk — info o kanałach drukarki */
-.batch-printer-channels { font-size: 0.78rem; color: #475569; background: #f1f5f9; border-radius: 6px; padding: 6px 10px; }
 
 /* Podgląd szablonu etykiety — rzeczywisty rozmiar, z przewijaniem */
 .label-tpl-preview-frame {

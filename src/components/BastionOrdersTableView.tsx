@@ -44,6 +44,8 @@ type BastionOrdersTableViewProps = {
   handleRestoreOrder: (order: Order) => void | Promise<void>
   onShowHistory?: (order: Order) => void
   onPrintOrder?: (order: Order) => void
+  selectedForLabel?: Set<number>
+  onToggleLabelSelect?: (order: Order) => void
   pushToast: (message: string, variant: ToastVariant) => void
   bastionFrameOptions: ConfigOptionRecord[]
   canEditSalesChanges: boolean
@@ -75,6 +77,8 @@ function BastionOrdersTableView({
   handleRestoreOrder,
   onShowHistory,
   onPrintOrder,
+  selectedForLabel,
+  onToggleLabelSelect,
   pushToast,
   bastionFrameOptions,
   canEditSalesChanges,
@@ -239,6 +243,16 @@ function BastionOrdersTableView({
                   .join(' ')}
                 title={orderNumberCellTooltip(order, null, rowReleased)}
               >
+                {onToggleLabelSelect && (
+                  <input
+                    type="checkbox"
+                    className="order-select-check"
+                    checked={order.id !== undefined && !!selectedForLabel?.has(order.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => onToggleLabelSelect(order)}
+                    title="Zaznacz do druku etykiety"
+                  />
+                )}
                 {rowReleased ? (
                   <span className="released-badge order-badge" title="Zrealizowane (wydanie)">
                     ZREALIZOWANE
