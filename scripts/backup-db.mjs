@@ -63,6 +63,12 @@ try {
   })
 } catch (e) {
   console.error('❌ pg_dump nie powiódł się (kod wyjścia):', e.status ?? e.message)
+  // nie zostawiaj pustego/urwanego pliku po nieudanej próbie
+  try {
+    if (existsSync(outFile)) unlinkSync(outFile)
+  } catch {
+    /* ignore */
+  }
   process.exit(1)
 }
 
