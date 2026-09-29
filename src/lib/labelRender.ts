@@ -83,7 +83,12 @@ export async function renderLabelHtml(template: LabelTemplate, order: Order): Pr
 
   const w = Number(template.width_mm) || 100
   const h = Number(template.height_mm) || 50
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  // <title> = firma + numer zlecenia: przy "Zapisz jako PDF" Windows bierze
+  // nazwę pliku z tytułu strony (bez tego proponował krzaki z adresu data:)
+  const docTitle = escapeHtml(
+    [str(order.company), str(order.order_number)].filter(Boolean).join(' ') || 'etykieta',
+  )
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${docTitle}</title><style>
     @page { size: ${w}mm ${h}mm; margin: 0; }
     html, body { margin: 0; padding: 0; }
     body { width: ${w}mm; height: ${h}mm; box-sizing: border-box; font-family: Arial, sans-serif; overflow: hidden; }
