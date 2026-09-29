@@ -1,6 +1,34 @@
 import { useState, type RefObject } from 'react'
 import type { GlassAllowance, Order } from '../types'
 import { calcGlassDim, getGlassAllowance } from '../utils'
+import { generateGlassOrderPdf, type GlassOrderLine } from '../utils/glassOrderPdfGenerator'
+import { appAlert, appConfirm } from '../lib/appDialogs'
+
+// Pozycje szyb (naświetle / dostawka A / B) dla jednego zamówienia
+function glassLinesFor(
+  order: Order,
+  activeTab: string,
+  glassAllowances: GlassAllowance[],
+): GlassOrderLine[] {
+  const tlAllowance = getGlassAllowance(glassAllowances, activeTab, 'top_light')
+  const spAllowance = getGlassAllowance(glassAllowances, activeTab, 'side_panel')
+  const qty = Math.max(1, Number(order.quantity) || 1)
+  const base = { orderNumber: String(order.order_number ?? ''), company: String(order.company ?? ''), qty }
+  const lines: GlassOrderLine[] = []
+
+  const dim = (raw: unknown, aw: { w: number; h: number }): string => {
+    const [w, h] = String(raw ?? '').split('×').map((v) => parseInt(v) || 0)
+    return w && h ? calcGlassDim(w, h, aw.w, aw.h) : ''
+  }
+
+  const tl = dim(order.top_light, tlAllowance)
+  if (tl) lines.push({ ...base, element: 'Naświetle', glazing: String(order.top_light_glazing ?? '').trim(), glassDim: tl })
+  const spA = dim(order.side_panel_a || order.side_panel, spAllowance)
+  if (spA) lines.push({ ...base, element: 'Dostawka A', glazing: String(order.side_panel_a_glazing || order.side_panel_glazing || '').trim(), glassDim: spA })
+  const spB = dim(order.side_panel_b, spAllowance)
+  if (spB) lines.push({ ...base, element: 'Dostawka B', glazing: String(order.side_panel_b_glazing ?? '').trim(), glassDim: spB })
+  return lines
+}
 
 type GlassViewProps = {
   orders: Order[]
@@ -36,8 +64,55 @@ export default function GlassView({
     }
   }
 
+  // "Zamów szyby (PDF)": wszystkie pozycje BEZ daty zamówienia → jeden PDF
+  // dla szklarza (pogrupowany po rodzaju szkła), potem opcjonalny stempel daty
+  const [generating, setGenerating] = useState(false)
+  const pendingOrders = orders.filter(
+    (o) =>
+      (o.top_light || o.side_panel_a || o.side_panel || o.side_panel_b) &&
+      !o.glass_order_date &&
+      glassLinesFor(o, activeTab, glassAllowances).length > 0,
+  )
+
+  const handleGenerateGlassOrder = async () => {
+    if (pendingOrders.length === 0) {
+      void appAlert('Wszystkie szyby z tej listy są już zamówione — nie ma nic do wygenerowania.')
+      return
+    }
+    setGenerating(true)
+    try {
+      const lines = pendingOrders.flatMap((o) => glassLinesFor(o, activeTab, glassAllowances))
+      generateGlassOrderPdf(lines)
+      const ok = await appConfirm(
+        `PDF wygenerowany (${lines.length} pozycji z ${pendingOrders.length} zamówień). Oznaczyć te zamówienia jako "szyba zamówiona" z dzisiejszą datą?`,
+        { title: 'Zamówienie szyb', confirmLabel: 'Tak, oznacz jako zamówione' },
+      )
+      if (ok) {
+        for (const o of pendingOrders) {
+          await onSendGlassOrder(o)
+        }
+      }
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   return (
     <div className="glass-view">
+      <div style={{ margin: '0 0 10px', display: 'flex', gap: 10, alignItems: 'center' }}>
+        <button
+          type="button"
+          className="btn btn-sm btn-success"
+          disabled={generating || pendingOrders.length === 0}
+          onClick={() => void handleGenerateGlassOrder()}
+          title="Generuje PDF zamówienia u szklarza ze wszystkich pozycji bez daty zamówienia (pogrupowany po rodzaju szkła)"
+        >
+          🧾 {generating ? 'Generuję…' : `Zamów szyby (PDF) — ${pendingOrders.length} zam.`}
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--color-text-muted, #64748b)' }}>
+          zbiera wszystkie pozycje bez „Daty zam. szyby"
+        </span>
+      </div>
       <div className="table-wrapper orders-table-wrapper" ref={tableWrapperRef}>
         <table className="orders-table glass-table">
           <thead>
