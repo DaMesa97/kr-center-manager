@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
-import { appendFileSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
@@ -369,14 +369,40 @@ function createWindow() {
     win?.webContents.send('main-process-message', new Date().toLocaleString())
   })
 
-  // Diagnostyka: console renderera do pliku (%TEMP%\krcenter-renderer.log) —
-  // błędy druku/pdfjs widać bez otwierania DevTools na hali
-  const rlog = path.join(os.tmpdir(), 'krcenter-renderer.log')
+  // ── Stały log błędów aplikacji ────────────────────────────────────
+  // Wszystkie warningi/błędy konsoli renderera + awarie procesu głównego
+  // lecą do pliku w danych aplikacji (przeżywa sprzątanie %TEMP%).
+  // Rotacja przy 2 MB (bieżący → .old). Podgląd: Pomoc → „Pokaż log błędów".
+  const logDir = path.join(app.getPath('userData'), 'logs')
+  try { mkdirSync(logDir, { recursive: true }) } catch { /* ignore */ }
+  const rlog = path.join(logDir, 'errors.log')
+  const logLine = (tag: string, msg: string) => {
+    try {
+      try {
+        if (existsSync(rlog) && statSync(rlog).size > 2 * 1024 * 1024) {
+          const old = path.join(logDir, 'errors.old.log')
+          try { unlinkSync(old) } catch { /* ignore */ }
+          renameSync(rlog, old)
+        }
+      } catch { /* ignore */ }
+      appendFileSync(rlog, `[${new Date().toISOString()}] [${tag}] ${msg}\n`)
+    } catch { /* ignore */ }
+  }
+  logLine('APP', `start v${app.getVersion()} (${VITE_DEV_SERVER_URL ? 'dev' : 'prod'})`)
   win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
     if (level < 2) return // tylko warning/error
-    try {
-      appendFileSync(rlog, `[${new Date().toISOString()}] [${level === 3 ? 'ERR' : 'WARN'}] ${message} (${sourceId}:${line})\n`)
-    } catch { /* ignore */ }
+    logLine(level === 3 ? 'ERR' : 'WARN', `${message} (${sourceId}:${line})`)
+  })
+  win.webContents.on('render-process-gone', (_e, details) => {
+    logLine('CRASH', `renderer gone: ${details.reason} (exitCode ${details.exitCode})`)
+  })
+  process.on('uncaughtException', (err) => logLine('MAIN-ERR', err.stack || err.message))
+  process.on('unhandledRejection', (reason) => logLine('MAIN-REJ', String(reason)))
+
+  // Pomoc → przycisk otwierający katalog z logiem
+  ipcMain.handle('log:reveal', () => {
+    try { shell.showItemInFolder(rlog) } catch { /* ignore */ }
+    return rlog
   })
 
   if (VITE_DEV_SERVER_URL) {

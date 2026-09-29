@@ -470,6 +470,22 @@ export default function HelpView({ isManager = false }: HelpViewProps) {
         <p>
           Pełny przewodnik po programie. Wybierz temat z listy albo użyj wyszukiwarki.
           Wersja aplikacji: <b>{packageJson.version}</b>.
+          {isManager && (
+            <>
+              {' '}
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                title="Otwiera katalog z plikiem errors.log — wszystkie błędy aplikacji z tego komputera (przydatne przy zgłaszaniu problemów)"
+                onClick={() => {
+                  const ipc = (window as Window & { ipcRenderer?: { invoke: (c: string) => Promise<unknown> } }).ipcRenderer
+                  void ipc?.invoke('log:reveal')
+                }}
+              >
+                🩺 Pokaż log błędów
+              </button>
+            </>
+          )}
         </p>
         <label className="help-search">
           <Search size={15} />
