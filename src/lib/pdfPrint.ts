@@ -28,10 +28,10 @@ export function uint8ToBase64(bytes: Uint8Array): string {
   return btoa(bin)
 }
 
-export async function renderPdfForPrint(
+/** Strony PDF-a jako obrazki (dataURL) + rozmiar strony w mm. */
+export async function renderPdfPages(
   pdfBase64: string,
-  title: string,
-): Promise<{ html: string; widthMm: number; heightMm: number; pages: number }> {
+): Promise<{ imgs: string[]; widthMm: number; heightMm: number }> {
   const pdf = await getDocument({ data: base64ToUint8(pdfBase64) }).promise
   const imgs: string[] = []
   let widthMm = 210
@@ -53,6 +53,14 @@ export async function renderPdfForPrint(
     await page.render({ canvas, canvasContext: ctx, viewport }).promise
     imgs.push(canvas.toDataURL('image/png'))
   }
+  return { imgs, widthMm, heightMm }
+}
+
+export async function renderPdfForPrint(
+  pdfBase64: string,
+  title: string,
+): Promise<{ html: string; widthMm: number; heightMm: number; pages: number }> {
+  const { imgs, widthMm, heightMm } = await renderPdfPages(pdfBase64)
 
   const body = imgs
     .map(
@@ -66,5 +74,5 @@ export async function renderPdfForPrint(
     html, body { margin: 0; padding: 0; }
   </style></head><body>${body}</body></html>`
 
-  return { html, widthMm, heightMm, pages: pdf.numPages }
+  return { html, widthMm, heightMm, pages: imgs.length }
 }

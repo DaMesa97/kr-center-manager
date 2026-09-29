@@ -61,6 +61,33 @@ export const LABEL_FIELDS: { key: string; label: string; value: (o: Order) => st
   { key: 'qr',              label: 'Kod QR (ID zlecenia)',   value: () => '' },
 ]
 
+// Body etykiety (podstawione pola + QR) + wymiary — do samodzielnego druku
+// albo do sklejenia w zbiorczy PDF (printBundle)
+export async function renderLabelBody(
+  template: LabelTemplate,
+  order: Order,
+): Promise<{ body: string; widthMm: number; heightMm: number }> {
+  const qrPayload = str(order.id) || str(order.order_number)
+  let qrImg = ''
+  try {
+    const dataUrl = await QRCode.toDataURL(qrPayload, { margin: 0, width: 240 })
+    qrImg = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:contain" alt="QR" />`
+  } catch {
+    qrImg = ''
+  }
+  let body = template.html
+  for (const field of LABEL_FIELDS) {
+    const val = field.key === 'qr' ? qrImg : (escapeHtml(field.value(order)) || '-')
+    body = body.split(`{{${field.key}}}`).join(val)
+  }
+  body = body.replace(/\{\{\s*[\wąćęłńóśźż.-]+\s*\}\}/gi, '-')
+  return {
+    body,
+    widthMm: Number(template.width_mm) || 100,
+    heightMm: Number(template.height_mm) || 50,
+  }
+}
+
 // Renderuje finalny HTML etykiety: podstawia pola + generuje QR + ustawia rozmiar strony
 export async function renderLabelHtml(template: LabelTemplate, order: Order): Promise<string> {
   const qrPayload = str(order.id) || str(order.order_number)

@@ -206,7 +206,7 @@ function setupPrinting(mainWin: BrowserWindow) {
         // Wirtualna drukarka PDF: cichy druk czeka na NIEWIDOCZNY dialog
         // zapisu i wisi w nieskończoność. Zamiast tego generujemy PDF sami
         // i pokazujemy normalne okno zapisu (nazwa z <title> etykiety).
-        if (/print to pdf|pdfcreator|pdf24|dopdf/i.test(deviceName || '')) {
+        if (/print to pdf|adobe pdf|pdfcreator|pdf24|dopdf|foxit|nitro pdf/i.test(deviceName || '')) {
           const titleMatch = /<title>([^<]*)<\/title>/i.exec(html)
           const baseName = (titleMatch?.[1] || 'wydruk').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'wydruk'
           const pdfData = await printWin.webContents.printToPDF({
@@ -252,6 +252,40 @@ function setupPrinting(mainWin: BrowserWindow) {
         return result
       } catch (err) {
         return { success: false, failureReason: (err as Error).message }
+      } finally {
+        if (!printWin.isDestroyed()) printWin.close()
+        try { unlinkSync(tmpHtml) } catch { /* ignore */ }
+      }
+    },
+  )
+
+  // Zbiorczy eksport do PDF: jeden plik z etykietami (różne rozmiary stron
+  // przez nazwane @page) i deklaracjami. preferCSSPageSize = rozmiary z CSS.
+  ipcMain.handle(
+    'print:exportPdf',
+    async (_e, args: { html: string; defaultName?: string }) => {
+      const { html, defaultName = 'wydruk' } = args
+      const printWin = new BrowserWindow({ show: false, webPreferences: { offscreen: false } })
+      const tmpHtml = path.join(os.tmpdir(), `krpdf_${Date.now()}_${Math.floor(Math.random() * 1e6)}.html`)
+      try {
+        writeFileSync(tmpHtml, html, 'utf8')
+        await printWin.loadFile(tmpHtml)
+        const pdfData = await printWin.webContents.printToPDF({
+          printBackground: true,
+          preferCSSPageSize: true,
+          margins: { top: 0, bottom: 0, left: 0, right: 0 },
+        })
+        const safeName = defaultName.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'wydruk'
+        const { canceled, filePath } = await dialog.showSaveDialog(mainWin, {
+          title: 'Zapisz PDF',
+          defaultPath: path.join(app.getPath('documents'), `${safeName}.pdf`),
+          filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        })
+        if (canceled || !filePath) return { success: false, error: 'Zapis PDF anulowany' }
+        writeFileSync(filePath, pdfData)
+        return { success: true, filePath }
+      } catch (err) {
+        return { success: false, error: (err as Error).message }
       } finally {
         if (!printWin.isDestroyed()) printWin.close()
         try { unlinkSync(tmpHtml) } catch { /* ignore */ }

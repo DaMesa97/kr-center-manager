@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
 import { supabase } from '../supabaseClient'
-import { renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
+import { renderLabelBody, renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
 import { matchedDocsForOrder, type DopDocument } from '../lib/dopMatch'
-import { renderPdfForPrint } from '../lib/pdfPrint'
+import { renderPdfForPrint, renderPdfPages } from '../lib/pdfPrint'
+import { buildCombinedPdfHtml, type PdfSection } from '../lib/printBundle'
 import type { Order, ToastVariant } from '../types'
 
 type Props = {
@@ -25,6 +26,8 @@ function getIpc(): IpcLike | undefined {
 
 const PRINTER_LS_KEY = 'labelPrinterName'
 const hasRealDim = (v: unknown) => /[1-9]/.test(String(v ?? ''))
+// wirtualny wpis na liście drukarek: jeden zbiorczy plik PDF zamiast druku
+const PDF_EXPORT = '::pdf-export'
 
 export default function BatchPrintComboModal({ orders, onClose, onDone, initialMode = 'all', pushToast }: Props) {
   const [templates, setTemplates] = useState<LabelTemplate[]>([])
@@ -101,11 +104,78 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
   const bestDocForOrder = (order: Order): PrintDocument | undefined =>
     matchedDocsForOrder(order, documents)[0]
 
+  // Zbiorczy eksport: etykiety + deklaracje wszystkich zamówień w JEDNYM pliku
+  // PDF (jedno okno zapisu) — bez przepychanek z wirtualnymi drukarkami PDF
+  const handleExportPdf = async () => {
+    const ipc = getIpc()
+    if (!ipc) { pushToast('Eksport dostępny tylko w aplikacji desktop', 'error'); return }
+    setPrinting(true)
+    setProgress(0)
+    let labelsSkip = 0
+    let docsSkip = 0
+    let zplSkipped = 0
+    try {
+      const sections: PdfSection[] = []
+      for (let i = 0; i < orders.length; i++) {
+        const order = orders[i]
+        if (doLabels) {
+          const tpl = templateForCategory(String(order.category))
+          if (!tpl) labelsSkip++
+          else {
+            const { body, widthMm, heightMm } = await renderLabelBody(tpl, order)
+            sections.push({ widthMm, heightMm, bodyHtml: body, repeat: copiesFor(order) })
+          }
+        }
+        if (doDocs) {
+          const doc = bestDocForOrder(order)
+          if (!doc) docsSkip++
+          else if (doc.doc_type === 'pdf' && doc.pdf_base64) {
+            const { imgs, widthMm, heightMm } = await renderPdfPages(doc.pdf_base64)
+            for (const src of imgs) {
+              sections.push({
+                widthMm, heightMm,
+                bodyHtml: `<img src="${src}" style="width:${widthMm}mm;height:${heightMm}mm;display:block" />`,
+              })
+            }
+          } else {
+            zplSkipped++ // ZPL to język drukarki — nie da się go sensownie włożyć do PDF-a
+          }
+        }
+        if (!mountedRef.current) return
+        setProgress(i + 1)
+      }
+      if (sections.length === 0) {
+        pushToast('Nie ma czego zapisać (brak szablonów/deklaracji PDF)', 'error')
+        return
+      }
+      const single = orders.length === 1 ? orders[0] : null
+      const defaultName = single
+        ? [String(single.company ?? '').trim(), String(single.order_number ?? '').trim()].filter(Boolean).join(' ') || 'wydruk'
+        : `komplet ${new Date().toISOString().slice(0, 10)} (${orders.length} zam.)`
+      const html = buildCombinedPdfHtml(sections, defaultName)
+      const res = (await ipc.invoke('print:exportPdf', { html, defaultName })) as { success: boolean; error?: string }
+      if (res?.success) {
+        const notes: string[] = []
+        if (labelsSkip) notes.push(`${labelsSkip} bez szablonu etykiety`)
+        if (docsSkip) notes.push(`${docsSkip} bez deklaracji`)
+        if (zplSkipped) notes.push(`${zplSkipped} deklaracji ZPL pominięto (PDF nie obsłuży ZPL)`)
+        pushToast(`Zapisano PDF${notes.length ? ` (${notes.join(', ')})` : ''}`, 'success')
+        onDone?.()
+        onClose()
+      } else if (res?.error !== 'Zapis PDF anulowany') {
+        pushToast(`Błąd eksportu PDF: ${res?.error ?? 'nieznany'}`, 'error')
+      }
+    } finally {
+      if (mountedRef.current) setPrinting(false)
+    }
+  }
+
   const handlePrint = async () => {
     const ipc = getIpc()
     if (!ipc) { pushToast('Druk dostępny tylko w aplikacji desktop', 'error'); return }
     if (!printerName) { pushToast('Wybierz drukarkę', 'error'); return }
     if (!doLabels && !doDocs) { pushToast('Zaznacz co drukować (etykieta / DoP)', 'error'); return }
+    if (printerName === PDF_EXPORT) { await handleExportPdf(); return }
     setPrinting(true)
     setProgress(0)
     localStorage.setItem(PRINTER_LS_KEY, printerName)
@@ -196,6 +266,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
                 <span className="order-field-label-text">Drukarka (Windows)</span>
                 <select value={printerName} onChange={(e) => setPrinterName(e.target.value)}>
                   <option value="">— wybierz —</option>
+                  <option value={PDF_EXPORT}>💾 Zapisz do PDF (jeden plik: etykiety + deklaracje)</option>
                   {printers.map((p) => (
                     <option key={p.name} value={p.name}>{p.displayName || p.name}{p.isDefault ? ' (domyślna)' : ''}</option>
                   ))}
