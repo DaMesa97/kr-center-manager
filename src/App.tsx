@@ -58,6 +58,7 @@ import {
 import DeleteConfirmDialog from './components/DeleteConfirmDialog'
 import StockShortageDialog from './components/StockShortageDialog'
 import { AppDialogHost } from './lib/appDialogs'
+import { initColumnResize } from './lib/columnResize'
 import GlobalSpinner from './components/GlobalSpinner'
 import ToastStack from './components/ToastStack'
 import StageRevertPopup from './components/StageRevertPopup'
@@ -310,6 +311,9 @@ function App() {
     handleAutoLogout,
     reloadProfile,
   } = useAuth({ pushToast, onLogout: () => resetAppStateAfterLogoutRef.current() })
+
+  // Resize kolumn na każdej tabeli (globalna delegacja — zgłoszenie #33)
+  useEffect(() => initColumnResize(), [])
 
   // Ładowanie konfiguracji przy starcie sesji
   useEffect(() => {
