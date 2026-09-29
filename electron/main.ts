@@ -195,8 +195,13 @@ function setupPrinting(mainWin: BrowserWindow) {
     ) => {
       const { html, deviceName, copies = 1, widthMm, heightMm } = args
       const printWin = new BrowserWindow({ show: false, webPreferences: { offscreen: false } })
+      // Plik tymczasowy zamiast URL-a data: — data: ma limit ~2 MB w Chromium,
+      // przez co deklaracje PDF (obrazy stron) ładowały się po cichu donikąd
+      // i drukowała się tylko etykieta QR (zgłoszenie Tymka, Tura Druku)
+      const tmpHtml = path.join(os.tmpdir(), `krlabel_${Date.now()}_${Math.floor(Math.random() * 1e6)}.html`)
       try {
-        await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+        writeFileSync(tmpHtml, html, 'utf8')
+        await printWin.loadFile(tmpHtml)
         const pageSize =
           widthMm && heightMm
             ? { width: Math.round(widthMm * 1000), height: Math.round(heightMm * 1000) }
@@ -219,6 +224,7 @@ function setupPrinting(mainWin: BrowserWindow) {
         return { success: false, failureReason: (err as Error).message }
       } finally {
         if (!printWin.isDestroyed()) printWin.close()
+        try { unlinkSync(tmpHtml) } catch { /* ignore */ }
       }
     },
   )
