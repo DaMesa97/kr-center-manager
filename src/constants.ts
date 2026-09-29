@@ -181,6 +181,11 @@ export const RECIPE_PARTS: { value: RecipePart; label: string }[] = [
   // nie konkurowały z profilami ościeżnic (jedna wygrana receptura per część!).
   // ⚠️ Wymaga wiersza w warehouse_assignment (migrate/recipes_part_prog.sql)
   { value: 'prog', label: 'Próg' },
+  // Dostawka boczna i naświetle górne — osobne części, żeby ich receptury
+  // SUMOWAŁY SIĘ z ościeżnicą/szkleniem zamiast z nimi konkurować.
+  // Przypisania magazynów: migracja recipe_parts_dostawka_naswietle (w bazie).
+  { value: 'dostawka', label: 'Dostawka boczna' },
+  { value: 'naswietle', label: 'Naświetle górne' },
   { value: 'other', label: 'Inne' },
 ]
 

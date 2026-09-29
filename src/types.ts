@@ -1047,6 +1047,8 @@ export type RecipePart =
   | 'decorative_panel'
   | 'intarsja'
   | 'prog'
+  | 'dostawka'
+  | 'naswietle'
   | 'other'
 
 export type WarehouseRecipeComponent = {
