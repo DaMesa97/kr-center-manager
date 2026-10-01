@@ -20,6 +20,15 @@ try {
   console.warn('Cannot read package.json version:', err)
 }
 
+// Chromium "Compression Dictionary Transport": jego SQLite (Shared Dictionary
+// w profilu) potrafi się uszkodzić (twardy shutdown) i ubijać proces sieciowy
+// CHECK-iem przy sprzątaniu słowników (Sentry ELECTRON-12, fatal w utility).
+// Funkcja jest nam zbędna — wyłączamy, crash-klasa znika. Musi być PRZED ready.
+app.commandLine.appendSwitch(
+  'disable-features',
+  'CompressionDictionaryTransport,CompressionDictionaryTransportBackend',
+)
+
 const SENTRY_DSN =
   process.env.VITE_SENTRY_DSN ||
   'https://509918f5057a3e1664e1f17422c5c471@o4511441047060480.ingest.de.sentry.io/4511441050533968'
