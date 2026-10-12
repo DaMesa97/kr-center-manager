@@ -926,6 +926,12 @@ const PRODUCTION_DAY_WEEKDAY: Record<string, number> = {
   'PIĄTEK':       5,
 }
 
+/** Numer dnia produkcji (1=pon … 5=pt) do sortowania; nieznany → null (na koniec). */
+export function productionDaySortValue(day: string | null | undefined): number | null {
+  if (!day) return null
+  return PRODUCTION_DAY_WEEKDAY[day.toUpperCase().trim()] ?? null
+}
+
 /**
  * Zwraca docelową datę produkcji dla zamówienia:
  * pierwsza data >= order_date w której wypada production_day.
