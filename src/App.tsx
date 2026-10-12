@@ -3169,17 +3169,17 @@ function App() {
                     glassAllowances={glassAllowances}
                     orderCommentsCounts={orderCommentsCounts}
                     onOpenCommentsPanel={handleOpenCommentsPanel}
-                    openEditOrderModal={openEditOrderModal}
-                    handleRushToggle={handleRushToggle}
-                    markProductionStageWithProfileInitials={guardedMarkProductionStage}
-                    setStageRevertTarget={guardedSetStageRevertTarget}
-                    applyReleaseDateUpdate={applyReleaseDateUpdate}
+                    onOpenEditOrderModal={openEditOrderModal}
+                    onHandleRushToggle={handleRushToggle}
+                    onMarkProductionStageWithProfileInitials={guardedMarkProductionStage}
+                    onSetStageRevertTarget={guardedSetStageRevertTarget}
+                    onApplyReleaseDateUpdate={applyReleaseDateUpdate}
                     onToggleOscReceived={toggleOscReceived}
-                    setReleaseClearTarget={setReleaseClearTarget}
+                    onSetReleaseClearTarget={setReleaseClearTarget}
                     handleDistingStaSheetNavigate={handleDistingStaSheetNavigate}
                     handleStaDistingSheetNavigate={handleStaDistingSheetNavigate}
-                    handleCancelOrderClick={handleCancelOrderClick}
-                    handleRestoreOrder={handleRestoreOrder}
+                    onHandleCancelOrderClick={handleCancelOrderClick}
+                    onHandleRestoreOrder={handleRestoreOrder}
                     onShowHistory={handleShowOrderHistory}
                     pushToast={pushToast}
                   />

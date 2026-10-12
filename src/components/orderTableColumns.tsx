@@ -100,6 +100,8 @@ type OrderNumberOpts = {
   tdClassName?: string
   /** Badge anulowania po stronie partnera (np. „ANULOWANO W STA”). */
   partnerBadge?: (o: Order) => string | null
+  /** Napis badge’a po wydaniu (domyślnie ZREALIZOWANE). */
+  releasedLabel?: (o: Order) => string
   /** Treść tuż za numerem (np. chipy dojazdu Titana). */
   afterNumber?: (o: Order) => ReactNode
 }
@@ -143,7 +145,7 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
           ) : null}
           {!isReleaseDateEmpty(o.release_date) ? (
             <span className="released-badge order-badge" title="Zrealizowane (wydanie)">
-              ZREALIZOWANE
+              {opts.releasedLabel?.(o) ?? 'ZREALIZOWANE'}
             </span>
           ) : null}
           <span className="order-number-wrapper">
