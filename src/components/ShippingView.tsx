@@ -283,6 +283,7 @@ export default function ShippingView({
       label: 'PILNE',
       className: 'col-rush',
       tdClassName: 'rush-cell',
+      stopRowClick: true,
       render: (order) => (
         <input
           type="checkbox"
@@ -606,9 +607,7 @@ export default function ShippingView({
           if (ageStatus === 'warning') return `Uwaga: ${daysElapsed} dni od złożenia zamówienia`
           return undefined
         }}
-        onRowClick={(r, e) => {
-          // klik w komórkę PILNE (poza checkboxem) nie otwiera szczegółów
-          if ((e.target as HTMLElement).closest('td.rush-cell')) return
+        onRowClick={(r) => {
           if (r.kind === 'order') onShowDetails(r.order)
         }}
       />

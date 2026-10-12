@@ -39,6 +39,8 @@ export type DataTableColumn<T> = {
   thStyle?: CSSProperties
   /** Atrybut title komórki (np. pełny tekst przy ucinaniu). */
   tdTitle?: (row: T) => string | undefined
+  /** Klik w komórkę NIE odpala onRowClick (checkboxy, przyciski akcji, data wydania). */
+  stopRowClick?: boolean
 }
 
 type Props<T> = {
@@ -203,6 +205,7 @@ export default function DataTable<T>({
               className={[c.className, tdCls].filter(Boolean).join(' ') || undefined}
               style={{ ...alignStyle(c.align), ...tdSt }}
               title={c.tdTitle?.(row)}
+              onClick={c.stopRowClick ? (e) => e.stopPropagation() : undefined}
             >
               {c.render(row, i)}
             </td>
