@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
 import { supabase } from '../../supabaseClient'
 import type { WarehouseComponent, WarehouseMovementRow, WarehouseStockRow } from '../../types'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type Props = {
   open: boolean
@@ -126,6 +127,49 @@ function ComponentHistoryModal({ open, component, stockRows, movements, onClose,
 
   if (!open) return null
 
+  // bez sortValue: tabela pokazuje tylko pierwszą porcję (visibleCount) — sortowanie byłoby mylące
+  const movementColumns: DataTableColumn<WarehouseMovementRow>[] = [
+    { key: 'date', label: 'Data', render: (m) => fmtDateTime(m.created_at) },
+    {
+      key: 'type',
+      label: 'Typ',
+      render: (m) => (
+        <span className={`movement-badge movement-badge--${String(m.movement_type).toLowerCase()}`}>
+          {m.movement_type}
+        </span>
+      ),
+    },
+    { key: 'direction', label: 'Kierunek', render: (m) => movementDirection(m) },
+    { key: 'qty', label: 'Ilość', render: (m) => movementQty(m) },
+    { key: 'doc', label: 'Dokument', render: (m) => m.reference_doc || '—' },
+    {
+      key: 'order',
+      label: 'Zamówienie',
+      render: (m) =>
+        m.order_number && onOpenOrder ? (
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => onOpenOrder(m)}>
+            {m.order_number}
+          </button>
+        ) : (
+          m.order_number || '—'
+        ),
+    },
+    {
+      key: 'notes',
+      label: 'Notatka',
+      tdTitle: (m) => truncateWithTitle(m.notes, 60).title,
+      render: (m) => truncateWithTitle(m.notes, 60).label,
+    },
+    {
+      key: 'actor',
+      label: 'Kto',
+      render: (m) => {
+        const actorRaw = String(m.created_by ?? '').trim()
+        return actorMap[actorRaw] ?? shortActor(actorRaw)
+      },
+    },
+  ]
+
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="order-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1120 }}>
@@ -200,51 +244,13 @@ function ComponentHistoryModal({ open, component, stockRows, movements, onClose,
           ) : (
             <>
               <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}>
-                <table className="component-history-table">
-                  <thead>
-                    <tr>
-                      <th>Data</th>
-                      <th>Typ</th>
-                      <th>Kierunek</th>
-                      <th>Ilość</th>
-                      <th>Dokument</th>
-                      <th>Zamówienie</th>
-                      <th>Notatka</th>
-                      <th>Kto</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shownMovements.map((m) => {
-                      const note = truncateWithTitle(m.notes, 60)
-                      const actorRaw = String(m.created_by ?? '').trim()
-                      const actor = actorMap[actorRaw] ?? shortActor(actorRaw)
-                      return (
-                        <tr key={m.id}>
-                          <td>{fmtDateTime(m.created_at)}</td>
-                          <td>
-                            <span className={`movement-badge movement-badge--${String(m.movement_type).toLowerCase()}`}>
-                              {m.movement_type}
-                            </span>
-                          </td>
-                          <td>{movementDirection(m)}</td>
-                          <td>{movementQty(m)}</td>
-                          <td>{m.reference_doc || '—'}</td>
-                          <td>
-                            {m.order_number && onOpenOrder ? (
-                              <button type="button" className="btn btn-sm btn-primary" onClick={() => onOpenOrder(m)}>
-                                {m.order_number}
-                              </button>
-                            ) : (
-                              m.order_number || '—'
-                            )}
-                          </td>
-                          <td title={note.title}>{note.label}</td>
-                          <td>{actor}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                <DataTable
+                  rows={shownMovements}
+                  rowKey={(m) => m.id}
+                  columns={movementColumns}
+                  className="component-history-table"
+                  wrapped={false}
+                />
               </div>
               {visibleCount < filteredMovements.length ? (
                 <button

@@ -15,6 +15,7 @@ import type {
 } from '../../types'
 import { generateZdPdf } from '../../utils/zdPdfGenerator'
 import { PURCHASE_ORDER_ITEM_STATUS_LABELS, PURCHASE_ORDER_STATUS_LABELS } from '../../constants'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type Props = {
   open: boolean
@@ -204,6 +205,78 @@ export default function PurchaseOrderDetailsModal({
 
   if (!open || !purchaseOrder) return null
 
+  const canEditQty = editing && purchaseOrder.status === 'draft' && canOperate
+  const itemColumns: DataTableColumn<PurchaseOrderItem>[] = [
+    {
+      key: 'sku',
+      label: 'SKU',
+      thStyle: { width: 'auto' },
+      sortValue: (item) => componentById.get(item.component_id)?.name ?? '',
+      render: (item) => {
+        const component = componentById.get(item.component_id)
+        return (
+          <>
+            <div style={{ fontWeight: 600 }}>{component?.name ?? `SKU #${item.component_id}`}</div>
+            <div style={{ fontSize: 11, color: '#666' }}>{component?.code ?? '—'}</div>
+          </>
+        )
+      },
+    },
+    {
+      key: 'ordered',
+      label: 'Zamów.',
+      thStyle: { width: 80 },
+      sortValue: (item) => item.quantity_ordered,
+      render: (item) =>
+        canEditQty ? (
+          <input
+            type="number"
+            min={1}
+            className="extension-qty-input"
+            value={draftQtyByItem[item.id] ?? item.quantity_ordered}
+            onChange={(e) =>
+              setDraftQtyByItem((prev) => ({
+                ...prev,
+                [item.id]: Math.max(1, Number(e.target.value) || 1),
+              }))
+            }
+          />
+        ) : (
+          item.quantity_ordered
+        ),
+    },
+    {
+      key: 'received',
+      label: 'Otrzym.',
+      thStyle: { width: 80 },
+      sortValue: (item) => item.quantity_received,
+      render: (item) => item.quantity_received,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      thStyle: { width: 120 },
+      sortValue: (item) => PURCHASE_ORDER_ITEM_STATUS_LABELS[item.status_per_item],
+      render: (item) => (
+        <span className={`po-status-badge po-status-badge--item-${item.status_per_item}`}>
+          {PURCHASE_ORDER_ITEM_STATUS_LABELS[item.status_per_item]}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Akcje',
+      thStyle: { width: 140 },
+      render: (item) =>
+        canOperate &&
+        (item.status_per_item === 'pending' || item.status_per_item === 'partial') && (
+          <button type="button" className="btn btn-sm btn-danger" onClick={() => void cancelItem(item.id)}>
+            Zamknij pozycję
+          </button>
+        ),
+    },
+  ]
+
   return createPortal(
     <div className="modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="order-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1150 }}>
@@ -235,68 +308,7 @@ export default function PurchaseOrderDetailsModal({
             Notatki: {purchaseOrder.notes}
           </div>
         )}
-        <div className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <th style={{ width: 'auto' }}>SKU</th>
-                <th style={{ width: 80 }}>Zamów.</th>
-                <th style={{ width: 80 }}>Otrzym.</th>
-                <th style={{ width: 120 }}>Status</th>
-                <th style={{ width: 140 }}>Akcje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => {
-                const component = componentById.get(item.component_id)
-                return (
-                  <tr key={item.id}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{component?.name ?? `SKU #${item.component_id}`}</div>
-                      <div style={{ fontSize: 11, color: '#666' }}>{component?.code ?? '—'}</div>
-                    </td>
-                    <td>
-                      {editing && purchaseOrder.status === 'draft' && canOperate ? (
-                        <input
-                          type="number"
-                          min={1}
-                          className="extension-qty-input"
-                          value={draftQtyByItem[item.id] ?? item.quantity_ordered}
-                          onChange={(e) =>
-                            setDraftQtyByItem((prev) => ({
-                              ...prev,
-                              [item.id]: Math.max(1, Number(e.target.value) || 1),
-                            }))
-                          }
-                        />
-                      ) : (
-                        item.quantity_ordered
-                      )}
-                    </td>
-                    <td>{item.quantity_received}</td>
-                    <td>
-                      <span className={`po-status-badge po-status-badge--item-${item.status_per_item}`}>
-                        {PURCHASE_ORDER_ITEM_STATUS_LABELS[item.status_per_item]}
-                      </span>
-                    </td>
-                    <td>
-                      {canOperate &&
-                        (item.status_per_item === 'pending' || item.status_per_item === 'partial') && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            onClick={() => void cancelItem(item.id)}
-                          >
-                            Zamknij pozycję
-                          </button>
-                        )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable rows={items} rowKey={(item) => item.id} columns={itemColumns} emptyText="Brak pozycji." />
 
         <div className="order-form-actions">
           {purchaseOrder.status === 'draft' && canOperate && (

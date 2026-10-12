@@ -9,6 +9,7 @@ import type {
   WarehouseComponent,
   WarehouseStockRow,
 } from '../../types'
+import DataTable from '../DataTable'
 
 type Props = {
   open: boolean
@@ -338,48 +339,52 @@ export default function ShoppingListModal({
                       )}
                     </div>
                   </div>
-                  <div className="table-wrapper">
-                    <table className="orders-table">
-                      <thead>
-                        <tr>
-                          <th>SKU</th>
-                          <th>Stock / Min/Target</th>
-                          <th>Ilość zamawiana</th>
-                          <th>Palety</th>
-                          <th>Akcja</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.items.map((item) => (
-                          <tr key={item.component_id}>
-                            <td>{item.component_name}</td>
-                            <td>
-                              {item.current_stock} | {item.min_stock_level ?? '—'}/{item.target_stock_level ?? '—'}
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                min={1}
-                                value={item.quantity}
-                                className="extension-qty-input"
-                                onChange={(e) => onUpdateQuantity(item.component_id, Math.max(1, Number(e.target.value) || 1))}
-                              />
-                            </td>
-                            <td>
-                              {item.units_per_pallet && item.units_per_pallet > 0
-                                ? Math.ceil(item.quantity / item.units_per_pallet)
-                                : '—'}
-                            </td>
-                            <td>
-                              <button type="button" className="btn btn-sm btn-danger" onClick={() => onRemove(item.component_id)}>
-                                Usuń
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable
+                    rows={group.items}
+                    rowKey={(item) => item.component_id}
+                    columns={[
+                      { key: 'sku', label: 'SKU', render: (item) => item.component_name },
+                      {
+                        key: 'stock',
+                        label: 'Stock / Min/Target',
+                        render: (item) => (
+                          <>
+                            {item.current_stock} | {item.min_stock_level ?? '—'}/{item.target_stock_level ?? '—'}
+                          </>
+                        ),
+                      },
+                      {
+                        key: 'qty',
+                        label: 'Ilość zamawiana',
+                        render: (item) => (
+                          <input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            className="extension-qty-input"
+                            onChange={(e) => onUpdateQuantity(item.component_id, Math.max(1, Number(e.target.value) || 1))}
+                          />
+                        ),
+                      },
+                      {
+                        key: 'pallets',
+                        label: 'Palety',
+                        render: (item) =>
+                          item.units_per_pallet && item.units_per_pallet > 0
+                            ? Math.ceil(item.quantity / item.units_per_pallet)
+                            : '—',
+                      },
+                      {
+                        key: 'action',
+                        label: 'Akcja',
+                        render: (item) => (
+                          <button type="button" className="btn btn-sm btn-danger" onClick={() => onRemove(item.component_id)}>
+                            Usuń
+                          </button>
+                        ),
+                      },
+                    ]}
+                  />
                   <div className="reorder-row-meta">
                     Suma pozycji: {group.items.length}
                     {group.supplier.requires_full_tir && (
@@ -418,66 +423,69 @@ export default function ShoppingListModal({
                           )
                         }
                         return (
-                          <div className="table-wrapper shopping-list-suggestions-table">
-                            <table className="orders-table">
-                              <thead>
-                                <tr>
-                                  <th>SKU</th>
-                                  <th>Stock / Min</th>
-                                  <th>Runway</th>
-                                  <th>Sugerowana ilość</th>
-                                  <th>Palety</th>
-                                  <th>Akcja</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {candidates.map(({ component, currentStock, proximityToMin }) => {
-                                  const suggestedQty = getSuggestedQty(component)
-                                  const unitsPerPallet = Math.max(component.units_per_pallet ?? 1, 1)
-                                  const palletsCount = Math.ceil(suggestedQty / unitsPerPallet)
-                                  return (
-                                    <tr key={component.id}>
-                                      <td>{component.name}</td>
-                                      <td>
-                                        {currentStock} / {component.min_stock_level ?? '—'}{' '}
-                                        {proximityToMin <= 0 && (
-                                          <span className="subtab-badge subtab-badge--alert">PONIŻEJ MIN</span>
-                                        )}
-                                      </td>
-                                      <td>{calculateRunwayLabel(proximityToMin)}</td>
-                                      <td>
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          step={unitsPerPallet}
-                                          className="extension-qty-input"
-                                          value={suggestedQty}
-                                          onChange={(e) =>
-                                            setSuggestedQuantities((prev) => ({
-                                              ...prev,
-                                              [component.id]: Math.max(1, Number(e.target.value) || 1),
-                                            }))
-                                          }
-                                        />
-                                      </td>
-                                      <td>{palletsCount}</td>
-                                      <td>
-                                        <button
-                                          type="button"
-                                          className="btn btn-sm btn-primary suggestion-add-btn"
-                                          onClick={() =>
-                                            handleAddSuggestion(component, currentStock, getSuggestedQty(component))
-                                          }
-                                        >
-                                          + Dorzuć
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  )
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                          <DataTable
+                            rows={candidates}
+                            rowKey={(c) => c.component.id}
+                            wrapperClassName="shopping-list-suggestions-table"
+                            columns={[
+                              { key: 'sku', label: 'SKU', render: ({ component }) => component.name },
+                              {
+                                key: 'stock',
+                                label: 'Stock / Min',
+                                render: ({ component, currentStock, proximityToMin }) => (
+                                  <>
+                                    {currentStock} / {component.min_stock_level ?? '—'}{' '}
+                                    {proximityToMin <= 0 && (
+                                      <span className="subtab-badge subtab-badge--alert">PONIŻEJ MIN</span>
+                                    )}
+                                  </>
+                                ),
+                              },
+                              {
+                                key: 'runway',
+                                label: 'Runway',
+                                render: ({ proximityToMin }) => calculateRunwayLabel(proximityToMin),
+                              },
+                              {
+                                key: 'qty',
+                                label: 'Sugerowana ilość',
+                                render: ({ component }) => (
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    step={Math.max(component.units_per_pallet ?? 1, 1)}
+                                    className="extension-qty-input"
+                                    value={getSuggestedQty(component)}
+                                    onChange={(e) =>
+                                      setSuggestedQuantities((prev) => ({
+                                        ...prev,
+                                        [component.id]: Math.max(1, Number(e.target.value) || 1),
+                                      }))
+                                    }
+                                  />
+                                ),
+                              },
+                              {
+                                key: 'pallets',
+                                label: 'Palety',
+                                render: ({ component }) =>
+                                  Math.ceil(getSuggestedQty(component) / Math.max(component.units_per_pallet ?? 1, 1)),
+                              },
+                              {
+                                key: 'action',
+                                label: 'Akcja',
+                                render: ({ component, currentStock }) => (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-primary suggestion-add-btn"
+                                    onClick={() => handleAddSuggestion(component, currentStock, getSuggestedQty(component))}
+                                  >
+                                    + Dorzuć
+                                  </button>
+                                ),
+                              },
+                            ]}
+                          />
                         )
                       })()}
                     </div>

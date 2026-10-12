@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { RECIPE_PARTS } from '../../constants'
 import type { RecipePart, WarehouseRecipe } from '../../types'
 import { supabase } from '../../supabaseClient'
 import { getOrderStageDefinitions } from '../../utils'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 const RECIPE_CATEGORY_FILTER_VALUES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'] as const
 
@@ -152,6 +153,76 @@ function RecipesView({
     })
   }, [recipes, categoryFilter, partFilter, search, componentIndex])
 
+  const recipeColumns = useMemo((): DataTableColumn<WarehouseRecipe>[] => {
+    const cols: DataTableColumn<WarehouseRecipe>[] = [
+      {
+        key: 'name',
+        label: 'NAZWA (kryteria dopasowania)',
+        thStyle: { width: '46%' },
+        tdStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+        tdTitle: (row) => row.name ?? '',
+        render: (row) => (
+          <>
+            <span style={{ marginRight: 6 }}>{expandedId === row.id ? '▾' : '▸'}</span>
+            {displayCell(row.name)}
+          </>
+        ),
+      },
+      {
+        key: 'category',
+        label: 'KATEGORIA',
+        thStyle: { width: '10%' },
+        render: (row) => (
+          <span style={{ color: CATEGORY_COLORS[row.category] ?? 'inherit', fontWeight: 700 }}>
+            {displayCell(row.category)}
+          </span>
+        ),
+      },
+      { key: 'part', label: 'CZĘŚĆ', thStyle: { width: '14%' }, render: (row) => partLabel(row.part) },
+      {
+        key: 'count',
+        label: 'POZYCJI',
+        title: 'Liczba pozycji — kliknij wiersz, aby zobaczyć skład',
+        thStyle: { width: '8%' },
+        render: (row) => row.components_count ?? 0,
+      },
+    ]
+    if (isManager) {
+      cols.push({
+        key: 'actions',
+        label: 'AKCJE',
+        thStyle: { width: '22%' },
+        // klik w akcje nie rozwija wiersza
+        render: (row) => (
+          <div className="contractor-actions" onClick={(e) => e.stopPropagation()}>
+            {row.is_active ? (
+              <>
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => onEdit(row)}>
+                  Edytuj
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={() => void onToggleActive(row.id, false)}
+                >
+                  Wyłącz
+                </button>
+                <button type="button" className="btn btn-sm btn-danger" onClick={() => void onDelete(row.id)}>
+                  Usuń
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => void onRestore(row.id)}>
+                Przywróć
+              </button>
+            )}
+          </div>
+        ),
+      })
+    }
+    return cols
+  }, [expandedId, isManager, onEdit, onToggleActive, onDelete, onRestore])
+
   return (
     <>
       <div className="orders-filters" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
@@ -215,149 +286,61 @@ function RecipesView({
       {loading ? (
         <Spinner center label="Ładowanie receptur…" />
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table" style={{ tableLayout: 'fixed', width: '100%' }}>
-            <colgroup>
-              <col style={{ width: '46%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '8%' }} />
-              {isManager && <col style={{ width: '22%' }} />}
-            </colgroup>
-            <thead>
+        <DataTable
+          rows={filteredRecipes}
+          rowKey={(row) => row.id}
+          columns={recipeColumns}
+          tableStyle={{ tableLayout: 'fixed', width: '100%' }}
+          emptyText="Brak receptur spełniających kryteria."
+          rowClassName={(row) => (row.is_active ? '' : 'recipe-row--deleted')}
+          rowTitle={() => 'Kliknij, aby zobaczyć skład receptury'}
+          onRowClick={(row) => toggleExpand(row.id)}
+          renderAfterRow={(row) => {
+            if (expandedId !== row.id) return null
+            const lines = componentsCache[row.id]
+            return (
               <tr>
-                <th>NAZWA (kryteria dopasowania)</th>
-                <th>KATEGORIA</th>
-                <th>CZĘŚĆ</th>
-                <th title="Liczba pozycji — kliknij wiersz, aby zobaczyć skład">POZYCJI</th>
-                {isManager && <th>AKCJE</th>}
+                <td colSpan={isManager ? 5 : 4} style={{ background: 'var(--color-bg-muted, #f8fafc)', padding: '8px 16px' }}>
+                  {componentsLoadingId === row.id && !lines ? (
+                    <Spinner center label="Ładowanie składu…" />
+                  ) : !lines || lines.length === 0 ? (
+                    <em style={{ color: 'var(--color-text-muted, #64748b)' }}>
+                      Receptura nie ma pozycji.
+                    </em>
+                  ) : (
+                    <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ textAlign: 'left', color: 'var(--color-text-muted, #64748b)' }}>
+                          <th style={{ padding: '2px 8px', fontWeight: 600 }}>KOMPONENT</th>
+                          <th style={{ padding: '2px 8px', fontWeight: 600, width: 90 }}>ILOŚĆ</th>
+                          <th style={{ padding: '2px 8px', fontWeight: 600, width: 140 }}>ETAP WYDANIA</th>
+                          <th style={{ padding: '2px 8px', fontWeight: 600 }}>UWAGI</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lines.map((l) => (
+                          <tr key={l.id} style={{ borderTop: '1px solid var(--color-border, #e2e8f0)' }}>
+                            <td style={{ padding: '4px 8px' }}>
+                              {l.name}
+                              {l.code && !l.name.toUpperCase().includes(l.code.toUpperCase()) ? ` (${l.code})` : ''}
+                            </td>
+                            <td style={{ padding: '4px 8px' }}>
+                              {l.quantity} {l.unit}
+                            </td>
+                            <td style={{ padding: '4px 8px' }}>{stageHeaderFor(row.category, l.stage_key)}</td>
+                            <td style={{ padding: '4px 8px', color: 'var(--color-text-muted, #64748b)' }}>
+                              {l.notes ?? ''}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filteredRecipes.map((row) => {
-                const expanded = expandedId === row.id
-                const lines = componentsCache[row.id]
-                return (
-                  <Fragment key={row.id}>
-                    <tr
-                      className={row.is_active ? '' : 'recipe-row--deleted'}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => toggleExpand(row.id)}
-                      title="Kliknij, aby zobaczyć skład receptury"
-                    >
-                      <td
-                        style={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                        title={row.name ?? ''}
-                      >
-                        <span style={{ marginRight: 6 }}>{expanded ? '▾' : '▸'}</span>
-                        {displayCell(row.name)}
-                      </td>
-                      <td>
-                        <span
-                          style={{
-                            color: CATEGORY_COLORS[row.category] ?? 'inherit',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {displayCell(row.category)}
-                        </span>
-                      </td>
-                      <td>{partLabel(row.part)}</td>
-                      <td>{row.components_count ?? 0}</td>
-                      {isManager && (
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <div className="contractor-actions">
-                            {row.is_active ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => onEdit(row)}
-                                >
-                                  Edytuj
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => void onToggleActive(row.id, false)}
-                                >
-                                  Wyłącz
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() => void onDelete(row.id)}
-                                >
-                                  Usuń
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-primary"
-                                onClick={() => void onRestore(row.id)}
-                              >
-                                Przywróć
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                    {expanded && (
-                      <tr>
-                        <td colSpan={isManager ? 5 : 4} style={{ background: 'var(--color-bg-muted, #f8fafc)', padding: '8px 16px' }}>
-                          {componentsLoadingId === row.id && !lines ? (
-                            <Spinner center label="Ładowanie składu…" />
-                          ) : !lines || lines.length === 0 ? (
-                            <em style={{ color: 'var(--color-text-muted, #64748b)' }}>
-                              Receptura nie ma pozycji.
-                            </em>
-                          ) : (
-                            <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                              <thead>
-                                <tr style={{ textAlign: 'left', color: 'var(--color-text-muted, #64748b)' }}>
-                                  <th style={{ padding: '2px 8px', fontWeight: 600 }}>KOMPONENT</th>
-                                  <th style={{ padding: '2px 8px', fontWeight: 600, width: 90 }}>ILOŚĆ</th>
-                                  <th style={{ padding: '2px 8px', fontWeight: 600, width: 140 }}>ETAP WYDANIA</th>
-                                  <th style={{ padding: '2px 8px', fontWeight: 600 }}>UWAGI</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {lines.map((l) => (
-                                  <tr key={l.id} style={{ borderTop: '1px solid var(--color-border, #e2e8f0)' }}>
-                                    <td style={{ padding: '4px 8px' }}>
-                                      {l.name}
-                                      {l.code && !l.name.toUpperCase().includes(l.code.toUpperCase()) ? ` (${l.code})` : ''}
-                                    </td>
-                                    <td style={{ padding: '4px 8px' }}>
-                                      {l.quantity} {l.unit}
-                                    </td>
-                                    <td style={{ padding: '4px 8px' }}>{stageHeaderFor(row.category, l.stage_key)}</td>
-                                    <td style={{ padding: '4px 8px', color: 'var(--color-text-muted, #64748b)' }}>
-                                      {l.notes ?? ''}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-          {filteredRecipes.length === 0 && (
-            <p className="no-results">Brak receptur spełniających kryteria.</p>
-          )}
-        </div>
+            )
+          }}
+        />
       )}
     </>
   )

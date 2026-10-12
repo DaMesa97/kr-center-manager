@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
 import { generateInventorySheet } from '../../utils/inventoryPdfGenerator'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 import type { CurrentUser, InventoryLine, InventorySession, ToastVariant, Warehouse } from '../../types'
 import { isManagerRole } from '../../lib/permissions'
 
@@ -10,6 +11,8 @@ type Props = {
   pushToast: (msg: string, variant: ToastVariant) => void
   currentUser: CurrentUser | null
 }
+
+type PastSession = InventorySession & { warehouse_id: number | null; warehouse_name?: string }
 
 type SessionWithLines = {
   session: InventorySession & { warehouse_id: number | null }
@@ -20,7 +23,7 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
   const [loading, setLoading] = useState(false)
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [openSessions, setOpenSessions] = useState<SessionWithLines[]>([])
-  const [pastSessions, setPastSessions] = useState<(InventorySession & { warehouse_id: number | null; warehouse_name?: string })[]>([])
+  const [pastSessions, setPastSessions] = useState<PastSession[]>([])
   const [opening, setOpening] = useState<number | null>(null) // warehouse_id otwierany
   const [closing, setClosing] = useState<number | null>(null) // session_id zamykany
   const [newNotes, setNewNotes] = useState<Record<number, string>>({})
@@ -221,6 +224,81 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
     generateInventorySheet(session, lines)
   }
 
+  // ŚLEPY SPIS: bez stanu systemowego i różnicy — liczący wpisuje to, co widzi
+  // na półce; różnice zobaczy kierownik przy zatwierdzaniu zamknięcia
+  const lineColumns = useMemo((): DataTableColumn<InventoryLine>[] => [
+    {
+      key: 'lp',
+      label: 'Lp.',
+      align: 'center',
+      thStyle: { width: '3rem' },
+      tdStyle: { color: '#94a3b8', fontSize: '0.8rem' },
+      render: (_line, i) => i + 1,
+    },
+    {
+      key: 'name',
+      label: 'Nazwa komponentu',
+      render: (line) => (
+        <div className="inventory-component-name">
+          {line.component_name}
+          {line.component_code && <span className="inventory-component-code">{line.component_code}</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'unit',
+      label: 'J.m.',
+      align: 'center',
+      thStyle: { width: '5rem' },
+      tdStyle: { color: '#64748b', fontSize: '0.85rem' },
+      render: (line) => line.component_unit,
+    },
+    {
+      key: 'counted',
+      label: 'Policzono',
+      align: 'center',
+      thStyle: { width: '10rem' },
+      render: (line) => (
+        <div className="inventory-input-wrap">
+          <input
+            type="number"
+            className={`inventory-count-input${saving.has(line.id) ? ' inventory-count-input--saving' : ''}`}
+            value={draftCounts[line.id] ?? ''}
+            min={0}
+            step="0.001"
+            placeholder="—"
+            onChange={(e) => handleCountChange(line.id, e.target.value)}
+          />
+          {saving.has(line.id) && <span className="inventory-saving-dot" title="Zapisywanie…">●</span>}
+        </div>
+      ),
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [draftCounts, saving])
+
+  const historyColumns = useMemo((): DataTableColumn<PastSession>[] => [
+    { key: 'warehouse', label: 'Magazyn', render: (s) => <strong>{s.warehouse_name}</strong> },
+    { key: 'date', label: 'Data liczenia', render: (s) => s.counted_date },
+    {
+      key: 'closed',
+      label: 'Zamknięta',
+      tdStyle: { color: '#64748b', fontSize: '0.85rem' },
+      render: (s) => (s.closed_at ? new Date(s.closed_at).toLocaleDateString('pl-PL') : '—'),
+    },
+    { key: 'notes', label: 'Uwagi', tdStyle: { color: '#64748b', fontSize: '0.85rem' }, render: (s) => s.notes ?? '—' },
+    {
+      key: 'pdf',
+      label: 'PDF',
+      align: 'center',
+      render: (s) => (
+        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void handleExportPastPdf(s)}>
+          ↓ PDF
+        </button>
+      ),
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [])
+
   if (loading) return <Spinner center label="Ładowanie danych inwentaryzacji…" />
 
   return (
@@ -280,52 +358,12 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
                   </span>
                 </div>
 
-                <div className="table-wrapper">
-                  <table className="orders-table inventory-table">
-                    <thead>
-                      {/* ŚLEPY SPIS: bez stanu systemowego i różnicy — liczący
-                          wpisuje to, co widzi na półce; różnice zobaczy kierownik
-                          przy zatwierdzaniu zamknięcia */}
-                      <tr>
-                        <th style={{ textAlign: 'center', width: '3rem' }}>Lp.</th>
-                        <th>Nazwa komponentu</th>
-                        <th style={{ textAlign: 'center', width: '5rem' }}>J.m.</th>
-                        <th style={{ textAlign: 'center', width: '10rem' }}>Policzono</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sd.lines.map((line, i) => {
-                        const draft = draftCounts[line.id] ?? ''
-                        return (
-                          <tr key={line.id}>
-                            <td style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>{i + 1}</td>
-                            <td>
-                              <div className="inventory-component-name">
-                                {line.component_name}
-                                {line.component_code && <span className="inventory-component-code">{line.component_code}</span>}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>{line.component_unit}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <div className="inventory-input-wrap">
-                                <input
-                                  type="number"
-                                  className={`inventory-count-input${saving.has(line.id) ? ' inventory-count-input--saving' : ''}`}
-                                  value={draft}
-                                  min={0}
-                                  step="0.001"
-                                  placeholder="—"
-                                  onChange={(e) => handleCountChange(line.id, e.target.value)}
-                                />
-                                {saving.has(line.id) && <span className="inventory-saving-dot" title="Zapisywanie…">●</span>}
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  rows={sd.lines}
+                  rowKey={(line) => line.id}
+                  columns={lineColumns}
+                  className="inventory-table"
+                />
               </>
             )}
 
@@ -373,34 +411,13 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
       {pastSessions.length > 0 && (
         <div className="inventory-history">
           <h3 className="inventory-section-title">Historia inwentaryzacji</h3>
-          <table className="orders-table inventory-history-table">
-            <thead>
-              <tr>
-                <th>Magazyn</th>
-                <th>Data liczenia</th>
-                <th>Zamknięta</th>
-                <th>Uwagi</th>
-                <th style={{ textAlign: 'center' }}>PDF</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pastSessions.map((s) => (
-                <tr key={s.id}>
-                  <td><strong>{s.warehouse_name}</strong></td>
-                  <td>{s.counted_date}</td>
-                  <td style={{ color: '#64748b', fontSize: '0.85rem' }}>
-                    {s.closed_at ? new Date(s.closed_at).toLocaleDateString('pl-PL') : '—'}
-                  </td>
-                  <td style={{ color: '#64748b', fontSize: '0.85rem' }}>{s.notes ?? '—'}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => void handleExportPastPdf(s)}>
-                      ↓ PDF
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            rows={pastSessions}
+            rowKey={(s) => s.id}
+            columns={historyColumns}
+            className="inventory-history-table"
+            wrapped={false}
+          />
         </div>
       )}
 

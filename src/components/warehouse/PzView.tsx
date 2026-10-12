@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { PzGroupRow, Warehouse } from '../../types'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type PzViewProps = {
   pzGroups: PzGroupRow[]
@@ -56,6 +57,31 @@ function PzView({ pzGroups, loading, isManager, warehouses, onCreate, onPreview 
     [filtered],
   )
 
+  const columns = useMemo<DataTableColumn<PzGroupRow>[]>(
+    () => [
+      {
+        key: 'date',
+        label: 'DATA',
+        sortValue: (r) => new Date(r.created_at).getTime(),
+        render: (r) => formatPzDate(r.created_at),
+      },
+      { key: 'doc', label: 'DOKUMENT', sortValue: (r) => r.reference_doc, render: (r) => r.reference_doc },
+      { key: 'warehouse', label: 'MAGAZYN', sortValue: (r) => r.warehouse_code, render: (r) => r.warehouse_code || '—' },
+      { key: 'items', label: 'POZYCJI', sortValue: (r) => r.items_count, render: (r) => r.items_count },
+      { key: 'total', label: 'SUMA', sortValue: (r) => r.total_quantity, render: (r) => r.total_quantity },
+      {
+        key: 'action',
+        label: 'AKCJA',
+        render: (r) => (
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => onPreview(r.reference_doc)}>
+            Podgląd
+          </button>
+        ),
+      },
+    ],
+    [onPreview],
+  )
+
   return (
     <div className="pz-view">
       <div className="movements-view-filters" style={{ alignItems: 'center' }}>
@@ -105,48 +131,12 @@ function PzView({ pzGroups, loading, isManager, warehouses, onCreate, onPreview 
       {loading ? (
         <Spinner center label="Ładowanie…" />
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <th>DATA</th>
-                <th>DOKUMENT</th>
-                <th>MAGAZYN</th>
-                <th>POZYCJI</th>
-                <th>SUMA</th>
-                <th>AKCJA</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="movements-view-empty">
-                    Brak przyjęć do wyświetlenia.
-                  </td>
-                </tr>
-              ) : (
-                sorted.map((row) => (
-                  <tr key={`${row.reference_doc}-${row.warehouse_id}`}>
-                    <td>{formatPzDate(row.created_at)}</td>
-                    <td>{row.reference_doc}</td>
-                    <td>{row.warehouse_code || '—'}</td>
-                    <td>{row.items_count}</td>
-                    <td>{row.total_quantity}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={() => onPreview(row.reference_doc)}
-                      >
-                        Podgląd
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={sorted}
+          rowKey={(row) => `${row.reference_doc}-${row.warehouse_id}`}
+          columns={columns}
+          emptyText="Brak przyjęć do wyświetlenia."
+        />
       )}
     </div>
   )

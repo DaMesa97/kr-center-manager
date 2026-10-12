@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { MmGroupRow, Warehouse } from '../../types'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type MmViewProps = {
   mmGroups: MmGroupRow[]
@@ -56,6 +57,42 @@ function MmView({ mmGroups, loading, isManager, warehouses, onCreate, onPreview 
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       ),
     [filtered],
+  )
+
+  const columns = useMemo<DataTableColumn<MmGroupRow>[]>(
+    () => [
+      {
+        key: 'date',
+        label: 'DATA',
+        sortValue: (r) => new Date(r.created_at).getTime(),
+        render: (r) => formatMmDate(r.created_at),
+      },
+      { key: 'doc', label: 'DOKUMENT', sortValue: (r) => r.reference_doc, render: (r) => r.reference_doc },
+      {
+        key: 'from',
+        label: 'Z MAGAZYNU',
+        sortValue: (r) => r.warehouse_from_code || null,
+        render: (r) => r.warehouse_from_code || '—',
+      },
+      {
+        key: 'to',
+        label: 'DO MAGAZYNU',
+        sortValue: (r) => r.warehouse_to_code || null,
+        render: (r) => r.warehouse_to_code || '—',
+      },
+      { key: 'items', label: 'POZYCJI', sortValue: (r) => r.items_count, render: (r) => r.items_count },
+      { key: 'total', label: 'SUMA', sortValue: (r) => r.total_quantity, render: (r) => r.total_quantity },
+      {
+        key: 'action',
+        label: 'AKCJA',
+        render: (r) => (
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => onPreview(r.reference_doc)}>
+            Podgląd
+          </button>
+        ),
+      },
+    ],
+    [onPreview],
   )
 
   return (
@@ -125,50 +162,12 @@ function MmView({ mmGroups, loading, isManager, warehouses, onCreate, onPreview 
       {loading ? (
         <Spinner center label="Ładowanie…" />
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <th>DATA</th>
-                <th>DOKUMENT</th>
-                <th>Z MAGAZYNU</th>
-                <th>DO MAGAZYNU</th>
-                <th>POZYCJI</th>
-                <th>SUMA</th>
-                <th>AKCJA</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="movements-view-empty">
-                    Brak przesunięć do wyświetlenia.
-                  </td>
-                </tr>
-              ) : (
-                sorted.map((row) => (
-                  <tr key={`${row.reference_doc}-${row.warehouse_from_id}-${row.warehouse_to_id}`}>
-                    <td>{formatMmDate(row.created_at)}</td>
-                    <td>{row.reference_doc}</td>
-                    <td>{row.warehouse_from_code || '—'}</td>
-                    <td>{row.warehouse_to_code || '—'}</td>
-                    <td>{row.items_count}</td>
-                    <td>{row.total_quantity}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={() => onPreview(row.reference_doc)}
-                      >
-                        Podgląd
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={sorted}
+          rowKey={(row) => `${row.reference_doc}-${row.warehouse_from_id}-${row.warehouse_to_id}`}
+          columns={columns}
+          emptyText="Brak przesunięć do wyświetlenia."
+        />
       )}
     </div>
   )

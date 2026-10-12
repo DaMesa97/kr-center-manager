@@ -2,9 +2,8 @@ import { useCallback, useMemo, useState } from 'react'
 import type { IncomingStockRow, Supplier, ToastVariant, Warehouse, WarehouseComponent, WarehouseStockRow } from '../../types'
 import DamageReportModal from '../DamageReportModal'
 import Spinner from '../Spinner'
-import SortableTh from '../SortableTh'
-import { TopScrollTableWrapper } from '../TopScrollTableWrapper'
-import { sortRows, toggleSort, type SortState } from '../../lib/tableSort'
+import DataTable, { type DataTableColumn } from '../DataTable'
+import type { SortState } from '../../lib/tableSort'
 
 // ranga statusu do sortowania: minus (najgorszy) → niski → OK
 const statusRank = (s: StockStatus): number => (s === 'minus' ? 0 : s === 'low' ? 1 : 2)
@@ -49,6 +48,45 @@ function formatDatePl(d: string | null | undefined): string {
   if (!d) return ''
   const [y, m, day] = d.split('-')
   return y && m && day ? `${day}.${m}.${y}` : d
+}
+
+const orDash = (v: string | null | undefined) => (v?.trim() ? v : '—')
+
+// DOSTĘPNE = fizyczne − zarezerwowane (ujemne = nadrezerwacja, sygnał planistyczny)
+const renderAvailableCell = (available: number) => (
+  <strong style={available < 0 ? { color: '#c62828' } : undefined}>{available}</strong>
+)
+
+const renderIncomingCell = (inc: IncomingStockRow | undefined) => {
+  if (!inc || inc.incoming_qty <= 0) return <span>—</span>
+  const tooltip = [
+    `Najbliższa dostawa: ${formatDatePl(inc.earliest_eta) || 'brak daty'}`,
+    inc.latest_eta && inc.latest_eta !== inc.earliest_eta
+      ? `Ostatnia: ${formatDatePl(inc.latest_eta)}`
+      : '',
+    `Otwarte ZD: ${inc.open_pos}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+  return (
+    <span title={tooltip} style={{ cursor: 'help', textDecoration: 'underline dotted' }}>
+      {inc.incoming_qty}
+    </span>
+  )
+}
+
+const renderStatusCell = (s: StockStatus) => {
+  const dotColor = s === 'ok' ? '#2e7d32' : s === 'low' ? '#f9a825' : '#c62828'
+  return (
+    <span className="stock-status-cell" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span
+        className="stock-status-dot"
+        style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, flexShrink: 0 }}
+        aria-hidden
+      />
+      {statusLabel(s)}
+    </span>
+  )
 }
 
 type StockViewProps = {
@@ -104,30 +142,6 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
     incoming.forEach((r) => m.set(r.component_id, r))
     return m
   }, [incoming])
-
-  // DOSTĘPNE = fizyczne − zarezerwowane (ujemne = nadrezerwacja, sygnał planistyczny)
-  const renderAvailableCell = (available: number) => (
-    <strong style={available < 0 ? { color: '#c62828' } : undefined}>{available}</strong>
-  )
-
-  const renderIncomingCell = (componentId: number) => {
-    const inc = incomingByComponent.get(componentId)
-    if (!inc || inc.incoming_qty <= 0) return <span>—</span>
-    const tooltip = [
-      `Najbliższa dostawa: ${formatDatePl(inc.earliest_eta) || 'brak daty'}`,
-      inc.latest_eta && inc.latest_eta !== inc.earliest_eta
-        ? `Ostatnia: ${formatDatePl(inc.latest_eta)}`
-        : '',
-      `Otwarte ZD: ${inc.open_pos}`,
-    ]
-      .filter(Boolean)
-      .join('\n')
-    return (
-      <span title={tooltip} style={{ cursor: 'help', textDecoration: 'underline dotted' }}>
-        {inc.incoming_qty}
-      </span>
-    )
-  }
 
   const rowsWithFallbacks = useMemo(() => {
     return stock.map((row) => {
@@ -248,64 +262,128 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
 
   // Sortowanie po kliknięciu nagłówka (wspólny stan dla obu wariantów tabeli)
   const [sort, setSort] = useState<SortState>(null)
-  const handleSort = useCallback((key: string) => setSort((prev) => toggleSort(prev, key)), [])
 
-  const displayAggregated = useMemo(() => {
-    if (!filteredAggregatedRows) return null
-    const getters: Record<string, (r: AggregatedRow) => unknown> = {
-      code: (r) => r.component_code,
-      name: (r) => r.component_name,
-      category: (r) => r.component_category,
-      unit: (r) => r.component_unit,
-      total: (r) => r.total,
-      reserved: (r) => r.reserved,
-      available: (r) => r.total - r.reserved,
-      incoming: (r) => incomingByComponent.get(r.component_id)?.incoming_qty ?? 0,
-      projected: (r) =>
-        r.total - r.reserved + (incomingByComponent.get(r.component_id)?.incoming_qty ?? 0),
-      min: (r) => r.component_min_stock_level,
-      status: (r) => statusRank(stockStatusAggregated(r.total, r.component_min_stock_level)),
-    }
-    for (const w of warehousesSorted) {
-      getters[`wh_${w.id}`] = (r) => r.quantities[w.id] ?? 0
-    }
-    return sortRows(filteredAggregatedRows, sort, getters)
-  }, [filteredAggregatedRows, sort, warehousesSorted, incomingByComponent])
-
-  const displayRows = useMemo(
-    () =>
-      sortRows(filteredRows, sort, {
-        code: (r) => r.component_code,
-        name: (r) => r.component_name,
-        category: (r) => r.component_category,
-        unit: (r) => r.component_unit,
-        warehouse: (r) => r.warehouse_code,
-        qty: (r) => r.quantity,
-        reserved: (r) => r.reserved_quantity ?? 0,
-        available: (r) => r.available_quantity ?? r.quantity,
-        incoming: (r) => incomingByComponent.get(r.component_id)?.incoming_qty ?? 0,
-        projected: (r) =>
-          (r.available_quantity ?? r.quantity) +
-          (incomingByComponent.get(r.component_id)?.incoming_qty ?? 0),
-        min: (r) => r.component_min_stock_level,
-        status: (r) => statusRank(stockStatus(r)),
-      }),
-    [filteredRows, sort, incomingByComponent],
+  const incQtyOf = useCallback(
+    (componentId: number) => incomingByComponent.get(componentId)?.incoming_qty ?? 0,
+    [incomingByComponent],
   )
 
-  const renderStatusCell = (s: StockStatus) => {
-    const dotColor = s === 'ok' ? '#2e7d32' : s === 'low' ? '#f9a825' : '#c62828'
-    return (
-      <span className="stock-status-cell" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span
-          className="stock-status-dot"
-          style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, flexShrink: 0 }}
-          aria-hidden
-        />
-        {statusLabel(s)}
-      </span>
-    )
-  }
+  const renderActions = useCallback(
+    (componentId: number, warehouseId: number | null) => (
+      <div style={{ display: 'flex', gap: 4 }}>
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          onClick={() => {
+            const component = componentById.get(componentId)
+            if (component) onShowHistory(component)
+          }}
+        >
+          Historia
+        </button>
+        {isManager && (
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost"
+            title="Zgłoś zniszczenie (drugi gatunek) — zdejmie z magazynu"
+            onClick={() => setDamageTarget({ componentId, warehouseId })}
+          >
+            ⚠️
+          </button>
+        )}
+      </div>
+    ),
+    [componentById, onShowHistory, isManager],
+  )
+
+  const aggregatedColumns = useMemo((): DataTableColumn<AggregatedRow>[] => [
+    { key: 'code', label: 'KOD', sortValue: (r) => r.component_code, render: (r) => orDash(r.component_code) },
+    { key: 'name', label: 'NAZWA', sortValue: (r) => r.component_name, render: (r) => orDash(r.component_name) },
+    { key: 'category', label: 'KATEGORIA', sortValue: (r) => r.component_category, render: (r) => orDash(r.component_category) },
+    { key: 'unit', label: 'JEDNOSTKA', sortValue: (r) => r.component_unit, render: (r) => orDash(r.component_unit) },
+    ...warehousesSorted.map(
+      (w): DataTableColumn<AggregatedRow> => ({
+        key: `wh_${w.id}`,
+        label: w.code,
+        sortValue: (r) => r.quantities[w.id] ?? 0,
+        render: (r) => r.quantities[w.id] ?? 0,
+      }),
+    ),
+    { key: 'total', label: 'FIZYCZNE', sortValue: (r) => r.total, render: (r) => r.total },
+    { key: 'reserved', label: 'ZAREZERW.', sortValue: (r) => r.reserved, render: (r) => r.reserved || '—' },
+    {
+      key: 'available',
+      label: 'DOSTĘPNE',
+      sortValue: (r) => r.total - r.reserved,
+      render: (r) => renderAvailableCell(r.total - r.reserved),
+    },
+    {
+      key: 'incoming',
+      label: 'W DRODZE',
+      sortValue: (r) => incQtyOf(r.component_id),
+      render: (r) => renderIncomingCell(incomingByComponent.get(r.component_id)),
+    },
+    {
+      key: 'projected',
+      label: 'PROGNOZA',
+      sortValue: (r) => r.total - r.reserved + incQtyOf(r.component_id),
+      render: (r) => r.total - r.reserved + incQtyOf(r.component_id),
+    },
+    {
+      key: 'min',
+      label: 'MIN. STAN',
+      sortValue: (r) => r.component_min_stock_level,
+      render: (r) => (r.component_min_stock_level != null ? r.component_min_stock_level : '—'),
+    },
+    {
+      key: 'status',
+      label: 'STATUS',
+      sortValue: (r) => statusRank(stockStatusAggregated(r.total, r.component_min_stock_level)),
+      render: (r) => renderStatusCell(stockStatusAggregated(r.total, r.component_min_stock_level)),
+    },
+    { key: 'actions', label: 'AKCJE', render: (r) => renderActions(r.component_id, null) },
+  ], [warehousesSorted, incomingByComponent, incQtyOf, renderActions])
+
+  const rowColumns = useMemo((): DataTableColumn<WarehouseStockRow>[] => [
+    { key: 'code', label: 'KOD', sortValue: (r) => r.component_code, render: (r) => orDash(r.component_code) },
+    { key: 'name', label: 'NAZWA', sortValue: (r) => r.component_name, render: (r) => orDash(r.component_name) },
+    { key: 'category', label: 'KATEGORIA', sortValue: (r) => r.component_category, render: (r) => orDash(r.component_category) },
+    { key: 'unit', label: 'JEDNOSTKA', sortValue: (r) => r.component_unit, render: (r) => orDash(r.component_unit) },
+    { key: 'warehouse', label: 'MAGAZYN', sortValue: (r) => r.warehouse_code, render: (r) => orDash(r.warehouse_code) },
+    { key: 'qty', label: 'FIZYCZNE', sortValue: (r) => r.quantity, render: (r) => r.quantity },
+    { key: 'reserved', label: 'ZAREZERW.', sortValue: (r) => r.reserved_quantity ?? 0, render: (r) => r.reserved_quantity || '—' },
+    {
+      key: 'available',
+      label: 'DOSTĘPNE',
+      sortValue: (r) => r.available_quantity ?? r.quantity,
+      render: (r) => renderAvailableCell(r.available_quantity ?? r.quantity),
+    },
+    {
+      key: 'incoming',
+      label: 'W DRODZE',
+      sortValue: (r) => incQtyOf(r.component_id),
+      render: (r) => renderIncomingCell(incomingByComponent.get(r.component_id)),
+    },
+    {
+      key: 'projected',
+      label: 'PROGNOZA',
+      sortValue: (r) => (r.available_quantity ?? r.quantity) + incQtyOf(r.component_id),
+      render: (r) => (r.available_quantity ?? r.quantity) + incQtyOf(r.component_id),
+    },
+    {
+      key: 'min',
+      label: 'MIN. STAN',
+      sortValue: (r) => r.component_min_stock_level,
+      render: (r) => (r.component_min_stock_level != null ? r.component_min_stock_level : '—'),
+    },
+    {
+      key: 'status',
+      label: 'STATUS',
+      sortValue: (r) => statusRank(stockStatus(r)),
+      render: (r) => renderStatusCell(stockStatus(r)),
+    },
+    { key: 'actions', label: 'AKCJE', render: (r) => renderActions(r.component_id, r.warehouse_id) },
+  ], [incomingByComponent, incQtyOf, renderActions])
 
   const isAllWarehouses = selectedWarehouseId === ''
 
@@ -417,155 +495,23 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
       {loading ? (
         <Spinner center label="Ładowanie stanów…" />
       ) : isAllWarehouses && filteredAggregatedRows ? (
-        <TopScrollTableWrapper className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <SortableTh label="KOD" sortKey="code" state={sort} onToggle={handleSort} />
-                <SortableTh label="NAZWA" sortKey="name" state={sort} onToggle={handleSort} />
-                <SortableTh label="KATEGORIA" sortKey="category" state={sort} onToggle={handleSort} />
-                <SortableTh label="JEDNOSTKA" sortKey="unit" state={sort} onToggle={handleSort} />
-                {warehousesSorted.map((w) => (
-                  <SortableTh key={w.id} label={w.code} sortKey={`wh_${w.id}`} state={sort} onToggle={handleSort} />
-                ))}
-                <SortableTh label="FIZYCZNE" sortKey="total" state={sort} onToggle={handleSort} />
-                <SortableTh label="ZAREZERW." sortKey="reserved" state={sort} onToggle={handleSort} />
-                <SortableTh label="DOSTĘPNE" sortKey="available" state={sort} onToggle={handleSort} />
-                <SortableTh label="W DRODZE" sortKey="incoming" state={sort} onToggle={handleSort} />
-                <SortableTh label="PROGNOZA" sortKey="projected" state={sort} onToggle={handleSort} />
-                <SortableTh label="MIN. STAN" sortKey="min" state={sort} onToggle={handleSort} />
-                <SortableTh label="STATUS" sortKey="status" state={sort} onToggle={handleSort} />
-                <th>AKCJE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(displayAggregated ?? filteredAggregatedRows).map((row) => {
-                const s = stockStatusAggregated(row.total, row.component_min_stock_level)
-                const available = row.total - row.reserved
-                const incQty = incomingByComponent.get(row.component_id)?.incoming_qty ?? 0
-                return (
-                  <tr key={row.component_id}>
-                    <td>{row.component_code?.trim() ? row.component_code : '—'}</td>
-                    <td>{row.component_name?.trim() ? row.component_name : '—'}</td>
-                    <td>{row.component_category?.trim() ? row.component_category : '—'}</td>
-                    <td>{row.component_unit?.trim() ? row.component_unit : '—'}</td>
-                    {warehousesSorted.map((w) => (
-                      <td key={w.id}>{row.quantities[w.id] ?? 0}</td>
-                    ))}
-                    <td>{row.total}</td>
-                    <td>{row.reserved || '—'}</td>
-                    <td>{renderAvailableCell(available)}</td>
-                    <td>{renderIncomingCell(row.component_id)}</td>
-                    <td>{available + incQty}</td>
-                    <td>
-                      {row.component_min_stock_level != null ? row.component_min_stock_level : '—'}
-                    </td>
-                    <td>{renderStatusCell(s)}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={() => {
-                            const component = componentById.get(row.component_id)
-                            if (component) onShowHistory(component)
-                          }}
-                        >
-                          Historia
-                        </button>
-                        {isManager && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-ghost"
-                            title="Zgłoś zniszczenie (drugi gatunek) — zdejmie z magazynu"
-                            onClick={() => setDamageTarget({ componentId: row.component_id, warehouseId: null })}
-                          >
-                            ⚠️
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          {filteredAggregatedRows.length === 0 && (
-            <p className="no-results">Brak wierszy spełniających kryteria.</p>
-          )}
-        </TopScrollTableWrapper>
+        <DataTable
+          rows={filteredAggregatedRows}
+          rowKey={(r) => r.component_id}
+          columns={aggregatedColumns}
+          sort={sort}
+          onSortChange={setSort}
+          emptyText="Brak wierszy spełniających kryteria."
+        />
       ) : (
-        <TopScrollTableWrapper className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <SortableTh label="KOD" sortKey="code" state={sort} onToggle={handleSort} />
-                <SortableTh label="NAZWA" sortKey="name" state={sort} onToggle={handleSort} />
-                <SortableTh label="KATEGORIA" sortKey="category" state={sort} onToggle={handleSort} />
-                <SortableTh label="JEDNOSTKA" sortKey="unit" state={sort} onToggle={handleSort} />
-                <SortableTh label="MAGAZYN" sortKey="warehouse" state={sort} onToggle={handleSort} />
-                <SortableTh label="FIZYCZNE" sortKey="qty" state={sort} onToggle={handleSort} />
-                <SortableTh label="ZAREZERW." sortKey="reserved" state={sort} onToggle={handleSort} />
-                <SortableTh label="DOSTĘPNE" sortKey="available" state={sort} onToggle={handleSort} />
-                <SortableTh label="W DRODZE" sortKey="incoming" state={sort} onToggle={handleSort} />
-                <SortableTh label="PROGNOZA" sortKey="projected" state={sort} onToggle={handleSort} />
-                <SortableTh label="MIN. STAN" sortKey="min" state={sort} onToggle={handleSort} />
-                <SortableTh label="STATUS" sortKey="status" state={sort} onToggle={handleSort} />
-                <th>AKCJE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayRows.map((row) => {
-                const s = stockStatus(row)
-                const available = row.available_quantity ?? row.quantity
-                const incQty = incomingByComponent.get(row.component_id)?.incoming_qty ?? 0
-                return (
-                  <tr key={row.id}>
-                    <td>{row.component_code?.trim() ? row.component_code : '—'}</td>
-                    <td>{row.component_name?.trim() ? row.component_name : '—'}</td>
-                    <td>{row.component_category?.trim() ? row.component_category : '—'}</td>
-                    <td>{row.component_unit?.trim() ? row.component_unit : '—'}</td>
-                    <td>{row.warehouse_code?.trim() ? row.warehouse_code : '—'}</td>
-                    <td>{row.quantity}</td>
-                    <td>{row.reserved_quantity || '—'}</td>
-                    <td>{renderAvailableCell(available)}</td>
-                    <td>{renderIncomingCell(row.component_id)}</td>
-                    <td>{available + incQty}</td>
-                    <td>
-                      {row.component_min_stock_level != null ? row.component_min_stock_level : '—'}
-                    </td>
-                    <td>{renderStatusCell(s)}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={() => {
-                            const component = componentById.get(row.component_id)
-                            if (component) onShowHistory(component)
-                          }}
-                        >
-                          Historia
-                        </button>
-                        {isManager && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-ghost"
-                            title="Zgłoś zniszczenie (drugi gatunek) — zdejmie z magazynu"
-                            onClick={() => setDamageTarget({ componentId: row.component_id, warehouseId: row.warehouse_id })}
-                          >
-                            ⚠️
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          {filteredRows.length === 0 && <p className="no-results">Brak wierszy spełniających kryteria.</p>}
-        </TopScrollTableWrapper>
+        <DataTable
+          rows={filteredRows}
+          rowKey={(r) => r.id}
+          columns={rowColumns}
+          sort={sort}
+          onSortChange={setSort}
+          emptyText="Brak wierszy spełniających kryteria."
+        />
       )}
 
       {pushToast && (

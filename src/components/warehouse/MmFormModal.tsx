@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import type { MmFormState, MmItem, Warehouse, WarehouseComponent } from '../../types'
 import SearchableSelect from '../SearchableSelect'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type MmFormModalProps = {
   open: boolean
@@ -65,6 +66,69 @@ function MmFormModal({
   if (!open) return null
 
   const title = mode === 'create' ? 'Nowe przesunięcie (MM)' : 'Przesunięcie (MM)'
+
+  // szerokości kolumn na <th> (table-layout: fixed bierze je z pierwszego wiersza)
+  const itemColumns: DataTableColumn<MmItem>[] = [
+    {
+      key: 'component',
+      label: 'KOMPONENT',
+      thClassName: 'recipe-editor-component-th',
+      tdClassName: 'recipe-editor-component-cell',
+      thStyle: { width: '55%' },
+      render: (row, index) => (
+        <SearchableSelect
+          value={row.component_id > 0 ? (idToOption.get(row.component_id) ?? '') : ''}
+          onChange={(val) => {
+            const id = optionToId.get(val) ?? 0
+            onItemChange(index, 'component_id', id)
+          }}
+          options={componentOptions}
+          placeholder="— wybierz komponent —"
+          disabled={saving}
+        />
+      ),
+    },
+    {
+      key: 'quantity',
+      label: 'ILOŚĆ',
+      thStyle: { width: '15%' },
+      render: (row, index) => (
+        <input
+          type="number"
+          min={0}
+          step={0.001}
+          value={Number.isFinite(row.quantity) ? row.quantity : 0}
+          onChange={(e) => onItemChange(index, 'quantity', parseFloat(e.target.value) || 0)}
+          disabled={saving}
+        />
+      ),
+    },
+    {
+      key: 'notes',
+      label: 'UWAGI',
+      thStyle: { width: '22%' },
+      render: (row, index) => (
+        <input
+          type="text"
+          value={row.notes ?? ''}
+          onChange={(e) => onItemChange(index, 'notes', e.target.value)}
+          disabled={saving}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'AKCJA',
+      thClassName: 'recipe-editor-actions-th',
+      tdClassName: 'recipe-editor-actions-td',
+      thStyle: { width: '8%' },
+      render: (_row, index) => (
+        <button type="button" className="btn btn-sm btn-danger" onClick={() => onRemoveItem(index)} disabled={saving}>
+          Usuń
+        </button>
+      ),
+    },
+  ]
 
   return createPortal(
     <div
@@ -153,79 +217,15 @@ function MmFormModal({
               Pozycje
             </h3>
             <div className="recipe-editor-positions-scroll">
-              <div className="table-wrapper recipe-editor-positions-wrap">
-                <table
-                  className="orders-table recipe-editor-positions-table"
-                  style={{ width: '100%', tableLayout: 'fixed' }}
-                >
-                  <colgroup>
-                    <col style={{ width: '55%' }} />
-                    <col style={{ width: '15%' }} />
-                    <col style={{ width: '22%' }} />
-                    <col style={{ width: '8%' }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th className="recipe-editor-component-th">KOMPONENT</th>
-                      <th>ILOŚĆ</th>
-                      <th>UWAGI</th>
-                      <th className="recipe-editor-actions-th">AKCJA</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {formData.items.map((row, index) => {
-                      const selectValue =
-                        row.component_id > 0 ? (idToOption.get(row.component_id) ?? '') : ''
-                      return (
-                        <tr key={index}>
-                          <td className="recipe-editor-component-cell">
-                            <SearchableSelect
-                              value={selectValue}
-                              onChange={(val) => {
-                                const id = optionToId.get(val) ?? 0
-                                onItemChange(index, 'component_id', id)
-                              }}
-                              options={componentOptions}
-                              placeholder="— wybierz komponent —"
-                              disabled={saving}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              step={0.001}
-                              value={Number.isFinite(row.quantity) ? row.quantity : 0}
-                              onChange={(e) =>
-                                onItemChange(index, 'quantity', parseFloat(e.target.value) || 0)
-                              }
-                              disabled={saving}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="text"
-                              value={row.notes ?? ''}
-                              onChange={(e) => onItemChange(index, 'notes', e.target.value)}
-                              disabled={saving}
-                            />
-                          </td>
-                          <td className="recipe-editor-actions-td">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger"
-                              onClick={() => onRemoveItem(index)}
-                              disabled={saving}
-                            >
-                              Usuń
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                rows={formData.items}
+                rowKey={(_row, index) => index}
+                columns={itemColumns}
+                className="recipe-editor-positions-table"
+                tableStyle={{ width: '100%', tableLayout: 'fixed' }}
+                wrapperClassName="recipe-editor-positions-wrap"
+                emptyText="Brak pozycji."
+              />
             </div>
             <button
               type="button"

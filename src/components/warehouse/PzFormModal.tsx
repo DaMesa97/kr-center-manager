@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { PzFormState, PzItem, Supplier, Warehouse, WarehouseComponent } from '../../types'
 import SearchableSelect from '../SearchableSelect'
+import DataTable from '../DataTable'
 import { isInternalWarehouseCode } from '../../utils'
 
 type PzFormModalProps = {
@@ -312,94 +313,100 @@ function PzFormModal({
               ))}
             </div>
             <div className="recipe-editor-positions-scroll">
-              <div className="table-wrapper recipe-editor-positions-wrap">
-                <table
-                  className="orders-table recipe-editor-positions-table"
-                  style={{ width: '100%', tableLayout: 'fixed' }}
-                >
-                  <colgroup>
-                    <col style={{ width: '55%' }} />
-                    <col style={{ width: '15%' }} />
-                    <col style={{ width: '22%' }} />
-                    <col style={{ width: '8%' }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th className="recipe-editor-component-th">KOMPONENT</th>
-                      <th>ILOŚĆ</th>
-                      <th>UWAGI</th>
-                      <th className="recipe-editor-actions-th">AKCJA</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {formData.items.map((row, index) => {
-                      const selectValue =
-                        row.component_id > 0 ? (idToOption.get(row.component_id) ?? '') : ''
+              {/* szerokości kolumn jak dawny colgroup (tableLayout: fixed bierze je z nagłówka) */}
+              <DataTable
+                rows={formData.items}
+                rowKey={(_, index) => index}
+                className="recipe-editor-positions-table"
+                wrapperClassName="recipe-editor-positions-wrap"
+                tableStyle={{ width: '100%', tableLayout: 'fixed' }}
+                emptyText="Brak pozycji."
+                columns={[
+                  {
+                    key: 'component',
+                    label: 'KOMPONENT',
+                    thClassName: 'recipe-editor-component-th',
+                    tdClassName: 'recipe-editor-component-cell',
+                    thStyle: { width: '55%' },
+                    render: (row, index) => (
+                      <SearchableSelect
+                        value={row.component_id > 0 ? (idToOption.get(row.component_id) ?? '') : ''}
+                        onChange={(val) => {
+                          const id = optionToId.get(val) ?? 0
+                          onItemChange(index, 'component_id', id)
+                          if (mode !== 'create' || id <= 0) return
+                          const selectedComponent = componentById.get(id)
+                          if (!selectedComponent) return
+                          const isInternalDoor = selectedComponent.product_category !== 'raw'
+                          if (isInternalDoor && !formData.warehouse_id && firstInternalWarehouse) {
+                            onChange('warehouse_id', firstInternalWarehouse.id)
+                          }
+                        }}
+                        options={componentOptions}
+                        placeholder="— wybierz komponent —"
+                        disabled={saving}
+                      />
+                    ),
+                  },
+                  {
+                    key: 'qty',
+                    label: 'ILOŚĆ',
+                    thStyle: { width: '15%' },
+                    render: (row, index) => {
                       const rowComp = row.component_id > 0 ? componentById.get(row.component_id) : null
                       const rowUnit = rowComp?.unit ?? ''
                       const isWholeUnit = rowUnit === 'szt'
                       return (
-                        <tr key={index}>
-                          <td className="recipe-editor-component-cell">
-                            <SearchableSelect
-                              value={selectValue}
-                              onChange={(val) => {
-                                const id = optionToId.get(val) ?? 0
-                                onItemChange(index, 'component_id', id)
-                                if (mode !== 'create' || id <= 0) return
-                                const selectedComponent = componentById.get(id)
-                                if (!selectedComponent) return
-                                const isInternalDoor = selectedComponent.product_category !== 'raw'
-                                if (isInternalDoor && !formData.warehouse_id && firstInternalWarehouse) {
-                                  onChange('warehouse_id', firstInternalWarehouse.id)
-                                }
-                              }}
-                              options={componentOptions}
-                              placeholder="— wybierz komponent —"
-                              disabled={saving}
-                            />
-                          </td>
-                          <td>
-                            <div className="pz-qty-cell">
-                              <input
-                                type="number"
-                                min={0}
-                                step={isWholeUnit ? 1 : 0.001}
-                                value={Number.isFinite(row.quantity) ? row.quantity : 0}
-                                onChange={(e) => {
-                                  const raw = parseFloat(e.target.value) || 0
-                                  const val = isWholeUnit ? Math.round(raw) : raw
-                                  onItemChange(index, 'quantity', val < 0 ? 0 : val)
-                                }}
-                                disabled={saving}
-                              />
-                              {rowUnit && <span className="pz-qty-unit">{rowUnit}</span>}
-                            </div>
-                          </td>
-                          <td>
-                            <input
-                              type="text"
-                              value={row.notes ?? ''}
-                              onChange={(e) => onItemChange(index, 'notes', e.target.value)}
-                              disabled={saving}
-                            />
-                          </td>
-                          <td className="recipe-editor-actions-td">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger"
-                              onClick={() => onRemoveItem(index)}
-                              disabled={saving}
-                            >
-                              Usuń
-                            </button>
-                          </td>
-                        </tr>
+                        <div className="pz-qty-cell">
+                          <input
+                            type="number"
+                            min={0}
+                            step={isWholeUnit ? 1 : 0.001}
+                            value={Number.isFinite(row.quantity) ? row.quantity : 0}
+                            onChange={(e) => {
+                              const raw = parseFloat(e.target.value) || 0
+                              const val = isWholeUnit ? Math.round(raw) : raw
+                              onItemChange(index, 'quantity', val < 0 ? 0 : val)
+                            }}
+                            disabled={saving}
+                          />
+                          {rowUnit && <span className="pz-qty-unit">{rowUnit}</span>}
+                        </div>
                       )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                    },
+                  },
+                  {
+                    key: 'notes',
+                    label: 'UWAGI',
+                    thStyle: { width: '22%' },
+                    render: (row, index) => (
+                      <input
+                        type="text"
+                        value={row.notes ?? ''}
+                        onChange={(e) => onItemChange(index, 'notes', e.target.value)}
+                        disabled={saving}
+                      />
+                    ),
+                  },
+                  {
+                    key: 'action',
+                    label: 'AKCJA',
+                    thClassName: 'recipe-editor-actions-th',
+                    tdClassName: 'recipe-editor-actions-td',
+                    thStyle: { width: '8%' },
+                    render: (_, index) => (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={() => onRemoveItem(index)}
+                        disabled={saving}
+                      >
+                        Usuń
+                      </button>
+                    ),
+                  },
+                ]}
+              />
             </div>
             <button
               type="button"

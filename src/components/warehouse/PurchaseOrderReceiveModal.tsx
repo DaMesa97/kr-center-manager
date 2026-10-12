@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
 import type { PurchaseOrder, PurchaseOrderItem, ToastVariant, Warehouse, WarehouseComponent } from '../../types'
+import DataTable from '../DataTable'
+
+const leftOf = (item: PurchaseOrderItem) => Math.max(item.quantity_ordered - item.quantity_received, 0)
 
 type Props = {
   open: boolean
@@ -116,58 +119,62 @@ export default function PurchaseOrderReceiveModal({
           </label>
         </div>
 
-        <div className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <th style={{ width: 'auto' }}>SKU</th>
-                <th style={{ width: 80 }}>Zamów.</th>
-                <th style={{ width: 80 }}>Otrzym.</th>
-                <th style={{ width: 80 }}>Zostało</th>
-                <th style={{ width: 100 }}>Dostawa</th>
-                <th style={{ width: 230 }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingItems.map((item) => {
+        <DataTable
+          rows={pendingItems}
+          rowKey={(item) => item.id}
+          emptyText="Brak pozycji do przyjęcia."
+          columns={[
+            {
+              key: 'sku',
+              label: 'SKU',
+              thStyle: { width: 'auto' },
+              render: (item) => {
                 const component = componentById.get(item.component_id)
-                const left = Math.max(item.quantity_ordered - item.quantity_received, 0)
-                const entered = Number(receivedQty[item.id] ?? 0)
                 return (
-                  <tr key={item.id}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{component?.name ?? `SKU #${item.component_id}`}</div>
-                      <div style={{ fontSize: 11, color: '#666' }}>{component?.code ?? '—'}</div>
-                    </td>
-                    <td>{item.quantity_ordered}</td>
-                    <td>{item.quantity_received}</td>
-                    <td>{left}</td>
-                    <td>
-                      <input
-                        type="number"
-                        min={0}
-                        className="extension-qty-input"
-                        value={receivedQty[item.id] ?? 0}
-                        onChange={(e) =>
-                          setReceivedQty((prev) => ({ ...prev, [item.id]: Math.max(0, Number(e.target.value) || 0) }))
-                        }
-                      />
-                    </td>
-                    <td>
-                      {entered === 0
-                        ? 'Brak — pozycja zostanie wisząca'
-                        : entered === left
-                          ? '🟢 Komplet'
-                          : entered < left
-                            ? `🟡 Częściowa, ${left - entered} szt zostanie wisząca`
-                            : `⚠️ Nadwyżka ${entered - left} szt — sprawdź`}
-                    </td>
-                  </tr>
+                  <>
+                    <div style={{ fontWeight: 600 }}>{component?.name ?? `SKU #${item.component_id}`}</div>
+                    <div style={{ fontSize: 11, color: '#666' }}>{component?.code ?? '—'}</div>
+                  </>
                 )
-              })}
-            </tbody>
-          </table>
-        </div>
+              },
+            },
+            { key: 'ordered', label: 'Zamów.', thStyle: { width: 80 }, render: (item) => item.quantity_ordered },
+            { key: 'received', label: 'Otrzym.', thStyle: { width: 80 }, render: (item) => item.quantity_received },
+            { key: 'left', label: 'Zostało', thStyle: { width: 80 }, render: (item) => leftOf(item) },
+            {
+              key: 'delivery',
+              label: 'Dostawa',
+              thStyle: { width: 100 },
+              render: (item) => (
+                <input
+                  type="number"
+                  min={0}
+                  className="extension-qty-input"
+                  value={receivedQty[item.id] ?? 0}
+                  onChange={(e) =>
+                    setReceivedQty((prev) => ({ ...prev, [item.id]: Math.max(0, Number(e.target.value) || 0) }))
+                  }
+                />
+              ),
+            },
+            {
+              key: 'status',
+              label: 'Status',
+              thStyle: { width: 230 },
+              render: (item) => {
+                const left = leftOf(item)
+                const entered = Number(receivedQty[item.id] ?? 0)
+                return entered === 0
+                  ? 'Brak — pozycja zostanie wisząca'
+                  : entered === left
+                    ? '🟢 Komplet'
+                    : entered < left
+                      ? `🟡 Częściowa, ${left - entered} szt zostanie wisząca`
+                      : `⚠️ Nadwyżka ${entered - left} szt — sprawdź`
+              },
+            },
+          ]}
+        />
 
         <div className="order-form-actions">
           <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={saving}>

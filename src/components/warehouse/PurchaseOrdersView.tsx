@@ -13,6 +13,7 @@ import type {
 import { generateZdPdf } from '../../utils/zdPdfGenerator'
 import { PURCHASE_ORDER_STATUS_LABELS } from '../../constants'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 import IncomingView from './IncomingView'
 
 type Props = {
@@ -130,6 +131,72 @@ export default function PurchaseOrdersView({
     }
   }
 
+  const columns: DataTableColumn<PurchaseOrder>[] = [
+    {
+      key: 'zd',
+      label: 'Numer ZD',
+      thStyle: { width: 150 },
+      sortValue: (po) => po.zd_number,
+      render: (po) => (
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => onShowDetails(po)}>
+          {po.zd_number}
+        </button>
+      ),
+    },
+    {
+      key: 'supplier',
+      label: 'Dostawca',
+      thStyle: { width: 'auto' },
+      sortValue: (po) => supplierById.get(po.supplier_id)?.name ?? null,
+      render: (po) => supplierById.get(po.supplier_id)?.name ?? '—',
+    },
+    {
+      key: 'created',
+      label: 'Utworzono',
+      thStyle: { width: 120 },
+      sortValue: (po) => po.created_at,
+      render: (po) => po.created_at.slice(0, 10),
+    },
+    {
+      key: 'delivery',
+      label: 'Dostawa',
+      thStyle: { width: 120 },
+      sortValue: (po) => po.expected_delivery_date,
+      render: (po) => po.expected_delivery_date ?? '—',
+    },
+    {
+      key: 'items',
+      label: 'Poz.',
+      thStyle: { width: 70 },
+      sortValue: (po) => itemCountByPo.get(po.id) ?? 0,
+      render: (po) => itemCountByPo.get(po.id) ?? 0,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      thStyle: { width: 120 },
+      sortValue: (po) => PURCHASE_ORDER_STATUS_LABELS[po.status],
+      render: (po) => (
+        <span className={`po-status-badge po-status-badge--${po.status}`}>{PURCHASE_ORDER_STATUS_LABELS[po.status]}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Akcje',
+      thStyle: { width: 140 },
+      render: (po) => (
+        <div className="contractor-actions">
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => onShowDetails(po)}>
+            Szczegóły
+          </button>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void handlePdf(po)}>
+            PDF
+          </button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="reorder-dashboard">
       <div className="reorder-header">
@@ -199,58 +266,13 @@ export default function PurchaseOrdersView({
         </select>
       </div>
 
-      <div className="table-wrapper">
-        {loading && <Spinner center label="Ładowanie zamówień do dostawców…" />}
-        <table className="orders-table">
-          <thead>
-            <tr>
-              <th style={{ width: 150 }}>Numer ZD</th>
-              <th style={{ width: 'auto' }}>Dostawca</th>
-              <th style={{ width: 120 }}>Utworzono</th>
-              <th style={{ width: 120 }}>Dostawa</th>
-              <th style={{ width: 70 }}>Poz.</th>
-              <th style={{ width: 120 }}>Status</th>
-              <th style={{ width: 140 }}>Akcje</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((po) => (
-              <tr key={po.id}>
-                <td>
-                  <button type="button" className="btn btn-sm btn-primary" onClick={() => onShowDetails(po)}>
-                    {po.zd_number}
-                  </button>
-                </td>
-                <td>{supplierById.get(po.supplier_id)?.name ?? '—'}</td>
-                <td>{po.created_at.slice(0, 10)}</td>
-                <td>{po.expected_delivery_date ?? '—'}</td>
-                <td>{itemCountByPo.get(po.id) ?? 0}</td>
-                <td>
-                  <span className={`po-status-badge po-status-badge--${po.status}`}>
-                    {PURCHASE_ORDER_STATUS_LABELS[po.status]}
-                  </span>
-                </td>
-                <td>
-                  <div className="contractor-actions">
-                    <button type="button" className="btn btn-sm btn-primary" onClick={() => onShowDetails(po)}>
-                      Szczegóły
-                    </button>
-                    <button type="button" className="btn btn-sm btn-primary" onClick={() => void handlePdf(po)}>
-                      PDF
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <p className="no-results">
-            Brak zamówień. Pierwsze zamówienia pojawią się po wygenerowaniu z listy zakupowej w sekcji
-            Zamawianie.
-          </p>
-        )}
-      </div>
+      {loading && <Spinner center label="Ładowanie zamówień do dostawców…" />}
+      <DataTable
+        rows={filtered}
+        rowKey={(po) => po.id}
+        columns={columns}
+        emptyText="Brak zamówień. Pierwsze zamówienia pojawią się po wygenerowaniu z listy zakupowej w sekcji Zamawianie."
+      />
       </>
       )}
     </div>

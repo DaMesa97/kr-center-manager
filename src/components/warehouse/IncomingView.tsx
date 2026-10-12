@@ -1,9 +1,7 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { IncomingStockRow, WarehouseComponent } from '../../types'
 import Spinner from '../Spinner'
-import SortableTh from '../SortableTh'
-import { TopScrollTableWrapper } from '../TopScrollTableWrapper'
-import { sortRows, toggleSort, type SortState } from '../../lib/tableSort'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 function formatDatePl(d: string | null): string {
   if (!d) return '—'
@@ -28,8 +26,6 @@ type Props = {
 /** Podzakładka Magazyn → W drodze: niedostarczone pozycje z otwartych ZD. */
 function IncomingView({ incoming, components, loading, onRefresh }: Props) {
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<SortState>(null)
-  const handleSort = useCallback((key: string) => setSort((prev) => toggleSort(prev, key)), [])
 
   const componentById = useMemo(() => {
     const m = new Map<number, WarehouseComponent>()
@@ -52,19 +48,6 @@ function IncomingView({ incoming, components, loading, onRefresh }: Props) {
       })
       .filter((r) => !q || r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q))
   }, [incoming, componentById, search])
-
-  const display = useMemo(
-    () =>
-      sortRows(rows, sort, {
-        code: (r) => r.code,
-        name: (r) => r.name,
-        qty: (r) => r.incoming_qty,
-        earliest: (r) => r.earliest_eta ?? '9999',
-        latest: (r) => r.latest_eta ?? '9999',
-        pos: (r) => r.open_pos,
-      }),
-    [rows, sort],
-  )
 
   const totalQty = useMemo(() => rows.reduce((s, r) => s + r.incoming_qty, 0), [rows])
   const overdueCount = useMemo(() => rows.filter((r) => isOverdue(r.earliest_eta)).length, [rows])
@@ -96,58 +79,58 @@ function IncomingView({ incoming, components, loading, onRefresh }: Props) {
       {loading ? (
         <Spinner center label="Ładowanie dostaw w drodze…" />
       ) : (
-        <TopScrollTableWrapper className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <SortableTh label="KOD" sortKey="code" state={sort} onToggle={handleSort} />
-                <SortableTh label="NAZWA" sortKey="name" state={sort} onToggle={handleSort} />
-                <SortableTh label="W DRODZE" sortKey="qty" state={sort} onToggle={handleSort} />
-                <SortableTh label="NAJBLIŻSZA DOSTAWA" sortKey="earliest" state={sort} onToggle={handleSort} />
-                <SortableTh label="OSTATNIA DOSTAWA" sortKey="latest" state={sort} onToggle={handleSort} />
-                <SortableTh label="OTWARTE ZD" sortKey="pos" state={sort} onToggle={handleSort} />
-              </tr>
-            </thead>
-            <tbody>
-              {display.map((r) => {
-                const overdue = isOverdue(r.earliest_eta)
-                return (
-                  <tr key={r.component_id}>
-                    <td>{r.code || '—'}</td>
-                    <td>
-                      {r.name}
-                      {r.unit ? (
-                        <span style={{ color: 'var(--color-text-muted, #94a3b8)', fontSize: 12 }}> ({r.unit})</span>
-                      ) : null}
-                    </td>
-                    <td><strong>{r.incoming_qty}</strong></td>
-                    <td>
-                      {formatDatePl(r.earliest_eta)}
-                      {overdue && (
-                        <span
-                          style={{ color: '#c62828', fontWeight: 700, marginLeft: 6 }}
-                          title="Data dostawy minęła, a pozycja nie została przyjęta — pogoń dostawcę albo przyjmij dostawę"
-                        >
-                          po terminie!
-                        </span>
-                      )}
-                    </td>
-                    <td>{formatDatePl(r.latest_eta)}</td>
-                    <td>{r.open_pos}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          {display.length === 0 && (
-            <p className="no-results">
-              Nic nie jest w drodze — brak niedostarczonych pozycji w wysłanych zamówieniach do dostawców.
-            </p>
-          )}
-        </TopScrollTableWrapper>
+        <DataTable
+          rows={rows}
+          rowKey={(r) => r.component_id}
+          columns={incomingColumns}
+          emptyText="Nic nie jest w drodze — brak niedostarczonych pozycji w wysłanych zamówieniach do dostawców."
+        />
       )}
     </>
   )
 }
+
+type IncomingDisplayRow = IncomingStockRow & { code: string; name: string; unit: string }
+
+const incomingColumns: DataTableColumn<IncomingDisplayRow>[] = [
+  { key: 'code', label: 'KOD', sortValue: (r) => r.code, render: (r) => r.code || '—' },
+  {
+    key: 'name',
+    label: 'NAZWA',
+    sortValue: (r) => r.name,
+    render: (r) => (
+      <>
+        {r.name}
+        {r.unit ? <span style={{ color: 'var(--color-text-muted, #94a3b8)', fontSize: 12 }}> ({r.unit})</span> : null}
+      </>
+    ),
+  },
+  { key: 'qty', label: 'W DRODZE', sortValue: (r) => r.incoming_qty, render: (r) => <strong>{r.incoming_qty}</strong> },
+  {
+    key: 'earliest',
+    label: 'NAJBLIŻSZA DOSTAWA',
+    sortValue: (r) => r.earliest_eta ?? '9999',
+    render: (r) => (
+      <>
+        {formatDatePl(r.earliest_eta)}
+        {isOverdue(r.earliest_eta) && (
+          <span
+            style={{ color: '#c62828', fontWeight: 700, marginLeft: 6 }}
+            title="Data dostawy minęła, a pozycja nie została przyjęta — pogoń dostawcę albo przyjmij dostawę"
+          >
+            po terminie!
+          </span>
+        )}
+      </>
+    ),
+  },
+  {
+    key: 'latest',
+    label: 'OSTATNIA DOSTAWA',
+    sortValue: (r) => r.latest_eta ?? '9999',
+    render: (r) => formatDatePl(r.latest_eta),
+  },
+  { key: 'pos', label: 'OTWARTE ZD', sortValue: (r) => r.open_pos, render: (r) => r.open_pos },
+]
 
 export default IncomingView

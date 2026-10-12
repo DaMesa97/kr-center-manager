@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 export type DocumentDetailsModalProps = {
   open: boolean
@@ -41,6 +42,19 @@ function formatDateTime(iso: string): string {
     minute: '2-digit',
   })
 }
+
+const detailColumns: DataTableColumn<DetailRow>[] = [
+  { key: 'code', label: 'KOD', sortValue: (r) => r.component_code, render: (r) => r.component_code ?? '—' },
+  { key: 'name', label: 'NAZWA', sortValue: (r) => r.component_name, render: (r) => r.component_name ?? '—' },
+  { key: 'unit', label: 'JEDNOSTKA', sortValue: (r) => r.component_unit, render: (r) => r.component_unit ?? '—' },
+  { key: 'qty', label: 'ILOŚĆ', sortValue: (r) => r.quantity, render: (r) => r.quantity },
+  {
+    key: 'notes',
+    label: 'UWAGI',
+    sortValue: (r) => r.notes?.trim() || null,
+    render: (r) => (r.notes?.trim() ? r.notes : '—'),
+  },
+]
 
 export default function DocumentDetailsModal({
   open,
@@ -255,47 +269,17 @@ export default function DocumentDetailsModal({
               Pozycje
             </h3>
             <div className="recipe-editor-positions-scroll">
-              <div className="table-wrapper recipe-editor-positions-wrap">
-                <table
-                  className="orders-table recipe-editor-positions-table"
-                  style={{ width: '100%', tableLayout: 'fixed' }}
-                >
-                  <thead>
-                    <tr>
-                      <th>KOD</th>
-                      <th>NAZWA</th>
-                      <th>JEDNOSTKA</th>
-                      <th>ILOŚĆ</th>
-                      <th>UWAGI</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={5}>
-                          <Spinner center label="Ładowanie…" />
-                        </td>
-                      </tr>
-                    ) : rows.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '1rem' }}>
-                          Brak pozycji
-                        </td>
-                      </tr>
-                    ) : (
-                      rows.map((r) => (
-                        <tr key={r.id}>
-                          <td>{r.component_code ?? '—'}</td>
-                          <td>{r.component_name ?? '—'}</td>
-                          <td>{r.component_unit ?? '—'}</td>
-                          <td>{r.quantity}</td>
-                          <td>{r.notes?.trim() ? r.notes : '—'}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                rows={rows}
+                rowKey={(r) => r.id}
+                columns={detailColumns}
+                className="recipe-editor-positions-table"
+                tableStyle={{ width: '100%', tableLayout: 'fixed' }}
+                wrapperClassName="recipe-editor-positions-wrap"
+                loading={loading}
+                loadingText={<Spinner center label="Ładowanie…" />}
+                emptyText="Brak pozycji"
+              />
             </div>
           </div>
         </div>

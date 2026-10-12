@@ -13,11 +13,30 @@ import { supabase } from '../../supabaseClient'
 import type { ConsumptionHistoryPoint, ForecastRun, WarehouseComponent } from '../../types'
 import SeasonalFactorsEditor from './SeasonalFactorsEditor'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type Props = {
   components: WarehouseComponent[]
   isManager: boolean
 }
+
+type ForecastPoint = ForecastRun['forecast_json'][number]
+
+const forecastColumns: DataTableColumn<ForecastPoint>[] = [
+  {
+    key: 'month',
+    label: 'Miesiąc',
+    sortValue: (f) => f.year * 100 + f.month,
+    render: (f) => `${f.year}-${String(f.month).padStart(2, '0')}`,
+  },
+  { key: 'qty', label: 'Prognoza (szt.)', sortValue: (f) => f.forecast_qty, render: (f) => f.forecast_qty },
+  {
+    key: 'factor',
+    label: 'Mnożnik sezonowy',
+    sortValue: (f) => f.seasonal_factor,
+    render: (f) => f.seasonal_factor.toFixed(2),
+  },
+]
 
 function parseForecastJson(raw: unknown): ForecastRun['forecast_json'] {
   if (raw == null) return []
@@ -351,26 +370,14 @@ export default function ForecastView({ components, isManager }: Props) {
             </div>
           )}
           {!loading && selectedComponent && forecast && (
-            <table className="forecast-table">
-              <thead>
-                <tr>
-                  <th>Miesiąc</th>
-                  <th>Prognoza (szt.)</th>
-                  <th>Mnożnik sezonowy</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(forecast.forecast_json ?? []).map((f, idx) => (
-                  <tr key={idx}>
-                    <td>
-                      {f.year}-{String(f.month).padStart(2, '0')}
-                    </td>
-                    <td>{f.forecast_qty}</td>
-                    <td>{f.seasonal_factor.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DataTable
+              rows={forecast.forecast_json ?? []}
+              rowKey={(f) => `${f.year}-${f.month}`}
+              columns={forecastColumns}
+              className="forecast-table"
+              wrapped={false}
+              emptyText="Brak prognozy."
+            />
           )}
         </div>
       </div>

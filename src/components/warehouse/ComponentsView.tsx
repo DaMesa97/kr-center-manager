@@ -1,5 +1,5 @@
 import { appAlert, appConfirm } from '../../lib/appDialogs'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity } from 'lucide-react'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
@@ -13,9 +13,7 @@ import type {
 } from '../../types'
 import SkuLogisticsFields from './SkuLogisticsFields'
 import Spinner from '../Spinner'
-import SortableTh from '../SortableTh'
-import { TopScrollTableWrapper } from '../TopScrollTableWrapper'
-import { sortRows, toggleSort, type SortState } from '../../lib/tableSort'
+import DataTable, { type DataTableColumn } from '../DataTable'
 import { isInternalWarehouseCode } from '../../utils'
 
 const UNIT_OPTIONS = ['mb', 'szt', 'm2', 'kg'] as const
@@ -171,31 +169,6 @@ function ComponentsView({
     [suppliers],
   )
 
-  // Sortowanie po kliknięciu nagłówka (3 stany: A→Z / Z→A / domyślne = kod)
-  const [sort, setSort] = useState<SortState>(null)
-  const handleSort = useCallback((key: string) => setSort((prev) => toggleSort(prev, key)), [])
-  const sortedComponents = useMemo(
-    () =>
-      sortRows(filtered, sort, {
-        name: (c) => c.name,
-        code: (c) => c.code,
-        category: (c) =>
-          c.category?.trim() ? c.category : (PRODUCT_CATEGORY_LABELS[c.product_category] ?? c.product_category),
-        supplier: (c) => (c.supplier_id ? suppliersById.get(c.supplier_id)?.name ?? '' : ''),
-        model: (c) => c.door_model,
-        size: (c) => c.door_size,
-        direction: (c) => c.door_direction,
-        color: (c) => c.door_color,
-        frame_type: (c) => c.door_frame_type,
-        frame_code: (c) => c.door_frame_code,
-        shield: (c) => c.door_handle_shield,
-        unit: (c) => c.unit,
-        min: (c) => c.min_stock_level,
-        notes: (c) => c.notes,
-      }),
-    [filtered, sort, suppliersById],
-  )
-
   const openCreate = useCallback(() => {
     setModalMode('create')
     setEditingId(null)
@@ -337,6 +310,113 @@ function ComponentsView({
     [onEditDoorComponent, openEdit],
   )
 
+  // Kolumny zależne od filtra (drzwi wewnętrzne mają swoje atrybuty)
+  const componentColumns = useMemo((): DataTableColumn<WarehouseComponent>[] => {
+    const col = (
+      key: string,
+      label: string,
+      sortValue: (c: WarehouseComponent) => unknown,
+      render: (c: WarehouseComponent) => ReactNode,
+    ): DataTableColumn<WarehouseComponent> => ({ key, label, sortValue, render })
+    const dash = (v: string | null | undefined) => v ?? '—'
+
+    const cols: DataTableColumn<WarehouseComponent>[] = [
+      col('name', 'NAZWA', (c) => c.name, (c) => c.name),
+      col('code', 'KOD', (c) => c.code, (c) => c.code ?? '—'),
+      col(
+        'category',
+        'KATEGORIA',
+        (c) => (c.category?.trim() ? c.category : (PRODUCT_CATEGORY_LABELS[c.product_category] ?? c.product_category)),
+        (row) =>
+          row.category?.trim() ? (
+            <span className="component-category-badge">{row.category}</span>
+          ) : row.product_category && row.product_category !== 'raw' ? (
+            <span className="component-category-badge">
+              {PRODUCT_CATEGORY_LABELS[row.product_category] ?? row.product_category}
+            </span>
+          ) : (
+            // "Surowiec" mylił (zgłoszenie #32) — puste = do uzupełnienia
+            <span
+              style={{ color: '#b45309', fontSize: '0.8rem' }}
+              title="Komponent bez kategorii — uzupełnij w edycji (np. Zamki i okucia, Szklenie, Blachy)"
+            >
+              — uzupełnij
+            </span>
+          ),
+      ),
+      col(
+        'supplier',
+        'DOSTAWCA',
+        (c) => (c.supplier_id ? suppliersById.get(c.supplier_id)?.name ?? '' : ''),
+        (row) => (row.supplier_id ? (suppliersById.get(row.supplier_id)?.name ?? '—') : '—'),
+      ),
+    ]
+
+    const model = col('model', 'MODEL', (c) => c.door_model, (c) => dash(c.door_model))
+    const size = col('size', 'ROZMIAR', (c) => c.door_size, (c) => dash(c.door_size))
+    const direction = col('direction', 'KIERUNEK', (c) => c.door_direction, (c) => dash(c.door_direction))
+    const color = col('color', 'KOLOR', (c) => c.door_color, (c) => dash(c.door_color))
+    if (categoryFilter === 'door_wing') cols.push(model, size, direction, color)
+    if (categoryFilter === 'door_frame') {
+      cols.push(
+        col('frame_type', 'TYP RAMKI', (c) => c.door_frame_type, (row) =>
+          row.door_frame_type === 'simple' ? 'Prosta' : row.door_frame_type === 'adjustable' ? 'Regulowana' : '—',
+        ),
+        col('frame_code', 'FRAME CODE', (c) => c.door_frame_code, (row) =>
+          row.door_frame_type === 'adjustable' ? (row.door_frame_code ?? '—') : '—',
+        ),
+        size,
+        direction,
+        color,
+      )
+    }
+    if (categoryFilter === 'door_handle') {
+      cols.push(model, color, col('shield', 'SZYLD', (c) => c.door_handle_shield, (c) => dash(c.door_handle_shield)))
+    }
+    if (categoryFilter === 'door_hinge_cover') cols.push(color)
+
+    cols.push(
+      col('unit', 'JEDNOSTKA', (c) => c.unit, (c) => c.unit),
+      col('min', 'MIN / TARGET', (c) => c.min_stock_level, (row) => (
+        <>
+          {row.min_stock_level != null ? row.min_stock_level : '—'} /{' '}
+          {row.target_stock_level != null ? row.target_stock_level : '—'}
+        </>
+      )),
+    )
+    if (categoryFilter === 'all' || categoryFilter === 'raw' || categoryFilter.startsWith('cat:')) {
+      cols.push(col('notes', 'UWAGI', (c) => c.notes, (row) => (row.notes?.trim() ? row.notes : '—')))
+    }
+    cols.push({
+      key: 'actions',
+      label: 'AKCJE',
+      render: (row) => (
+        <div className="contractor-actions">
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={() => onShowHistory(row)}
+            title="Historia ruchów"
+          >
+            <Activity size={14} style={{ marginRight: 6, verticalAlign: 'text-bottom' }} />
+            Historia
+          </button>
+          {isManager && (
+            <>
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => handleEdit(row)}>
+                Edytuj
+              </button>
+              <button type="button" className="btn btn-sm btn-danger" onClick={() => void handleDeleteRow(row.id)}>
+                Usuń
+              </button>
+            </>
+          )}
+        </div>
+      ),
+    })
+    return cols
+  }, [categoryFilter, suppliersById, isManager, onShowHistory, handleEdit, handleDeleteRow])
+
   useEffect(() => {
     if (!editRequestComponent) return
     if (editRequestComponent.product_category === 'raw' || editRequestComponent.product_category == null) {
@@ -448,156 +528,12 @@ function ComponentsView({
               </select>
             </label>
           </div>
-          <TopScrollTableWrapper className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <SortableTh label="NAZWA" sortKey="name" state={sort} onToggle={handleSort} />
-                <SortableTh label="KOD" sortKey="code" state={sort} onToggle={handleSort} />
-                <SortableTh label="KATEGORIA" sortKey="category" state={sort} onToggle={handleSort} />
-                <SortableTh label="DOSTAWCA" sortKey="supplier" state={sort} onToggle={handleSort} />
-                {categoryFilter === 'door_wing' && (
-                  <>
-                    <SortableTh label="MODEL" sortKey="model" state={sort} onToggle={handleSort} />
-                    <SortableTh label="ROZMIAR" sortKey="size" state={sort} onToggle={handleSort} />
-                    <SortableTh label="KIERUNEK" sortKey="direction" state={sort} onToggle={handleSort} />
-                    <SortableTh label="KOLOR" sortKey="color" state={sort} onToggle={handleSort} />
-                  </>
-                )}
-                {categoryFilter === 'door_frame' && (
-                  <>
-                    <SortableTh label="TYP RAMKI" sortKey="frame_type" state={sort} onToggle={handleSort} />
-                    <SortableTh label="FRAME CODE" sortKey="frame_code" state={sort} onToggle={handleSort} />
-                    <SortableTh label="ROZMIAR" sortKey="size" state={sort} onToggle={handleSort} />
-                    <SortableTh label="KIERUNEK" sortKey="direction" state={sort} onToggle={handleSort} />
-                    <SortableTh label="KOLOR" sortKey="color" state={sort} onToggle={handleSort} />
-                  </>
-                )}
-                {categoryFilter === 'door_handle' && (
-                  <>
-                    <SortableTh label="MODEL" sortKey="model" state={sort} onToggle={handleSort} />
-                    <SortableTh label="KOLOR" sortKey="color" state={sort} onToggle={handleSort} />
-                    <SortableTh label="SZYLD" sortKey="shield" state={sort} onToggle={handleSort} />
-                  </>
-                )}
-                {categoryFilter === 'door_hinge_cover' && (
-                  <>
-                    <SortableTh label="KOLOR" sortKey="color" state={sort} onToggle={handleSort} />
-                  </>
-                )}
-                <SortableTh label="JEDNOSTKA" sortKey="unit" state={sort} onToggle={handleSort} />
-                <SortableTh label="MIN / TARGET" sortKey="min" state={sort} onToggle={handleSort} />
-                {(categoryFilter === 'all' || categoryFilter === 'raw' || categoryFilter.startsWith('cat:')) && (
-                  <SortableTh label="UWAGI" sortKey="notes" state={sort} onToggle={handleSort} />
-                )}
-                <th>AKCJE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedComponents.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.name}</td>
-                  <td>{row.code ?? '—'}</td>
-                  <td>
-                    {row.category?.trim() ? (
-                      <span className="component-category-badge">{row.category}</span>
-                    ) : row.product_category && row.product_category !== 'raw' ? (
-                      <span className="component-category-badge">
-                        {PRODUCT_CATEGORY_LABELS[row.product_category] ?? row.product_category}
-                      </span>
-                    ) : (
-                      // "Surowiec" mylił (zgłoszenie #32) — puste = do uzupełnienia
-                      <span
-                        style={{ color: '#b45309', fontSize: '0.8rem' }}
-                        title="Komponent bez kategorii — uzupełnij w edycji (np. Zamki i okucia, Szklenie, Blachy)"
-                      >
-                        — uzupełnij
-                      </span>
-                    )}
-                  </td>
-                  <td>{row.supplier_id ? (suppliersById.get(row.supplier_id)?.name ?? '—') : '—'}</td>
-                  {categoryFilter === 'door_wing' && (
-                    <>
-                      <td>{row.door_model ?? '—'}</td>
-                      <td>{row.door_size ?? '—'}</td>
-                      <td>{row.door_direction ?? '—'}</td>
-                      <td>{row.door_color ?? '—'}</td>
-                    </>
-                  )}
-                  {categoryFilter === 'door_frame' && (
-                    <>
-                      <td>
-                        {row.door_frame_type === 'simple'
-                          ? 'Prosta'
-                          : row.door_frame_type === 'adjustable'
-                            ? 'Regulowana'
-                            : '—'}
-                      </td>
-                      <td>{row.door_frame_type === 'adjustable' ? (row.door_frame_code ?? '—') : '—'}</td>
-                      <td>{row.door_size ?? '—'}</td>
-                      <td>{row.door_direction ?? '—'}</td>
-                      <td>{row.door_color ?? '—'}</td>
-                    </>
-                  )}
-                  {categoryFilter === 'door_handle' && (
-                    <>
-                      <td>{row.door_model ?? '—'}</td>
-                      <td>{row.door_color ?? '—'}</td>
-                      <td>{row.door_handle_shield ?? '—'}</td>
-                    </>
-                  )}
-                  {categoryFilter === 'door_hinge_cover' && (
-                    <>
-                      <td>{row.door_color ?? '—'}</td>
-                    </>
-                  )}
-                  <td>{row.unit}</td>
-                  <td>
-                    {row.min_stock_level != null ? row.min_stock_level : '—'} /{' '}
-                    {row.target_stock_level != null ? row.target_stock_level : '—'}
-                  </td>
-                  {(categoryFilter === 'all' || categoryFilter === 'raw' || categoryFilter.startsWith('cat:')) && (
-                    <td>{row.notes?.trim() ? row.notes : '—'}</td>
-                  )}
-                  <td>
-                    <div className="contractor-actions">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={() => onShowHistory(row)}
-                        title="Historia ruchów"
-                      >
-                        <Activity size={14} style={{ marginRight: 6, verticalAlign: 'text-bottom' }} />
-                        Historia
-                      </button>
-                      {isManager && (
-                        <>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={() => handleEdit(row)}
-                        >
-                          Edytuj
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-danger"
-                          onClick={() => void handleDeleteRow(row.id)}
-                        >
-                          Usuń
-                        </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </TopScrollTableWrapper>
-          {filtered.length === 0 && (
-            <p className="no-results">Brak komponentów spełniających kryteria.</p>
-          )}
+          <DataTable
+            rows={filtered}
+            rowKey={(row) => row.id}
+            columns={componentColumns}
+            emptyText="Brak komponentów spełniających kryteria."
+          />
         </div>
       )}
 

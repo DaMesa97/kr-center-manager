@@ -1,8 +1,8 @@
-import { Fragment, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { StockReservationRow } from '../../types'
 import Spinner from '../Spinner'
 import DeleteConfirmDialog from '../DeleteConfirmDialog'
-import { TopScrollTableWrapper } from '../TopScrollTableWrapper'
+import DataTable, { type DataTableColumn } from '../DataTable'
 import { getOrderStageDefinitions } from '../../utils'
 
 const STATUS_LABELS: Record<StockReservationRow['status'], string> = {
@@ -114,6 +114,72 @@ function ReservationsView({ reservations, loading, isManager, onRelease, onRelea
     [reservations],
   )
 
+  const groupColumns = useMemo((): DataTableColumn<OrderGroup>[] => {
+    const cols: DataTableColumn<OrderGroup>[] = [
+      {
+        key: 'order',
+        label: 'ZLECENIE',
+        render: (g) => (
+          <>
+            <span style={{ marginRight: 6 }}>{expandedOrderId === g.order_id ? '▾' : '▸'}</span>
+            <strong>{g.order_number}</strong>
+          </>
+        ),
+      },
+      { key: 'company', label: 'FIRMA', render: (g) => g.order_company },
+      { key: 'category', label: 'KAT.', render: (g) => g.order_category },
+      {
+        key: 'lines',
+        label: 'POZYCJI',
+        title: 'Liczba pozycji komponentowych',
+        render: (g) => (
+          <>
+            {g.lines.length}
+            {g.activeCount > 0 && g.activeCount < g.lines.length && (
+              <span style={{ color: '#0369a1', fontSize: 12 }}> ({g.activeCount} akt.)</span>
+            )}
+          </>
+        ),
+      },
+      { key: 'reserved', label: 'ZAREZERW.', render: (g) => Math.round(g.totalReserved * 1000) / 1000 },
+      {
+        key: 'released',
+        label: 'WYDANE',
+        render: (g) => (
+          <>
+            {g.totalReleased > 0 ? Math.round(g.totalReleased * 1000) / 1000 : '—'}
+            {g.activeCount === 0 && g.totalReleased > 0 && (
+              <span style={{ color: '#15803d', fontSize: 12, marginLeft: 4 }}>✓ komplet</span>
+            )}
+          </>
+        ),
+      },
+      { key: 'newest', label: 'OSTATNIA ZMIANA', render: (g) => formatDateTimePl(g.newestAt) },
+    ]
+    if (isManager) {
+      cols.push({
+        key: 'actions',
+        label: 'AKCJE',
+        // klik w akcje nie rozwija wiersza
+        render: (g) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            {g.activeCount > 0 && onReleaseOrder && (
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                title="Zwolnij WSZYSTKIE niewydane rezerwacje tego zlecenia"
+                onClick={() => setReleaseOrderConfirm(g)}
+              >
+                Zwolnij wszystkie
+              </button>
+            )}
+          </div>
+        ),
+      })
+    }
+    return cols
+  }, [expandedOrderId, isManager, onReleaseOrder])
+
   return (
     <>
       <div className="orders-filters" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
@@ -151,138 +217,82 @@ function ReservationsView({ reservations, loading, isManager, onRelease, onRelea
       {loading ? (
         <Spinner center label="Ładowanie rezerwacji…" />
       ) : (
-        <TopScrollTableWrapper className="table-wrapper">
-          <table className="orders-table">
-            <thead>
+        <DataTable
+          rows={groups}
+          rowKey={(g) => g.order_id}
+          columns={groupColumns}
+          emptyText="Brak rezerwacji spełniających kryteria."
+          onRowClick={(g) => setExpandedOrderId(expandedOrderId === g.order_id ? null : g.order_id)}
+          rowTitle={() => 'Kliknij, aby rozwinąć komponenty'}
+          renderAfterRow={(g) =>
+            expandedOrderId === g.order_id && (
               <tr>
-                <th>ZLECENIE</th>
-                <th>FIRMA</th>
-                <th>KAT.</th>
-                <th title="Liczba pozycji komponentowych">POZYCJI</th>
-                <th>ZAREZERW.</th>
-                <th>WYDANE</th>
-                <th>OSTATNIA ZMIANA</th>
-                {isManager && <th>AKCJE</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((g) => {
-                const expanded = expandedOrderId === g.order_id
-                return (
-                  <Fragment key={g.order_id}>
-                    <tr
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => setExpandedOrderId(expanded ? null : g.order_id)}
-                      title="Kliknij, aby rozwinąć komponenty"
-                    >
-                      <td>
-                        <span style={{ marginRight: 6 }}>{expanded ? '▾' : '▸'}</span>
-                        <strong>{g.order_number}</strong>
-                      </td>
-                      <td>{g.order_company}</td>
-                      <td>{g.order_category}</td>
-                      <td>
-                        {g.lines.length}
-                        {g.activeCount > 0 && g.activeCount < g.lines.length && (
-                          <span style={{ color: '#0369a1', fontSize: 12 }}> ({g.activeCount} akt.)</span>
-                        )}
-                      </td>
-                      <td>{Math.round(g.totalReserved * 1000) / 1000}</td>
-                      <td>
-                        {g.totalReleased > 0 ? Math.round(g.totalReleased * 1000) / 1000 : '—'}
-                        {g.activeCount === 0 && g.totalReleased > 0 && (
-                          <span style={{ color: '#15803d', fontSize: 12, marginLeft: 4 }}>✓ komplet</span>
-                        )}
-                      </td>
-                      <td>{formatDateTimePl(g.newestAt)}</td>
-                      {isManager && (
-                        <td onClick={(e) => e.stopPropagation()}>
-                          {g.activeCount > 0 && onReleaseOrder && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger"
-                              title="Zwolnij WSZYSTKIE niewydane rezerwacje tego zlecenia"
-                              onClick={() => setReleaseOrderConfirm(g)}
-                            >
-                              Zwolnij wszystkie
-                            </button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                    {expanded && (
-                      <tr>
-                        <td
-                          colSpan={isManager ? 8 : 7}
-                          style={{ background: 'var(--color-bg-muted, #f8fafc)', padding: '6px 14px' }}
-                        >
-                          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ textAlign: 'left', color: 'var(--color-text-muted, #64748b)' }}>
-                                <th style={{ padding: '2px 8px', fontWeight: 600 }}>KOMPONENT</th>
-                                <th style={{ padding: '2px 8px', fontWeight: 600, width: 110 }}>ETAP</th>
-                                <th style={{ padding: '2px 8px', fontWeight: 600, width: 90 }}>ZAREZERW.</th>
-                                <th style={{ padding: '2px 8px', fontWeight: 600, width: 80 }}>WYDANE</th>
-                                <th style={{ padding: '2px 8px', fontWeight: 600, width: 90 }}>MAGAZYN</th>
-                                <th style={{ padding: '2px 8px', fontWeight: 600, width: 140 }}>STATUS</th>
-                                {isManager && <th style={{ width: 90 }} />}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {g.lines.map((r) => {
-                                const rest = r.quantity_reserved - r.quantity_released
-                                const isActive = r.status === 'reserved' || r.status === 'partially_released'
-                                return (
-                                  <tr key={r.id} style={{ borderTop: '1px solid var(--color-border, #e2e8f0)' }}>
-                                    <td style={{ padding: '4px 8px' }}>
-                                      {r.component_name ?? '—'}
-                                      {r.component_unit ? (
-                                        <span style={{ color: 'var(--color-text-muted, #94a3b8)', fontSize: 12 }}>
-                                          {' '}({r.component_unit})
-                                        </span>
-                                      ) : null}
-                                    </td>
-                                    <td style={{ padding: '4px 8px' }}>{stageLabel(r)}</td>
-                                    <td style={{ padding: '4px 8px' }}>{r.quantity_reserved}</td>
-                                    <td style={{ padding: '4px 8px' }}>{r.quantity_released || '—'}</td>
-                                    <td style={{ padding: '4px 8px' }}>{r.warehouse_code ?? '—'}</td>
-                                    <td style={{ padding: '4px 8px' }}>
-                                      <span style={{ color: STATUS_COLORS[r.status], fontWeight: 600 }}>
-                                        {STATUS_LABELS[r.status]}
-                                      </span>
-                                      {isActive && rest !== r.quantity_reserved && (
-                                        <span style={{ fontSize: 12, color: '#a16207' }}> (zostało {rest})</span>
-                                      )}
-                                    </td>
-                                    {isManager && (
-                                      <td style={{ padding: '4px 8px' }}>
-                                        {isActive && (
-                                          <button
-                                            type="button"
-                                            className="btn btn-sm btn-danger"
-                                            title="Zwolnij niewydaną resztę tej rezerwacji"
-                                            onClick={() => setReleaseConfirm(r)}
-                                          >
-                                            Zwolnij
-                                          </button>
-                                        )}
-                                      </td>
-                                    )}
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                        </td>
+                <td
+                  colSpan={isManager ? 8 : 7}
+                  style={{ background: 'var(--color-bg-muted, #f8fafc)', padding: '6px 14px' }}
+                >
+                  <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'var(--color-text-muted, #64748b)' }}>
+                        <th style={{ padding: '2px 8px', fontWeight: 600 }}>KOMPONENT</th>
+                        <th style={{ padding: '2px 8px', fontWeight: 600, width: 110 }}>ETAP</th>
+                        <th style={{ padding: '2px 8px', fontWeight: 600, width: 90 }}>ZAREZERW.</th>
+                        <th style={{ padding: '2px 8px', fontWeight: 600, width: 80 }}>WYDANE</th>
+                        <th style={{ padding: '2px 8px', fontWeight: 600, width: 90 }}>MAGAZYN</th>
+                        <th style={{ padding: '2px 8px', fontWeight: 600, width: 140 }}>STATUS</th>
+                        {isManager && <th style={{ width: 90 }} />}
                       </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-          {groups.length === 0 && <p className="no-results">Brak rezerwacji spełniających kryteria.</p>}
-        </TopScrollTableWrapper>
+                    </thead>
+                    <tbody>
+                      {g.lines.map((r) => {
+                        const rest = r.quantity_reserved - r.quantity_released
+                        const isActive = r.status === 'reserved' || r.status === 'partially_released'
+                        return (
+                          <tr key={r.id} style={{ borderTop: '1px solid var(--color-border, #e2e8f0)' }}>
+                            <td style={{ padding: '4px 8px' }}>
+                              {r.component_name ?? '—'}
+                              {r.component_unit ? (
+                                <span style={{ color: 'var(--color-text-muted, #94a3b8)', fontSize: 12 }}>
+                                  {' '}({r.component_unit})
+                                </span>
+                              ) : null}
+                            </td>
+                            <td style={{ padding: '4px 8px' }}>{stageLabel(r)}</td>
+                            <td style={{ padding: '4px 8px' }}>{r.quantity_reserved}</td>
+                            <td style={{ padding: '4px 8px' }}>{r.quantity_released || '—'}</td>
+                            <td style={{ padding: '4px 8px' }}>{r.warehouse_code ?? '—'}</td>
+                            <td style={{ padding: '4px 8px' }}>
+                              <span style={{ color: STATUS_COLORS[r.status], fontWeight: 600 }}>
+                                {STATUS_LABELS[r.status]}
+                              </span>
+                              {isActive && rest !== r.quantity_reserved && (
+                                <span style={{ fontSize: 12, color: '#a16207' }}> (zostało {rest})</span>
+                              )}
+                            </td>
+                            {isManager && (
+                              <td style={{ padding: '4px 8px' }}>
+                                {isActive && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-danger"
+                                    title="Zwolnij niewydaną resztę tej rezerwacji"
+                                    onClick={() => setReleaseConfirm(r)}
+                                  >
+                                    Zwolnij
+                                  </button>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            )
+          }
+        />
       )}
 
       {releaseConfirm && (

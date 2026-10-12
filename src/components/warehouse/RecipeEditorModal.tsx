@@ -11,6 +11,7 @@ import type {
 import { buildRecipeAutoName, getOrderStageDefinitions } from '../../utils'
 import FormInput from '../FormInput'
 import SearchableSelect from '../SearchableSelect'
+import DataTable from '../DataTable'
 
 const RECIPE_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'] as const
 
@@ -301,109 +302,110 @@ function RecipeEditorModal({
             )}
           </h3>
             <div className="recipe-editor-positions-scroll">
-              <div className="table-wrapper recipe-editor-positions-wrap">
-                <table
-                  className="orders-table recipe-editor-positions-table"
-                  style={{ width: '100%', tableLayout: 'fixed' }}
-                >
-                  <colgroup>
-                    <col style={{ width: '40%' }} />
-                    <col style={{ width: '11%' }} />
-                    <col style={{ width: '21%' }} />
-                    <col style={{ width: '20%' }} />
-                    <col style={{ width: '8%' }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th className="recipe-editor-component-th">KOMPONENT</th>
-                      <th>ILOŚĆ</th>
-                      <th title="Etap produkcji, na którym komponent schodzi fizycznie z magazynu">
-                        ETAP WYDANIA
-                      </th>
-                      <th>UWAGI</th>
-                      <th className="recipe-editor-actions-th">AKCJA</th>
-                    </tr>
-                  </thead>
-                <tbody>
-                  {formData.components.map((row, index) => {
-                    const selectValue =
-                      row.component_id > 0 ? (idToOption.get(row.component_id) ?? '') : ''
-                    return (
-                      <tr key={index}>
-                        <td className="recipe-editor-component-cell">
-                          <SearchableSelect
-                            value={selectValue}
-                            onChange={(val) => {
-                              const id = optionToId.get(val) ?? 0
-                              onComponentChange(index, 'component_id', id)
-                            }}
-                            options={componentOptions}
-                            placeholder="— wybierz komponent —"
-                            disabled={saving}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            min={0}
-                            step={0.001}
-                            value={Number.isFinite(row.quantity) ? row.quantity : 0}
-                            onChange={(e) =>
-                              onComponentChange(index, 'quantity', parseFloat(e.target.value) || 0)
-                            }
-                            disabled={saving}
-                          />
-                        </td>
-                        <td>
-                          {stageDefs.length > 0 ? (
-                            <select
-                              value={row.stage_key ?? ''}
-                              onChange={(e) =>
-                                onComponentChange(index, 'stage_key', e.target.value || null)
-                              }
-                              disabled={saving}
-                              style={{ width: '100%' }}
-                            >
-                              <option value="">— pierwszy ukończony —</option>
-                              {stageDefs.map((d) => (
-                                <option key={d.key} value={d.key}>
-                                  {d.header} — {d.title}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span
-                              className="recipe-crit-empty"
-                              title="Ta kategoria nie ma etapów produkcji — wydanie nastąpi przy realizacji zamówienia"
-                            >
-                              przy realizacji
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            value={row.notes ?? ''}
-                            onChange={(e) => onComponentChange(index, 'notes', e.target.value)}
-                            disabled={saving}
-                          />
-                        </td>
-                        <td className="recipe-editor-actions-td">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            onClick={() => onRemoveComponent(index)}
-                            disabled={saving}
-                          >
-                            Usuń
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              </div>
+              {/* szerokości kolumn jak dawny colgroup (tableLayout: fixed bierze je z nagłówka) */}
+              <DataTable
+                rows={formData.components}
+                rowKey={(_, index) => index}
+                className="recipe-editor-positions-table"
+                wrapperClassName="recipe-editor-positions-wrap"
+                tableStyle={{ width: '100%', tableLayout: 'fixed' }}
+                emptyText="Brak pozycji."
+                columns={[
+                  {
+                    key: 'component',
+                    label: 'KOMPONENT',
+                    thClassName: 'recipe-editor-component-th',
+                    tdClassName: 'recipe-editor-component-cell',
+                    thStyle: { width: '40%' },
+                    render: (row, index) => (
+                      <SearchableSelect
+                        value={row.component_id > 0 ? (idToOption.get(row.component_id) ?? '') : ''}
+                        onChange={(val) => {
+                          const id = optionToId.get(val) ?? 0
+                          onComponentChange(index, 'component_id', id)
+                        }}
+                        options={componentOptions}
+                        placeholder="— wybierz komponent —"
+                        disabled={saving}
+                      />
+                    ),
+                  },
+                  {
+                    key: 'qty',
+                    label: 'ILOŚĆ',
+                    thStyle: { width: '11%' },
+                    render: (row, index) => (
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.001}
+                        value={Number.isFinite(row.quantity) ? row.quantity : 0}
+                        onChange={(e) => onComponentChange(index, 'quantity', parseFloat(e.target.value) || 0)}
+                        disabled={saving}
+                      />
+                    ),
+                  },
+                  {
+                    key: 'stage',
+                    label: 'ETAP WYDANIA',
+                    title: 'Etap produkcji, na którym komponent schodzi fizycznie z magazynu',
+                    thStyle: { width: '21%' },
+                    render: (row, index) =>
+                      stageDefs.length > 0 ? (
+                        <select
+                          value={row.stage_key ?? ''}
+                          onChange={(e) => onComponentChange(index, 'stage_key', e.target.value || null)}
+                          disabled={saving}
+                          style={{ width: '100%' }}
+                        >
+                          <option value="">— pierwszy ukończony —</option>
+                          {stageDefs.map((d) => (
+                            <option key={d.key} value={d.key}>
+                              {d.header} — {d.title}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          className="recipe-crit-empty"
+                          title="Ta kategoria nie ma etapów produkcji — wydanie nastąpi przy realizacji zamówienia"
+                        >
+                          przy realizacji
+                        </span>
+                      ),
+                  },
+                  {
+                    key: 'notes',
+                    label: 'UWAGI',
+                    thStyle: { width: '20%' },
+                    render: (row, index) => (
+                      <input
+                        type="text"
+                        value={row.notes ?? ''}
+                        onChange={(e) => onComponentChange(index, 'notes', e.target.value)}
+                        disabled={saving}
+                      />
+                    ),
+                  },
+                  {
+                    key: 'action',
+                    label: 'AKCJA',
+                    thClassName: 'recipe-editor-actions-th',
+                    tdClassName: 'recipe-editor-actions-td',
+                    thStyle: { width: '8%' },
+                    render: (_, index) => (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={() => onRemoveComponent(index)}
+                        disabled={saving}
+                      >
+                        Usuń
+                      </button>
+                    ),
+                  },
+                ]}
+              />
             </div>
             <button
               type="button"

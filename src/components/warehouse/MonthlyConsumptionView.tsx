@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { MonthlyConsumptionPivot } from '../../types'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type MonthlyConsumptionViewProps = {
   data: MonthlyConsumptionPivot[]
@@ -63,6 +64,67 @@ export default function MonthlyConsumptionView({
     })
   }, [data, categoryFilter, search])
 
+  // kolumny miesięcy budowane dynamicznie z zakresu
+  const columns = useMemo<DataTableColumn<MonthlyConsumptionPivot>[]>(() => {
+    const monthValue = (row: MonthlyConsumptionPivot, ym: string): number | null => {
+      const v = row.byMonth[ym]
+      const num = v != null ? Number(v) : NaN
+      return !Number.isFinite(num) || num === 0 ? null : num
+    }
+    return [
+      {
+        key: 'component',
+        label: 'Komponent',
+        sortValue: (row) => row.component_code,
+        render: (row) => (
+          <>
+            {row.component_code} — {row.component_name} ({row.component_unit})
+            {row.component_category ? (
+              <span className="monthly-consumption-category"> · {row.component_category}</span>
+            ) : null}
+          </>
+        ),
+      },
+      ...months.map(
+        (ym): DataTableColumn<MonthlyConsumptionPivot> => ({
+          key: `m-${ym}`,
+          label: formatMonthHeader(ym),
+          sortValue: (row) => monthValue(row, ym),
+          render: (row) => {
+            const num = monthValue(row, ym)
+            return (
+              <span className={num == null ? 'monthly-consumption-value--empty' : ''}>
+                {num == null ? '—' : <strong>{formatQty(num)}</strong>}
+              </span>
+            )
+          },
+        }),
+      ),
+      {
+        key: 'total',
+        label: 'SUMA',
+        sortValue: (row) => row.total || null,
+        render: (row) =>
+          row.total !== 0 ? (
+            <strong>{formatQty(row.total)}</strong>
+          ) : (
+            <span className="monthly-consumption-value--empty">—</span>
+          ),
+      },
+      {
+        key: 'average',
+        label: 'ŚREDNIA',
+        sortValue: (row) => row.average || null,
+        render: (row) =>
+          row.average !== 0 ? (
+            <strong>{row.average.toLocaleString('pl-PL', { maximumFractionDigits: 2 })}</strong>
+          ) : (
+            <span className="monthly-consumption-value--empty">—</span>
+          ),
+      },
+    ]
+  }, [months])
+
   return (
     <div className="monthly-consumption-view">
       <div className="monthly-consumption-toolbar">
@@ -113,71 +175,16 @@ export default function MonthlyConsumptionView({
       </div>
 
       <div className="monthly-consumption-wrapper">
-        <table className="monthly-consumption-table">
-          <thead>
-            <tr>
-              <th>Komponent</th>
-              {months.map((ym) => (
-                <th key={ym}>{formatMonthHeader(ym)}</th>
-              ))}
-              <th>SUMA</th>
-              <th>ŚREDNIA</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={months.length + 3}>
-                  <Spinner center label="Ładowanie…" />
-                </td>
-              </tr>
-            ) : rowsSortedFiltered.length === 0 ? (
-              <tr>
-                <td colSpan={Math.max(months.length, 1) + 3} style={{ textAlign: 'center' }}>
-                  Brak danych
-                </td>
-              </tr>
-            ) : (
-              rowsSortedFiltered.map((row) => (
-                <tr key={row.component_id}>
-                  <td>
-                    {row.component_code} — {row.component_name} ({row.component_unit})
-                    {row.component_category ? (
-                      <span className="monthly-consumption-category"> · {row.component_category}</span>
-                    ) : null}
-                  </td>
-                  {months.map((ym) => {
-                    const v = row.byMonth[ym]
-                    const num = v != null ? Number(v) : NaN
-                    const empty = !Number.isFinite(num) || num === 0
-                    const display = empty ? '—' : formatQty(num)
-                    return (
-                      <td key={ym}>
-                        <span className={empty ? 'monthly-consumption-value--empty' : ''}>
-                          {empty ? display : <strong>{display}</strong>}
-                        </span>
-                      </td>
-                    )
-                  })}
-                  <td>
-                    {row.total !== 0 ? (
-                      <strong>{formatQty(row.total)}</strong>
-                    ) : (
-                      <span className="monthly-consumption-value--empty">—</span>
-                    )}
-                  </td>
-                  <td>
-                    {row.average !== 0 ? (
-                      <strong>{row.average.toLocaleString('pl-PL', { maximumFractionDigits: 2 })}</strong>
-                    ) : (
-                      <span className="monthly-consumption-value--empty">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <DataTable
+          rows={rowsSortedFiltered}
+          rowKey={(row) => row.component_id}
+          columns={columns}
+          className="monthly-consumption-table"
+          wrapped={false}
+          loading={loading}
+          loadingText={<Spinner center label="Ładowanie…" />}
+          emptyText="Brak danych"
+        />
       </div>
     </div>
   )
