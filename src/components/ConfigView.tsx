@@ -1,4 +1,4 @@
-import { Fragment, type Dispatch, type SetStateAction } from 'react'
+import type { Dispatch, DragEvent, SetStateAction } from 'react'
 import { CONFIG_DICTIONARIES, CONFIG_FORM_CATEGORIES, EXCLUSION_FIELD_LABELS } from '../constants'
 import type {
   CompanySettings,
@@ -273,6 +273,119 @@ export default function ConfigView({
   // nagłówek „Akcje” był w tabeli od zawsze (bez akcji w wierszach) — zostaje pusta kolumna
   if (isManager) glassAllowanceColumns.push({ key: 'actions', label: 'Akcje', render: () => null })
 
+  // wartości słownika — kolejność ustala użytkownik (drag&drop), więc bez sortowania
+  const configOptionColumns: DataTableColumn<ConfigOptionRecord>[] = [
+    // uchwyt ⠿ ma klasę tylko na <td> (nagłówek był pustym <th />)
+    { key: 'drag', label: null, tdClassName: 'config-drag-handle', render: () => '⠿' },
+    { key: 'value', label: 'Wartość', render: (row) => row.value },
+  ]
+  if (isRozmiarDict) {
+    configOptionColumns.push({
+      key: 'dims',
+      label: 'Wymiary (S × W STD)',
+      render: (row) => {
+        const d = dimsForCode(row.value)
+        return d ? `${d.width_mm} × ${d.height_mm} mm` : '⚠️ brak wymiarów'
+      },
+    })
+  }
+  configOptionColumns.push(
+    { key: 'sort_order', label: 'Kolejność', className: 'col-sort-order', render: (row) => row.sort_order },
+    {
+      key: 'default',
+      label: 'Domyślne',
+      render: (row) => (
+        <input type="checkbox" checked={!!row.is_default} onChange={(e) => onToggleDefault(row, e.target.checked)} />
+      ),
+    },
+  )
+  if (isBastionFrameDict) {
+    configOptionColumns.push(
+      {
+        key: 'labels',
+        label: 'Etykiety',
+        render: (row) => (
+          <input
+            type="number"
+            min={0}
+            className="extension-qty-input"
+            value={row.label_multiplier ?? ''}
+            onChange={(e) =>
+              onUpdateLabelMultiplier(row, e.target.value === '' ? null : parseInt(e.target.value) || 0)
+            }
+          />
+        ),
+      },
+      {
+        key: 'batch',
+        label: 'Dodawaj do partii',
+        render: (row) => (
+          <input type="checkbox" checked={!!row.add_to_batch} onChange={(e) => onUpdateAddToBatch(row, e.target.checked)} />
+        ),
+      },
+    )
+  }
+  configOptionColumns.push({
+    key: 'actions',
+    label: 'Akcje',
+    render: (row) => (
+      <div className="contractor-actions">
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => openEditConfigOption(row)}>
+          Edytuj
+        </button>
+        <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDeleteConfigOption(row)}>
+          Usuń
+        </button>
+      </div>
+    ),
+  })
+
+  // zmiana kolejności przeciąganiem wiersza (upuszczenie na wiersz docelowy)
+  const configOptionDragProps = (row: ConfigOptionRecord) => ({
+    draggable: true,
+    onDragStart: () => setDraggedItemId(row.id),
+    onDragOver: (e: DragEvent<HTMLTableRowElement>) => {
+      e.preventDefault()
+      setDragOverItemId(row.id)
+    },
+    onDragEnd: () => {
+      if (draggedItemId === null || dragOverItemId === null || draggedItemId === dragOverItemId) {
+        setDraggedItemId(null)
+        setDragOverItemId(null)
+        return
+      }
+      const newList = [...configOptionsList]
+      const draggedIndex = newList.findIndex((i) => i.id === draggedItemId)
+      const dropIndex = newList.findIndex((i) => i.id === dragOverItemId)
+      const [removed] = newList.splice(draggedIndex, 1)
+      newList.splice(dropIndex, 0, removed)
+      setDraggedItemId(null)
+      setDragOverItemId(null)
+      void handleReorderConfigOptions(newList)
+    },
+  })
+
+  // wykluczenia: nagłówek grupy (pole = wartość) + pozycje grupy — oba typy przez renderRow
+  type ExclusionTableRow =
+    | { kind: 'group'; key: string; items: ConfigExclusion[] }
+    | { kind: 'item'; ex: ConfigExclusion }
+  const exclusionTableRows: ExclusionTableRow[] =
+    searchedExclusions.length === 0
+      ? []
+      : groupedFilteredExclusions.flatMap(([key, items]) => [
+          { kind: 'group' as const, key, items },
+          ...items.map((ex) => ({ kind: 'item' as const, ex })),
+        ])
+  // kolumny tylko dla nagłówka — komórki rysuje renderRow (scalone colSpan)
+  const exclusionColumns: DataTableColumn<ExclusionTableRow>[] = [
+    { key: 'category', label: 'Kategoria', render: () => null },
+    { key: 'source_field', label: 'Jeżeli pole', render: () => null },
+    { key: 'source_value', label: 'Ma wartość', render: () => null },
+    { key: 'target_field', label: 'To wyklucz', render: () => null },
+    { key: 'target_value', label: 'Wartość', render: () => null },
+  ]
+  if (isManager) exclusionColumns.push({ key: 'actions', label: 'Akcje', render: () => null })
+
   return (
     <>
       <div className="subtab-bar">
@@ -377,125 +490,23 @@ export default function ConfigView({
             {configOptionsLoading ? (
               <Spinner center label="Ładowanie wartości…" />
             ) : (
-              <div className="table-wrapper config-table-wrap">
-                <table className="orders-table contractors-table config-options-table">
-                  <thead>
-                    <tr>
-                      <th />
-                      <th>Wartość</th>
-                      {isRozmiarDict && <th>Wymiary (S × W STD)</th>}
-                      <th className="col-sort-order">Kolejność</th>
-                      <th>Domyślne</th>
-                      {isBastionFrameDict && <th>Etykiety</th>}
-                      {isBastionFrameDict && <th>Dodawaj do partii</th>}
-                      <th>Akcje</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {configOptionsList.map((row) => (
-                      <tr
-                        key={String(row.id)}
-                        draggable
-                        onDragStart={() => setDraggedItemId(row.id)}
-                        onDragOver={(e) => {
-                          e.preventDefault()
-                          setDragOverItemId(row.id)
-                        }}
-                        onDragEnd={() => {
-                          if (
-                            draggedItemId === null ||
-                            dragOverItemId === null ||
-                            draggedItemId === dragOverItemId
-                          ) {
-                            setDraggedItemId(null)
-                            setDragOverItemId(null)
-                            return
-                          }
-                          const newList = [...configOptionsList]
-                          const draggedIndex = newList.findIndex((i) => i.id === draggedItemId)
-                          const dropIndex = newList.findIndex((i) => i.id === dragOverItemId)
-                          const [removed] = newList.splice(draggedIndex, 1)
-                          newList.splice(dropIndex, 0, removed)
-                          setDraggedItemId(null)
-                          setDragOverItemId(null)
-                          void handleReorderConfigOptions(newList)
-                        }}
-                        className={[
-                          draggedItemId === row.id ? 'config-row--dragging' : '',
-                          dragOverItemId === row.id ? 'config-row--drag-over' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                      >
-                        <td className="config-drag-handle">⠿</td>
-                        <td>{row.value}</td>
-                        {isRozmiarDict && (
-                          <td>
-                            {(() => {
-                              const d = dimsForCode(row.value)
-                              return d ? `${d.width_mm} × ${d.height_mm} mm` : '⚠️ brak wymiarów'
-                            })()}
-                          </td>
-                        )}
-                        <td className="col-sort-order">{row.sort_order}</td>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={!!row.is_default}
-                            onChange={(e) => onToggleDefault(row, e.target.checked)}
-                          />
-                        </td>
-                        {isBastionFrameDict && (
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              className="extension-qty-input"
-                              value={row.label_multiplier ?? ''}
-                              onChange={(e) =>
-                                onUpdateLabelMultiplier(
-                                  row,
-                                  e.target.value === '' ? null : parseInt(e.target.value) || 0,
-                                )
-                              }
-                            />
-                          </td>
-                        )}
-                        {isBastionFrameDict && (
-                          <td>
-                            <input
-                              type="checkbox"
-                              checked={!!row.add_to_batch}
-                              onChange={(e) => onUpdateAddToBatch(row, e.target.checked)}
-                            />
-                          </td>
-                        )}
-                        <td>
-                          <div className="contractor-actions">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary"
-                              onClick={() => openEditConfigOption(row)}
-                            >
-                              Edytuj
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleDeleteConfigOption(row)}
-                            >
-                              Usuń
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {configOptionsList.length === 0 && (
-                  <p className="no-results">Brak wartości w tym słowniku. Dodaj pierwszą pozycję.</p>
-                )}
-              </div>
+              <DataTable
+                rows={configOptionsList}
+                columns={configOptionColumns}
+                rowKey={(row) => String(row.id)}
+                className="contractors-table config-options-table"
+                wrapperClassName="config-table-wrap"
+                emptyText="Brak wartości w tym słowniku. Dodaj pierwszą pozycję."
+                rowProps={configOptionDragProps}
+                rowClassName={(row) =>
+                  [
+                    draggedItemId === row.id ? 'config-row--dragging' : '',
+                    dragOverItemId === row.id ? 'config-row--drag-over' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                }
+              />
             )}
           </div>
         </div>
@@ -691,74 +702,54 @@ export default function ConfigView({
             onChange={(e) => setExclusionSearch(e.target.value)}
           />
 
-          <table className="orders-table exclusions-table">
-            <thead>
-              <tr>
-                <th>Kategoria</th>
-                <th>Jeżeli pole</th>
-                <th>Ma wartość</th>
-                <th>To wyklucz</th>
-                <th>Wartość</th>
-                {isManager && <th>Akcje</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {searchedExclusions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>
-                    Brak wykluczeń
+          <DataTable
+            rows={exclusionTableRows}
+            columns={exclusionColumns}
+            rowKey={(r) => (r.kind === 'group' ? `g:${r.key}` : `i:${r.ex.id}`)}
+            className="exclusions-table"
+            wrapped={false}
+            emptyText="Brak wykluczeń"
+            renderRow={(r) => {
+              if (r.kind === 'group') {
+                const first = r.items[0]
+                return (
+                  <tr className="exclusion-group-header">
+                    <td colSpan={5}>
+                      <strong>{EXCLUSION_FIELD_LABELS[first.source_field] ?? first.source_field}</strong>
+                      {' = '}
+                      <span>{first.source_value}</span>
+                      <span className="exclusion-group-count">({r.items.length} wykluczeń)</span>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger"
+                        onClick={() =>
+                          void handleDeleteExclusionGroup(activeExclusionCategory, first.source_field, first.source_value)
+                        }
+                      >
+                        Usuń grupę
+                      </button>
+                    </td>
+                  </tr>
+                )
+              }
+              const ex = r.ex
+              return (
+                <tr className="exclusion-item-row">
+                  <td colSpan={2} />
+                  <td>→</td>
+                  <td>{EXCLUSION_FIELD_LABELS[ex.target_field] ?? ex.target_field}</td>
+                  <td>{ex.target_value}</td>
+                  <td>
+                    <button type="button" className="btn btn-sm btn-danger" onClick={() => void handleDeleteExclusion(ex.id!)}>
+                      Usuń
+                    </button>
                   </td>
                 </tr>
-              ) : (
-                groupedFilteredExclusions.map(([key, items]) => (
-                  <Fragment key={key}>
-                    <tr className="exclusion-group-header">
-                      <td colSpan={5}>
-                        <strong>
-                          {EXCLUSION_FIELD_LABELS[items[0].source_field] ?? items[0].source_field}
-                        </strong>
-                        {' = '}
-                        <span>{items[0].source_value}</span>
-                        <span className="exclusion-group-count">({items.length} wykluczeń)</span>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-danger"
-                          onClick={() =>
-                            void handleDeleteExclusionGroup(
-                              activeExclusionCategory,
-                              items[0].source_field,
-                              items[0].source_value,
-                            )
-                          }
-                        >
-                          Usuń grupę
-                        </button>
-                      </td>
-                    </tr>
-                    {items.map((ex) => (
-                      <tr key={ex.id} className="exclusion-item-row">
-                        <td colSpan={2} />
-                        <td>→</td>
-                        <td>{EXCLUSION_FIELD_LABELS[ex.target_field] ?? ex.target_field}</td>
-                        <td>{ex.target_value}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            onClick={() => void handleDeleteExclusion(ex.id!)}
-                          >
-                            Usuń
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </Fragment>
-                ))
-              )}
-            </tbody>
-          </table>
+              )
+            }}
+          />
         </div>
       )}
       {activeConfigSubTab === 'Słownik wymiarów' && isManager && (

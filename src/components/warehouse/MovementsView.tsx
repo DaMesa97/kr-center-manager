@@ -1,6 +1,7 @@
-import { Fragment, useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import type { Warehouse, WarehouseComponent, WarehouseMovementRow } from '../../types'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 // Zgrupowany dokument magazynowy: wszystkie pozycje z tym samym reference_doc
 // (np. zbiorcze WZ 'WZ-STA-2388-e4') zwijamy do jednego wiersza z pozycjami.
@@ -13,6 +14,11 @@ type MovementDocGroup = {
   warehouse_codes: string
   rows: WarehouseMovementRow[]
 }
+
+// Wiersz tabeli ruchów: pojedynczy ruch albo zgrupowany dokument (renderRow)
+type MovementTableRow =
+  | { kind: 'single'; key: string | number; row: WarehouseMovementRow; compLabel: string }
+  | { kind: 'doc'; g: MovementDocGroup }
 
 type MovementsViewProps = {
   movements: WarehouseMovementRow[]
@@ -59,6 +65,27 @@ function formatQuantityDisplay(m: WarehouseMovementRow): string {
       return String(m.quantity)
   }
 }
+
+const renderTypeBadge = (type: WarehouseMovementRow['movement_type']) => (
+  <span
+    className={`movement-type-badge movement-type-badge--${String(type).toLowerCase()}`}
+    title={MOVEMENT_TYPE_DESCRIPTIONS[type] ?? type}
+  >
+    {type}
+  </span>
+)
+
+// Etykieta komponentu w widoku zgrupowanym (jest kod lub nazwa)
+const componentLabelGrouped = (row: WarehouseMovementRow): string =>
+  row.component_code || row.component_name
+    ? `${row.component_code ?? '—'} — ${row.component_name ?? ''} (${row.component_unit ?? ''})`
+    : '—'
+
+// Etykieta komponentu w widoku płaskim (jest kod, nazwa lub jednostka)
+const componentLabelFlat = (row: WarehouseMovementRow): string =>
+  [row.component_code, row.component_name, row.component_unit].filter(Boolean).length
+    ? `${row.component_code ?? '—'} — ${row.component_name ?? ''} (${row.component_unit ?? ''})`
+    : '—'
 
 function MovementsView({ movements, loading, warehouses, components }: MovementsViewProps) {
   const [typeFilter, setTypeFilter] = useState<string>('')
@@ -151,6 +178,40 @@ function MovementsView({ movements, loading, warehouses, components }: Movements
     }
     return order.map((k) => byKey.get(k)!)
   }, [sortedFiltered, groupDocs])
+
+  // Wiersze tabeli: pojedyncze ruchy (zwykły wiersz z kolumn) albo zgrupowane
+  // dokumenty (własny wiersz przez renderRow — MAGAZYN Z/DO scalone w jedną komórkę).
+  const tableRows = useMemo((): MovementTableRow[] => {
+    if (!groupDocs) {
+      return sortedFiltered.map((row) => ({ kind: 'single', key: row.id, row, compLabel: componentLabelFlat(row) }))
+    }
+    return docGroups.map((g): MovementTableRow =>
+      g.rows.length === 1
+        ? { kind: 'single', key: g.key, row: g.rows[0], compLabel: componentLabelGrouped(g.rows[0]) }
+        : { kind: 'doc', g },
+    )
+  }, [groupDocs, sortedFiltered, docGroups])
+
+  // Bez sortowania po nagłówkach — kolejność (od najnowszych) wyznacza grupowanie.
+  // Kolumny renderują tylko pojedyncze ruchy; dokumenty idą przez renderRow.
+  const single = (render: (r: Extract<MovementTableRow, { kind: 'single' }>) => ReactNode) =>
+    (r: MovementTableRow) => (r.kind === 'single' ? render(r) : null)
+  const columns: DataTableColumn<MovementTableRow>[] = [
+    { key: 'date', label: 'DATA', render: single((r) => formatMovementDate(r.row.created_at)) },
+    { key: 'type', label: 'TYP', render: single((r) => renderTypeBadge(r.row.movement_type)) },
+    {
+      key: 'component',
+      label: 'KOMPONENT',
+      render: single((r) => r.compLabel),
+      tdTitle: (r) => (r.kind === 'single' ? r.compLabel : undefined),
+    },
+    { key: 'qty', label: 'ILOŚĆ', render: single((r) => formatQuantityDisplay(r.row)) },
+    { key: 'from', label: 'MAGAZYN Z', render: single((r) => r.row.warehouse_from_code ?? '') },
+    { key: 'to', label: 'MAGAZYN DO', render: single((r) => r.row.warehouse_to_code ?? '') },
+    { key: 'order', label: 'ZAMÓWIENIE', render: single((r) => r.row.order_number ?? '') },
+    { key: 'doc', label: 'DOKUMENT', render: single((r) => r.row.reference_doc ?? '') },
+    { key: 'notes', label: 'UWAGI', render: single((r) => r.row.notes ?? '') },
+  ]
 
   return (
     <div className="movements-view">
@@ -248,141 +309,60 @@ function MovementsView({ movements, loading, warehouses, components }: Movements
       {loading ? (
         <Spinner center label="Ładowanie…" />
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table movements-view-table">
-            <thead>
-              <tr>
-                <th>DATA</th>
-                <th>TYP</th>
-                <th>KOMPONENT</th>
-                <th>ILOŚĆ</th>
-                <th>MAGAZYN Z</th>
-                <th>MAGAZYN DO</th>
-                <th>ZAMÓWIENIE</th>
-                <th>DOKUMENT</th>
-                <th>UWAGI</th>
+        <DataTable
+          rows={tableRows}
+          columns={columns}
+          rowKey={(r) => (r.kind === 'doc' ? r.g.key : r.key)}
+          className="movements-view-table"
+          emptyText="Brak ruchów do wyświetlenia."
+          renderRow={(r) => {
+            if (r.kind !== 'doc') return undefined
+            const g = r.g
+            const expanded = expandedDoc === g.key
+            return (
+              <tr
+                className="movements-doc-row"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setExpandedDoc(expanded ? null : g.key)}
+                title="Kliknij, aby rozwinąć pozycje dokumentu"
+              >
+                <td>{formatMovementDate(g.newest_at)}</td>
+                <td>{renderTypeBadge(g.movement_type)}</td>
+                <td>
+                  <span style={{ fontWeight: 600 }}>
+                    {expanded ? '▾' : '▸'} {g.rows.length} pozycji
+                  </span>
+                </td>
+                <td>—</td>
+                <td colSpan={2}>{g.warehouse_codes}</td>
+                <td>{g.order_number}</td>
+                <td>{g.reference_doc}</td>
+                <td></td>
               </tr>
-            </thead>
-            <tbody>
-              {sortedFiltered.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="movements-view-empty">
-                    Brak ruchów do wyświetlenia.
+            )
+          }}
+          renderAfterRow={(r) => {
+            if (r.kind !== 'doc' || expandedDoc !== r.g.key) return null
+            return r.g.rows.map((row) => {
+              const compLabel = componentLabelGrouped(row)
+              return (
+                <tr key={row.id} className="movements-doc-item-row" style={{ background: 'var(--color-bg-muted, #f8fafc)' }}>
+                  <td style={{ paddingLeft: 24, fontSize: '0.82rem', color: '#64748b' }}>
+                    {formatMovementDate(row.created_at)}
                   </td>
+                  <td></td>
+                  <td title={compLabel}>{compLabel}</td>
+                  <td>{formatQuantityDisplay(row)}</td>
+                  <td>{row.warehouse_from_code ?? ''}</td>
+                  <td>{row.warehouse_to_code ?? ''}</td>
+                  <td></td>
+                  <td></td>
+                  <td>{row.notes ?? ''}</td>
                 </tr>
-              ) : groupDocs ? (
-                docGroups.map((g) => {
-                  const single = g.rows.length === 1 ? g.rows[0] : null
-                  if (single) {
-                    const compLabel = single.component_code || single.component_name
-                      ? `${single.component_code ?? '—'} — ${single.component_name ?? ''} (${single.component_unit ?? ''})`
-                      : '—'
-                    return (
-                      <tr key={g.key}>
-                        <td>{formatMovementDate(single.created_at)}</td>
-                        <td>
-                          <span
-                            className={`movement-type-badge movement-type-badge--${String(single.movement_type).toLowerCase()}`}
-                            title={MOVEMENT_TYPE_DESCRIPTIONS[single.movement_type] ?? single.movement_type}
-                          >
-                            {single.movement_type}
-                          </span>
-                        </td>
-                        <td title={compLabel}>{compLabel}</td>
-                        <td>{formatQuantityDisplay(single)}</td>
-                        <td>{single.warehouse_from_code ?? ''}</td>
-                        <td>{single.warehouse_to_code ?? ''}</td>
-                        <td>{single.order_number ?? ''}</td>
-                        <td>{single.reference_doc ?? ''}</td>
-                        <td>{single.notes ?? ''}</td>
-                      </tr>
-                    )
-                  }
-                  const expanded = expandedDoc === g.key
-                  return (
-                    <Fragment key={g.key}>
-                      <tr
-                        className="movements-doc-row"
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setExpandedDoc(expanded ? null : g.key)}
-                        title="Kliknij, aby rozwinąć pozycje dokumentu"
-                      >
-                        <td>{formatMovementDate(g.newest_at)}</td>
-                        <td>
-                          <span
-                            className={`movement-type-badge movement-type-badge--${String(g.movement_type).toLowerCase()}`}
-                            title={MOVEMENT_TYPE_DESCRIPTIONS[g.movement_type] ?? g.movement_type}
-                          >
-                            {g.movement_type}
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 600 }}>
-                            {expanded ? '▾' : '▸'} {g.rows.length} pozycji
-                          </span>
-                        </td>
-                        <td>—</td>
-                        <td colSpan={2}>{g.warehouse_codes}</td>
-                        <td>{g.order_number}</td>
-                        <td>{g.reference_doc}</td>
-                        <td></td>
-                      </tr>
-                      {expanded &&
-                        g.rows.map((row) => {
-                          const compLabel = row.component_code || row.component_name
-                            ? `${row.component_code ?? '—'} — ${row.component_name ?? ''} (${row.component_unit ?? ''})`
-                            : '—'
-                          return (
-                            <tr key={row.id} className="movements-doc-item-row" style={{ background: 'var(--color-bg-muted, #f8fafc)' }}>
-                              <td style={{ paddingLeft: 24, fontSize: '0.82rem', color: '#64748b' }}>
-                                {formatMovementDate(row.created_at)}
-                              </td>
-                              <td></td>
-                              <td title={compLabel}>{compLabel}</td>
-                              <td>{formatQuantityDisplay(row)}</td>
-                              <td>{row.warehouse_from_code ?? ''}</td>
-                              <td>{row.warehouse_to_code ?? ''}</td>
-                              <td></td>
-                              <td></td>
-                              <td>{row.notes ?? ''}</td>
-                            </tr>
-                          )
-                        })}
-                    </Fragment>
-                  )
-                })
-              ) : (
-                sortedFiltered.map((row) => {
-                  const compLabel = [row.component_code, row.component_name, row.component_unit]
-                    .filter(Boolean)
-                    .length
-                    ? `${row.component_code ?? '—'} — ${row.component_name ?? ''} (${row.component_unit ?? ''})`
-                    : '—'
-                  return (
-                    <tr key={row.id}>
-                      <td>{formatMovementDate(row.created_at)}</td>
-                      <td>
-                        <span
-                          className={`movement-type-badge movement-type-badge--${String(row.movement_type).toLowerCase()}`}
-                          title={MOVEMENT_TYPE_DESCRIPTIONS[row.movement_type] ?? row.movement_type}
-                        >
-                          {row.movement_type}
-                        </span>
-                      </td>
-                      <td title={compLabel}>{compLabel}</td>
-                      <td>{formatQuantityDisplay(row)}</td>
-                      <td>{row.warehouse_from_code ?? ''}</td>
-                      <td>{row.warehouse_to_code ?? ''}</td>
-                      <td>{row.order_number ?? ''}</td>
-                      <td>{row.reference_doc ?? ''}</td>
-                      <td>{row.notes ?? ''}</td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+              )
+            })
+          }}
+        />
       )}
     </div>
   )

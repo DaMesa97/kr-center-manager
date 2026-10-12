@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { GlassAllowance, LeadTimeRule, Order } from '../types'
 import { CATEGORY_LABELS } from '../constants'
 import {
@@ -12,6 +12,7 @@ import {
 import ShippingProgressBar from './ShippingProgressBar'
 import Spinner from './Spinner'
 import StockStatusBadge from './StockStatusBadge'
+import DataTable, { type DataTableColumn } from './DataTable'
 
 // Forge Control — kolory kategorii (navy tonal)
 const CATEGORY_COLORS: Record<string, string> = {
@@ -38,6 +39,25 @@ function compareOrderNumberDesc(a: string, b: string): number {
   if (!isNaN(x) && !isNaN(y)) return y - x
   return b.localeCompare(a)
 }
+
+// Status zamówienia (badge) — też wartość sortowania kolumny STATUS
+function orderStatus(order: Order): { cls: string; label: string } {
+  const { total, percent } = countCompletedStages(order)
+  const cat = order.category ?? ''
+  if (cat === 'DrzwiWewnetrzne') {
+    return { cls: 'order-status-badge order-status-badge--in-progress', label: 'W realizacji' }
+  }
+  if (cat === 'Techniczne' || total === 0) {
+    return { cls: 'shipping-status-badge shipping-status-badge--technical', label: 'Techniczne' }
+  }
+  if (percent === 100) return { cls: 'shipping-status-badge shipping-status-badge--done', label: 'Gotowe' }
+  if (percent > 0) return { cls: 'shipping-status-badge shipping-status-badge--production', label: 'W produkcji' }
+  return { cls: 'shipping-status-badge shipping-status-badge--new', label: 'Nowe' }
+}
+
+// Wiersz tabeli: nagłówek grupy trasy albo zamówienie
+type RouteRow = { kind: 'route'; route: string; count: number; readyCount: number; urgentCount: number }
+type ShippingRow = RouteRow | { kind: 'order'; order: Order }
 
 export type ShippingViewProps = {
   orders: Order[]
@@ -199,136 +219,206 @@ export default function ShippingView({
   )
 
   // ---------------------------------------------------------------------------
-  // Row renderer — wydzielony żeby nie duplikować między trybem flat i grouped
+  // Wiersze tabeli — w trybie grupowania nagłówek trasy przed zamówieniami grupy
   // ---------------------------------------------------------------------------
 
-  function renderOrderRow(order: Order) {
-    const { total, percent } = countCompletedStages(order)
-    const cat = order.category ?? ''
-    const badgeBg = CATEGORY_COLORS[cat] ?? '#6b7280'
+  const tableRows = useMemo<ShippingRow[]>(() => {
+    if (!routeGroups) return displayedOrders.map((order): ShippingRow => ({ kind: 'order', order }))
+    return routeGroups.flatMap(({ route, orders: groupOrders }): ShippingRow[] => [
+      {
+        kind: 'route',
+        route,
+        count: groupOrders.length,
+        readyCount: groupOrders.filter((o) => isOrderReadyToInvoice(o)).length,
+        urgentCount: groupOrders.filter((o) => isRushOrderSequence(o.sequence)).length,
+      },
+      ...groupOrders.map((order): ShippingRow => ({ kind: 'order', order })),
+    ])
+  }, [routeGroups, displayedOrders])
 
-    let statusClass = 'shipping-status-badge shipping-status-badge--new'
-    let statusLabel = 'Nowe'
-    if (cat === 'DrzwiWewnetrzne') {
-      statusClass = 'order-status-badge order-status-badge--in-progress'
-      statusLabel = 'W realizacji'
-    } else if (cat === 'Techniczne' || total === 0) {
-      statusClass = 'shipping-status-badge shipping-status-badge--technical'
-      statusLabel = 'Techniczne'
-    } else if (percent === 100) {
-      statusClass = 'shipping-status-badge shipping-status-badge--done'
-      statusLabel = 'Gotowe'
-    } else if (percent > 0) {
-      statusClass = 'shipping-status-badge shipping-status-badge--production'
-      statusLabel = 'W produkcji'
-    }
-
-    const ready = isOrderReadyToInvoice(order)
-    const suggested = autoSuggestReadyToInvoice(order) && !ready
-    const invoiceCellClass = suggested ? 'shipping-invoice-cell--suggested' : ''
-    const ageStatus = getOrderAgeStatus(order, leadTimeRules)
-    const daysElapsed = getDaysElapsed(order)
-
-    let ageTitle: string | undefined
-    if (ageStatus === 'overdue') {
-      ageTitle = `Przeterminowane — ${daysElapsed} dni od złożenia zamówienia`
-    } else if (ageStatus === 'warning') {
-      ageTitle = `Uwaga: ${daysElapsed} dni od złożenia zamówienia`
-    }
-
+  const renderRouteRow = (row: RouteRow) => {
+    const label = row.route === NO_ROUTE_KEY ? 'Bez przypisanej trasy' : row.route
     return (
-      <tr
-        key={order.id ?? `${cat}-${order.order_number}`}
-        className={[
-          'orders-table-row',
-          isRushOrderSequence(order.sequence) ? 'orders-table-row--priority' : '',
-          ageStatus === 'overdue' ? 'orders-table-row--overdue' : '',
-          ageStatus === 'warning' ? 'orders-table-row--warning' : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        title={ageTitle}
-        onClick={() => onShowDetails(order)}
-      >
-        <td className="rush-cell col-rush" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            className="rush-checkbox"
-            checked={isRushOrderSequence(order.sequence)}
-            disabled={!isManager || order.id === undefined || rushUpdatingOrderId === order.id}
-            title="Pilne zamówienie"
-            aria-label="Pilne"
-            onChange={(e) => {
-              e.stopPropagation()
-              void onRushToggle(order, e.target.checked)
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
-        </td>
-        <td className="col-nr">{order.order_number}</td>
-        <td className="col-cat">
-          <span
-            className="shipping-category-badge"
-            style={{ backgroundColor: badgeBg }}
-            title={CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
-          >
-            {CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat}
-          </span>
-        </td>
-        <td className="col-firm" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {order.company}
-        </td>
-        <td className="col-day">{getProductionDay(order.company)}</td>
-        <td className="col-qty">{order.quantity ?? '—'}</td>
-        <td className="col-prog">
-          <ShippingProgressBar order={order} />
-        </td>
-        <td className="col-status">
-          <span className={statusClass}>{statusLabel}</span>
-        </td>
-        <td className="col-stock">
-          <StockStatusBadge
-            status={order.stock_status}
-            issues={order.stock_issues}
-            category={order.category}
-            glassAllowances={glassAllowances}
-          />
-        </td>
-        <td
-          className={`col-inv${invoiceCellClass ? ` ${invoiceCellClass}` : ''}`}
-          title={
-            !ready && suggested
-              ? 'Sugestia: wszystkie etapy ukończone lub data wydania ustawiona — można oznaczyć jako gotowe do fakturowania'
-              : undefined
-          }
-        >
-          <input
-            type="checkbox"
-            checked={ready}
-            disabled={loading || order.id === undefined}
-            onChange={(e) => {
-              e.stopPropagation()
-              void onToggleReadyToInvoice(order, e.target.checked)
-            }}
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`Gotowe do fakturowania — ${order.order_number}`}
-          />
-        </td>
-        <td className="col-act">
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            onClick={(e) => {
-              e.stopPropagation()
-              onShowDetails(order)
-            }}
-          >
-            Szczegóły
-          </button>
+      <tr className="shipping-route-group-header">
+        <td colSpan={11}>
+          <div>
+            <span className="shipping-route-label">🚛 {label}</span>
+            <span className="shipping-route-stats">
+              <span className="shipping-route-stat">{row.count} zam.</span>
+              {row.readyCount > 0 && (
+                <span className="shipping-route-stat shipping-route-stat--ready">
+                  ✓ {row.readyCount} gotowych
+                </span>
+              )}
+              {row.urgentCount > 0 && (
+                <span className="shipping-route-stat shipping-route-stat--urgent">
+                  ⚡ {row.urgentCount} pilnych
+                </span>
+              )}
+            </span>
+          </div>
         </td>
       </tr>
     )
   }
+
+  // Sortowanie tylko w trybie płaskim — w grupach rozbiłoby nagłówki tras
+  const sv = (get: (o: Order) => unknown) =>
+    groupByRoute ? undefined : (r: ShippingRow) => (r.kind === 'order' ? get(r.order) : null)
+
+  // Kolumny dostają tylko wiersze zamówień (nagłówki tras idą przez renderRow)
+  const col = (
+    c: Omit<DataTableColumn<ShippingRow>, 'render'> & { render: (o: Order) => ReactNode },
+  ): DataTableColumn<ShippingRow> => ({
+    ...c,
+    render: (r) => (r.kind === 'order' ? c.render(r.order) : null),
+  })
+
+  const isSuggested = (r: ShippingRow) =>
+    r.kind === 'order' && autoSuggestReadyToInvoice(r.order) && !isOrderReadyToInvoice(r.order)
+
+  const columns: DataTableColumn<ShippingRow>[] = [
+    col({
+      key: 'rush',
+      label: 'PILNE',
+      className: 'col-rush',
+      tdClassName: 'rush-cell',
+      render: (order) => (
+        <input
+          type="checkbox"
+          className="rush-checkbox"
+          checked={isRushOrderSequence(order.sequence)}
+          disabled={!isManager || order.id === undefined || rushUpdatingOrderId === order.id}
+          title="Pilne zamówienie"
+          aria-label="Pilne"
+          onChange={(e) => {
+            e.stopPropagation()
+            void onRushToggle(order, e.target.checked)
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+    }),
+    col({
+      key: 'nr',
+      label: 'NR ZLECENIA',
+      className: 'col-nr',
+      render: (order) => order.order_number,
+      sortValue: sv((o) => o.order_number),
+    }),
+    col({
+      key: 'cat',
+      label: 'KATEGORIA',
+      className: 'col-cat',
+      render: (order) => {
+        const cat = order.category ?? ''
+        const catLabel = CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS] ?? cat
+        return (
+          <span
+            className="shipping-category-badge"
+            style={{ backgroundColor: CATEGORY_COLORS[cat] ?? '#6b7280' }}
+            title={catLabel}
+          >
+            {catLabel}
+          </span>
+        )
+      },
+      sortValue: sv((o) => categorySortIndex(o.category ?? '')),
+    }),
+    col({
+      key: 'firm',
+      label: 'FIRMA',
+      className: 'col-firm',
+      tdStyle: { overflow: 'hidden', textOverflow: 'ellipsis' },
+      render: (order) => order.company,
+      sortValue: sv((o) => o.company),
+    }),
+    col({
+      key: 'day',
+      label: 'DZIEŃ PROD.',
+      className: 'col-day',
+      render: (order) => getProductionDay(order.company),
+      sortValue: sv((o) => getProductionDay(o.company)),
+    }),
+    col({
+      key: 'qty',
+      label: 'ILOŚĆ',
+      className: 'col-qty',
+      render: (order) => order.quantity ?? '—',
+      sortValue: sv((o) => o.quantity),
+    }),
+    col({
+      key: 'prog',
+      label: 'POSTĘP',
+      className: 'col-prog',
+      render: (order) => <ShippingProgressBar order={order} />,
+      sortValue: sv((o) => countCompletedStages(o).percent),
+    }),
+    col({
+      key: 'status',
+      label: 'STATUS',
+      className: 'col-status',
+      render: (order) => {
+        const s = orderStatus(order)
+        return <span className={s.cls}>{s.label}</span>
+      },
+      sortValue: sv((o) => orderStatus(o).label),
+    }),
+    col({
+      key: 'stock',
+      label: 'BRAKI',
+      className: 'col-stock',
+      render: (order) => (
+        <StockStatusBadge
+          status={order.stock_status}
+          issues={order.stock_issues}
+          category={order.category}
+          glassAllowances={glassAllowances}
+        />
+      ),
+    }),
+    col({
+      key: 'inv',
+      label: 'FAKTURA',
+      className: 'col-inv',
+      tdClassName: (r) => (isSuggested(r) ? 'shipping-invoice-cell--suggested' : undefined),
+      tdTitle: (r) =>
+        isSuggested(r)
+          ? 'Sugestia: wszystkie etapy ukończone lub data wydania ustawiona — można oznaczyć jako gotowe do fakturowania'
+          : undefined,
+      render: (order) => (
+        <input
+          type="checkbox"
+          checked={isOrderReadyToInvoice(order)}
+          disabled={loading || order.id === undefined}
+          onChange={(e) => {
+            e.stopPropagation()
+            void onToggleReadyToInvoice(order, e.target.checked)
+          }}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Gotowe do fakturowania — ${order.order_number}`}
+        />
+      ),
+      sortValue: sv((o) => (isOrderReadyToInvoice(o) ? 1 : 0)),
+    }),
+    col({
+      key: 'act',
+      label: 'AKCJE',
+      className: 'col-act',
+      render: (order) => (
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          onClick={(e) => {
+            e.stopPropagation()
+            onShowDetails(order)
+          }}
+        >
+          Szczegóły
+        </button>
+      ),
+    }),
+  ]
 
   // ---------------------------------------------------------------------------
   // Render
@@ -470,8 +560,14 @@ export default function ShippingView({
         ukończone lub data wydania ustawiona)
       </div>
 
-      <div className="table-wrapper orders-table-wrapper">
-        <table className="orders-table">
+      <DataTable
+        rows={tableRows}
+        rowKey={(r) =>
+          r.kind === 'route' ? `group-${r.route}` : (r.order.id ?? `${r.order.category ?? ''}-${r.order.order_number}`)
+        }
+        columns={columns}
+        wrapperClassName="orders-table-wrapper"
+        colgroup={
           <colgroup>
             <col className="col-rush" />
             <col className="col-nr" />
@@ -485,79 +581,37 @@ export default function ShippingView({
             <col className="col-inv" />
             <col className="col-act" />
           </colgroup>
-          <thead>
-            <tr>
-              <th className="col-rush">PILNE</th>
-              <th className="col-nr">NR ZLECENIA</th>
-              <th className="col-cat">KATEGORIA</th>
-              <th className="col-firm">FIRMA</th>
-              <th className="col-day">DZIEŃ PROD.</th>
-              <th className="col-qty">ILOŚĆ</th>
-              <th className="col-prog">POSTĘP</th>
-              <th className="col-status">STATUS</th>
-              <th className="col-stock">BRAKI</th>
-              <th className="col-inv">FAKTURA</th>
-              <th className="col-act">AKCJE</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={11}><Spinner center label="Ładowanie…" /></td>
-              </tr>
-            ) : groupByRoute && routeGroups ? (
-              /* ── Tryb grupowania po trasie ── */
-              routeGroups.length === 0 ? (
-                <tr>
-                  <td colSpan={11} style={{ textAlign: 'center', padding: '2rem' }}>
-                    Brak zamówień spełniających kryteria.
-                  </td>
-                </tr>
-              ) : (
-                routeGroups.flatMap(({ route, orders: groupOrders }) => {
-                  const groupReadyCount = groupOrders.filter((o) => isOrderReadyToInvoice(o)).length
-                  const groupUrgentCount = groupOrders.filter((o) => isRushOrderSequence(o.sequence)).length
-                  const label = route === NO_ROUTE_KEY ? 'Bez przypisanej trasy' : route
-                  return [
-                    <tr key={`group-${route}`} className="shipping-route-group-header">
-                      <td colSpan={11}>
-                        <div>
-                          <span className="shipping-route-label">🚛 {label}</span>
-                          <span className="shipping-route-stats">
-                            <span className="shipping-route-stat">{groupOrders.length} zam.</span>
-                            {groupReadyCount > 0 && (
-                              <span className="shipping-route-stat shipping-route-stat--ready">
-                                ✓ {groupReadyCount} gotowych
-                              </span>
-                            )}
-                            {groupUrgentCount > 0 && (
-                              <span className="shipping-route-stat shipping-route-stat--urgent">
-                                ⚡ {groupUrgentCount} pilnych
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>,
-                    ...groupOrders.map((order) => renderOrderRow(order)),
-                  ]
-                })
-              )
-            ) : (
-              /* ── Tryb płaski (domyślny) ── */
-              displayedOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={11} style={{ textAlign: 'center', padding: '2rem' }}>
-                    Brak zamówień spełniających kryteria.
-                  </td>
-                </tr>
-              ) : (
-                displayedOrders.map((order) => renderOrderRow(order))
-              )
-            )}
-          </tbody>
-        </table>
-      </div>
+        }
+        loading={loading}
+        loadingText={<Spinner center label="Ładowanie…" />}
+        emptyText="Brak zamówień spełniających kryteria."
+        renderRow={(r) => (r.kind === 'route' ? renderRouteRow(r) : undefined)}
+        rowClassName={(r) => {
+          if (r.kind !== 'order') return undefined
+          const ageStatus = getOrderAgeStatus(r.order, leadTimeRules)
+          return [
+            'orders-table-row',
+            isRushOrderSequence(r.order.sequence) ? 'orders-table-row--priority' : '',
+            ageStatus === 'overdue' ? 'orders-table-row--overdue' : '',
+            ageStatus === 'warning' ? 'orders-table-row--warning' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+        }}
+        rowTitle={(r) => {
+          if (r.kind !== 'order') return undefined
+          const ageStatus = getOrderAgeStatus(r.order, leadTimeRules)
+          const daysElapsed = getDaysElapsed(r.order)
+          if (ageStatus === 'overdue') return `Przeterminowane — ${daysElapsed} dni od złożenia zamówienia`
+          if (ageStatus === 'warning') return `Uwaga: ${daysElapsed} dni od złożenia zamówienia`
+          return undefined
+        }}
+        onRowClick={(r, e) => {
+          // klik w komórkę PILNE (poza checkboxem) nie otwiera szczegółów
+          if ((e.target as HTMLElement).closest('td.rush-cell')) return
+          if (r.kind === 'order') onShowDetails(r.order)
+        }}
+      />
     </div>
   )
 }

@@ -1,8 +1,9 @@
-import { useState, type RefObject } from 'react'
+import { useMemo, useState, type MutableRefObject, type RefObject } from 'react'
 import type { GlassAllowance, Order } from '../types'
 import { calcGlassDim, getGlassAllowance } from '../utils'
 import { generateGlassOrderPdf, type GlassOrderLine } from '../utils/glassOrderPdfGenerator'
 import { appAlert, appConfirm } from '../lib/appDialogs'
+import DataTable, { type DataTableColumn } from './DataTable'
 
 // Pozycje szyb (naświetle / dostawka A / B) dla jednego zamówienia
 function glassLinesFor(
@@ -28,6 +29,22 @@ function glassLinesFor(
   const spB = dim(order.side_panel_b, spAllowance)
   if (spB) lines.push({ ...base, element: 'Dostawka B', glazing: String(order.side_panel_b_glazing ?? '').trim(), glassDim: spB })
   return lines
+}
+
+// Wymiar "W×H" → [w, h] (0 przy braku)
+function parseDim(raw: unknown): [number, number] {
+  const parts = String(raw ?? '').split('×')
+  return [parseInt(parts[0] ?? '0') || 0, parseInt(parts[1] ?? '0') || 0]
+}
+
+type GlassRow = {
+  order: Order
+  tlTotal: string
+  tlGlass: string
+  spATotal: string
+  spAGlass: string
+  spBTotal: string
+  spBGlass: string
 }
 
 type GlassViewProps = {
@@ -97,6 +114,121 @@ export default function GlassView({
     }
   }
 
+  // Wiersze z policzonymi wymiarami całkowitymi i wymiarami szyb
+  const glassRows = useMemo<GlassRow[]>(() => {
+    const tlAllowance = getGlassAllowance(glassAllowances, activeTab, 'top_light')
+    const spAllowance = getGlassAllowance(glassAllowances, activeTab, 'side_panel')
+    return orders
+      .filter((o) => o.top_light || o.side_panel_a || o.side_panel || o.side_panel_b)
+      .map((order) => {
+        const [tlW, tlH] = parseDim(order.top_light)
+        const [spAW, spAH] = parseDim(order.side_panel_a || order.side_panel)
+        const [spBW, spBH] = parseDim(order.side_panel_b)
+        return {
+          order,
+          tlTotal: tlW && tlH ? `${tlW}×${tlH}` : '',
+          tlGlass: tlW && tlH ? calcGlassDim(tlW, tlH, tlAllowance.w, tlAllowance.h) : '',
+          spATotal: spAW && spAH ? `${spAW}×${spAH}` : '',
+          spAGlass: spAW && spAH ? calcGlassDim(spAW, spAH, spAllowance.w, spAllowance.h) : '',
+          spBTotal: spBW && spBH ? `${spBW}×${spBH}` : '',
+          spBGlass: spBW && spBH ? calcGlassDim(spBW, spBH, spAllowance.w, spAllowance.h) : '',
+        }
+      })
+  }, [orders, activeTab, glassAllowances])
+
+  // Zwykła kolumna tekstowa (nagłówek z klasą col-order-text, td bez klas)
+  const textCol = (
+    key: string,
+    label: string,
+    get: (r: GlassRow) => string | number | null | undefined,
+    thExtra?: string,
+  ): DataTableColumn<GlassRow> => ({
+    key,
+    label,
+    thClassName: thExtra ? `col-order-text ${thExtra}` : 'col-order-text',
+    render: (r) => get(r),
+    sortValue: get,
+  })
+
+  const columns: DataTableColumn<GlassRow>[] = [
+    {
+      key: 'order_number',
+      label: 'NR. ZLECENIA',
+      className: 'sticky-col sticky-1 col-order-number',
+      render: (r) => r.order.order_number,
+      sortValue: (r) => r.order.order_number,
+    },
+    {
+      key: 'company',
+      label: 'FIRMA',
+      className: 'sticky-col sticky-2 col-company',
+      render: (r) => r.order.company,
+      sortValue: (r) => r.order.company,
+    },
+    textCol('order_date', 'DATA', (r) => r.order.order_date, 'col-order-date'),
+    textCol('quantity', 'ILOŚĆ', (r) => r.order.quantity),
+    textCol('system', 'SYSTEM', (r) => r.order.system),
+    textCol('model', 'MODEL', (r) => r.order.model),
+    textCol('wing_color', 'KOLOR SKRZYDŁA', (r) => r.order.wing_color, 'col-wing-color'),
+    textCol('frame_color', 'KOLOR OŚCIEŻNICY', (r) => r.order.frame_color, 'col-frame-color'),
+    textCol('width', 'SZEROKOŚĆ', (r) => r.order.width),
+    textCol('direction', 'KIERUNEK', (r) => r.order.direction),
+    textCol('opening', 'OTWIERANIE', (r) => r.order.opening),
+    textCol('height', 'WYSOKOŚĆ', (r) => r.order.height),
+    textCol('glazing', 'SZKLENIE', (r) => r.order.glazing),
+    textCol('tl_glazing', 'SZKLENIE NAŚWIETLA', (r) => r.order.top_light_glazing),
+    textCol('tl_total', 'WYMIAR CAŁKOWITY NAŚWIETLA', (r) => r.tlTotal),
+    textCol('tl_glass', 'WYMIAR SZYBY NAŚWIETLA', (r) => r.tlGlass),
+    textCol('spa_glazing', 'SZKLENIE DOSTAWKI A', (r) => r.order.side_panel_a_glazing || r.order.side_panel_glazing),
+    textCol('spa_total', 'WYMIAR CAŁKOWITY DOSTAWKI A', (r) => r.spATotal),
+    textCol('spa_glass', 'WYMIAR SZYBY DOSTAWKI A', (r) => r.spAGlass),
+    textCol('spb_glazing', 'SZKLENIE DOSTAWKI B', (r) => r.order.side_panel_b_glazing),
+    textCol('spb_total', 'WYMIAR CAŁKOWITY DOSTAWKI B', (r) => r.spBTotal),
+    textCol('spb_glass', 'WYMIAR SZYBY DOSTAWKI B', (r) => r.spBGlass),
+    {
+      key: 'glass_order_date',
+      label: 'DATA ZAM. SZYBY',
+      thClassName: 'col-order-text',
+      sortValue: (r) => r.order.glass_order_date,
+      render: ({ order }) =>
+        order.glass_order_date ? (
+          <span className="release-date-value">{order.glass_order_date}</span>
+        ) : (
+          <button
+            type="button"
+            className="release-checkbox-btn"
+            onClick={() => void handleSend(order)}
+            disabled={order.id !== undefined && sendingIds.has(order.id)}
+            title="Wyślij zamówienie szyby"
+          >
+            {order.id !== undefined && sendingIds.has(order.id) ? '…' : '□'}
+          </button>
+        ),
+    },
+    {
+      key: 'glass_received_date',
+      label: 'ODEBRANO',
+      thClassName: 'col-order-text',
+      sortValue: (r) => r.order.glass_received_date,
+      render: ({ order }) =>
+        order.glass_received_date ? (
+          <span className="release-date-value">{order.glass_received_date}</span>
+        ) : (
+          <button
+            type="button"
+            className="release-checkbox-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              void onGlassReceived(order.id!)
+            }}
+            title="Oznacz jako odebrane"
+          >
+            □
+          </button>
+        ),
+    },
+  ]
+
   return (
     <div className="glass-view">
       <div style={{ margin: '0 0 10px', display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -113,136 +245,15 @@ export default function GlassView({
           zbiera wszystkie pozycje bez „Daty zam. szyby"
         </span>
       </div>
-      <div className="table-wrapper orders-table-wrapper" ref={tableWrapperRef}>
-        <table className="orders-table glass-table">
-          <thead>
-            <tr>
-              <th className="sticky-col sticky-1 col-order-number">NR. ZLECENIA</th>
-              <th className="sticky-col sticky-2 col-company">FIRMA</th>
-              <th className="col-order-text col-order-date">DATA</th>
-              <th className="col-order-text">ILOŚĆ</th>
-              <th className="col-order-text">SYSTEM</th>
-              <th className="col-order-text">MODEL</th>
-              <th className="col-order-text col-wing-color">KOLOR SKRZYDŁA</th>
-              <th className="col-order-text col-frame-color">KOLOR OŚCIEŻNICY</th>
-              <th className="col-order-text">SZEROKOŚĆ</th>
-              <th className="col-order-text">KIERUNEK</th>
-              <th className="col-order-text">OTWIERANIE</th>
-              <th className="col-order-text">WYSOKOŚĆ</th>
-              <th className="col-order-text">SZKLENIE</th>
-              <th className="col-order-text">SZKLENIE NAŚWIETLA</th>
-              <th className="col-order-text">WYMIAR CAŁKOWITY NAŚWIETLA</th>
-              <th className="col-order-text">WYMIAR SZYBY NAŚWIETLA</th>
-              <th className="col-order-text">SZKLENIE DOSTAWKI A</th>
-              <th className="col-order-text">WYMIAR CAŁKOWITY DOSTAWKI A</th>
-              <th className="col-order-text">WYMIAR SZYBY DOSTAWKI A</th>
-              <th className="col-order-text">SZKLENIE DOSTAWKI B</th>
-              <th className="col-order-text">WYMIAR CAŁKOWITY DOSTAWKI B</th>
-              <th className="col-order-text">WYMIAR SZYBY DOSTAWKI B</th>
-              <th className="col-order-text">DATA ZAM. SZYBY</th>
-              <th className="col-order-text">ODEBRANO</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(() => {
-              const glassOrders = orders.filter(
-                (o) => o.top_light || o.side_panel_a || o.side_panel || o.side_panel_b,
-              )
-
-              if (glassOrders.length === 0) {
-                return (
-                  <tr>
-                    <td colSpan={24} style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>
-                      Brak zamówień z naświetlami lub dostawkami
-                    </td>
-                  </tr>
-                )
-              }
-
-              return glassOrders.map((order) => {
-                const tlAllowance = getGlassAllowance(glassAllowances, activeTab, 'top_light')
-                const spAllowance = getGlassAllowance(glassAllowances, activeTab, 'side_panel')
-
-                const tlParts = String(order.top_light ?? '').split('×')
-                const tlW = parseInt(tlParts[0] ?? '0') || 0
-                const tlH = parseInt(tlParts[1] ?? '0') || 0
-                const tlTotal = tlW && tlH ? `${tlW}×${tlH}` : ''
-                const tlGlass = tlW && tlH ? calcGlassDim(tlW, tlH, tlAllowance.w, tlAllowance.h) : ''
-
-                const spA = String(order.side_panel_a || order.side_panel || '').split('×')
-                const spAW = parseInt(spA[0] ?? '0') || 0
-                const spAH = parseInt(spA[1] ?? '0') || 0
-                const spATotal = spAW && spAH ? `${spAW}×${spAH}` : ''
-                const spAGlass =
-                  spAW && spAH ? calcGlassDim(spAW, spAH, spAllowance.w, spAllowance.h) : ''
-
-                const spB = String(order.side_panel_b ?? '').split('×')
-                const spBW = parseInt(spB[0] ?? '0') || 0
-                const spBH = parseInt(spB[1] ?? '0') || 0
-                const spBTotal = spBW && spBH ? `${spBW}×${spBH}` : ''
-                const spBGlass =
-                  spBW && spBH ? calcGlassDim(spBW, spBH, spAllowance.w, spAllowance.h) : ''
-
-                return (
-                  <tr key={order.id}>
-                    <td className="sticky-col sticky-1 col-order-number">{order.order_number}</td>
-                    <td className="sticky-col sticky-2 col-company">{order.company}</td>
-                    <td>{order.order_date}</td>
-                    <td>{order.quantity}</td>
-                    <td>{order.system}</td>
-                    <td>{order.model}</td>
-                    <td>{order.wing_color}</td>
-                    <td>{order.frame_color}</td>
-                    <td>{order.width}</td>
-                    <td>{order.direction}</td>
-                    <td>{order.opening}</td>
-                    <td>{order.height}</td>
-                    <td>{order.glazing}</td>
-                    <td>{order.top_light_glazing}</td>
-                    <td>{tlTotal}</td>
-                    <td>{tlGlass}</td>
-                    <td>{order.side_panel_a_glazing || order.side_panel_glazing}</td>
-                    <td>{spATotal}</td>
-                    <td>{spAGlass}</td>
-                    <td>{order.side_panel_b_glazing}</td>
-                    <td>{spBTotal}</td>
-                    <td>{spBGlass}</td>
-                    <td>
-                      {order.glass_order_date ? (
-                        <span className="release-date-value">{order.glass_order_date}</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="release-checkbox-btn"
-                          onClick={() => void handleSend(order)}
-                          disabled={order.id !== undefined && sendingIds.has(order.id)}
-                          title="Wyślij zamówienie szyby"
-                        >
-                          {order.id !== undefined && sendingIds.has(order.id) ? '…' : '□'}
-                        </button>
-                      )}
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      {order.glass_received_date ? (
-                        <span className="release-date-value">{order.glass_received_date}</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="release-checkbox-btn"
-                          onClick={() => void onGlassReceived(order.id!)}
-                          title="Oznacz jako odebrane"
-                        >
-                          □
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })
-            })()}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={glassRows}
+        rowKey={(r, i) => r.order.id ?? `i-${i}`}
+        columns={columns}
+        className="glass-table"
+        wrapperClassName="orders-table-wrapper"
+        tableWrapperRef={tableWrapperRef as MutableRefObject<HTMLDivElement | null>}
+        emptyText="Brak zamówień z naświetlami lub dostawkami"
+      />
     </div>
   )
 }
