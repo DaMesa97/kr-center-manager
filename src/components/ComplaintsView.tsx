@@ -585,6 +585,7 @@ const COMPLAINT_STACK: Record<string, string> = {
   top_light_glazing: 'top_light',
   side_panel_glazing: 'side_panel',
   decorative_panel: 'glazing',
+  intarsja: 'glazing',
 }
 
 const withComplaintStacking = (cols: DataTableColumn<Complaint>[]): DataTableColumn<Complaint>[] =>
