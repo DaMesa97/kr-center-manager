@@ -142,17 +142,28 @@ export function buildTasks(orders: Order[], workerStages: WorkerStage[]): MyTask
   return tasks
 }
 
-/** Dobiera istotne pola zamówienia w zależności od etapu (stanowiska) */
+/**
+ * Dobiera istotne pola zamówienia w zależności od etapu (stanowiska).
+ * Uwagi zawsze na górze — zwykle dotyczą całych drzwi. Puste pola są odfiltrowane.
+ */
 export function fieldsForStage(order: Order, category: string, actualKey: string): DetailField[] {
   const o = order as Record<string, unknown>
   const str = (v: unknown) => (v == null ? '' : String(v)).trim()
   const wh = [str(order.width), str(order.height)].filter(Boolean).join(' × ')
 
-  const FRAME: DetailField[] = [
-    { label: 'Kolor ościeżnicy', value: str(order.frame_color) },
+  const NOTES: DetailField[] = [
+    { label: 'Uwagi', value: str(order.notes) },
+    { label: 'Uwagi 2', value: str(o.bastion_notes_2) },
+  ]
+  // strona zamka/zawiasów i rozstaw frezów — potrzebne i na ościeżnicy, i na skrzydle
+  const ORIENTATION: DetailField[] = [
     { label: 'Wymiar (S×W)', value: wh },
     { label: 'Kierunek', value: str(order.direction) },
     { label: 'Otwieranie', value: str(order.opening) },
+  ]
+  const FRAME: DetailField[] = [
+    { label: 'Kolor ościeżnicy', value: str(order.frame_color) },
+    ...ORIENTATION,
     { label: 'System', value: str(order.system) },
     { label: 'Próg', value: str(order.threshold_color) },
     { label: 'Poszerzenie', value: str(order.extension) },
@@ -164,25 +175,37 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     { label: 'Szklenie naświetla', value: str(order.top_light_glazing) },
     { label: 'Dostawka boczna', value: str(order.side_panel_a || order.side_panel) },
     { label: 'Szklenie dostawki', value: str(order.side_panel_a_glazing || order.side_panel_glazing) },
+    { label: 'Dostawka B', value: str(order.side_panel_b) },
+    { label: 'Szklenie dostawki B', value: str(order.side_panel_b_glazing) },
     { label: 'Szyba', value: str(order.glazing) },
   ]
   const WING: DetailField[] = [
     { label: 'Model', value: str(order.model) },
     { label: 'Kolor skrzydła', value: str(order.wing_color) },
+    ...ORIENTATION,
     { label: 'Szyba', value: str(order.glazing) },
     { label: 'Okucia', value: str(order.hardware) },
     { label: 'Pochwyt', value: str(order.handle) },
     { label: 'Wizjer', value: str(order.peephole) },
     { label: 'Panel dekoracyjny', value: str(order.decorative_panel) },
+    { label: 'Intarsja', value: str(order.intarsja) },
     { label: 'Elektrozaczep', value: str(order.electric_strike) },
   ]
   const FULL: DetailField[] = [
     { label: 'Model', value: str(order.model) },
     { label: 'Kolor skrzydła', value: str(order.wing_color) },
     { label: 'Kolor ościeżnicy', value: str(order.frame_color) },
-    { label: 'Wymiar (S×W)', value: wh },
+    ...ORIENTATION,
     { label: 'System', value: str(order.system) },
     { label: 'Ilość', value: str(order.quantity) },
+  ]
+  // pakowanie: co ma trafić do kartonu oprócz drzwi
+  const PACK: DetailField[] = [
+    ...FULL,
+    { label: 'Naświetle górne', value: str(order.top_light) },
+    { label: 'Dostawka boczna', value: str(order.side_panel_a || order.side_panel) },
+    { label: 'Dostawka B', value: str(order.side_panel_b) },
+    { label: 'Osłonki', value: str(order.oslonki) },
   ]
   const BASTION: DetailField[] = [
     { label: 'Model', value: str(order.model) },
@@ -191,8 +214,10 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     { label: 'Zakres ościeżnicy', value: str(o.bastion_frame_range) },
     { label: 'Kolor skrzydła', value: str(order.wing_color) },
     { label: 'Kolor ościeżnicy', value: str(order.frame_color) },
-    { label: 'Wymiar (S×W)', value: wh },
+    ...ORIENTATION,
   ]
+  // stolarnia Bastiona: zabudowy, progi, opaski
+  const BASTION_JOINERY: DetailField[] = [...BASTION, { label: 'Próg', value: str(order.threshold_color) }]
 
   const k = actualKey.toLowerCase()
   let group: DetailField[] = FULL
@@ -202,17 +227,25 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     else if (k === 'e2_2') group = GLASS
     else if (k === 'e3') group = WING
     else if (k === 'e4') group = [...WING, { label: 'Naświetle', value: str(order.top_light) }]
-    else group = FULL
+    else if (k === 'e5') group = PACK
   } else if (category === 'Bastion') {
-    if (k.includes('oscieznica')) group = [...FRAME, { label: 'Typ ościeżnicy', value: str(o.bastion_frame_type) }]
-    else if (k.includes('skrzydla')) group = WING
+    if (k.includes('oscieznica')) {
+      group = [
+        ...FRAME,
+        { label: 'Typ ościeżnicy', value: str(o.bastion_frame_type) },
+        { label: 'Zakres ościeżnicy', value: str(o.bastion_frame_range) },
+      ]
+    } else if (k.includes('skrzydla') || k === 'tit_oku') group = WING
+    else if (k === 'stolarnia') group = BASTION_JOINERY
+    else if (k === 'tit_mon') group = FULL
+    else if (k === 'tit_pak') group = PACK
     else group = BASTION
   } else if (category === 'ST') {
     if (k.includes('osc') || k === 'e1') group = FRAME
-    else if (k.includes('skr') || k === 'e3') group = WING
-    else if (k === 'cnc') group = FRAME
-    else group = FULL
+    // CNC w ST frezuje skrzydło
+    else if (k.includes('skr') || k === 'e3' || k === 'cnc') group = WING
+    else if (k === 'mag') group = PACK
   }
 
-  return group.filter((f) => f.value !== '')
+  return [...NOTES, ...group].filter((f) => f.value !== '')
 }

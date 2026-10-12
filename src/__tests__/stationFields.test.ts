@@ -56,6 +56,45 @@ describe('fieldsForStage — dobór szczegółów pod etap', () => {
     expect(labels(bastion, 'Bastion', 'okuwanie_skrzydla')).toContain('Kolor skrzydła')
   })
 
+  it('uwagi są na górze każdego etapu', () => {
+    const withNotes = { ...staOrder(), notes: 'BEZ ZAMKA' } as Order
+    for (const key of ['e1', 'e2_2', 'e3', 'e4', 'e5']) {
+      expect(fieldsForStage(withNotes, 'STA', key)[0]).toEqual({ label: 'Uwagi', value: 'BEZ ZAMKA' })
+    }
+    const bastion = { category: 'Bastion', notes: 'A', bastion_notes_2: 'B' } as unknown as Order
+    expect(labels(bastion, 'Bastion', 'cnc').slice(0, 2)).toEqual(['Uwagi', 'Uwagi 2'])
+  })
+
+  it('skrzydło (frezowanie/okuwanie) widzi kierunek, otwieranie i wymiar', () => {
+    for (const key of ['e3', 'e4']) {
+      const l = labels(staOrder(), 'STA', key)
+      expect(l).toContain('Kierunek')
+      expect(l).toContain('Otwieranie')
+      expect(l).toContain('Wymiar (S×W)')
+    }
+  })
+
+  it('pakowanie (E5) widzi naświetle, dostawki i osłonki', () => {
+    const l = labels({ ...staOrder(), oslonki: 'CZARNE' } as Order, 'STA', 'e5')
+    expect(l).toContain('Naświetle górne')
+    expect(l).toContain('Dostawka boczna')
+    expect(l).toContain('Osłonki')
+  })
+
+  it('ST: CNC frezuje skrzydło → dane skrzydła', () => {
+    const l = labels({ ...staOrder(), category: 'ST' } as Order, 'ST', 'cnc')
+    expect(l).toContain('Okucia')
+    expect(l).not.toContain('Kolor ościeżnicy')
+  })
+
+  it('Bastion: stolarnia widzi próg, Titan OKU — dane skrzydła', () => {
+    const bastion = {
+      category: 'Bastion', model: 'STD-01', wing_color: 'AKACJA', threshold_color: 'DĄB', hardware: 'KR',
+    } as unknown as Order
+    expect(labels(bastion, 'Bastion', 'stolarnia')).toContain('Próg')
+    expect(labels(bastion, 'Bastion', 'tit_oku')).toContain('Okucia')
+  })
+
   it('puste wartości są odfiltrowane (pracownik nie widzi pustych wierszy)', () => {
     const bare = { category: 'STA', frame_color: 'ZŁOTY' } as unknown as Order
     const fields = fieldsForStage(bare, 'STA', 'e1')
