@@ -1,14 +1,15 @@
-import { useRef, useEffect, useState, useCallback, type ReactNode, type MutableRefObject } from 'react'
+import { useRef, useEffect, useState, useCallback, type CSSProperties, type ReactNode, type MutableRefObject } from 'react'
 
 type TopScrollOwner = 'top' | 'bottom' | null
 
 type Props = {
   children: ReactNode
   className?: string
+  style?: CSSProperties
   tableWrapperRef?: MutableRefObject<HTMLDivElement | null>
 }
 
-export function TopScrollTableWrapper({ children, className, tableWrapperRef }: Props) {
+export function TopScrollTableWrapper({ children, className, style, tableWrapperRef }: Props) {
   const topScrollRef = useRef<HTMLDivElement>(null)
   const [bottomWrapperEl, setBottomWrapperEl] = useState<HTMLDivElement | null>(null)
   const [innerWidth, setInnerWidth] = useState(0)
@@ -88,7 +89,7 @@ export function TopScrollTableWrapper({ children, className, tableWrapperRef }: 
       >
         <div style={{ width: innerWidth, height: 1 }} />
       </div>
-      <div ref={setBottomWrapperRef} className={className} onScroll={handleBottomScroll}>
+      <div ref={setBottomWrapperRef} className={className} style={style} onScroll={handleBottomScroll}>
         {children}
       </div>
     </>

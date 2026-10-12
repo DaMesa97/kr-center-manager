@@ -15,7 +15,7 @@
 //     emptyText="Brak danych."
 //   />
 // =====================================================================
-import { Fragment, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type CSSProperties, type MouseEvent, type MutableRefObject, type ReactNode } from 'react'
 import { TopScrollTableWrapper } from './TopScrollTableWrapper'
 import { sortRows, toggleSort, type SortState } from '../lib/tableSort'
 
@@ -50,8 +50,13 @@ type Props<T> = {
   tableStyle?: CSSProperties
   /** Dodatkowe klasy wrappera (obok table-wrapper). */
   wrapperClassName?: string
+  wrapperStyle?: CSSProperties
+  /** Ref do wrappera (np. pomiar szerokości zamrożonej kolumny). */
+  tableWrapperRef?: MutableRefObject<HTMLDivElement | null>
   /** false = bez wrappera/paska (np. tabela w modalu, która ma własny kontener). */
   wrapped?: boolean
+  /** Opcjonalny <colgroup> (szerokości kolumn podpięte pod CSS col.*). */
+  colgroup?: ReactNode
   emptyText?: ReactNode
   /** Treść zamiast wierszy, gdy loading = true. */
   loading?: boolean
@@ -62,6 +67,11 @@ type Props<T> = {
   onRowClick?: (row: T, e: MouseEvent<HTMLTableRowElement>) => void
   /** Dodatkowe wiersze pod danym wierszem (rozwinięcia, szczegóły). */
   renderAfterRow?: (row: T, index: number) => ReactNode
+  /**
+   * Furtka na wiersze innego typu (nagłówek grupy, podsumowanie dokumentu ze
+   * scalonymi komórkami): zwróć własny <tr>, a undefined = zwykły wiersz z kolumn.
+   */
+  renderRow?: (row: T, index: number) => ReactNode | undefined
   /** Dodatkowe wiersze nagłówka NAD wierszem kolumn (np. grupy z colSpan). */
   headerTop?: ReactNode
   /** Zawartość <tfoot> (np. sumy). */
@@ -80,7 +90,10 @@ export default function DataTable<T>({
   className,
   tableStyle,
   wrapperClassName,
+  wrapperStyle,
+  tableWrapperRef,
   wrapped = true,
+  colgroup,
   emptyText = 'Brak danych.',
   loading,
   loadingText = 'Ładowanie…',
@@ -89,6 +102,7 @@ export default function DataTable<T>({
   rowTitle,
   onRowClick,
   renderAfterRow,
+  renderRow,
   headerTop,
   footer,
   defaultSort = null,
@@ -169,29 +183,32 @@ export default function DataTable<T>({
       </tr>
     )
   } else {
+    const defaultRow = (row: T, i: number) => (
+      <tr
+        className={rowClassName?.(row, i)}
+        style={{ ...rowStyle?.(row, i), ...(onRowClick ? { cursor: 'pointer' } : null) }}
+        title={rowTitle?.(row, i)}
+        onClick={onRowClick ? (e) => onRowClick(row, e) : undefined}
+      >
+        {columns.map((c) => {
+          const tdCls = typeof c.tdClassName === 'function' ? c.tdClassName(row) : c.tdClassName
+          const tdSt = typeof c.tdStyle === 'function' ? c.tdStyle(row) : c.tdStyle
+          return (
+            <td
+              key={c.key}
+              className={[c.className, tdCls].filter(Boolean).join(' ') || undefined}
+              style={{ ...alignStyle(c.align), ...tdSt }}
+              title={c.tdTitle?.(row)}
+            >
+              {c.render(row, i)}
+            </td>
+          )
+        })}
+      </tr>
+    )
     body = sortedRows.map((row, i) => (
       <Fragment key={rowKey(row, i)}>
-        <tr
-          className={rowClassName?.(row, i)}
-          style={{ ...rowStyle?.(row, i), ...(onRowClick ? { cursor: 'pointer' } : null) }}
-          title={rowTitle?.(row, i)}
-          onClick={onRowClick ? (e) => onRowClick(row, e) : undefined}
-        >
-          {columns.map((c) => {
-            const tdCls = typeof c.tdClassName === 'function' ? c.tdClassName(row) : c.tdClassName
-            const tdSt = typeof c.tdStyle === 'function' ? c.tdStyle(row) : c.tdStyle
-            return (
-              <td
-                key={c.key}
-                className={[c.className, tdCls].filter(Boolean).join(' ') || undefined}
-                style={{ ...alignStyle(c.align), ...tdSt }}
-                title={c.tdTitle?.(row)}
-              >
-                {c.render(row, i)}
-              </td>
-            )
-          })}
-        </tr>
+        {renderRow?.(row, i) ?? defaultRow(row, i)}
         {renderAfterRow?.(row, i)}
       </Fragment>
     ))
@@ -199,6 +216,7 @@ export default function DataTable<T>({
 
   const table = (
     <table className={`orders-table ${className ?? ''}`.trim()} style={tableStyle}>
+      {colgroup}
       {header}
       <tbody>{body}</tbody>
       {footer && <tfoot>{footer}</tfoot>}
@@ -207,7 +225,11 @@ export default function DataTable<T>({
 
   if (!wrapped) return table
   return (
-    <TopScrollTableWrapper className={`table-wrapper ${wrapperClassName ?? ''}`.trim()}>
+    <TopScrollTableWrapper
+      className={`table-wrapper ${wrapperClassName ?? ''}`.trim()}
+      style={wrapperStyle}
+      tableWrapperRef={tableWrapperRef}
+    >
       {table}
     </TopScrollTableWrapper>
   )
