@@ -10,6 +10,7 @@ import {
   orderDateCol,
   orderField,
   orderNumberCol,
+  withOrderStacking,
   orderRowClassName,
   productionDayCol,
   quantityCol,
@@ -321,7 +322,7 @@ function BastionOrdersTableView({
       textCol('airtable_id', 'AIRTABLE ID', (o) => o.airtable_id),
     )
     if (isManager) cols.push(actionsCol(ctx))
-    return cols
+    return withOrderStacking(cols)
     // ctx to nowy obiekt przy każdym renderze — zależności pole po polu przez orderCtxDeps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stagesByOrder, linkedOrders, canSeePrices, productionStageUpdating, onMarkProductionStageWithProfileInitials, onSetStageRevertTarget, bastionFrameOptions, canEditSalesChanges, onUpdateSalesChanges, onUpdateProductionPriority, onLabelToggle, ...orderCtxDeps(ctx)])

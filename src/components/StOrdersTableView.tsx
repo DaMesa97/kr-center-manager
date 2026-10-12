@@ -7,6 +7,7 @@ import {
   orderCtxDeps,
   orderDateCol,
   orderNumberCol,
+  withOrderStacking,
   orderRowClassName,
   productionDayCol,
   quantityCol,
@@ -199,7 +200,7 @@ function StOrdersTableView({
       textCol('label', 'NAKLEJKA', (o) => o.label, { cellTooltip: false }),
     )
     if (isManager) cols.push(actionsCol(ctx))
-    return cols
+    return withOrderStacking(cols)
     // ctx to nowy obiekt przy każdym renderze — zależności pole po polu przez orderCtxDeps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stagesByOrder, stOrdersStageLayout, canSeePrices, productionStageUpdating, onMarkProductionStageWithProfileInitials, onSetStageRevertTarget, onHandleStTitanStaSheetNavigate, ...orderCtxDeps(ctx)])

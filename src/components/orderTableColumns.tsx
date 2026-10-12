@@ -361,3 +361,21 @@ export function orderRowClassName(
     isCancelledOwn(order) && 'orders-table-row--cancelled-own',
   )
 }
+
+/**
+ * Pary do spiętrowania, gdy tabela zamówień nie mieści się na ekranie
+ * (klucz kolumny → klucz kolumny-matki). Brak matki w danej tabeli = bez zmian.
+ */
+const ORDER_STACK: Record<string, string> = {
+  production_day: 'order_date',
+  height: 'width',
+  opening: 'direction',
+  frame_color: 'wing_color',
+  threshold_color: 'wing_color',
+  entered_by: 'client_order_number',
+  airtable_id: 'client_order_number',
+  info: 'notes',
+}
+
+export const withOrderStacking = (cols: DataTableColumn<Order>[]): DataTableColumn<Order>[] =>
+  cols.map((c) => (ORDER_STACK[c.key] && !c.stackUnder ? { ...c, stackUnder: ORDER_STACK[c.key] } : c))

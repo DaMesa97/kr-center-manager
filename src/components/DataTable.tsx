@@ -42,7 +42,15 @@ export type DataTableColumn<T> = {
   tdTitle?: (row: T) => string | undefined
   /** Klik w komórkę NIE odpala onRowClick (checkboxy, przyciski akcji, data wydania). */
   stopRowClick?: boolean
+  /**
+   * Klucz kolumny-matki: gdy tabela NIE mieści się na ekranie, ta kolumna chowa
+   * się pod matką (w tej samej komórce, mniejszym tekstem). Gdy się mieści —
+   * zwykła osobna kolumna. Nie łączyć z przyklejonymi kolumnami ani colgroup.
+   */
+  stackUnder?: string
 }
+
+type VisibleColumn<T> = { col: DataTableColumn<T>; subs: DataTableColumn<T>[] }
 
 type Props<T> = {
   rows: T[]
@@ -122,6 +130,43 @@ export default function DataTable<T>({
     if (tableRef.current) applySavedColumnWidths(tableRef.current)
   })
 
+  // Piętrowanie „na miarę ekranu”: najpierw rysujemy szeroko i mierzymy; jak tabela
+  // nie mieści się w kontenerze — kolumny ze stackUnder chowamy pod matki. Szerokość
+  // wersji rozłożonej zapamiętana, żeby po poszerzeniu okna wrócić do osobnych kolumn.
+  const hasStack = columns.some((c) => c.stackUnder)
+  const [stacked, setStacked] = useState(false)
+  const wideWidthRef = useRef(0)
+  useLayoutEffect(() => {
+    const table = tableRef.current
+    const box = table?.parentElement
+    if (!hasStack || !table || !box) return
+    const check = () => {
+      const avail = box.clientWidth
+      if (!stacked) {
+        wideWidthRef.current = table.scrollWidth
+        if (table.scrollWidth > avail + 2) setStacked(true)
+      } else if (wideWidthRef.current > 0 && wideWidthRef.current <= avail) {
+        setStacked(false)
+      }
+    }
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(box)
+    return () => ro.disconnect()
+  }, [hasStack, stacked, columns, rows])
+
+  const visible = useMemo<VisibleColumn<T>[]>(() => {
+    if (!stacked) return columns.map((col) => ({ col, subs: [] }))
+    const keys = new Set(columns.map((c) => c.key))
+    const subsBy = new Map<string, DataTableColumn<T>[]>()
+    for (const c of columns) {
+      if (c.stackUnder && keys.has(c.stackUnder)) subsBy.set(c.stackUnder, [...(subsBy.get(c.stackUnder) ?? []), c])
+    }
+    return columns
+      .filter((c) => !(c.stackUnder && keys.has(c.stackUnder)))
+      .map((col) => ({ col, subs: subsBy.get(col.key) ?? [] }))
+  }, [columns, stacked])
+
   const [sortInner, setSortInner] = useState<SortState>(defaultSort)
   const controlled = sortProp !== undefined
   const sort = controlled ? sortProp : sortInner
@@ -147,13 +192,40 @@ export default function DataTable<T>({
     <thead>
       {headerTop}
       <tr>
-        {columns.map((c) => {
+        {visible.map(({ col: c, subs }) => {
           const style = { ...alignStyle(c.align), ...c.thStyle }
+          // pod-etykiety spiętrowanych kolumn — każda sortuje po swojej kolumnie
+          const subLabels = subs.length > 0 && (
+            <span className="dt-stack-th-subs">
+              {subs.map((sc) => {
+                const on = sort?.key === sc.key
+                return (
+                  <span
+                    key={sc.key}
+                    className={`dt-stack-th-sub ${sc.sortValue ? 'dt-stack-th-sub--sortable' : ''} ${on ? 'dt-stack-th-sub--active' : ''}`}
+                    title={sc.title ?? (typeof sc.label === 'string' ? sc.label : undefined)}
+                    onClick={
+                      sc.sortValue
+                        ? (e) => {
+                            e.stopPropagation()
+                            handleSort(sc.key)
+                          }
+                        : undefined
+                    }
+                  >
+                    {sc.label}
+                    {sc.sortValue && on && (sort?.dir === 'asc' ? ' ▲' : ' ▼')}
+                  </span>
+                )
+              })}
+            </span>
+          )
           const cls = [c.className, c.thClassName].filter(Boolean).join(' ') || undefined
           if (!c.sortValue) {
             return (
               <th key={c.key} className={cls} style={style} title={c.title}>
                 {c.label}
+                {subLabels}
               </th>
             )
           }
@@ -171,6 +243,7 @@ export default function DataTable<T>({
                 {c.label}
                 <span className={`th-sort-arrow ${active ? 'th-sort-arrow--on' : ''}`}>{arrow}</span>
               </span>
+              {subLabels}
             </th>
           )
         })}
@@ -182,7 +255,7 @@ export default function DataTable<T>({
   if (loading) {
     body = (
       <tr>
-        <td colSpan={columns.length} className="data-table-empty">
+        <td colSpan={visible.length} className="data-table-empty">
           {loadingText}
         </td>
       </tr>
@@ -190,7 +263,7 @@ export default function DataTable<T>({
   } else if (sortedRows.length === 0) {
     body = (
       <tr>
-        <td colSpan={columns.length} className="data-table-empty">
+        <td colSpan={visible.length} className="data-table-empty">
           {emptyText}
         </td>
       </tr>
@@ -204,7 +277,7 @@ export default function DataTable<T>({
         title={rowTitle?.(row, i)}
         onClick={onRowClick ? (e) => onRowClick(row, e) : undefined}
       >
-        {columns.map((c) => {
+        {visible.map(({ col: c, subs }) => {
           const tdCls = typeof c.tdClassName === 'function' ? c.tdClassName(row) : c.tdClassName
           const tdSt = typeof c.tdStyle === 'function' ? c.tdStyle(row) : c.tdStyle
           return (
@@ -216,6 +289,16 @@ export default function DataTable<T>({
               onClick={c.stopRowClick ? (e) => e.stopPropagation() : undefined}
             >
               {c.render(row, i)}
+              {subs.map((sc) => (
+                <div
+                  key={sc.key}
+                  className="dt-stack-sub"
+                  title={sc.tdTitle?.(row)}
+                  onClick={sc.stopRowClick ? (e) => e.stopPropagation() : undefined}
+                >
+                  {sc.render(row, i)}
+                </div>
+              ))}
             </td>
           )
         })}

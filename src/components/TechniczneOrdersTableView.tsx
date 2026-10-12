@@ -7,6 +7,7 @@ import {
   orderField,
   orderCtxDeps,
   orderNumberCol,
+  withOrderStacking,
   orderRowClassName,
   productionDayCol,
   quantityCol,
@@ -70,7 +71,7 @@ function TechniczneOrdersTableView({
       textCol('label', 'NAKLEJKA', (o) => o.label, { cellTooltip: false }),
     )
     if (isManager) cols.push(actionsCol(ctx))
-    return cols
+    return withOrderStacking(cols)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canSeePrices, ...orderCtxDeps(ctx)])
 

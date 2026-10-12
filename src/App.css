@@ -3531,6 +3531,31 @@ html, body, #root {
   color: #374151;
 }
 
+/* DataTable: kolumny spiętrowane, gdy tabela nie mieści się na ekranie (stackUnder) */
+.orders-table .dt-stack-sub {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+.orders-table .dt-stack-th-subs {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+}
+.orders-table .dt-stack-th-sub {
+  font-size: 0.66rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+.orders-table .dt-stack-th-sub--sortable {
+  cursor: pointer;
+}
+.orders-table .dt-stack-th-sub--sortable:hover,
+.orders-table .dt-stack-th-sub--active {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 /* DataTable: pusty stan / ładowanie (jedna komórka na całą szerokość) */
 .orders-table td.data-table-empty {
   text-align: center;
