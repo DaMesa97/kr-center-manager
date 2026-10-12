@@ -4,6 +4,7 @@ import {
 } from 'recharts'
 import { supabase } from '../../supabaseClient'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 const PROD_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
 
@@ -183,36 +184,7 @@ export default function LeadTimeStatsView() {
 
           <div className="leadtime-section">
             <h3 className="leadtime-section-title">Szczegóły wg kategorii</h3>
-            <div className="table-wrapper">
-              <table className="orders-table">
-                <thead>
-                  <tr>
-                    <th>Kategoria</th>
-                    <th style={{ textAlign: 'center' }}>Liczba</th>
-                    <th style={{ textAlign: 'center' }}>Średnia</th>
-                    <th style={{ textAlign: 'center' }}>Mediana</th>
-                    <th style={{ textAlign: 'center' }}>Min</th>
-                    <th style={{ textAlign: 'center' }}>Max</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.map((s) => (
-                    <tr key={s.category}>
-                      <td>
-                        <span className="leadtime-cat-badge" style={{ background: CAT_COLORS[s.category] }}>
-                          {s.category === 'DrzwiWewnetrzne' ? 'Wewn.' : s.category}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>{s.count}</td>
-                      <td style={{ textAlign: 'center' }}><strong>{s.avgDays.toFixed(1)} dni</strong></td>
-                      <td style={{ textAlign: 'center' }}>{s.medianDays.toFixed(0)} dni</td>
-                      <td style={{ textAlign: 'center', color: '#16a34a' }}>{s.minDays}</td>
-                      <td style={{ textAlign: 'center', color: '#dc2626' }}>{s.maxDays}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable rows={stats} rowKey={(s) => s.category} columns={leadTimeColumns} />
           </div>
 
           <div className="leadtime-section">
@@ -232,3 +204,27 @@ export default function LeadTimeStatsView() {
     </div>
   )
 }
+
+const leadTimeColumns: DataTableColumn<CategoryStat>[] = [
+  {
+    key: 'category',
+    label: 'Kategoria',
+    sortValue: (s) => s.category,
+    render: (s) => (
+      <span className="leadtime-cat-badge" style={{ background: CAT_COLORS[s.category] }}>
+        {s.category === 'DrzwiWewnetrzne' ? 'Wewn.' : s.category}
+      </span>
+    ),
+  },
+  { key: 'count', label: 'Liczba', align: 'center', sortValue: (s) => s.count, render: (s) => s.count },
+  {
+    key: 'avg',
+    label: 'Średnia',
+    align: 'center',
+    sortValue: (s) => s.avgDays,
+    render: (s) => <strong>{s.avgDays.toFixed(1)} dni</strong>,
+  },
+  { key: 'median', label: 'Mediana', align: 'center', sortValue: (s) => s.medianDays, render: (s) => `${s.medianDays.toFixed(0)} dni` },
+  { key: 'min', label: 'Min', align: 'center', tdStyle: { color: '#16a34a' }, sortValue: (s) => s.minDays, render: (s) => s.minDays },
+  { key: 'max', label: 'Max', align: 'center', tdStyle: { color: '#dc2626' }, sortValue: (s) => s.maxDays, render: (s) => s.maxDays },
+]

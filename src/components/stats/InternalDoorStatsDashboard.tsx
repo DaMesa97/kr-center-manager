@@ -15,6 +15,7 @@ import {
 } from 'recharts'
 import type { InternalDoorItem, Order } from '../../types'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type InternalDoorItemWithComponent = InternalDoorItem & {
   component_product_category?: string | null
@@ -276,6 +277,27 @@ export default function InternalDoorStatsDashboard({ orders, internalDoorItems, 
     [topSku],
   )
   const visibleSku = useMemo(() => topSku.slice(0, visibleSkuRows), [topSku, visibleSkuRows])
+  const skuColumns = useMemo<DataTableColumn<(typeof topSku)[number]>[]>(
+    () => [
+      { key: 'name', label: 'Pozycja', sortValue: (row) => row.name, render: (row) => row.name },
+      {
+        key: 'cat',
+        label: 'Kategoria',
+        sortValue: (row) => catLabel(row.cat),
+        render: (row) => <span className="component-category-badge">{catLabel(row.cat)}</span>,
+      },
+      { key: 'qty', label: 'Sprzedane sztuki', sortValue: (row) => row.qty, render: (row) => row.qty },
+      {
+        key: 'share',
+        label: '% udziału',
+        sortValue: (row) => row.qty,
+        render: (row) =>
+          totalSoldForShare > 0 ? `${((row.qty / totalSoldForShare) * 100).toFixed(1)}%` : '0%',
+      },
+      { key: 'stock', label: 'Aktywny stock', render: () => '—' },
+    ],
+    [totalSoldForShare],
+  )
 
   if (loading || itemsLoading) {
     return <div className="stats-dashboard"><Spinner center label="Ładowanie…" /></div>
@@ -464,32 +486,7 @@ export default function InternalDoorStatsDashboard({ orders, internalDoorItems, 
             <p style={{ color: '#6b7280' }}>Brak sprzedanych pozycji dla wybranego filtra.</p>
           ) : (
             <>
-              <div className="table-wrapper">
-                <table className="orders-table">
-                  <thead>
-                    <tr>
-                      <th>Pozycja</th>
-                      <th>Kategoria</th>
-                      <th>Sprzedane sztuki</th>
-                      <th>% udziału</th>
-                      <th>Aktywny stock</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleSku.map((row) => (
-                      <tr key={row.id}>
-                        <td>{row.name}</td>
-                        <td>
-                          <span className="component-category-badge">{catLabel(row.cat)}</span>
-                        </td>
-                        <td>{row.qty}</td>
-                        <td>{totalSoldForShare > 0 ? `${((row.qty / totalSoldForShare) * 100).toFixed(1)}%` : '0%'}</td>
-                        <td>—</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable rows={visibleSku} rowKey={(row) => row.id} columns={skuColumns} />
               {visibleSkuRows < topSku.length && (
                 <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => setVisibleSkuRows((v) => v + 50)}>
                   Pokaż więcej

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Order, WorkerStage } from '../types'
 import { isRushOrderSequence } from '../utils'
 import { buildTasks, fieldsForStage, type MyTask } from '../lib/stationLogic'
@@ -7,6 +7,7 @@ import DeleteConfirmDialog from './DeleteConfirmDialog'
 import StockShortageDialog from './StockShortageDialog'
 import DamageReportModal from './DamageReportModal'
 import Spinner from './Spinner'
+import DataTable, { type DataTableColumn } from './DataTable'
 import type { ToastVariant } from '../types'
 
 type Props = {
@@ -46,6 +47,77 @@ export default function MyStationView({
   const readyCount = tasks.filter((t) => t.readyToWork).length
   const waitingCount = tasks.length - readyCount
 
+  const columns = useMemo<DataTableColumn<MyTask>[]>(
+    () => [
+      {
+        key: 'nr',
+        label: 'NR ZLECENIA',
+        sortValue: (task) => task.order.order_number,
+        render: (task) => (
+          <>
+            <span className="my-station-expand-icon">{expandedKey === taskKey(task) ? '▾' : '▸'}</span>{' '}
+            {task.order.order_number}
+          </>
+        ),
+      },
+      { key: 'company', label: 'FIRMA', sortValue: (task) => task.order.company, render: (task) => task.order.company },
+      { key: 'category', label: 'KATEGORIA', sortValue: (task) => task.category, render: (task) => task.category },
+      { key: 'model', label: 'MODEL', sortValue: (task) => task.order.model, render: (task) => task.order.model },
+      { key: 'qty', label: 'ILOŚĆ', sortValue: (task) => task.order.quantity, render: (task) => task.order.quantity },
+      {
+        key: 'stage',
+        label: 'ETAP',
+        render: (task) => (
+          <>
+            <div>
+              <strong>{task.stageHeader}</strong> — {task.stageTitle}
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-success"
+              disabled={!task.readyToWork}
+              onClick={(e) => {
+                e.stopPropagation()
+                setConfirmTask(task)
+              }}
+            >
+              ✓ Zrobione
+            </button>
+            {isManager && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  title="Zgłoś zniszczony komponent (drugi gatunek) — zdejmie z magazynu sztuki wzięte na poprawkę"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDamageTask(task)
+                  }}
+                >
+                  ⚠️
+                </button>
+              </>
+            )}
+          </>
+        ),
+      },
+      {
+        key: 'status',
+        label: 'STATUS',
+        sortValue: (task) => (task.readyToWork ? 0 : 1),
+        render: (task) =>
+          task.readyToWork ? (
+            <span className="my-station-ready-badge">Gotowe do pracy</span>
+          ) : (
+            <span className="my-station-waiting-badge">Czeka na poprzednie</span>
+          ),
+      },
+      { key: 'notes', label: 'UWAGI', render: (task) => task.order.notes || '—' },
+    ],
+    [expandedKey, isManager],
+  )
+
   return (
     <div className="my-station-view">
       <div className="my-station-meta">
@@ -60,118 +132,44 @@ export default function MyStationView({
         </div>
       </div>
 
-      <div className="table-wrapper orders-table-wrapper">
-        <table className="orders-table">
-          <thead>
-            <tr>
-              <th>NR ZLECENIA</th>
-              <th>FIRMA</th>
-              <th>KATEGORIA</th>
-              <th>MODEL</th>
-              <th>ILOŚĆ</th>
-              <th>ETAP</th>
-              <th>STATUS</th>
-              <th>UWAGI</th>
+      <DataTable
+        rows={tasks}
+        rowKey={taskKey}
+        columns={columns}
+        wrapperClassName="orders-table-wrapper"
+        loading={loading}
+        loadingText={<Spinner center label="Ładowanie…" />}
+        emptyText="Brak zadań dla przypisanych etapów."
+        rowClassName={(task) =>
+          `my-station-row ${isRushOrderSequence(task.order.sequence) ? 'orders-table-row--priority' : ''}`
+        }
+        onRowClick={(task) => {
+          const key = taskKey(task)
+          setExpandedKey(expandedKey === key ? null : key)
+        }}
+        renderAfterRow={(task) => {
+          if (expandedKey !== taskKey(task)) return null
+          const details = fieldsForStage(task.order, task.category, task.actualStageKey)
+          return (
+            <tr className="my-station-details-row">
+              <td colSpan={columns.length}>
+                <div className="my-station-details">
+                  {details.length === 0 ? (
+                    <span className="my-station-details-empty">Brak dodatkowych szczegółów dla tego etapu.</span>
+                  ) : (
+                    details.map((f) => (
+                      <div key={f.label} className="my-station-detail-item">
+                        <span className="my-station-detail-label">{f.label}</span>
+                        <span className="my-station-detail-value">{f.value}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={8}>
-                  <Spinner center label="Ładowanie…" />
-                </td>
-              </tr>
-            ) : tasks.length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>
-                  Brak zadań dla przypisanych etapów.
-                </td>
-              </tr>
-            ) : (
-              tasks.map((task) => {
-                const rowKey = `${task.order.id ?? task.order.order_number}-${task.stageKey}`
-                const expanded = expandedKey === rowKey
-                const details = expanded ? fieldsForStage(task.order, task.category, task.actualStageKey) : []
-                return (
-                  <Fragment key={rowKey}>
-                    <tr
-                      className={`my-station-row ${isRushOrderSequence(task.order.sequence) ? 'orders-table-row--priority' : ''}`}
-                      onClick={() => setExpandedKey(expanded ? null : rowKey)}
-                    >
-                      <td>
-                        <span className="my-station-expand-icon">{expanded ? '▾' : '▸'}</span>{' '}
-                        {task.order.order_number}
-                      </td>
-                      <td>{task.order.company}</td>
-                      <td>{task.category}</td>
-                      <td>{task.order.model}</td>
-                      <td>{task.order.quantity}</td>
-                      <td>
-                        <div>
-                          <strong>{task.stageHeader}</strong> — {task.stageTitle}
-                        </div>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-success"
-                          disabled={!task.readyToWork}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setConfirmTask(task)
-                          }}
-                        >
-                          ✓ Zrobione
-                        </button>
-                        {isManager && (
-                          <>
-                            {' '}
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-ghost"
-                              title="Zgłoś zniszczony komponent (drugi gatunek) — zdejmie z magazynu sztuki wzięte na poprawkę"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setDamageTask(task)
-                              }}
-                            >
-                              ⚠️
-                            </button>
-                          </>
-                        )}
-                      </td>
-                      <td>
-                        {task.readyToWork ? (
-                          <span className="my-station-ready-badge">Gotowe do pracy</span>
-                        ) : (
-                          <span className="my-station-waiting-badge">Czeka na poprzednie</span>
-                        )}
-                      </td>
-                      <td>{task.order.notes || '—'}</td>
-                    </tr>
-                    {expanded && (
-                      <tr className="my-station-details-row">
-                        <td colSpan={8}>
-                          <div className="my-station-details">
-                            {details.length === 0 ? (
-                              <span className="my-station-details-empty">Brak dodatkowych szczegółów dla tego etapu.</span>
-                            ) : (
-                              details.map((f) => (
-                                <div key={f.label} className="my-station-detail-item">
-                                  <span className="my-station-detail-label">{f.label}</span>
-                                  <span className="my-station-detail-value">{f.value}</span>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+          )
+        }}
+      />
 
       {confirmTask && (
         <DeleteConfirmDialog
@@ -227,3 +225,5 @@ export default function MyStationView({
     </div>
   )
 }
+
+const taskKey = (task: MyTask) => `${task.order.id ?? task.order.order_number}-${task.stageKey}`

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   BarChart,
   Bar,
@@ -11,6 +11,7 @@ import {
 } from 'recharts'
 import { supabase } from '../../supabaseClient'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -225,6 +226,58 @@ export default function ProductivityView() {
 
   const totalCompletions = rows.reduce((s, r) => s + r.total, 0)
 
+  // Miejsce w rankingu = pozycja wg sumy (nie zmienia się przy sortowaniu kolumną)
+  const columns = useMemo<DataTableColumn<WorkerRow>[]>(() => {
+    const rank = new Map(rows.map((r, i) => [r.userId, i + 1]))
+    return [
+      {
+        key: 'name',
+        label: 'Pracownik',
+        sortValue: (r) => r.name,
+        render: (r) => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="productivity-rank">{rank.get(r.userId)}</span>
+            <span>{r.name}</span>
+          </div>
+        ),
+      },
+      {
+        key: 'initials',
+        label: 'Inicjały',
+        align: 'center',
+        sortValue: (r) => r.initials,
+        render: (r) => <span className="productivity-initials">{r.initials}</span>,
+      },
+      ...PROD_CATEGORIES.map(
+        (cat): DataTableColumn<WorkerRow> => ({
+          key: cat,
+          label: (
+            <span className="productivity-cat-badge" style={{ background: CAT_COLORS[cat] }}>
+              {cat === 'DrzwiWewnetrzne' ? 'Wewn.' : cat}
+            </span>
+          ),
+          title: `Sortuj po: ${cat}`,
+          align: 'center',
+          sortValue: (r) => r.byCategory[cat],
+          render: (r) =>
+            r.byCategory[cat] > 0 ? (
+              <span className="productivity-count">{r.byCategory[cat]}</span>
+            ) : (
+              <span style={{ color: '#cbd5e1' }}>—</span>
+            ),
+        }),
+      ),
+      {
+        key: 'total',
+        label: <strong>Razem</strong>,
+        title: 'Sortuj po: Razem',
+        align: 'center',
+        sortValue: (r) => r.total,
+        render: (r) => <strong className="productivity-total">{r.total}</strong>,
+      },
+    ]
+  }, [rows])
+
   return (
     <div className="productivity-view">
       {/* Filtry */}
@@ -338,70 +391,27 @@ export default function ProductivityView() {
           {/* Tabela */}
           <div className="productivity-table-section">
             <h3 className="productivity-section-title">Szczegółowe zestawienie</h3>
-            <div className="table-wrapper">
-              <table className="orders-table productivity-table">
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left' }}>Pracownik</th>
-                    <th style={{ textAlign: 'center' }}>Inicjały</th>
-                    {PROD_CATEGORIES.map((cat) => (
-                      <th key={cat} style={{ textAlign: 'center' }}>
-                        <span
-                          className="productivity-cat-badge"
-                          style={{ background: CAT_COLORS[cat] }}
-                        >
-                          {cat === 'DrzwiWewnetrzne' ? 'Wewn.' : cat}
-                        </span>
-                      </th>
-                    ))}
-                    <th style={{ textAlign: 'center' }}>
-                      <strong>Razem</strong>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => (
-                    <tr key={r.userId}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span className="productivity-rank">{i + 1}</span>
-                          <span>{r.name}</span>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className="productivity-initials">{r.initials}</span>
-                      </td>
-                      {PROD_CATEGORIES.map((cat) => (
-                        <td key={cat} style={{ textAlign: 'center' }}>
-                          {r.byCategory[cat] > 0 ? (
-                            <span className="productivity-count">{r.byCategory[cat]}</span>
-                          ) : (
-                            <span style={{ color: '#cbd5e1' }}>—</span>
-                          )}
-                        </td>
-                      ))}
-                      <td style={{ textAlign: 'center' }}>
-                        <strong className="productivity-total">{r.total}</strong>
-                      </td>
-                    </tr>
-                  ))}
-                  {/* Wiersz sumy */}
-                  <tr className="productivity-summary-row">
-                    <td colSpan={2}><strong>Suma</strong></td>
-                    {PROD_CATEGORIES.map((cat) => (
-                      <td key={cat} style={{ textAlign: 'center' }}>
-                        <strong>
-                          {rows.reduce((s, r) => s + r.byCategory[cat], 0) || '—'}
-                        </strong>
-                      </td>
-                    ))}
-                    <td style={{ textAlign: 'center' }}>
-                      <strong className="productivity-total">{totalCompletions}</strong>
+            <DataTable
+              rows={rows}
+              rowKey={(r) => r.userId}
+              columns={columns}
+              className="productivity-table"
+              footer={
+                <tr className="productivity-summary-row">
+                  <td colSpan={2}><strong>Suma</strong></td>
+                  {PROD_CATEGORIES.map((cat) => (
+                    <td key={cat} style={{ textAlign: 'center' }}>
+                      <strong>
+                        {rows.reduce((s, r) => s + r.byCategory[cat], 0) || '—'}
+                      </strong>
                     </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                  ))}
+                  <td style={{ textAlign: 'center' }}>
+                    <strong className="productivity-total">{totalCompletions}</strong>
+                  </td>
+                </tr>
+              }
+            />
           </div>
         </>
       )}
