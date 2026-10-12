@@ -375,6 +375,10 @@ const ORDER_STACK: Record<string, string> = {
   entered_by: 'client_order_number',
   airtable_id: 'client_order_number',
   info: 'notes',
+  decorative_panel: 'glazing',
+  top_light_glazing: 'top_light',
+  side_panel_a_glazing: 'side_panel_a',
+  side_panel_b_glazing: 'side_panel_b',
 }
 
 export const withOrderStacking = (cols: DataTableColumn<Order>[]): DataTableColumn<Order>[] =>
