@@ -322,7 +322,7 @@ function ComponentsView({
 
     const cols: DataTableColumn<WarehouseComponent>[] = [
       col('name', 'NAZWA', (c) => c.name, (c) => c.name),
-      col('code', 'KOD', (c) => c.code, (c) => c.code ?? '—'),
+      { ...col('code', 'KOD', (c) => c.code, (c) => c.code ?? '—'), stackUnder: 'name' },
       col(
         'category',
         'KATEGORIA',
@@ -344,17 +344,20 @@ function ComponentsView({
             </span>
           ),
       ),
-      col(
-        'supplier',
-        'DOSTAWCA',
-        (c) => (c.supplier_id ? suppliersById.get(c.supplier_id)?.name ?? '' : ''),
-        (row) => (row.supplier_id ? (suppliersById.get(row.supplier_id)?.name ?? '—') : '—'),
-      ),
+      {
+        ...col(
+          'supplier',
+          'DOSTAWCA',
+          (c) => (c.supplier_id ? suppliersById.get(c.supplier_id)?.name ?? '' : ''),
+          (row) => (row.supplier_id ? (suppliersById.get(row.supplier_id)?.name ?? '—') : '—'),
+        ),
+        stackUnder: 'category',
+      },
     ]
 
     const model = col('model', 'MODEL', (c) => c.door_model, (c) => dash(c.door_model))
     const size = col('size', 'ROZMIAR', (c) => c.door_size, (c) => dash(c.door_size))
-    const direction = col('direction', 'KIERUNEK', (c) => c.door_direction, (c) => dash(c.door_direction))
+    const direction = { ...col('direction', 'KIERUNEK', (c) => c.door_direction, (c) => dash(c.door_direction)), stackUnder: 'size' }
     const color = col('color', 'KOLOR', (c) => c.door_color, (c) => dash(c.door_color))
     if (categoryFilter === 'door_wing') cols.push(model, size, direction, color)
     if (categoryFilter === 'door_frame') {
@@ -362,9 +365,12 @@ function ComponentsView({
         col('frame_type', 'TYP RAMKI', (c) => c.door_frame_type, (row) =>
           row.door_frame_type === 'simple' ? 'Prosta' : row.door_frame_type === 'adjustable' ? 'Regulowana' : '—',
         ),
-        col('frame_code', 'FRAME CODE', (c) => c.door_frame_code, (row) =>
-          row.door_frame_type === 'adjustable' ? (row.door_frame_code ?? '—') : '—',
-        ),
+        {
+          ...col('frame_code', 'FRAME CODE', (c) => c.door_frame_code, (row) =>
+            row.door_frame_type === 'adjustable' ? (row.door_frame_code ?? '—') : '—',
+          ),
+          stackUnder: 'frame_type',
+        },
         size,
         direction,
         color,
@@ -376,7 +382,7 @@ function ComponentsView({
     if (categoryFilter === 'door_hinge_cover') cols.push(color)
 
     cols.push(
-      col('unit', 'JEDNOSTKA', (c) => c.unit, (c) => c.unit),
+      { ...col('unit', 'JEDNOSTKA', (c) => c.unit, (c) => c.unit), stackUnder: 'min' },
       col('min', 'MIN / TARGET', (c) => c.min_stock_level, (row) => (
         <>
           {row.min_stock_level != null ? row.min_stock_level : '—'} /{' '}
@@ -385,7 +391,7 @@ function ComponentsView({
       )),
     )
     if (categoryFilter === 'all' || categoryFilter === 'raw' || categoryFilter.startsWith('cat:')) {
-      cols.push(col('notes', 'UWAGI', (c) => c.notes, (row) => (row.notes?.trim() ? row.notes : '—')))
+      cols.push({ ...col('notes', 'UWAGI', (c) => c.notes, (row) => (row.notes?.trim() ? row.notes : '—')), stackUnder: 'name' })
     }
     cols.push({
       key: 'actions',

@@ -122,13 +122,14 @@ export default function ApiKeysView({
       {
         key: 'orders',
         label: 'Zamówień z API',
+        stackUnder: 'requests',
         align: 'right',
         sortValue: (k) => k.total_orders_created,
         tdStyle: num,
         render: (k) => k.total_orders_created.toLocaleString('pl-PL'),
       },
       { key: 'last_used', label: 'Ostatnie użycie', sortValue: (k) => k.last_used_at, tdStyle: muted, render: (k) => formatDate(k.last_used_at) },
-      { key: 'created', label: 'Utworzony', sortValue: (k) => k.created_at, tdStyle: muted, render: (k) => formatDate(k.created_at) },
+      { key: 'created', label: 'Utworzony', stackUnder: 'last_used', sortValue: (k) => k.created_at, tdStyle: muted, render: (k) => formatDate(k.created_at) },
       {
         key: 'action',
         label: 'Akcja',

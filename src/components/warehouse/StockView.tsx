@@ -297,10 +297,10 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
   )
 
   const aggregatedColumns = useMemo((): DataTableColumn<AggregatedRow>[] => [
-    { key: 'code', label: 'KOD', sortValue: (r) => r.component_code, render: (r) => orDash(r.component_code) },
+    { key: 'code', label: 'KOD', stackUnder: 'name', sortValue: (r) => r.component_code, render: (r) => orDash(r.component_code) },
     { key: 'name', label: 'NAZWA', sortValue: (r) => r.component_name, render: (r) => orDash(r.component_name) },
-    { key: 'category', label: 'KATEGORIA', sortValue: (r) => r.component_category, render: (r) => orDash(r.component_category) },
-    { key: 'unit', label: 'JEDNOSTKA', sortValue: (r) => r.component_unit, render: (r) => orDash(r.component_unit) },
+    { key: 'category', label: 'KATEGORIA', stackUnder: 'name', sortValue: (r) => r.component_category, render: (r) => orDash(r.component_category) },
+    { key: 'unit', label: 'JEDNOSTKA', stackUnder: 'total', sortValue: (r) => r.component_unit, render: (r) => orDash(r.component_unit) },
     ...warehousesSorted.map(
       (w): DataTableColumn<AggregatedRow> => ({
         key: `wh_${w.id}`,
@@ -310,7 +310,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
       }),
     ),
     { key: 'total', label: 'FIZYCZNE', sortValue: (r) => r.total, render: (r) => r.total },
-    { key: 'reserved', label: 'ZAREZERW.', sortValue: (r) => r.reserved, render: (r) => r.reserved || '—' },
+    { key: 'reserved', label: 'ZAREZERW.', stackUnder: 'total', sortValue: (r) => r.reserved, render: (r) => r.reserved || '—' },
     {
       key: 'available',
       label: 'DOSTĘPNE',
@@ -326,12 +326,14 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
     {
       key: 'projected',
       label: 'PROGNOZA',
+      stackUnder: 'incoming',
       sortValue: (r) => r.total - r.reserved + incQtyOf(r.component_id),
       render: (r) => r.total - r.reserved + incQtyOf(r.component_id),
     },
     {
       key: 'min',
       label: 'MIN. STAN',
+      stackUnder: 'status',
       sortValue: (r) => r.component_min_stock_level,
       render: (r) => (r.component_min_stock_level != null ? r.component_min_stock_level : '—'),
     },
@@ -345,13 +347,13 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
   ], [warehousesSorted, incomingByComponent, incQtyOf, renderActions])
 
   const rowColumns = useMemo((): DataTableColumn<WarehouseStockRow>[] => [
-    { key: 'code', label: 'KOD', sortValue: (r) => r.component_code, render: (r) => orDash(r.component_code) },
+    { key: 'code', label: 'KOD', stackUnder: 'name', sortValue: (r) => r.component_code, render: (r) => orDash(r.component_code) },
     { key: 'name', label: 'NAZWA', sortValue: (r) => r.component_name, render: (r) => orDash(r.component_name) },
-    { key: 'category', label: 'KATEGORIA', sortValue: (r) => r.component_category, render: (r) => orDash(r.component_category) },
-    { key: 'unit', label: 'JEDNOSTKA', sortValue: (r) => r.component_unit, render: (r) => orDash(r.component_unit) },
+    { key: 'category', label: 'KATEGORIA', stackUnder: 'name', sortValue: (r) => r.component_category, render: (r) => orDash(r.component_category) },
+    { key: 'unit', label: 'JEDNOSTKA', stackUnder: 'qty', sortValue: (r) => r.component_unit, render: (r) => orDash(r.component_unit) },
     { key: 'warehouse', label: 'MAGAZYN', sortValue: (r) => r.warehouse_code, render: (r) => orDash(r.warehouse_code) },
     { key: 'qty', label: 'FIZYCZNE', sortValue: (r) => r.quantity, render: (r) => r.quantity },
-    { key: 'reserved', label: 'ZAREZERW.', sortValue: (r) => r.reserved_quantity ?? 0, render: (r) => r.reserved_quantity || '—' },
+    { key: 'reserved', label: 'ZAREZERW.', stackUnder: 'qty', sortValue: (r) => r.reserved_quantity ?? 0, render: (r) => r.reserved_quantity || '—' },
     {
       key: 'available',
       label: 'DOSTĘPNE',
@@ -367,12 +369,14 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
     {
       key: 'projected',
       label: 'PROGNOZA',
+      stackUnder: 'incoming',
       sortValue: (r) => (r.available_quantity ?? r.quantity) + incQtyOf(r.component_id),
       render: (r) => (r.available_quantity ?? r.quantity) + incQtyOf(r.component_id),
     },
     {
       key: 'min',
       label: 'MIN. STAN',
+      stackUnder: 'status',
       sortValue: (r) => r.component_min_stock_level,
       render: (r) => (r.component_min_stock_level != null ? r.component_min_stock_level : '—'),
     },

@@ -385,7 +385,7 @@ const alertColumns: DataTableColumn<StockAlert>[] = [
       </>
     ),
   },
-  { key: 'warehouse', label: 'Magazyn', sortValue: (a) => a.warehouse_code, render: (a) => a.warehouse_code },
+  { key: 'warehouse', label: 'Magazyn', stackUnder: 'component', sortValue: (a) => a.warehouse_code, render: (a) => a.warehouse_code },
   { key: 'stock', label: 'Fizyczne', title: 'Stan fizyczny na półce', sortValue: (a) => a.current_stock, render: (a) => a.current_stock },
   {
     key: 'available',
@@ -414,7 +414,7 @@ const alertColumns: DataTableColumn<StockAlert>[] = [
         '—'
       ),
   },
-  { key: 'daily', label: 'Zużycie dzienne', sortValue: (a) => a.daily_consumption, render: (a) => a.daily_consumption },
+  { key: 'daily', label: 'Zużycie dzienne', stackUnder: 'days', sortValue: (a) => a.daily_consumption, render: (a) => a.daily_consumption },
   {
     key: 'days',
     label: 'Dni do wyczerpania',

@@ -139,7 +139,7 @@ function ComponentHistoryModal({ open, component, stockRows, movements, onClose,
         </span>
       ),
     },
-    { key: 'direction', label: 'Kierunek', render: (m) => movementDirection(m) },
+    { key: 'direction', label: 'Kierunek', stackUnder: 'type', render: (m) => movementDirection(m) },
     { key: 'qty', label: 'Ilość', render: (m) => movementQty(m) },
     { key: 'doc', label: 'Dokument', render: (m) => m.reference_doc || '—' },
     {
@@ -162,6 +162,7 @@ function ComponentHistoryModal({ open, component, stockRows, movements, onClose,
     },
     {
       key: 'actor',
+      stackUnder: 'date',
       label: 'Kto',
       render: (m) => {
         const actorRaw = String(m.created_by ?? '').trim()

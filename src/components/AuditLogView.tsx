@@ -158,6 +158,7 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
       {
         key: 'user',
         label: 'UŻYTKOWNIK',
+        stackUnder: 'created_at',
         sortValue: (r) => r.user_email || r.user_id || null,
         render: (r) => r.user_email || r.user_id || '(brak)',
       },
@@ -165,6 +166,7 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
       {
         key: 'operation',
         label: 'OPERACJA',
+        stackUnder: 'table_name',
         sortValue: (r) => r.operation,
         render: (r) => <span className={`audit-op-badge audit-op-badge--${r.operation.toLowerCase()}`}>{r.operation}</span>,
       },

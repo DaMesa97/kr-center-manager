@@ -290,7 +290,7 @@ export default function ComplaintsView({
     }
   }
 
-  const staColumns: DataTableColumn<Complaint>[] = [
+  const staColumns: DataTableColumn<Complaint>[] = withComplaintStacking([
     ...leadColumns({ cancelledBadge: true, modelClass: 'col-order-text col-order-model' }),
     textCol('wing_color', 'KOLOR SKRZYDŁA', (c) => c.wing_color, 'col-order-text col-wing-color'),
     textCol('frame_color', 'KOLOR OŚCIEŻNICY', (c) => c.frame_color, 'col-order-text col-frame-color'),
@@ -382,7 +382,7 @@ export default function ComplaintsView({
     textCol('label', 'ETYKIETA', (c) => c.label),
     textCol('reason', 'POWÓD REKLAMACJI', (c) => c.reason),
     ...actionsColumns('Akcje'),
-  ]
+  ])
 
   const skrBadge = (rowStages: Record<string, string>) => {
     const skrInitials = String(rowStages.sta_e5 ?? '').trim()
@@ -459,7 +459,7 @@ export default function ComplaintsView({
   }
 
   const stColumns: DataTableColumn<Complaint>[] = stOrdersStageLayout
-    ? [
+    ? withComplaintStacking([
         ...leadColumns({ cancelledBadge: false, modelClass: 'col-order-text' }),
         textCol('wing_color', 'KOLOR', (c) => c.wing_color),
         textCol('width', 'SZEROKOŚĆ', (c) => c.width),
@@ -517,10 +517,10 @@ export default function ComplaintsView({
         },
         textCol('reason', 'POWÓD REKLAMACJI', (c) => c.reason),
         ...actionsColumns(),
-      ]
+      ])
     : []
 
-  const techColumns: DataTableColumn<Complaint>[] = [
+  const techColumns: DataTableColumn<Complaint>[] = withComplaintStacking([
     ...leadColumns({ cancelledBadge: false, modelClass: 'col-order-text' }),
     textCol('wing_color', 'KOLOR', (c) => c.wing_color),
     textCol('threshold_color', 'PRÓG', (c) => c.threshold_color),
@@ -539,7 +539,7 @@ export default function ComplaintsView({
     textCol('created_by', 'WPISAŁ', (c) => c.created_by),
     textCol('reason', 'POWÓD REKLAMACJI', (c) => c.reason),
     ...actionsColumns(),
-  ]
+  ])
 
   const tableProps = {
     rows: filteredComplaints,
@@ -567,6 +567,27 @@ export default function ComplaintsView({
     </div>
   )
 }
+
+/**
+ * Pary do spiętrowania, gdy tabela reklamacji nie mieści się na ekranie
+ * (klucz kolumny → klucz kolumny-matki) — jak ORDER_STACK w tabelach zamówień.
+ */
+const COMPLAINT_STACK: Record<string, string> = {
+  production_day: 'order_date',
+  height: 'width',
+  opening: 'direction',
+  frame_color: 'wing_color',
+  threshold_color: 'wing_color',
+  created_by: 'client_order_number',
+  airtable_id: 'client_order_number',
+  info: 'notes',
+  disting_sheet: 'sta_sheet',
+  top_light_glazing: 'top_light',
+  side_panel_glazing: 'side_panel',
+}
+
+const withComplaintStacking = (cols: DataTableColumn<Complaint>[]): DataTableColumn<Complaint>[] =>
+  cols.map((c) => (COMPLAINT_STACK[c.key] && !c.stackUnder ? { ...c, stackUnder: COMPLAINT_STACK[c.key] } : c))
 
 const extraFlag = (c: Complaint, flag: string): boolean =>
   typeof c.extra_fields === 'object' &&

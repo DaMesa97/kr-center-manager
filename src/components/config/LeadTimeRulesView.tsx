@@ -168,6 +168,7 @@ export default function LeadTimeRulesView({ rules, onSave, onDelete, onToggleAct
     {
       key: 'overdue',
       label: <>Przeter.<br />(dni) 🔴</>,
+      stackUnder: 'warning',
       align: 'center',
       sortValue: (r) => r.overdue_days,
       render: (r) => <span className="lead-time-badge lead-time-badge--overdue">{r.overdue_days}d</span>,
