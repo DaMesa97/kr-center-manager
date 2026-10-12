@@ -12,6 +12,7 @@ export function TopScrollTableWrapper({ children, className, tableWrapperRef }: 
   const topScrollRef = useRef<HTMLDivElement>(null)
   const [bottomWrapperEl, setBottomWrapperEl] = useState<HTMLDivElement | null>(null)
   const [innerWidth, setInnerWidth] = useState(0)
+  const [overflowing, setOverflowing] = useState(true)
   const syncingRef = useRef<TopScrollOwner>(null)
 
   const setBottomWrapperRef = useCallback(
@@ -30,7 +31,10 @@ export function TopScrollTableWrapper({ children, className, tableWrapperRef }: 
       const wrapper = bottomWrapperEl
       if (!wrapper) return
       const tbl = wrapper.querySelector('table')
-      setInnerWidth(tbl?.scrollWidth ?? wrapper.scrollWidth)
+      const w = tbl?.scrollWidth ?? wrapper.scrollWidth
+      setInnerWidth(w)
+      // bez przepełnienia pasek tylko zawadza — chowamy (jak globalny topScroll)
+      setOverflowing(w > wrapper.clientWidth + 2)
     }
 
     update()
@@ -76,7 +80,12 @@ export function TopScrollTableWrapper({ children, className, tableWrapperRef }: 
 
   return (
     <>
-      <div ref={topScrollRef} className="orders-table-top-scroll" onScroll={handleTopScroll}>
+      <div
+        ref={topScrollRef}
+        className="orders-table-top-scroll"
+        style={overflowing ? undefined : { display: 'none' }}
+        onScroll={handleTopScroll}
+      >
         <div style={{ width: innerWidth, height: 1 }} />
       </div>
       <div ref={setBottomWrapperRef} className={className} onScroll={handleBottomScroll}>

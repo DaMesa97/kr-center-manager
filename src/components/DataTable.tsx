@@ -1,0 +1,214 @@
+// =====================================================================
+// DataTable — JEDEN komponent tabeli dla całej apki.
+// Daje za darmo: wrapper z górnym paskiem przewijania, sortowanie po
+// kliknięciu nagłówka (kolumny z `sortValue`), resize kolumn (globalny
+// columnResize łapie table.orders-table), pusty stan i style .orders-table.
+//
+// Użycie:
+//   <DataTable
+//     rows={items}
+//     rowKey={(r) => r.id}
+//     columns={[
+//       { key: 'code', label: 'KOD', render: (r) => r.code, sortValue: (r) => r.code },
+//       { key: 'qty', label: 'ILOŚĆ', render: (r) => r.qty, align: 'right' },
+//     ]}
+//     emptyText="Brak danych."
+//   />
+// =====================================================================
+import { Fragment, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { TopScrollTableWrapper } from './TopScrollTableWrapper'
+import { sortRows, toggleSort, type SortState } from '../lib/tableSort'
+
+export type DataTableColumn<T> = {
+  /** Unikalny klucz kolumny (też klucz sortowania). */
+  key: string
+  /** Treść nagłówka. */
+  label: ReactNode
+  /** Tooltip nagłówka. */
+  title?: string
+  /** Zawartość komórki. */
+  render: (row: T, index: number) => ReactNode
+  /** Podanie = kolumna sortowalna (wartość do porównań, patrz lib/tableSort). */
+  sortValue?: (row: T) => unknown
+  align?: 'left' | 'center' | 'right'
+  /** Klasa na <th> i każdym <td> kolumny. */
+  className?: string
+  thClassName?: string
+  tdClassName?: string | ((row: T) => string | undefined)
+  tdStyle?: CSSProperties | ((row: T) => CSSProperties | undefined)
+  thStyle?: CSSProperties
+  /** Atrybut title komórki (np. pełny tekst przy ucinaniu). */
+  tdTitle?: (row: T) => string | undefined
+}
+
+type Props<T> = {
+  rows: T[]
+  columns: DataTableColumn<T>[]
+  rowKey: (row: T, index: number) => string | number
+  /** Dodatkowe klasy tabeli (obok bazowej orders-table). */
+  className?: string
+  tableStyle?: CSSProperties
+  /** Dodatkowe klasy wrappera (obok table-wrapper). */
+  wrapperClassName?: string
+  /** false = bez wrappera/paska (np. tabela w modalu, która ma własny kontener). */
+  wrapped?: boolean
+  emptyText?: ReactNode
+  /** Treść zamiast wierszy, gdy loading = true. */
+  loading?: boolean
+  loadingText?: ReactNode
+  rowClassName?: (row: T, index: number) => string | undefined
+  rowStyle?: (row: T, index: number) => CSSProperties | undefined
+  rowTitle?: (row: T, index: number) => string | undefined
+  onRowClick?: (row: T, e: MouseEvent<HTMLTableRowElement>) => void
+  /** Dodatkowe wiersze pod danym wierszem (rozwinięcia, szczegóły). */
+  renderAfterRow?: (row: T, index: number) => ReactNode
+  /** Dodatkowe wiersze nagłówka NAD wierszem kolumn (np. grupy z colSpan). */
+  headerTop?: ReactNode
+  /** Zawartość <tfoot> (np. sumy). */
+  footer?: ReactNode
+  /** Sortowanie startowe (niekontrolowane). */
+  defaultSort?: SortState
+  /** Sortowanie kontrolowane z zewnątrz (np. gdy widok sam musi znać kolejność). */
+  sort?: SortState
+  onSortChange?: (s: SortState) => void
+}
+
+export default function DataTable<T>({
+  rows,
+  columns,
+  rowKey,
+  className,
+  tableStyle,
+  wrapperClassName,
+  wrapped = true,
+  emptyText = 'Brak danych.',
+  loading,
+  loadingText = 'Ładowanie…',
+  rowClassName,
+  rowStyle,
+  rowTitle,
+  onRowClick,
+  renderAfterRow,
+  headerTop,
+  footer,
+  defaultSort = null,
+  sort: sortProp,
+  onSortChange,
+}: Props<T>) {
+  const [sortInner, setSortInner] = useState<SortState>(defaultSort)
+  const controlled = sortProp !== undefined
+  const sort = controlled ? sortProp : sortInner
+
+  const handleSort = (key: string) => {
+    const next = toggleSort(sort, key)
+    if (!controlled) setSortInner(next)
+    onSortChange?.(next)
+  }
+
+  const getters = useMemo(() => {
+    const g: Record<string, (row: T) => unknown> = {}
+    for (const c of columns) if (c.sortValue) g[c.key] = c.sortValue
+    return g
+  }, [columns])
+
+  const sortedRows = useMemo(() => sortRows(rows, sort, getters), [rows, sort, getters])
+
+  const alignStyle = (a?: DataTableColumn<T>['align']): CSSProperties | undefined =>
+    a && a !== 'left' ? { textAlign: a } : undefined
+
+  const header = (
+    <thead>
+      {headerTop}
+      <tr>
+        {columns.map((c) => {
+          const style = { ...alignStyle(c.align), ...c.thStyle }
+          const cls = [c.className, c.thClassName].filter(Boolean).join(' ') || undefined
+          if (!c.sortValue) {
+            return (
+              <th key={c.key} className={cls} style={style} title={c.title}>
+                {c.label}
+              </th>
+            )
+          }
+          const active = sort?.key === c.key
+          const arrow = !active ? '⇅' : sort?.dir === 'asc' ? '▲' : '▼'
+          return (
+            <th
+              key={c.key}
+              className={`th-sortable ${active ? 'th-sortable--active' : ''} ${cls ?? ''}`}
+              style={style}
+              onClick={() => handleSort(c.key)}
+              title={c.title ?? (typeof c.label === 'string' ? `Sortuj po: ${c.label}` : undefined)}
+            >
+              <span className="th-sortable-inner">
+                {c.label}
+                <span className={`th-sort-arrow ${active ? 'th-sort-arrow--on' : ''}`}>{arrow}</span>
+              </span>
+            </th>
+          )
+        })}
+      </tr>
+    </thead>
+  )
+
+  let body: ReactNode
+  if (loading) {
+    body = (
+      <tr>
+        <td colSpan={columns.length} className="data-table-empty">
+          {loadingText}
+        </td>
+      </tr>
+    )
+  } else if (sortedRows.length === 0) {
+    body = (
+      <tr>
+        <td colSpan={columns.length} className="data-table-empty">
+          {emptyText}
+        </td>
+      </tr>
+    )
+  } else {
+    body = sortedRows.map((row, i) => (
+      <Fragment key={rowKey(row, i)}>
+        <tr
+          className={rowClassName?.(row, i)}
+          style={{ ...rowStyle?.(row, i), ...(onRowClick ? { cursor: 'pointer' } : null) }}
+          title={rowTitle?.(row, i)}
+          onClick={onRowClick ? (e) => onRowClick(row, e) : undefined}
+        >
+          {columns.map((c) => {
+            const tdCls = typeof c.tdClassName === 'function' ? c.tdClassName(row) : c.tdClassName
+            const tdSt = typeof c.tdStyle === 'function' ? c.tdStyle(row) : c.tdStyle
+            return (
+              <td
+                key={c.key}
+                className={[c.className, tdCls].filter(Boolean).join(' ') || undefined}
+                style={{ ...alignStyle(c.align), ...tdSt }}
+                title={c.tdTitle?.(row)}
+              >
+                {c.render(row, i)}
+              </td>
+            )
+          })}
+        </tr>
+        {renderAfterRow?.(row, i)}
+      </Fragment>
+    ))
+  }
+
+  const table = (
+    <table className={`orders-table ${className ?? ''}`.trim()} style={tableStyle}>
+      {header}
+      <tbody>{body}</tbody>
+      {footer && <tfoot>{footer}</tfoot>}
+    </table>
+  )
+
+  if (!wrapped) return table
+  return (
+    <TopScrollTableWrapper className={`table-wrapper ${wrapperClassName ?? ''}`.trim()}>
+      {table}
+    </TopScrollTableWrapper>
+  )
+}

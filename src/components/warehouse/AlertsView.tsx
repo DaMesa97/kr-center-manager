@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 import type { AlertThresholds, StockAlert } from '../../types'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type Props = {
   isManager: boolean
@@ -346,72 +347,87 @@ function AlertsView({ isManager }: Props) {
       ) : filtered.length === 0 ? (
         <p className="no-results">Brak alertów w wybranej kategorii 🎉</p>
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <th>Poziom</th>
-                <th>Komponent</th>
-                <th>Magazyn</th>
-                <th title="Stan fizyczny na półce">Fizyczne</th>
-                <th title="Fizyczne − zarezerwowane pod zamówienia">Dostępne</th>
-                <th title="Niedostarczone pozycje z wysłanych ZD">W drodze</th>
-                <th>Zużycie dzienne</th>
-                <th title="Symulacja: dostępne minus dzienne zużycie, dostawy wpadają w swoich terminach">
-                  Dni do wyczerpania
-                </th>
-                <th>Sugerowane zam.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((a) => (
-                <tr key={`${a.component_id}-${a.warehouse_id}`}>
-                  <td>
-                    <span className={`alert-badge ${LEVEL_BADGES[a.alert_level]}`}>
-                      {LEVEL_LABELS[a.alert_level]}
-                    </span>
-                  </td>
-                  <td>
-                    <strong>{a.component_name}</strong>
-                    {a.component_code && (
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{a.component_code}</div>
-                    )}
-                  </td>
-                  <td>{a.warehouse_code}</td>
-                  <td>{a.current_stock}</td>
-                  <td>
-                    <strong style={a.available < 0 ? { color: '#c62828' } : undefined}>{a.available}</strong>
-                    {a.reserved_quantity > 0 && (
-                      <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>rez. {a.reserved_quantity}</div>
-                    )}
-                  </td>
-                  <td>
-                    {a.incoming_qty > 0 ? (
-                      <>
-                        {a.incoming_qty}
-                        {a.earliest_eta && (
-                          <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>
-                            {formatEtaShort(a.earliest_eta)}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>{a.daily_consumption}</td>
-                  <td>{a.days_until_empty === null ? '—' : `${a.days_until_empty} dni`}</td>
-                  <td>
-                    {a.suggested_order_qty > 0 ? <strong>{a.suggested_order_qty}</strong> : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={filtered}
+          rowKey={(a) => `${a.component_id}-${a.warehouse_id}`}
+          columns={alertColumns}
+        />
       )}
     </div>
   )
 }
+
+const LEVEL_RANK: Record<StockAlert['alert_level'], number> = {
+  critical: 0,
+  warning: 1,
+  observation: 2,
+  ok: 3,
+  no_data: 4,
+}
+
+const muted = (size: string) => ({ fontSize: size, color: '#6b7280' })
+
+const alertColumns: DataTableColumn<StockAlert>[] = [
+  {
+    key: 'level',
+    label: 'Poziom',
+    sortValue: (a) => LEVEL_RANK[a.alert_level],
+    render: (a) => <span className={`alert-badge ${LEVEL_BADGES[a.alert_level]}`}>{LEVEL_LABELS[a.alert_level]}</span>,
+  },
+  {
+    key: 'component',
+    label: 'Komponent',
+    sortValue: (a) => a.component_name,
+    render: (a) => (
+      <>
+        <strong>{a.component_name}</strong>
+        {a.component_code && <div style={muted('0.75rem')}>{a.component_code}</div>}
+      </>
+    ),
+  },
+  { key: 'warehouse', label: 'Magazyn', sortValue: (a) => a.warehouse_code, render: (a) => a.warehouse_code },
+  { key: 'stock', label: 'Fizyczne', title: 'Stan fizyczny na półce', sortValue: (a) => a.current_stock, render: (a) => a.current_stock },
+  {
+    key: 'available',
+    label: 'Dostępne',
+    title: 'Fizyczne − zarezerwowane pod zamówienia',
+    sortValue: (a) => a.available,
+    render: (a) => (
+      <>
+        <strong style={a.available < 0 ? { color: '#c62828' } : undefined}>{a.available}</strong>
+        {a.reserved_quantity > 0 && <div style={muted('0.72rem')}>rez. {a.reserved_quantity}</div>}
+      </>
+    ),
+  },
+  {
+    key: 'incoming',
+    label: 'W drodze',
+    title: 'Niedostarczone pozycje z wysłanych ZD',
+    sortValue: (a) => a.incoming_qty || null,
+    render: (a) =>
+      a.incoming_qty > 0 ? (
+        <>
+          {a.incoming_qty}
+          {a.earliest_eta && <div style={muted('0.72rem')}>{formatEtaShort(a.earliest_eta)}</div>}
+        </>
+      ) : (
+        '—'
+      ),
+  },
+  { key: 'daily', label: 'Zużycie dzienne', sortValue: (a) => a.daily_consumption, render: (a) => a.daily_consumption },
+  {
+    key: 'days',
+    label: 'Dni do wyczerpania',
+    title: 'Symulacja: dostępne minus dzienne zużycie, dostawy wpadają w swoich terminach',
+    sortValue: (a) => a.days_until_empty,
+    render: (a) => (a.days_until_empty === null ? '—' : `${a.days_until_empty} dni`),
+  },
+  {
+    key: 'suggested',
+    label: 'Sugerowane zam.',
+    sortValue: (a) => a.suggested_order_qty || null,
+    render: (a) => (a.suggested_order_qty > 0 ? <strong>{a.suggested_order_qty}</strong> : '—'),
+  },
+]
 
 export default AlertsView

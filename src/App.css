@@ -3531,6 +3531,14 @@ html, body, #root {
   color: #374151;
 }
 
+/* DataTable: pusty stan / ładowanie (jedna komórka na całą szerokość) */
+.orders-table td.data-table-empty {
+  text-align: center;
+  color: #6b7280;
+  padding: 1rem;
+  white-space: normal;
+}
+
 .movements-view-empty {
   text-align: center;
   color: #6b7280;
