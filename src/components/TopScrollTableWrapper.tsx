@@ -34,7 +34,7 @@ export function TopScrollTableWrapper({ children, className, style, tableWrapper
       const tbl = wrapper.querySelector('table')
       const w = tbl?.scrollWidth ?? wrapper.scrollWidth
       setInnerWidth(w)
-      // bez przepełnienia pasek tylko zawadza — chowamy (jak globalny topScroll)
+      // bez przepełnienia pasek tylko zawadza — chowamy
       setOverflowing(w > wrapper.clientWidth + 2)
     }
 

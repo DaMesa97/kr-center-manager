@@ -545,26 +545,25 @@ export default function ComplaintsView({
     rows: filteredComplaints,
     rowKey: (c: Complaint) => c.id ?? c.complaint_number,
     rowClassName: complaintRowClass,
-    wrapped: false,
+    wrapperClassName: 'orders-table-wrapper',
+    tableWrapperRef,
     emptyText: 'Brak reklamacji',
   }
 
   return (
     <div className="complaints-view">
-      <div className="table-wrapper orders-table-wrapper" ref={tableWrapperRef}>
-        {isManager && (
-          <button type="button" className="btn btn-success" onClick={onAddComplaint}>
-            + Nowa reklamacja
-          </button>
-        )}
-        {(activeTab === 'STA' || activeTab === 'Disting' || activeTab === 'Bastion') && (
-          <DataTable {...tableProps} columns={staColumns} />
-        )}
-        {activeTab === 'ST' && stOrdersStageLayout && (
-          <DataTable {...tableProps} columns={stColumns} className="orders-table--st-stages" />
-        )}
-        {activeTab === 'Techniczne' && <DataTable {...tableProps} columns={techColumns} />}
-      </div>
+      {isManager && (
+        <button type="button" className="btn btn-success" onClick={onAddComplaint}>
+          + Nowa reklamacja
+        </button>
+      )}
+      {(activeTab === 'STA' || activeTab === 'Disting' || activeTab === 'Bastion') && (
+        <DataTable {...tableProps} columns={staColumns} />
+      )}
+      {activeTab === 'ST' && stOrdersStageLayout && (
+        <DataTable {...tableProps} columns={stColumns} className="orders-table--st-stages" />
+      )}
+      {activeTab === 'Techniczne' && <DataTable {...tableProps} columns={techColumns} />}
     </div>
   )
 }

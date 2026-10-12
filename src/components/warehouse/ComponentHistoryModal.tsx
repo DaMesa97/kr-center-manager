@@ -243,15 +243,13 @@ function ComponentHistoryModal({ open, component, stockRows, movements, onClose,
             <div className="component-history-empty">Brak ruchów dla tej pozycji</div>
           ) : (
             <>
-              <div className="table-wrapper" style={{ maxHeight: 420, overflowY: 'auto' }}>
-                <DataTable
-                  rows={shownMovements}
-                  rowKey={(m) => m.id}
-                  columns={movementColumns}
-                  className="component-history-table"
-                  wrapped={false}
-                />
-              </div>
+              <DataTable
+                rows={shownMovements}
+                rowKey={(m) => m.id}
+                columns={movementColumns}
+                className="component-history-table"
+                wrapperStyle={{ maxHeight: 420, overflowY: 'auto' }}
+              />
               {visibleCount < filteredMovements.length ? (
                 <button
                   type="button"

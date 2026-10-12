@@ -1,8 +1,8 @@
 // =====================================================================
 // DataTable — JEDEN komponent tabeli dla całej apki.
 // Daje za darmo: wrapper z górnym paskiem przewijania, sortowanie po
-// kliknięciu nagłówka (kolumny z `sortValue`), resize kolumn (globalny
-// columnResize łapie table.orders-table), pusty stan i style .orders-table.
+// kliknięciu nagłówka (kolumny z `sortValue`), resize kolumn przeciąganiem
+// krawędzi nagłówka (lib/columnResize), pusty stan i style .orders-table.
 //
 // Użycie:
 //   <DataTable
@@ -15,9 +15,10 @@
 //     emptyText="Brak danych."
 //   />
 // =====================================================================
-import { Fragment, useMemo, useState, type CSSProperties, type HTMLAttributes, type MouseEvent, type MutableRefObject, type ReactNode } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type HTMLAttributes, type MouseEvent, type MutableRefObject, type ReactNode } from 'react'
 import { TopScrollTableWrapper } from './TopScrollTableWrapper'
 import { sortRows, toggleSort, type SortState } from '../lib/tableSort'
+import { applySavedColumnWidths, attachColumnResize } from '../lib/columnResize'
 
 export type DataTableColumn<T> = {
   /** Unikalny klucz kolumny (też klucz sortowania). */
@@ -114,6 +115,13 @@ export default function DataTable<T>({
   sort: sortProp,
   onSortChange,
 }: Props<T>) {
+  const tableRef = useRef<HTMLTableElement>(null)
+  // resize kolumn: przeciąganie krawędzi nagłówka, szerokości pamiętane per tabela
+  useEffect(() => (tableRef.current ? attachColumnResize(tableRef.current) : undefined), [])
+  useLayoutEffect(() => {
+    if (tableRef.current) applySavedColumnWidths(tableRef.current)
+  })
+
   const [sortInner, setSortInner] = useState<SortState>(defaultSort)
   const controlled = sortProp !== undefined
   const sort = controlled ? sortProp : sortInner
@@ -222,7 +230,7 @@ export default function DataTable<T>({
   }
 
   const table = (
-    <table className={`orders-table ${className ?? ''}`.trim()} style={tableStyle}>
+    <table ref={tableRef} className={`orders-table ${className ?? ''}`.trim()} style={tableStyle}>
       {colgroup}
       {header}
       <tbody>{body}</tbody>
