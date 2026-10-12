@@ -23,6 +23,13 @@ describe('fieldsForStage — dobór szczegółów pod etap', () => {
     expect(l).not.toContain('Okucia')
   })
 
+  it('etapy ościeżnicy widzą elektrozaczep (frez w ościeżnicy) — STA, ST, Bastion', () => {
+    const withStrike = { ...staOrder(), electric_strike: 'TAK' } as Order
+    expect(labels(withStrike, 'STA', 'e1')).toContain('Elektrozaczep')
+    expect(labels(withStrike, 'ST', 'osc')).toContain('Elektrozaczep')
+    expect(labels(withStrike, 'Bastion', 'oscieznica_cnc')).toContain('Elektrozaczep')
+  })
+
   it('etap szklenia dodatków (e2_2) → naświetle i dostawka ze szkleniami', () => {
     const l = labels(staOrder(), 'STA', 'e2_2')
     expect(l).toContain('Naświetle górne')

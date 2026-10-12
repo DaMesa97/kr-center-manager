@@ -156,6 +156,8 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     { label: 'System', value: str(order.system) },
     { label: 'Próg', value: str(order.threshold_color) },
     { label: 'Poszerzenie', value: str(order.extension) },
+    // zaczep montowany w ościeżnicy — frez robi stanowisko ościeżnic
+    { label: 'Elektrozaczep', value: str(order.electric_strike) },
   ]
   const GLASS: DetailField[] = [
     { label: 'Naświetle górne', value: str(order.top_light) },
