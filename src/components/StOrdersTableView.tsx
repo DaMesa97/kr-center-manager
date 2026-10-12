@@ -1,682 +1,227 @@
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  type MouseEvent,
-  type MutableRefObject,
-} from 'react'
+import { memo, useMemo, type MouseEvent, type MutableRefObject } from 'react'
 import ProductionStageCell from './ProductionStageCell'
-import StockStatusBadge from './StockStatusBadge'
-import { TopScrollTableWrapper } from './TopScrollTableWrapper'
-import type { GlassAllowance, Order, StageDef, StStageLayoutMode, ToastVariant } from '../types'
+import DataTable, { type DataTableColumn } from './DataTable'
 import {
-  isReleaseDateEmpty,
-  isRushOrderSequence,
-  isStTitanOrder,
-  orderCellTooltip,
-  orderNumberCellTooltip,
-  parseOrderExtraFields,
-  parseProductionStages,
-  stStageCellKind,
-} from '../utils'
+  actionsCol,
+  companyCol,
+  orderCtxDeps,
+  orderDateCol,
+  orderNumberCol,
+  orderRowClassName,
+  productionDayCol,
+  quantityCol,
+  releaseCol,
+  rushCol,
+  textCol,
+  useStickyCol1Width,
+  isCancelledOwn,
+  type OrderTableCtx,
+} from './orderTableColumns'
+import type { Order, StageDef, StStageLayoutMode } from '../types'
+import { isReleaseDateEmpty, isStTitanOrder, parseOrderExtraFields, parseProductionStages, stStageCellKind } from '../utils'
 
-type StOrdersTableViewProps = {
+type StOrdersTableViewProps = OrderTableCtx & {
   filteredOrders: Order[]
   stOrdersStageLayout: { mode: StStageLayoutMode; defs: StageDef[] }
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
-  isManager: boolean
   canSeePrices?: boolean
-  selectedForLabel?: Set<number>
-  onToggleLabelSelect?: (order: Order) => void
-  releaseDateUpdating: number | null
-  rushUpdatingOrderId: number | null
   productionStageUpdating: string | null
-  glassAllowances: GlassAllowance[]
-  orderCommentsCounts: Map<number, { total: number; unread: number }>
-  onOpenCommentsPanel: (order: Order) => void
   onOpenEditOrderModal: (order: Order) => void
-  onHandleRushToggle: (order: Order, checked: boolean) => void | Promise<void>
   onMarkProductionStageWithProfileInitials: (orderId: number, stageKey: string) => void | Promise<void>
   onSetStageRevertTarget: (target: { orderId: number; stageKey: string }) => void
-  onApplyReleaseDateUpdate: (orderId: number, date: string) => void | Promise<void>
-  onSetReleaseClearTarget: (target: { orderId: number }) => void
   onHandleStTitanStaSheetNavigate: (staRef: string, event: MouseEvent<HTMLButtonElement>) => void
-  onHandleCancelOrderClick: (order: Order) => void
-  onHandleRestoreOrder: (order: Order) => void | Promise<void>
-  onShowHistory?: (order: Order) => void
-  onPrintOrder?: (order: Order) => void
-  pushToast: (message: string, variant: ToastVariant) => void
 }
+
+// ST anulowane po stronie STA (partner) — badge przy numerze + wyszarzony wiersz
+const partnerCancelled = (o: Order) => o.category === 'ST' && !!parseOrderExtraFields(o.extra_fields).sta_cancelled
 
 // memo: tabela re-renderuje się tylko gdy zmienią się jej propsy (nie każdy toast/stan App)
 function StOrdersTableView({
   filteredOrders,
   stOrdersStageLayout,
   tableWrapperRef,
-  isManager,
   canSeePrices = true,
-  selectedForLabel,
-  onToggleLabelSelect,
-  releaseDateUpdating,
-  rushUpdatingOrderId,
   productionStageUpdating,
-  glassAllowances,
-  orderCommentsCounts,
-  onOpenCommentsPanel,
   onOpenEditOrderModal,
-  onHandleRushToggle,
   onMarkProductionStageWithProfileInitials,
   onSetStageRevertTarget,
-  onApplyReleaseDateUpdate,
-  onSetReleaseClearTarget,
   onHandleStTitanStaSheetNavigate,
-  onHandleCancelOrderClick,
-  onHandleRestoreOrder,
-  onShowHistory,
-  onPrintOrder,
-  pushToast,
+  ...ctx
 }: StOrdersTableViewProps) {
-  const syncStickyCol1Width = useCallback(() => {
-    const root = tableWrapperRef.current
-    if (!root) return
-    const th = root.querySelector<HTMLElement>('thead th.sticky-col.sticky-1')
-    if (!th) return
-    const w = th.offsetWidth
-    if (w > 0) {
-      root.style.setProperty('--orders-sticky-col1-width', `${w}px`)
-    }
-  }, [tableWrapperRef])
+  const { isManager, pushToast } = ctx
+  useStickyCol1Width(tableWrapperRef, [filteredOrders, stOrdersStageLayout, isManager])
 
-  useLayoutEffect(() => {
-    syncStickyCol1Width()
-  }, [syncStickyCol1Width, filteredOrders, stOrdersStageLayout, isManager])
+  // etapy parsowane raz na wiersz, nie w każdej komórce
+  const stagesByOrder = useMemo(
+    () => new Map(filteredOrders.map((o) => [o, parseProductionStages(o.production_stages, 'ST')])),
+    [filteredOrders],
+  )
 
-  useEffect(() => {
-    const root = tableWrapperRef.current
-    const th = root?.querySelector('thead th.sticky-col.sticky-1') ?? null
-    const ro = th
-      ? new ResizeObserver(() => {
-          syncStickyCol1Width()
-        })
-      : null
-    if (ro && th) {
-      ro.observe(th)
-      window.addEventListener('resize', syncStickyCol1Width)
-    }
-    return () => {
-      if (ro) {
-        ro.disconnect()
-        window.removeEventListener('resize', syncStickyCol1Width)
+  const columns = useMemo<DataTableColumn<Order>[]>(() => {
+    const stagesOf = (o: Order) => stagesByOrder.get(o) ?? parseProductionStages(o.production_stages, 'ST')
+    const { mode, defs } = stOrdersStageLayout
+
+    const stageCols = defs.map((def): DataTableColumn<Order> => {
+      const kindOf = (o: Order) => stStageCellKind(def, isStTitanOrder(o), mode)
+      return {
+        key: `stage-${def.key}`,
+        label: def.header,
+        title: def.title,
+        thClassName: 'production-stage-th col-stage',
+        tdClassName: (o) =>
+          kindOf(o).kind === 'skr_badge'
+            ? 'production-stage-td sta-osc-pack-td col-osc-pack'
+            : 'production-stage-td col-stage',
+        tdTitle: (o) => {
+          const kind = kindOf(o)
+          const e5 = String(stagesOf(o).sta_e5 ?? '').trim()
+          if (kind.kind === 'skr_badge')
+            return e5 ? 'Skrzydło spakowane w STA (E5)' : 'Oczekiwanie na pakowanie skrzydła w STA (E5)'
+          if (kind.kind === 'e2_sta') return e5 || 'Status z arkusza STA (E5)'
+          return undefined
+        },
+        stopRowClick: true,
+        sortValue: (o) => {
+          const kind = kindOf(o)
+          if (kind.kind === 'none') return null
+          const v = kind.kind === 'click' ? stagesOf(o)[kind.stageKey] : stagesOf(o).sta_e5
+          return String(v ?? '').trim() || null
+        },
+        render: (o) => {
+          const kind = kindOf(o)
+          const rowStages = stagesOf(o)
+          if (kind.kind === 'none') return '—'
+          if (kind.kind === 'skr_badge') {
+            const skrInitials = String(rowStages.sta_e5 ?? '').trim()
+            return (
+              <span className={skrInitials ? 'st-skr-pack-badge st-skr-pack-badge--done' : 'st-skr-pack-badge st-skr-pack-badge--wait'}>
+                {skrInitials ? (
+                  <>
+                    SKR ✓ <span className="sta-osc-badge-initials">{skrInitials}</span>
+                  </>
+                ) : (
+                  'SKR —'
+                )}
+              </span>
+            )
+          }
+          if (kind.kind === 'e2_sta') {
+            const e2Val = String(rowStages.sta_e5 ?? '').trim()
+            return (
+              <span
+                className={[
+                  'production-stage-readonly',
+                  e2Val ? 'production-stage-readonly--linked-done' : 'production-stage-readonly--linked-empty',
+                ].join(' ')}
+                title="E2 — skrzydło odebrane (STA E5)"
+              >
+                {e2Val || '—'}
+              </span>
+            )
+          }
+          const { stageKey } = kind
+          const id = o.id
+          const rowBusy = id !== undefined && productionStageUpdating === String(id)
+          return (
+            <ProductionStageCell
+              value={rowStages[stageKey] ?? ''}
+              disabled={rowBusy || isCancelledOwn(o) || id === undefined}
+              onPickEmpty={() => {
+                if (id === undefined) {
+                  pushToast('Brak identyfikatora zamówienia', 'error')
+                  return
+                }
+                void onMarkProductionStageWithProfileInitials(id, stageKey)
+              }}
+              onPickFilled={() => {
+                if (id === undefined) {
+                  pushToast('Brak identyfikatora zamówienia', 'error')
+                  return
+                }
+                onSetStageRevertTarget({ orderId: id, stageKey })
+              }}
+            />
+          )
+        },
       }
-    }
-  }, [syncStickyCol1Width, filteredOrders, stOrdersStageLayout, isManager, tableWrapperRef])
+    })
+
+    const cols: DataTableColumn<Order>[] = [
+      orderNumberCol(ctx, { partnerBadge: (o) => (partnerCancelled(o) ? 'ANULOWANO W STA' : null) }),
+      companyCol(),
+      orderDateCol(),
+      productionDayCol(),
+      quantityCol(),
+      textCol('sequence', 'KOLEJNOŚĆ', (o) => o.sequence, { cellTooltip: false }),
+      rushCol(ctx),
+      textCol('system', 'SYSTEM', (o) => o.system),
+      textCol('model', 'MODEL', (o) => o.model),
+      textCol('wing_color', 'KOLOR', (o) => o.wing_color),
+      textCol('threshold_color', 'PRÓG', (o) => o.threshold_color),
+      textCol('width', 'SZEROKOŚĆ', (o) => o.width),
+      textCol('direction', 'KIERUNEK', (o) => o.direction),
+      textCol('opening', 'OTWIERANIE', (o) => o.opening),
+      textCol('height', 'WYSOKOŚĆ', (o) => o.height),
+      textCol('glazing', 'SZKLENIE', (o) => o.glazing),
+      textCol('hardware', 'OKUCIA', (o) => o.hardware),
+      textCol('handle', 'POCHWYT', (o) => o.handle),
+      textCol('peephole', 'WIZJER', (o) => o.peephole),
+      ...stageCols,
+      releaseCol(ctx),
+      textCol('info', 'INFO', (o) => o.info),
+      textCol('notes', 'UWAGI', (o) => o.notes),
+      textCol('client_order_number', 'NUMER ZAMÓWIENIA KLIENTA', (o) => o.client_order_number),
+      textCol('entered_by', 'WPISAŁ', (o) => o.entered_by),
+    ]
+    if (canSeePrices) cols.push(textCol('configurator_value', 'WARTOŚĆ KONFIGURATOR', (o) => o.configurator_value))
+    cols.push(
+      textCol('airtable_id', 'AIRTABLE ID', (o) => o.airtable_id),
+      {
+        key: 'sta_ref',
+        label: 'NR W ARKUSZU STA',
+        title: 'NR W ARKUSZU STA',
+        className: 'col-order-text',
+        stopRowClick: true,
+        sortValue: (o) => o.sta_ref?.trim() || null,
+        render: (o) =>
+          o.sta_ref?.trim() ? (
+            <button
+              type="button"
+              className="disting-sheet-link"
+              onClick={(e) => onHandleStTitanStaSheetNavigate(o.sta_ref!.trim(), e)}
+            >
+              {o.sta_ref.trim()}
+            </button>
+          ) : (
+            '—'
+          ),
+      },
+      textCol('label', 'NAKLEJKA', (o) => o.label, { cellTooltip: false }),
+    )
+    if (isManager) cols.push(actionsCol(ctx))
+    return cols
+    // ctx to nowy obiekt przy każdym renderze — zależności pole po polu przez orderCtxDeps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stagesByOrder, stOrdersStageLayout, canSeePrices, productionStageUpdating, onMarkProductionStageWithProfileInitials, onSetStageRevertTarget, onHandleStTitanStaSheetNavigate, ...orderCtxDeps(ctx)])
 
   return (
-    <TopScrollTableWrapper className="table-wrapper orders-table-wrapper" tableWrapperRef={tableWrapperRef}>
-      <table className="orders-table orders-table--st-stages">
-      <thead>
-        <tr>
-          <th className="sticky-col sticky-1 col-order-number" title="NR. ZLECENIA">
-            NR. ZLECENIA
-          </th>
-          <th className="sticky-col sticky-2 col-company" title="FIRMA">
-            FIRMA
-          </th>
-          <th className="col-order-text col-order-date" title="DATA">
-            DATA
-          </th>
-          <th className="col-order-text" title="PRODUKCJA">
-            PRODUKCJA
-          </th>
-          <th className="col-order-text" title="ILOŚĆ">
-            ILOŚĆ
-          </th>
-          <th className="col-order-text" title="KOLEJNOŚĆ">
-            KOLEJNOŚĆ
-          </th>
-          <th className="rush-cell" title="PILNE">
-            PILNE
-          </th>
-          <th className="col-order-text" title="SYSTEM">
-            SYSTEM
-          </th>
-          <th className="col-order-text" title="MODEL">
-            MODEL
-          </th>
-          <th className="col-order-text" title="KOLOR">
-            KOLOR
-          </th>
-          <th className="col-order-text" title="PRÓG">
-            PRÓG
-          </th>
-          <th className="col-order-text" title="SZEROKOŚĆ">
-            SZEROKOŚĆ
-          </th>
-          <th className="col-order-text" title="KIERUNEK">
-            KIERUNEK
-          </th>
-          <th className="col-order-text" title="OTWIERANIE">
-            OTWIERANIE
-          </th>
-          <th className="col-order-text" title="WYSOKOŚĆ">
-            WYSOKOŚĆ
-          </th>
-          <th className="col-order-text" title="SZKLENIE">
-            SZKLENIE
-          </th>
-          <th className="col-order-text" title="OKUCIA">
-            OKUCIA
-          </th>
-          <th className="col-order-text" title="POCHWYT">
-            POCHWYT
-          </th>
-          <th className="col-order-text" title="WIZJER">
-            WIZJER
-          </th>
-          {stOrdersStageLayout.defs.map((def) => (
-            <th key={def.key} className="production-stage-th col-stage" title={def.title}>
-              {def.header}
-            </th>
-          ))}
-          <th className="col-order-text" title="WYDANIE">
-            WYDANIE
-          </th>
-          <th className="col-order-text" title="INFO">
-            INFO
-          </th>
-          <th className="col-order-text" title="UWAGI">
-            UWAGI
-          </th>
-          <th className="col-order-text" title="NUMER ZAMÓWIENIA KLIENTA">
-            NUMER ZAMÓWIENIA KLIENTA
-          </th>
-          <th className="col-order-text" title="WPISAŁ">
-            WPISAŁ
-          </th>
-          {canSeePrices && (
-            <th className="col-order-text" title="WARTOŚĆ KONFIGURATOR">
-              WARTOŚĆ KONFIGURATOR
-            </th>
-          )}
-          <th className="col-order-text" title="AIRTABLE ID">
-            AIRTABLE ID
-          </th>
-          <th className="col-order-text" title="NR W ARKUSZU STA">
-            NR W ARKUSZU STA
-          </th>
-          <th className="col-order-text" title="NAKLEJKA">
-            NAKLEJKA
-          </th>
-          {isManager && <th className="col-order-actions">Akcje</th>}
-        </tr>
-      </thead>
-      <tbody>
-        {filteredOrders.length === 0 ? (
-          <tr>
-            <td
-              colSpan={
-                19 +
-                stOrdersStageLayout.defs.length +
-                8 +
-                (isManager ? 1 : 0)
-              }
-              style={{ textAlign: 'center', padding: '2rem', color: '#888' }}
-            >
-              Brak zamówień spełniających kryteria wyszukiwania.
-            </td>
-          </tr>
-        ) : (
-          filteredOrders.map((order) => {
-            const rowOrderId = order.id
-            const rowStages = parseProductionStages(order.production_stages, 'ST')
-            const rowReleaseBusy = rowOrderId !== undefined && releaseDateUpdating === rowOrderId
-            const rushRow = isRushOrderSequence(order.sequence)
-            const rowReleased = !isReleaseDateEmpty(order.release_date)
-            const rowExtra = parseOrderExtraFields(order.extra_fields)
-            const partnerRowCancelled = order.category === 'ST' && rowExtra.sta_cancelled
-            const partnerCancelBadgeLabel = partnerRowCancelled ? 'ANULOWANO W STA' : null
-            const rowReleasedHighlight = rowReleased && !partnerRowCancelled
-            const stLayoutMode = stOrdersStageLayout.mode
-            const stDefs = stOrdersStageLayout.defs
-            const isTitanSt = isStTitanOrder(order)
-            const isSelfCancelled =
-              typeof order.extra_fields === 'object' &&
-              order.extra_fields !== null &&
-              (order.extra_fields as Record<string, unknown>).cancelled === true
-            return (
-              <tr
-                key={rowOrderId ?? order.order_number}
-                className={[
-                  'orders-table-row',
-                  isManager ? 'orders-table-row--clickable' : '',
-                  rushRow ? 'orders-table-row--priority' : '',
-                  partnerRowCancelled ? 'orders-table-row--partner-cancelled' : '',
-                  partnerRowCancelled ? 'orders-table-row--cancelled' : '',
-                  rowReleasedHighlight ? 'orders-table-row--released' : '',
-                  rowReleasedHighlight ? 'orders-table-row--completed' : '',
-                  isSelfCancelled ? 'orders-table-row--cancelled-own' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onClick={() => isManager && onOpenEditOrderModal(order)}
-              >
-                <td
-                  className={[
-                    'sticky-col sticky-1 col-order-number',
-                    partnerCancelBadgeLabel || rowReleased ? 'col-order-number--with-badges' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  title={orderNumberCellTooltip(order, partnerCancelBadgeLabel, rowReleased)}
-                >
-                  {onToggleLabelSelect && (
-                    <input
-                      type="checkbox"
-                      className="order-select-check"
-                      checked={order.id !== undefined && !!selectedForLabel?.has(order.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={() => onToggleLabelSelect(order)}
-                      title="Zaznacz do druku etykiety"
-                    />
-                  )}
-                  {partnerCancelBadgeLabel ? (
-                    <span className="linked-cancel-badge order-badge" title={partnerCancelBadgeLabel}>
-                      {partnerCancelBadgeLabel}
-                    </span>
-                  ) : null}
-                  {rowReleased ? (
-                    <span className="released-badge order-badge" title="Zrealizowane (wydanie)">
-                      ZREALIZOWANE
-                    </span>
-                  ) : null}
-                  <span className="order-number-wrapper">
-                    <span className="order-num-value order-number-value">{order.order_number}</span>
-                    {(() => {
-                      const counts = order.id !== undefined ? orderCommentsCounts.get(order.id) : undefined
-                      const total = counts?.total ?? 0
-                      const unread = counts?.unread ?? 0
-                      return (
-                        <button
-                          type="button"
-                          className={`btn btn-sm btn-ghost order-comments-inline-btn ${unread > 0 ? 'order-comments-inline-btn--unread' : ''} ${
-                            total === 0 ? 'order-comments-inline-btn--empty' : ''
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onOpenCommentsPanel(order)
-                          }}
-                          title={
-                            total === 0
-                              ? 'Dodaj komentarz'
-                              : unread > 0
-                                ? `${total} komentarzy · ${unread} nieprzeczytanych`
-                                : `${total} komentarzy`
-                          }
-                        >
-                          <span className="order-comments-inline-icon">
-                            💬
-                            {unread > 0 && <span className="order-comments-inline-dot" />}
-                          </span>
-                          {total > 0 && <span className="order-comments-inline-count">{total}</span>}
-                        </button>
-                      )
-                    })()}
-                  </span>
-                  <StockStatusBadge
-                    status={order.stock_status}
-                    issues={order.stock_issues}
-                    category={order.category}
-                    glassAllowances={glassAllowances}
-                  />
-                </td>
-                <td className="sticky-col sticky-2 col-company" title={orderCellTooltip(order.company)}>
-                  {order.company}
-                </td>
-                <td className="col-order-text col-order-date" title={orderCellTooltip(order.order_date)}>
-                  {order.order_date}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.production_day)}>
-                  {order.production_day}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.quantity)}>
-                  {order.quantity}
-                </td>
-                <td className="col-order-text">{order.sequence}</td>
-                <td className="rush-cell" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    className="rush-checkbox"
-                    checked={rushRow}
-                    disabled={
-                      !isManager ||
-                      isSelfCancelled ||
-                      rowOrderId === undefined ||
-                      rushUpdatingOrderId === rowOrderId
-                    }
-                    title={isManager ? 'Pilne zamówienie' : 'Pilne (tylko kierownik może zmienić)'}
-                    aria-label="Pilne"
-                    onChange={(e) => {
-                      e.stopPropagation()
-                      void onHandleRushToggle(order, e.target.checked)
-                    }}
-                  />
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.system)}>
-                  {order.system}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.model)}>
-                  {order.model}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.wing_color)}>
-                  {order.wing_color}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.threshold_color)}>
-                  {order.threshold_color}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.width)}>
-                  {order.width}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.direction)}>
-                  {order.direction}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.opening)}>
-                  {order.opening}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.height)}>
-                  {order.height}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.glazing)}>
-                  {order.glazing}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.hardware)}>
-                  {order.hardware}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.handle)}>
-                  {order.handle}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.peephole)}>
-                  {order.peephole}
-                </td>
-                {stDefs.map((def) => {
-                  const cellKind = stStageCellKind(def, isTitanSt, stLayoutMode)
-                  const rowBusy =
-                    rowOrderId !== undefined && productionStageUpdating === String(rowOrderId)
-                  if (cellKind.kind === 'none') {
-                    return (
-                      <td
-                        key={def.key}
-                        className="production-stage-td col-stage"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        —
-                      </td>
-                    )
-                  }
-                  if (cellKind.kind === 'skr_badge') {
-                    const skrInitials = String(rowStages.sta_e5 ?? '').trim()
-                    const skrDone = Boolean(skrInitials)
-                    return (
-                      <td
-                        key={def.key}
-                        className="production-stage-td sta-osc-pack-td col-osc-pack"
-                        title={
-                          skrDone
-                            ? 'Skrzydło spakowane w STA (E5)'
-                            : 'Oczekiwanie na pakowanie skrzydła w STA (E5)'
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span
-                          className={
-                            skrDone
-                              ? 'st-skr-pack-badge st-skr-pack-badge--done'
-                              : 'st-skr-pack-badge st-skr-pack-badge--wait'
-                          }
-                        >
-                          {skrDone ? (
-                            <>
-                              SKR ✓ <span className="sta-osc-badge-initials">{skrInitials}</span>
-                            </>
-                          ) : (
-                            'SKR —'
-                          )}
-                        </span>
-                      </td>
-                    )
-                  }
-                  if (cellKind.kind === 'e2_sta') {
-                    const e2Val = String(rowStages.sta_e5 ?? '').trim()
-                    const filled = Boolean(e2Val)
-                    return (
-                      <td
-                        key={def.key}
-                        className="production-stage-td col-stage"
-                        title={filled ? e2Val : 'Status z arkusza STA (E5)'}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span
-                          className={[
-                            'production-stage-readonly',
-                            filled
-                              ? 'production-stage-readonly--linked-done'
-                              : 'production-stage-readonly--linked-empty',
-                          ].join(' ')}
-                          title="E2 — skrzydło odebrane (STA E5)"
-                        >
-                          {filled ? e2Val : '—'}
-                        </span>
-                      </td>
-                    )
-                  }
-                  const stageKey = cellKind.stageKey
-                  return (
-                    <td
-                      key={def.key}
-                      className="production-stage-td col-stage"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ProductionStageCell
-                        value={rowStages[stageKey] ?? ''}
-                        disabled={rowBusy || isSelfCancelled || rowOrderId === undefined}
-                        onPickEmpty={() => {
-                          if (rowOrderId === undefined) {
-                            pushToast('Brak identyfikatora zamówienia', 'error')
-                            return
-                          }
-                          void onMarkProductionStageWithProfileInitials(rowOrderId, stageKey)
-                        }}
-                        onPickFilled={() => {
-                          if (rowOrderId === undefined) {
-                            pushToast('Brak identyfikatora zamówienia', 'error')
-                            return
-                          }
-                          onSetStageRevertTarget({ orderId: rowOrderId, stageKey })
-                        }}
-                      />
-                    </td>
-                  )
-                })}
-                {false && stLayoutMode === 'mixed' &&
-                  (() => {
-                    const skrInitials = String(rowStages.sta_e5 ?? '').trim()
-                    const skrDone = Boolean(skrInitials)
-                    if (!isTitanSt) {
-                      return (
-                        <td
-                          className="production-stage-td sta-osc-pack-td col-osc-pack"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {'\u00a0'}
-                        </td>
-                      )
-                    }
-                    return (
-                      <td
-                        className="production-stage-td sta-osc-pack-td col-osc-pack"
-                        title={
-                          skrDone
-                            ? 'Skrzydło spakowane w STA (E5)'
-                            : 'Oczekiwanie na pakowanie skrzydła w STA (E5)'
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span
-                          className={
-                            skrDone
-                              ? 'st-skr-pack-badge st-skr-pack-badge--done'
-                              : 'st-skr-pack-badge st-skr-pack-badge--wait'
-                          }
-                        >
-                          {skrDone ? (
-                            <>
-                              SKR ✓ <span className="sta-osc-badge-initials">{skrInitials}</span>
-                            </>
-                          ) : (
-                            'SKR —'
-                          )}
-                        </span>
-                      </td>
-                    )
-                  })()}
-                <td
-                  className="release-date-td col-order-text"
-                  title={
-                    isReleaseDateEmpty(order.release_date)
-                      ? undefined
-                      : String(order.release_date ?? '').trim() || undefined
-                  }
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {isReleaseDateEmpty(order.release_date) ? (
-                    <button
-                      type="button"
-                      className="release-checkbox-btn"
-                      disabled={rowReleaseBusy || rowOrderId === undefined || isSelfCancelled}
-                      role="checkbox"
-                      aria-checked={false}
-                      aria-label="Oznacz wydanie dzisiejszą datą"
-                      title="Oznacz wydanie"
-                      onClick={() => {
-                        if (rowOrderId === undefined) {
-                          pushToast('Brak identyfikatora zamówienia', 'error')
-                          return
-                        }
-                        void onApplyReleaseDateUpdate(rowOrderId, new Date().toISOString().split('T')[0])
-                      }}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="release-date-value"
-                      disabled={rowReleaseBusy || rowOrderId === undefined || isSelfCancelled}
-                      title="Kliknij, aby cofnąć wydanie"
-                      onClick={() => {
-                        if (rowOrderId === undefined) {
-                          pushToast('Brak identyfikatora zamówienia', 'error')
-                          return
-                        }
-                        onSetReleaseClearTarget({ orderId: rowOrderId })
-                      }}
-                    >
-                      {String(order.release_date).trim()}
-                    </button>
-                  )}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.info)}>
-                  {order.info}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.notes)}>
-                  {order.notes}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.client_order_number)}>
-                  {order.client_order_number}
-                </td>
-                <td className="col-order-text" title={orderCellTooltip(order.entered_by)}>
-                  {order.entered_by}
-                </td>
-                {canSeePrices && (
-                  <td className="col-order-text" title={orderCellTooltip(order.configurator_value)}>
-                    {order.configurator_value}
-                  </td>
-                )}
-                <td className="col-order-text" title={orderCellTooltip(order.airtable_id)}>
-                  {order.airtable_id}
-                </td>
-                <td className="col-order-text" onClick={(e) => e.stopPropagation()}>
-                  {order.sta_ref?.trim() ? (
-                    <button
-                      type="button"
-                      className="disting-sheet-link"
-                      onClick={(e) => onHandleStTitanStaSheetNavigate(order.sta_ref!.trim(), e)}
-                    >
-                      {order.sta_ref.trim()}
-                    </button>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="col-order-text">{order.label}</td>
-                {isManager && (
-                  <td className="col-order-actions" onClick={(e) => e.stopPropagation()}>
-                    {(() => {
-                      const ef = order.extra_fields
-                      const isCancelled =
-                        typeof ef === 'object' &&
-                        ef !== null &&
-                        (ef as Record<string, unknown>).cancelled === true
-                      return (
-                        <>
-                          {onPrintOrder && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-secondary"
-                            onClick={() => onPrintOrder(order)}
-                            title="Drukuj etykietę / deklarację DoP"
-                          >
-                            🖨️
-                          </button>
-                        )}
-                        {onShowHistory && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary"
-                              onClick={() => onShowHistory(order)}
-                              title="Historia zmian"
-                            >
-                              Historia
-                            </button>
-                          )}
-                          {!isCancelled && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger"
-                              onClick={() => onHandleCancelOrderClick(order)}
-                            >
-                              Anuluj
-                            </button>
-                          )}
-                          {isCancelled && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary"
-                              onClick={() => void onHandleRestoreOrder(order)}
-                            >
-                              Przywróć
-                            </button>
-                          )}
-                        </>
-                      )
-                    })()}
-                  </td>
-                )}
-              </tr>
-            )
-          })
-        )}
-      </tbody>
-      </table>
-    </TopScrollTableWrapper>
+    <DataTable
+      rows={filteredOrders}
+      rowKey={(order) => order.id ?? order.order_number}
+      columns={columns}
+      className="orders-table--st-stages"
+      wrapperClassName="orders-table-wrapper"
+      tableWrapperRef={tableWrapperRef}
+      emptyText="Brak zamówień spełniających kryteria wyszukiwania."
+      rowClassName={(order) => {
+        const partner = partnerCancelled(order)
+        return orderRowClassName(order, isManager, {
+          releasedHighlight: !isReleaseDateEmpty(order.release_date) && !partner,
+          extra: [partner && 'orders-table-row--partner-cancelled', partner && 'orders-table-row--cancelled'],
+        })
+      }}
+      onRowClick={isManager ? (order) => onOpenEditOrderModal(order) : undefined}
+    />
   )
 }
 
