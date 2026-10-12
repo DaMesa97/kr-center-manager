@@ -1,6 +1,7 @@
 import { appConfirm } from '../../lib/appDialogs'
 import { useState } from 'react'
 import type { LeadTimeRule, ToastVariant } from '../../types'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
 
@@ -127,6 +128,84 @@ export default function LeadTimeRulesView({ rules, onSave, onDelete, onToggleAct
     if (v === null) return '—'
     return v ? 'TAK (ma naświetle/dostawkę)' : 'NIE (bez naświetla/dostawki)'
   }
+
+  const muted = { color: '#9ca3af' }
+  const columns: DataTableColumn<LeadTimeRule>[] = [
+    { key: 'name', label: 'Nazwa', sortValue: (r) => r.name, render: (r) => r.name },
+    {
+      key: 'category',
+      label: 'Kategoria',
+      sortValue: (r) => r.match_category,
+      render: (r) => r.match_category ?? <span style={muted}>Wszystkie</span>,
+    },
+    {
+      key: 'glass',
+      label: 'Naświetle/dostawka',
+      sortValue: (r) => (r.match_has_glass_extra === null ? null : r.match_has_glass_extra ? 1 : 0),
+      tdStyle: { fontSize: '0.75rem' },
+      render: (r) => glassExtraLabel(r.match_has_glass_extra),
+    },
+    {
+      key: 'frame',
+      label: 'Typ ościeżnicy',
+      sortValue: (r) => r.match_bastion_frame_type || null,
+      render: (r) =>
+        r.match_bastion_frame_type ? (
+          <code style={{ fontSize: '0.75rem', background: '#f3f4f6', padding: '1px 4px', borderRadius: 3 }}>
+            *{r.match_bastion_frame_type}*
+          </code>
+        ) : (
+          <span style={muted}>—</span>
+        ),
+    },
+    {
+      key: 'warning',
+      label: <>Ostrzeżenie<br />(dni) 🟡</>,
+      align: 'center',
+      sortValue: (r) => r.warning_days,
+      render: (r) => <span className="lead-time-badge lead-time-badge--warning">{r.warning_days}d</span>,
+    },
+    {
+      key: 'overdue',
+      label: <>Przeter.<br />(dni) 🔴</>,
+      align: 'center',
+      sortValue: (r) => r.overdue_days,
+      render: (r) => <span className="lead-time-badge lead-time-badge--overdue">{r.overdue_days}d</span>,
+    },
+    { key: 'priority', label: 'Priorytet', align: 'center', sortValue: (r) => r.priority, render: (r) => r.priority },
+    {
+      key: 'active',
+      label: 'Aktywna',
+      align: 'center',
+      render: (r) => (
+        <input
+          type="checkbox"
+          checked={r.is_active}
+          onChange={(e) => void onToggleActive(r.id, e.target.checked)}
+          title={r.is_active ? 'Kliknij by dezaktywować' : 'Kliknij by aktywować'}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Akcje',
+      render: (r) => (
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => openEdit(r)}>
+            Edytuj
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-danger"
+            onClick={() => void handleDelete(r.id, r.name)}
+            disabled={deletingId === r.id}
+          >
+            Usuń
+          </button>
+        </div>
+      ),
+    },
+  ]
 
   return (
     <div className="lead-time-rules-view">
@@ -277,92 +356,25 @@ export default function LeadTimeRulesView({ rules, onSave, onDelete, onToggleAct
       )}
 
       {/* Tabela reguł */}
-      <div className="table-wrapper">
-        <table className="orders-table" style={{ fontSize: '0.8125rem' }}>
-          <thead>
-            <tr>
-              <th>Nazwa</th>
-              <th>Kategoria</th>
-              <th>Naświetle/dostawka</th>
-              <th>Typ ościeżnicy</th>
-              <th style={{ textAlign: 'center' }}>Ostrzeżenie<br />(dni) 🟡</th>
-              <th style={{ textAlign: 'center' }}>Przeter.<br />(dni) 🔴</th>
-              <th style={{ textAlign: 'center' }}>Priorytet</th>
-              <th style={{ textAlign: 'center' }}>Aktywna</th>
-              <th>Akcje</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rules.length === 0 ? (
-              <tr>
-                <td colSpan={9} style={{ padding: '2rem' }}>
-                  <div style={{ textAlign: 'center', color: '#6b7280', lineHeight: 1.7 }}>
-                    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Brak reguł w bazie danych</div>
-                    <div style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
-                      Uruchom migrację SQL w Supabase (SQL Editor), aby dodać domyślne reguły.<br />
-                      Do tego czasu obowiązuje fallback: <strong>ostrzeżenie po 7 dniach</strong>, <strong>przeterminowane po 14 dniach</strong> od złożenia zamówienia.
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                      Możesz też dodać reguły ręcznie przyciskiem „+ Dodaj regułę" powyżej.
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              rules.map((rule) => (
-                <tr key={rule.id} style={{ opacity: rule.is_active ? 1 : 0.5 }}>
-                  <td>{rule.name}</td>
-                  <td>{rule.match_category ?? <span style={{ color: '#9ca3af' }}>Wszystkie</span>}</td>
-                  <td style={{ fontSize: '0.75rem' }}>{glassExtraLabel(rule.match_has_glass_extra)}</td>
-                  <td>
-                    {rule.match_bastion_frame_type ? (
-                      <code style={{ fontSize: '0.75rem', background: '#f3f4f6', padding: '1px 4px', borderRadius: 3 }}>
-                        *{rule.match_bastion_frame_type}*
-                      </code>
-                    ) : (
-                      <span style={{ color: '#9ca3af' }}>—</span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span className="lead-time-badge lead-time-badge--warning">{rule.warning_days}d</span>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span className="lead-time-badge lead-time-badge--overdue">{rule.overdue_days}d</span>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>{rule.priority}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={rule.is_active}
-                      onChange={(e) => void onToggleActive(rule.id, e.target.checked)}
-                      title={rule.is_active ? 'Kliknij by dezaktywować' : 'Kliknij by aktywować'}
-                    />
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-secondary"
-                        onClick={() => openEdit(rule)}
-                      >
-                        Edytuj
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-danger"
-                        onClick={() => void handleDelete(rule.id, rule.name)}
-                        disabled={deletingId === rule.id}
-                      >
-                        Usuń
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={rules}
+        rowKey={(r) => r.id}
+        columns={columns}
+        tableStyle={{ fontSize: '0.8125rem' }}
+        rowStyle={(r) => ({ opacity: r.is_active ? 1 : 0.5 })}
+        emptyText={
+          <div style={{ textAlign: 'center', color: '#6b7280', lineHeight: 1.7, padding: '1rem' }}>
+            <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Brak reguł w bazie danych</div>
+            <div style={{ fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+              Uruchom migrację SQL w Supabase (SQL Editor), aby dodać domyślne reguły.<br />
+              Do tego czasu obowiązuje fallback: <strong>ostrzeżenie po 7 dniach</strong>, <strong>przeterminowane po 14 dniach</strong> od złożenia zamówienia.
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+              Możesz też dodać reguły ręcznie przyciskiem „+ Dodaj regułę" powyżej.
+            </div>
+          </div>
+        }
+      />
     </div>
   )
 }

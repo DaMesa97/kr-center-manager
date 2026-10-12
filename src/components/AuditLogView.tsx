@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { AuditFilters, AuditLogRow } from '../types'
 import Spinner from './Spinner'
+import DataTable, { type DataTableColumn } from './DataTable'
 
 type AuditLogViewProps = {
   rows: AuditLogRow[]
@@ -151,6 +152,37 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
     [rows],
   )
 
+  const columns = useMemo<DataTableColumn<AuditLogRow>[]>(
+    () => [
+      { key: 'created_at', label: 'DATA', sortValue: (r) => r.created_at, render: (r) => formatDateTime(r.created_at) },
+      {
+        key: 'user',
+        label: 'UŻYTKOWNIK',
+        sortValue: (r) => r.user_email || r.user_id || null,
+        render: (r) => r.user_email || r.user_id || '(brak)',
+      },
+      { key: 'table_name', label: 'TABELA', sortValue: (r) => r.table_name, render: (r) => r.table_name },
+      {
+        key: 'operation',
+        label: 'OPERACJA',
+        sortValue: (r) => r.operation,
+        render: (r) => <span className={`audit-op-badge audit-op-badge--${r.operation.toLowerCase()}`}>{r.operation}</span>,
+      },
+      { key: 'record_id', label: 'ID REKORDU', sortValue: (r) => r.record_id || null, render: (r) => r.record_id || '—' },
+      { key: 'changed_fields', label: 'ZMIENIONE POLA', render: (r) => previewChangedFields(r.changed_fields) },
+      {
+        key: 'actions',
+        label: 'AKCJE',
+        render: (r) => (
+          <button type="button" className="btn btn-primary" onClick={() => setDetailsRow(r)}>
+            Szczegóły
+          </button>
+        ),
+      },
+    ],
+    [],
+  )
+
   const updateFilters = (patch: Partial<AuditFilters>) => {
     const next = { ...filters, ...patch }
     setFilters(next)
@@ -219,48 +251,13 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
       {loading ? (
         <Spinner center label="Ładowanie historii zmian…" />
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table audit-table">
-            <thead>
-              <tr>
-                <th>DATA</th>
-                <th>UŻYTKOWNIK</th>
-                <th>TABELA</th>
-                <th>OPERACJA</th>
-                <th>ID REKORDU</th>
-                <th>ZMIENIONE POLA</th>
-                <th>AKCJE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="no-results">
-                    Brak wpisów audytu dla wybranych filtrów.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{formatDateTime(row.created_at)}</td>
-                    <td>{row.user_email || row.user_id || '(brak)'}</td>
-                    <td>{row.table_name}</td>
-                    <td>
-                      <span className={`audit-op-badge audit-op-badge--${row.operation.toLowerCase()}`}>{row.operation}</span>
-                    </td>
-                    <td>{row.record_id || '—'}</td>
-                    <td>{previewChangedFields(row.changed_fields)}</td>
-                    <td>
-                      <button type="button" className="btn btn-primary" onClick={() => setDetailsRow(row)}>
-                        Szczegóły
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={rows}
+          rowKey={(r) => r.id}
+          columns={columns}
+          className="audit-table"
+          emptyText="Brak wpisów audytu dla wybranych filtrów."
+        />
       )}
 
       {detailsRow && <AuditDetailsModal row={detailsRow} onClose={() => setDetailsRow(null)} />}

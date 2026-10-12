@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Copy, Check, Key, Plus, Power, PowerOff } from 'lucide-react'
 import type { ApiKey } from '../types'
 import Spinner from './Spinner'
+import DataTable, { type DataTableColumn } from './DataTable'
 
 type Filter = 'all' | 'active' | 'inactive'
 
@@ -78,6 +79,76 @@ export default function ApiKeysView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const columns = useMemo<DataTableColumn<ApiKey>[]>(() => {
+    const muted = { fontSize: '0.85rem', color: 'var(--color-text-muted, #666)' }
+    const num = { fontVariantNumeric: 'tabular-nums' as const }
+    return [
+      { key: 'name', label: 'Nazwa', sortValue: (k) => k.name, tdStyle: { fontWeight: 500 }, render: (k) => k.name },
+      {
+        key: 'prefix',
+        label: 'Prefiks',
+        render: (k) => (
+          <code style={{ fontSize: '0.8rem', background: 'var(--color-bg-subtle, #f5f5f5)', padding: '2px 6px', borderRadius: '4px' }}>
+            {k.key_prefix ? `${k.key_prefix}...` : '—'}
+          </code>
+        ),
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        sortValue: (k) => (k.is_active ? 0 : 1),
+        render: (k) =>
+          k.is_active ? (
+            <span className="badge badge-success">Aktywny</span>
+          ) : (
+            <span className="badge badge-neutral">Nieaktywny</span>
+          ),
+      },
+      {
+        key: 'rate',
+        label: 'Limit req/min',
+        sortValue: (k) => k.rate_limit_per_minute,
+        tdStyle: { textAlign: 'center' },
+        render: (k) => k.rate_limit_per_minute,
+      },
+      {
+        key: 'requests',
+        label: 'Łączne zapytania',
+        align: 'right',
+        sortValue: (k) => k.total_requests,
+        tdStyle: num,
+        render: (k) => k.total_requests.toLocaleString('pl-PL'),
+      },
+      {
+        key: 'orders',
+        label: 'Zamówień z API',
+        align: 'right',
+        sortValue: (k) => k.total_orders_created,
+        tdStyle: num,
+        render: (k) => k.total_orders_created.toLocaleString('pl-PL'),
+      },
+      { key: 'last_used', label: 'Ostatnie użycie', sortValue: (k) => k.last_used_at, tdStyle: muted, render: (k) => formatDate(k.last_used_at) },
+      { key: 'created', label: 'Utworzony', sortValue: (k) => k.created_at, tdStyle: muted, render: (k) => formatDate(k.created_at) },
+      {
+        key: 'action',
+        label: 'Akcja',
+        align: 'center',
+        render: (k) => (
+          <button
+            type="button"
+            className={`btn btn-sm ${k.is_active ? 'btn-danger' : 'btn-secondary'}`}
+            onClick={() => onSetActive(k.id, !k.is_active)}
+            disabled={deactivatingId === k.id}
+            title={k.is_active ? 'Dezaktywuj klucz' : 'Reaktywuj klucz'}
+          >
+            {k.is_active ? <PowerOff size={13} /> : <Power size={13} />}
+            {deactivatingId === k.id ? '...' : k.is_active ? 'Dezaktywuj' : 'Reaktywuj'}
+          </button>
+        ),
+      },
+    ]
+  }, [deactivatingId, onSetActive])
+
   return (
     <div className="config-view" style={{ padding: '1.5rem' }}>
       {/* Nagłówek */}
@@ -120,63 +191,13 @@ export default function ApiKeysView({
       ) : filteredApiKeys.length === 0 ? (
         <p className="no-results">Brak kluczy API. Wygeneruj nowy.</p>
       ) : (
-        <div className="orders-table-wrapper" style={{ overflowX: 'auto' }}>
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <th>Nazwa</th>
-                <th>Prefiks</th>
-                <th>Status</th>
-                <th>Limit req/min</th>
-                <th style={{ textAlign: 'right' }}>Łączne zapytania</th>
-                <th style={{ textAlign: 'right' }}>Zamówień z API</th>
-                <th>Ostatnie użycie</th>
-                <th>Utworzony</th>
-                <th style={{ textAlign: 'center' }}>Akcja</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredApiKeys.map((key) => (
-                <tr key={key.id} style={{ opacity: key.is_active ? 1 : 0.55 }}>
-                  <td style={{ fontWeight: 500 }}>{key.name}</td>
-                  <td>
-                    <code style={{ fontSize: '0.8rem', background: 'var(--color-bg-subtle, #f5f5f5)', padding: '2px 6px', borderRadius: '4px' }}>
-                      {key.key_prefix ? `${key.key_prefix}...` : '—'}
-                    </code>
-                  </td>
-                  <td>
-                    {key.is_active ? (
-                      <span className="badge badge-success">Aktywny</span>
-                    ) : (
-                      <span className="badge badge-neutral">Nieaktywny</span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>{key.rate_limit_per_minute}</td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                    {key.total_requests.toLocaleString('pl-PL')}
-                  </td>
-                  <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                    {key.total_orders_created.toLocaleString('pl-PL')}
-                  </td>
-                  <td style={{ fontSize: '0.85rem', color: 'var(--color-text-muted, #666)' }}>{formatDate(key.last_used_at)}</td>
-                  <td style={{ fontSize: '0.85rem', color: 'var(--color-text-muted, #666)' }}>{formatDate(key.created_at)}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button
-                      type="button"
-                      className={`btn btn-sm ${key.is_active ? 'btn-danger' : 'btn-secondary'}`}
-                      onClick={() => onSetActive(key.id, !key.is_active)}
-                      disabled={deactivatingId === key.id}
-                      title={key.is_active ? 'Dezaktywuj klucz' : 'Reaktywuj klucz'}
-                    >
-                      {key.is_active ? <PowerOff size={13} /> : <Power size={13} />}
-                      {deactivatingId === key.id ? '...' : key.is_active ? 'Dezaktywuj' : 'Reaktywuj'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={filteredApiKeys}
+          rowKey={(k) => k.id}
+          columns={columns}
+          wrapperClassName="orders-table-wrapper"
+          rowStyle={(k) => ({ opacity: k.is_active ? 1 : 0.55 })}
+        />
       )}
 
       {/* Modal generowania klucza */}

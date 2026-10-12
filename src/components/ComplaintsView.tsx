@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, type MutableRefObject, type ReactNode } from 'react'
 import ProductionStageCell from './ProductionStageCell'
+import DataTable, { type DataTableColumn } from './DataTable'
 import type { Complaint, StageDef, StStageLayoutMode, WhatComplained } from '../types'
 import {
   distingPlusMirrorTitle,
@@ -94,6 +95,460 @@ export default function ComplaintsView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncComplaintsStickyWidths, activeTab, filteredComplaints, stOrdersStageLayout, isManager])
 
+  // dane wiersza STA/Disting/Bastion liczone raz na wiersz (etapy, blokady, partner Disting+)
+  const staRowInfo = useMemo(() => {
+    const m = new Map<Complaint, { rowStages: Record<string, string>; blockedKeys: string[]; distStages: Record<string, string> }>()
+    for (const c of filteredComplaints) {
+      const distPartner =
+        c.linked_complaint_id != null ? linkedComplaints.find((lc) => lc.id === c.linked_complaint_id) : undefined
+      m.set(c, {
+        rowStages: parseProductionStages(c.production_stages, c.category),
+        blockedKeys: getComplaintBlockedStages(c.category, c.what_complained as WhatComplained | '', c.linked_complaint_id),
+        distStages: distPartner
+          ? parseProductionStages(distPartner.production_stages, 'Disting')
+          : ({} as Record<string, string>),
+      })
+    }
+    return m
+  }, [filteredComplaints, linkedComplaints])
+
+  const stRowStages = useMemo(() => {
+    const m = new Map<Complaint, Record<string, string>>()
+    for (const c of filteredComplaints) m.set(c, parseProductionStages(c.production_stages, 'ST'))
+    return m
+  }, [filteredComplaints])
+
+  // kolumny wspólne dla trzech tabel
+  const leadColumns = (opts: { cancelledBadge: boolean; modelClass: string }): DataTableColumn<Complaint>[] => [
+    {
+      key: 'complaint_number',
+      label: 'NR. REKLAMACJI',
+      title: 'NR. REKLAMACJI',
+      className: 'sticky-col sticky-1 col-order-number',
+      tdTitle: (c) => orderCellTooltip(c.complaint_number),
+      sortValue: (c) => c.complaint_number,
+      render: (c) => (
+        <>
+          {opts.cancelledBadge && activeTab === 'STA' && c.category === 'STA' && isDistingCancelled(c) && (
+            <div className="orders-table-row-cancelled-badge">ANULOWANO W DISTING</div>
+          )}
+          <span className="order-num-value">{c.complaint_number}</span>
+        </>
+      ),
+    },
+    {
+      key: 'order_number',
+      label: 'NR. ZLECENIA',
+      title: 'NR. ZLECENIA',
+      className: 'sticky-col sticky-2 col-order-number',
+      tdTitle: (c) => orderCellTooltip(c.order_number),
+      sortValue: (c) => c.order_number,
+      render: (c) => (
+        <>
+          {!isReleaseDateEmpty(c.release_date) ? (
+            <span className="released-badge order-badge" title="Zrealizowane (wydanie)">
+              ZREALIZOWANE
+            </span>
+          ) : null}
+          <span className="order-num-value">{c.order_number}</span>
+        </>
+      ),
+    },
+    textCol('company', 'FIRMA', (c) => c.company, 'sticky-col sticky-3 col-company'),
+    textCol('order_date', 'DATA', (c) => c.order_date, 'col-order-text col-order-date', false),
+    textCol('production_day', 'PRODUKCJA', (c) => c.production_day, 'col-order-text', false),
+    textCol('quantity', 'ILOŚĆ', (c) => c.quantity),
+    {
+      key: 'rush',
+      label: 'PILNE',
+      title: 'PILNE',
+      className: 'rush-cell',
+      render: (c) => (
+        <input
+          type="checkbox"
+          className="rush-checkbox"
+          checked={c.is_rush}
+          disabled={!isManager}
+          title="Pilne (snapshot reklamacji)"
+          aria-label="Pilne"
+          onChange={(e) => {
+            void onComplaintRushToggle(c, e.target.checked)
+          }}
+        />
+      ),
+    },
+    textCol('what_complained', 'CO REKLAMOWANE', (c) => c.what_complained),
+    textCol('system', 'SYSTEM', (c) => c.system),
+    textCol('model', 'MODEL', (c) => c.model, opts.modelClass),
+  ]
+
+  const releaseColumn = (thClassName: string): DataTableColumn<Complaint> => ({
+    key: 'release_date',
+    label: 'WYDANIE',
+    title: 'WYDANIE',
+    thClassName,
+    tdClassName: 'release-date-td col-order-text',
+    tdTitle: (c) => (isReleaseDateEmpty(c.release_date) ? undefined : String(c.release_date ?? '').trim() || undefined),
+    render: (c) =>
+      isReleaseDateEmpty(c.release_date) ? (
+        <span className="release-date-placeholder">—</span>
+      ) : (
+        <span className="release-date-value release-date-value--readonly">{String(c.release_date).trim()}</span>
+      ),
+  })
+
+  const actionsColumns = (thTitle?: string): DataTableColumn<Complaint>[] =>
+    isManager
+      ? [
+          {
+            key: 'actions',
+            label: 'Akcje',
+            title: thTitle,
+            className: 'col-order-actions',
+            render: (c) =>
+              c.id === undefined ? null : isComplaintCancelled(c) ? (
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => void onRestoreComplaint(c)}>
+                  Przywróć
+                </button>
+              ) : (
+                <button type="button" className="btn btn-sm btn-danger" onClick={() => onCancelComplaint(c)}>
+                  Anuluj
+                </button>
+              ),
+          },
+        ]
+      : []
+
+  const sheetText = (v: string | null | undefined) => String(v ?? '').trim() || '—'
+
+  const staStageCell = (c: Complaint, def: StageDef): { title?: string; content: ReactNode } => {
+    const info = staRowInfo.get(c)
+    const rowStages = info?.rowStages ?? {}
+    const distStages = info?.distStages ?? {}
+    const value = rowStages[def.key] ?? ''
+    const staMirrorKey =
+      activeTab === 'STA' && c.category === 'STA' && c.linked_complaint_id != null
+        ? staDistingPlusMirrorStorageKey(def.key)
+        : null
+    if (staMirrorKey) {
+      const mirrorRaw =
+        staMirrorKey === 'dist_e2_1'
+          ? distStages.e2_1 ?? distStages.dist_e2_1 ?? distStages.dist_e2 ?? ''
+          : staMirrorKey === 'dist_e1'
+            ? distStages.e1 ?? distStages.dist_e1 ?? ''
+            : distStages.e2_2 ?? distStages[staMirrorKey] ?? ''
+      const mirrorVal = String(mirrorRaw).trim()
+      const filled = Boolean(mirrorVal)
+      return {
+        title: filled ? mirrorVal : staDistingPlusMirrorTitle(def.key),
+        content: (
+          <span
+            className={[
+              'production-stage-readonly',
+              filled ? 'production-stage-readonly--linked-done' : 'production-stage-readonly--linked-empty',
+            ].join(' ')}
+            title={staDistingPlusMirrorTitle(def.key)}
+          >
+            {filled ? mirrorVal : '—'}
+          </span>
+        ),
+      }
+    }
+    if (info?.blockedKeys.includes(def.key)) {
+      return {
+        content: (
+          <span
+            className={[
+              'production-stage-readonly',
+              value.trim() ? 'production-stage-readonly--linked-done' : 'production-stage-readonly--linked-empty',
+            ].join(' ')}
+            title={
+              c.category === 'Disting' && c.linked_complaint_id != null ? distingPlusMirrorTitle(def.key) : undefined
+            }
+          >
+            {value.trim() ? value.trim() : '—'}
+          </span>
+        ),
+      }
+    }
+    return {
+      title: value.trim() ? value.trim() : undefined,
+      content: (
+        <ProductionStageCell
+          value={value}
+          disabled={!isManager || c.id === undefined || isComplaintCancelled(c)}
+          onPickEmpty={() => {
+            if (c.id === undefined) return
+            void onComplaintStageClick(c.id, def.key, rowStages, c.category)
+          }}
+          onPickFilled={() => {
+            if (c.id === undefined) return
+            void onComplaintStageClick(c.id, def.key, rowStages, c.category)
+          }}
+        />
+      ),
+    }
+  }
+
+  const staColumns: DataTableColumn<Complaint>[] = [
+    ...leadColumns({ cancelledBadge: true, modelClass: 'col-order-text col-order-model' }),
+    textCol('wing_color', 'KOLOR SKRZYDŁA', (c) => c.wing_color, 'col-order-text col-wing-color'),
+    textCol('frame_color', 'KOLOR OŚCIEŻNICY', (c) => c.frame_color, 'col-order-text col-frame-color'),
+    textCol('threshold_color', 'KOLOR PROGU', (c) => c.threshold_color),
+    textCol('width', 'SZEROKOŚĆ', (c) => c.width),
+    textCol('direction', 'KIERUNEK', (c) => c.direction),
+    textCol('opening', 'OTWIERANIE', (c) => c.opening),
+    textCol('height', 'WYSOKOŚĆ', (c) => c.height),
+    textCol('glazing', 'SZKLENIE', (c) => c.glazing),
+    textCol('decorative_panel', 'PANEL DEKORACYJNY', (c) => c.decorative_panel),
+    textCol('hardware', 'OKUCIA', (c) => c.hardware),
+    textCol('handle', 'POCHWYT', (c) => c.handle),
+    textCol('electric_strike', 'ELEKTROZACZEP', (c) => c.electric_strike),
+    textCol('peephole', 'WIZJER', (c) => c.peephole),
+    textCol('top_light', 'NAŚWIETLE GÓRNE', (c) => c.top_light),
+    textCol('top_light_glazing', 'SZKLENIE NAŚWIETLE GÓRNE', (c) => c.top_light_glazing),
+    textCol('side_panel', 'DOSTAWKA BOCZNA', (c) => c.side_panel),
+    textCol('side_panel_glazing', 'SZKLENIE DOSTAWKA BOCZNA', (c) => c.side_panel_glazing),
+    textCol('extension', 'POSZERZENIE', (c) => c.extension),
+    ...orderStageColumnDefs.map(
+      (def): DataTableColumn<Complaint> => ({
+        key: `stage-${def.key}`,
+        label: def.header,
+        title: def.title ?? def.header,
+        thClassName: 'production-stage-th col-stage',
+        tdClassName: 'production-stage-td col-stage',
+        tdTitle: (c) => staStageCell(c, def).title,
+        render: (c) => staStageCell(c, def).content,
+      }),
+    ),
+    ...(activeTab === 'STA'
+      ? [
+          {
+            key: 'osc-pack',
+            label: 'OŚC.',
+            title: 'Ościeżnica (snapshot z koloru ościeżnicy reklamacji)',
+            thClassName: 'production-stage-th sta-osc-pack-th col-osc-pack',
+            tdClassName: 'production-stage-td sta-osc-pack-td col-osc-pack',
+            render: (c: Complaint) => {
+              if (c.linked_complaint_id == null) return ' '
+              const oscInitials = String(c.frame_color ?? '').trim()
+              const oscDone = Boolean(oscInitials)
+              return (
+                <span
+                  className={oscDone ? 'sta-osc-badge sta-osc-badge--done' : 'sta-osc-badge sta-osc-badge--wait'}
+                  title={
+                    oscDone ? 'Ościeżnica spakowana do transportu' : 'Oczekiwanie na pakowanie ościeżnicy w Disting (E5)'
+                  }
+                >
+                  {oscDone ? (
+                    <>
+                      OŚC ✓ <span className="sta-osc-badge-initials">{oscInitials}</span>
+                    </>
+                  ) : (
+                    'OŚC —'
+                  )}
+                </span>
+              )
+            },
+          },
+        ]
+      : []),
+    releaseColumn('col-order-text release-date-th'),
+    {
+      key: 'sta_sheet',
+      label: 'NR. W ARKUSZU STA',
+      title: 'NR. W ARKUSZU STA',
+      className: 'col-order-text',
+      tdTitle: (c) => orderCellTooltip(c.sta_sheet),
+      sortValue: (c) => c.sta_sheet,
+      render: (c) => sheetText(c.sta_sheet),
+    },
+    {
+      key: 'disting_sheet',
+      label: 'NR. W ARKUSZU DISTING',
+      title: 'NR. W ARKUSZU DISTING',
+      className: 'col-order-text',
+      tdTitle: (c) => orderCellTooltip(c.disting_sheet),
+      sortValue: (c) => c.disting_sheet,
+      render: (c) => sheetText(c.disting_sheet),
+    },
+    textCol('notes', 'UWAGI', (c) => c.notes, 'col-notes'),
+    textCol('client_order_number', 'NUMER ZAMÓWIENIA KLIENTA', (c) => c.client_order_number),
+    textCol('defects', 'BRAKI', (c) => c.defects),
+    textCol('created_by', 'WPISAŁ', (c) => c.created_by),
+    textCol('configurator_value', 'WARTOŚĆ KONFIGURATOR', (c) => c.configurator_value),
+    textCol('info', 'INFO', (c) => c.info),
+    textCol('airtable_id', 'AIRTABLE ID', (c) => c.airtable_id),
+    textCol('label', 'ETYKIETA', (c) => c.label),
+    textCol('reason', 'POWÓD REKLAMACJI', (c) => c.reason),
+    ...actionsColumns('Akcje'),
+  ]
+
+  const skrBadge = (rowStages: Record<string, string>) => {
+    const skrInitials = String(rowStages.sta_e5 ?? '').trim()
+    const skrDone = Boolean(skrInitials)
+    return {
+      title: skrDone ? 'Skrzydło spakowane w STA (E5)' : 'Oczekiwanie na pakowanie skrzydła w STA (E5)',
+      content: (
+        <span className={skrDone ? 'st-skr-pack-badge st-skr-pack-badge--done' : 'st-skr-pack-badge st-skr-pack-badge--wait'}>
+          {skrDone ? (
+            <>
+              SKR ✓ <span className="sta-osc-badge-initials">{skrInitials}</span>
+            </>
+          ) : (
+            'SKR —'
+          )}
+        </span>
+      ),
+    }
+  }
+
+  const stStageCell = (
+    c: Complaint,
+    def: StageDef,
+    mode: StStageLayoutMode,
+  ): { className: string; title?: string; content: ReactNode } => {
+    const rowStages = stRowStages.get(c) ?? {}
+    const cellKind = stStageCellKind(def, isStTitanComplaint(c), mode)
+    if (cellKind.kind === 'none') return { className: 'production-stage-td col-stage', content: '—' }
+    if (cellKind.kind === 'skr_badge') {
+      return { className: 'production-stage-td sta-osc-pack-td col-osc-pack', ...skrBadge(rowStages) }
+    }
+    if (cellKind.kind === 'e2_sta') {
+      const e2Val = String(rowStages.sta_e5 ?? '').trim()
+      const filled = Boolean(e2Val)
+      return {
+        className: 'production-stage-td col-stage',
+        title: filled ? e2Val : 'Status z arkusza STA (E5)',
+        content: (
+          <span
+            className={[
+              'production-stage-readonly',
+              filled ? 'production-stage-readonly--linked-done' : 'production-stage-readonly--linked-empty',
+            ].join(' ')}
+            title="E2 — skrzydło odebrane (STA E5)"
+          >
+            {filled ? e2Val : '—'}
+          </span>
+        ),
+      }
+    }
+    const stageKey = cellKind.stageKey
+    const isBlocked = getComplaintBlockedStages(
+      'ST',
+      c.what_complained as WhatComplained | '',
+      c.linked_complaint_id,
+    ).includes(stageKey)
+    return {
+      className: 'production-stage-td col-stage',
+      content: (
+        <ProductionStageCell
+          value={rowStages[stageKey] ?? ''}
+          disabled={!isManager || c.id === undefined || isBlocked || isComplaintCancelled(c)}
+          onPickEmpty={() => {
+            if (c.id === undefined) return
+            void onComplaintStageClick(c.id, stageKey, rowStages, 'ST')
+          }}
+          onPickFilled={() => {
+            if (c.id === undefined) return
+            void onComplaintStageClick(c.id, stageKey, rowStages, 'ST')
+          }}
+        />
+      ),
+    }
+  }
+
+  const stColumns: DataTableColumn<Complaint>[] = stOrdersStageLayout
+    ? [
+        ...leadColumns({ cancelledBadge: false, modelClass: 'col-order-text' }),
+        textCol('wing_color', 'KOLOR', (c) => c.wing_color),
+        textCol('width', 'SZEROKOŚĆ', (c) => c.width),
+        textCol('direction', 'KIERUNEK', (c) => c.direction),
+        textCol('opening', 'OTWIERANIE', (c) => c.opening),
+        textCol('height', 'WYSOKOŚĆ', (c) => c.height),
+        textCol('glazing', 'SZKLENIE', (c) => c.glazing),
+        textCol('hardware', 'OKUCIA', (c) => c.hardware),
+        textCol('handle', 'POCHWYT', (c) => c.handle),
+        textCol('peephole', 'WIZJER', (c) => c.peephole),
+        ...stOrdersStageLayout.defs.map(
+          (def): DataTableColumn<Complaint> => ({
+            key: `stage-${def.key}`,
+            label: def.header,
+            title: def.title,
+            thClassName: 'production-stage-th col-stage',
+            tdClassName: (c) => stStageCell(c, def, stOrdersStageLayout.mode).className,
+            tdTitle: (c) => stStageCell(c, def, stOrdersStageLayout.mode).title,
+            render: (c) => stStageCell(c, def, stOrdersStageLayout.mode).content,
+          }),
+        ),
+        ...(stOrdersStageLayout.mode === 'titan' || stOrdersStageLayout.mode === 'mixed'
+          ? [
+              {
+                key: 'skr-pack',
+                label: 'SKR ✓',
+                title: 'Skrzydło spakowane w STA (E5)',
+                thClassName: 'production-stage-th sta-osc-pack-th col-osc-pack',
+                tdClassName: 'production-stage-td sta-osc-pack-td col-osc-pack',
+                tdTitle: (c: Complaint) =>
+                  stOrdersStageLayout.mode === 'mixed' && !isStTitanComplaint(c)
+                    ? undefined
+                    : skrBadge(stRowStages.get(c) ?? {}).title,
+                render: (c: Complaint) =>
+                  stOrdersStageLayout.mode === 'mixed' && !isStTitanComplaint(c)
+                    ? ' '
+                    : skrBadge(stRowStages.get(c) ?? {}).content,
+              },
+            ]
+          : []),
+        releaseColumn('col-order-text'),
+        textCol('info', 'INFO', (c) => c.info),
+        textCol('notes', 'UWAGI', (c) => c.notes),
+        textCol('client_order_number', 'NUMER ZAMÓWIENIA KLIENTA', (c) => c.client_order_number),
+        textCol('created_by', 'WPISAŁ', (c) => c.created_by),
+        textCol('configurator_value', 'WARTOŚĆ KONFIGURATOR', (c) => c.configurator_value),
+        textCol('airtable_id', 'AIRTABLE ID', (c) => c.airtable_id),
+        {
+          key: 'sta_sheet',
+          label: 'NR W ARKUSZU STA',
+          title: 'NR W ARKUSZU STA',
+          className: 'col-order-text',
+          sortValue: (c) => c.sta_sheet,
+          render: (c) => sheetText(c.sta_sheet),
+        },
+        textCol('reason', 'POWÓD REKLAMACJI', (c) => c.reason),
+        ...actionsColumns(),
+      ]
+    : []
+
+  const techColumns: DataTableColumn<Complaint>[] = [
+    ...leadColumns({ cancelledBadge: false, modelClass: 'col-order-text' }),
+    textCol('wing_color', 'KOLOR', (c) => c.wing_color),
+    textCol('threshold_color', 'PRÓG', (c) => c.threshold_color),
+    textCol('width', 'SZEROKOŚĆ', (c) => c.width),
+    textCol('direction', 'KIERUNEK', (c) => c.direction),
+    textCol('opening', 'OTWIERANIE', (c) => c.opening),
+    textCol('height', 'WYSOKOŚĆ', (c) => c.height),
+    textCol('glazing', 'SZKLENIE', (c) => c.glazing),
+    textCol('hardware', 'OKUCIA', (c) => c.hardware),
+    textCol('handle', 'POCHWYT', (c) => c.handle),
+    textCol('peephole', 'WIZJER', (c) => c.peephole),
+    releaseColumn('col-order-text'),
+    textCol('info', 'INFO', (c) => c.info),
+    textCol('notes', 'UWAGI', (c) => c.notes),
+    textCol('client_order_number', 'NUMER ZAMÓWIENIA KLIENTA', (c) => c.client_order_number),
+    textCol('created_by', 'WPISAŁ', (c) => c.created_by),
+    textCol('reason', 'POWÓD REKLAMACJI', (c) => c.reason),
+    ...actionsColumns(),
+  ]
+
+  const tableProps = {
+    rows: filteredComplaints,
+    rowKey: (c: Complaint) => c.id ?? c.complaint_number,
+    rowClassName: complaintRowClass,
+    wrapped: false,
+    emptyText: 'Brak reklamacji',
+  }
+
   return (
     <div className="complaints-view">
       <div className="table-wrapper orders-table-wrapper" ref={tableWrapperRef}>
@@ -103,1294 +558,56 @@ export default function ComplaintsView({
           </button>
         )}
         {(activeTab === 'STA' || activeTab === 'Disting' || activeTab === 'Bastion') && (
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <th className="sticky-col sticky-1 col-order-number" title="NR. REKLAMACJI">
-                  NR. REKLAMACJI
-                </th>
-                <th className="sticky-col sticky-2 col-order-number" title="NR. ZLECENIA">
-                  NR. ZLECENIA
-                </th>
-                <th className="sticky-col sticky-3 col-company" title="FIRMA">
-                  FIRMA
-                </th>
-                <th className="col-order-text col-order-date" title="DATA">
-                  DATA
-                </th>
-                <th className="col-order-text" title="PRODUKCJA">
-                  PRODUKCJA
-                </th>
-                <th className="col-order-text" title="ILOŚĆ">
-                  ILOŚĆ
-                </th>
-                <th className="rush-cell" title="PILNE">
-                  PILNE
-                </th>
-                <th className="col-order-text" title="CO REKLAMOWANE">
-                  CO REKLAMOWANE
-                </th>
-                <th className="col-order-text" title="SYSTEM">
-                  SYSTEM
-                </th>
-                <th className="col-order-text col-order-model" title="MODEL">
-                  MODEL
-                </th>
-                <th className="col-order-text col-wing-color" title="KOLOR SKRZYDŁA">
-                  KOLOR SKRZYDŁA
-                </th>
-                <th className="col-order-text col-frame-color" title="KOLOR OŚCIEŻNICY">
-                  KOLOR OŚCIEŻNICY
-                </th>
-                <th className="col-order-text" title="KOLOR PROGU">
-                  KOLOR PROGU
-                </th>
-                <th className="col-order-text" title="SZEROKOŚĆ">
-                  SZEROKOŚĆ
-                </th>
-                <th className="col-order-text" title="KIERUNEK">
-                  KIERUNEK
-                </th>
-                <th className="col-order-text" title="OTWIERANIE">
-                  OTWIERANIE
-                </th>
-                <th className="col-order-text" title="WYSOKOŚĆ">
-                  WYSOKOŚĆ
-                </th>
-                <th className="col-order-text" title="SZKLENIE">
-                  SZKLENIE
-                </th>
-                <th className="col-order-text" title="PANEL DEKORACYJNY">
-                  PANEL DEKORACYJNY
-                </th>
-                <th className="col-order-text" title="OKUCIA">
-                  OKUCIA
-                </th>
-                <th className="col-order-text" title="POCHWYT">
-                  POCHWYT
-                </th>
-                <th className="col-order-text" title="ELEKTROZACZEP">
-                  ELEKTROZACZEP
-                </th>
-                <th className="col-order-text" title="WIZJER">
-                  WIZJER
-                </th>
-                <th className="col-order-text" title="NAŚWIETLE GÓRNE">
-                  NAŚWIETLE GÓRNE
-                </th>
-                <th className="col-order-text" title="SZKLENIE NAŚWIETLE GÓRNE">
-                  SZKLENIE NAŚWIETLE GÓRNE
-                </th>
-                <th className="col-order-text" title="DOSTAWKA BOCZNA">
-                  DOSTAWKA BOCZNA
-                </th>
-                <th className="col-order-text" title="SZKLENIE DOSTAWKA BOCZNA">
-                  SZKLENIE DOSTAWKA BOCZNA
-                </th>
-                <th className="col-order-text" title="POSZERZENIE">
-                  POSZERZENIE
-                </th>
-                {orderStageColumnDefs.map((def) => (
-                  <th
-                    key={def.key}
-                    className="production-stage-th col-stage"
-                    title={def.title ?? def.header}
-                  >
-                    {def.header}
-                  </th>
-                ))}
-                {activeTab === 'STA' && (
-                  <th
-                    className="production-stage-th sta-osc-pack-th col-osc-pack"
-                    title="Ościeżnica (snapshot z koloru ościeżnicy reklamacji)"
-                  >
-                    OŚC.
-                  </th>
-                )}
-                <th className="col-order-text release-date-th" title="WYDANIE">
-                  WYDANIE
-                </th>
-                <th className="col-order-text" title="NR. W ARKUSZU STA">
-                  NR. W ARKUSZU STA
-                </th>
-                <th className="col-order-text" title="NR. W ARKUSZU DISTING">
-                  NR. W ARKUSZU DISTING
-                </th>
-                <th className="col-notes" title="UWAGI">
-                  UWAGI
-                </th>
-                <th className="col-order-text" title="NUMER ZAMÓWIENIA KLIENTA">
-                  NUMER ZAMÓWIENIA KLIENTA
-                </th>
-                <th className="col-order-text" title="BRAKI">
-                  BRAKI
-                </th>
-                <th className="col-order-text" title="WPISAŁ">
-                  WPISAŁ
-                </th>
-                <th className="col-order-text" title="WARTOŚĆ KONFIGURATOR">
-                  WARTOŚĆ KONFIGURATOR
-                </th>
-                <th className="col-order-text" title="INFO">
-                  INFO
-                </th>
-                <th className="col-order-text" title="AIRTABLE ID">
-                  AIRTABLE ID
-                </th>
-                <th className="col-order-text" title="ETYKIETA">
-                  ETYKIETA
-                </th>
-                <th className="col-order-text" title="POWÓD REKLAMACJI">
-                  POWÓD REKLAMACJI
-                </th>
-                {isManager && (
-                  <th className="col-order-actions" title="Akcje">
-                    Akcje
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredComplaints.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={
-                      29 + orderStageColumnDefs.length + (activeTab === 'STA' ? 1 : 0) + 11 + (isManager ? 1 : 0)
-                    }
-                    style={{ textAlign: 'center', padding: '2rem', color: '#888' }}
-                  >
-                    Brak reklamacji
-                  </td>
-                </tr>
-              ) : (
-                filteredComplaints.map((c) => {
-                  const rowStages = parseProductionStages(c.production_stages, c.category)
-                  const blockedKeys = getComplaintBlockedStages(
-                    c.category,
-                    c.what_complained as WhatComplained | '',
-                    c.linked_complaint_id,
-                  )
-                  const distPartner =
-                    c.linked_complaint_id != null
-                      ? linkedComplaints.find((lc) => lc.id === c.linked_complaint_id)
-                      : undefined
-                  const distStages = distPartner
-                    ? parseProductionStages(distPartner.production_stages, 'Disting')
-                    : ({} as Record<string, string>)
-                  const rushRow = c.is_rush
-                  const rowReleased = !isReleaseDateEmpty(c.release_date)
-                  const efRow = c.extra_fields
-                  const distCancelled =
-                    typeof efRow === 'object' &&
-                    efRow !== null &&
-                    (efRow as Record<string, unknown>).disting_cancelled === true
-                  const isComplaintCancelled =
-                    typeof c.extra_fields === 'object' &&
-                    c.extra_fields !== null &&
-                    (c.extra_fields as Record<string, unknown>).cancelled === true
-                  return (
-                    <tr
-                      key={c.id ?? c.complaint_number}
-                      className={[
-                        'orders-table-row',
-                        rushRow ? 'orders-table-row--priority' : '',
-                        distCancelled ? 'orders-table-row--partner-cancelled' : '',
-                        distCancelled ? 'orders-table-row--cancelled' : '',
-                        rowReleased ? 'orders-table-row--released' : '',
-                        rowReleased ? 'orders-table-row--completed' : '',
-                        isComplaintCancelled ? 'orders-table-row--cancelled-own' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                    >
-                      <td
-                        className="sticky-col sticky-1 col-order-number"
-                        title={orderCellTooltip(c.complaint_number)}
-                      >
-                        {activeTab === 'STA' &&
-                          c.category === 'STA' &&
-                          (() => {
-                            const ef = c.extra_fields
-                            const partnerCancelled =
-                              typeof ef === 'object' &&
-                              ef !== null &&
-                              (ef as Record<string, unknown>).disting_cancelled === true
-                            if (!partnerCancelled) return null
-                            return (
-                              <div className="orders-table-row-cancelled-badge">ANULOWANO W DISTING</div>
-                            )
-                          })()}
-                        <span className="order-num-value">{c.complaint_number}</span>
-                      </td>
-                      <td
-                        className="sticky-col sticky-2 col-order-number"
-                        title={orderCellTooltip(c.order_number)}
-                      >
-                        {rowReleased ? (
-                          <span className="released-badge order-badge" title="Zrealizowane (wydanie)">
-                            ZREALIZOWANE
-                          </span>
-                        ) : null}
-                        <span className="order-num-value">{c.order_number}</span>
-                      </td>
-                      <td className="sticky-col sticky-3 col-company" title={orderCellTooltip(c.company)}>
-                        {c.company}
-                      </td>
-                      <td className="col-order-text col-order-date" title={orderCellTooltip(c.order_date)}>
-                        {c.order_date}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.production_day)}>
-                        {c.production_day}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.quantity)}>
-                        {c.quantity}
-                      </td>
-                      <td className="rush-cell" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="rush-checkbox"
-                          checked={c.is_rush}
-                          disabled={!isManager}
-                          title="Pilne (snapshot reklamacji)"
-                          aria-label="Pilne"
-                          onChange={(e) => {
-                            void onComplaintRushToggle(c, e.target.checked)
-                          }}
-                        />
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.what_complained)}>
-                        {c.what_complained}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.system)}>
-                        {c.system}
-                      </td>
-                      <td className="col-order-text col-order-model" title={orderCellTooltip(c.model)}>
-                        {c.model}
-                      </td>
-                      <td className="col-order-text col-wing-color" title={orderCellTooltip(c.wing_color)}>
-                        {c.wing_color}
-                      </td>
-                      <td className="col-order-text col-frame-color" title={orderCellTooltip(c.frame_color)}>
-                        {c.frame_color}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.threshold_color)}>
-                        {c.threshold_color}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.width)}>
-                        {c.width}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.direction)}>
-                        {c.direction}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.opening)}>
-                        {c.opening}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.height)}>
-                        {c.height}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.glazing)}>
-                        {c.glazing}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.decorative_panel)}>
-                        {c.decorative_panel}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.hardware)}>
-                        {c.hardware}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.handle)}>
-                        {c.handle}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.electric_strike)}>
-                        {c.electric_strike}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.peephole)}>
-                        {c.peephole}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.top_light)}>
-                        {c.top_light}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.top_light_glazing)}>
-                        {c.top_light_glazing}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.side_panel)}>
-                        {c.side_panel}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.side_panel_glazing)}>
-                        {c.side_panel_glazing}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.extension)}>
-                        {c.extension}
-                      </td>
-                      {orderStageColumnDefs.map((def) => {
-                        const value = rowStages[def.key] ?? ''
-                        const isBlocked = blockedKeys.includes(def.key)
-                        const linkedPlus = c.linked_complaint_id != null
-                        const staMirrorKey =
-                          activeTab === 'STA' && c.category === 'STA' && linkedPlus
-                            ? staDistingPlusMirrorStorageKey(def.key)
-                            : null
-
-                        if (staMirrorKey) {
-                          const mirrorRaw =
-                            staMirrorKey === 'dist_e2_1'
-                              ? distStages.e2_1 ?? distStages.dist_e2_1 ?? distStages.dist_e2 ?? ''
-                              : staMirrorKey === 'dist_e1'
-                                ? distStages.e1 ?? distStages.dist_e1 ?? ''
-                                : distStages.e2_2 ?? distStages[staMirrorKey] ?? ''
-                          const mirrorVal = String(mirrorRaw).trim()
-                          const filled = Boolean(mirrorVal)
-                          return (
-                            <td
-                              key={def.key}
-                              className="production-stage-td col-stage"
-                              title={filled ? mirrorVal : staDistingPlusMirrorTitle(def.key)}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span
-                                className={[
-                                  'production-stage-readonly',
-                                  filled
-                                    ? 'production-stage-readonly--linked-done'
-                                    : 'production-stage-readonly--linked-empty',
-                                ].join(' ')}
-                                title={staDistingPlusMirrorTitle(def.key)}
-                              >
-                                {filled ? mirrorVal : '—'}
-                              </span>
-                            </td>
-                          )
-                        }
-
-                        if (isBlocked) {
-                          return (
-                            <td
-                              key={def.key}
-                              className="production-stage-td col-stage"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span
-                                className={[
-                                  'production-stage-readonly',
-                                  value.trim()
-                                    ? 'production-stage-readonly--linked-done'
-                                    : 'production-stage-readonly--linked-empty',
-                                ].join(' ')}
-                                title={
-                                  c.category === 'Disting' && c.linked_complaint_id != null
-                                    ? distingPlusMirrorTitle(def.key)
-                                    : undefined
-                                }
-                              >
-                                {value.trim() ? value.trim() : '—'}
-                              </span>
-                            </td>
-                          )
-                        }
-                        return (
-                          <td
-                            key={def.key}
-                            className="production-stage-td col-stage"
-                            title={value.trim() ? value.trim() : undefined}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ProductionStageCell
-                              value={value}
-                              disabled={!isManager || c.id === undefined || isComplaintCancelled}
-                              onPickEmpty={() => {
-                                if (c.id === undefined) return
-                                void onComplaintStageClick(c.id, def.key, rowStages, c.category)
-                              }}
-                              onPickFilled={() => {
-                                if (c.id === undefined) return
-                                void onComplaintStageClick(c.id, def.key, rowStages, c.category)
-                              }}
-                            />
-                          </td>
-                        )
-                      })}
-                      {activeTab === 'STA' && (
-                        <td
-                          className="production-stage-td sta-osc-pack-td col-osc-pack"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {c.linked_complaint_id != null
-                            ? (() => {
-                                const oscInitials = String(c.frame_color ?? '').trim()
-                                const oscDone = Boolean(oscInitials)
-                                return (
-                                  <span
-                                    className={
-                                      oscDone
-                                        ? 'sta-osc-badge sta-osc-badge--done'
-                                        : 'sta-osc-badge sta-osc-badge--wait'
-                                    }
-                                    title={
-                                      oscDone
-                                        ? 'Ościeżnica spakowana do transportu'
-                                        : 'Oczekiwanie na pakowanie ościeżnicy w Disting (E5)'
-                                    }
-                                  >
-                                    {oscDone ? (
-                                      <>
-                                        OŚC ✓ <span className="sta-osc-badge-initials">{oscInitials}</span>
-                                      </>
-                                    ) : (
-                                      'OŚC —'
-                                    )}
-                                  </span>
-                                )
-                              })()
-                            : '\u00a0'}
-                        </td>
-                      )}
-                      <td
-                        className="release-date-td col-order-text"
-                        title={
-                          isReleaseDateEmpty(c.release_date)
-                            ? undefined
-                            : String(c.release_date ?? '').trim() || undefined
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {isReleaseDateEmpty(c.release_date) ? (
-                          <span className="release-date-placeholder">—</span>
-                        ) : (
-                          <span className="release-date-value release-date-value--readonly">
-                            {String(c.release_date).trim()}
-                          </span>
-                        )}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.sta_sheet)}>
-                        {String(c.sta_sheet ?? '').trim() || '—'}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.disting_sheet)}>
-                        {String(c.disting_sheet ?? '').trim() || '—'}
-                      </td>
-                      <td className="col-notes" title={orderCellTooltip(c.notes)}>
-                        {c.notes}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.client_order_number)}>
-                        {c.client_order_number}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.defects)}>
-                        {c.defects}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.created_by)}>
-                        {c.created_by}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.configurator_value)}>
-                        {c.configurator_value}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.info)}>
-                        {c.info}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.airtable_id)}>
-                        {c.airtable_id}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.label)}>
-                        {c.label}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.reason)}>
-                        {c.reason}
-                      </td>
-                      {isManager &&
-                        c.id !== undefined &&
-                        (() => {
-                          const ef = c.extra_fields
-                          const isCancelled =
-                            typeof ef === 'object' &&
-                            ef !== null &&
-                            (ef as Record<string, unknown>).cancelled === true
-                          return (
-                            <td className="col-order-actions" onClick={(e) => e.stopPropagation()}>
-                              {!isCancelled && (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() => onCancelComplaint(c)}
-                                >
-                                  Anuluj
-                                </button>
-                              )}
-                              {isCancelled && (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => void onRestoreComplaint(c)}
-                                >
-                                  Przywróć
-                                </button>
-                              )}
-                            </td>
-                          )
-                        })()}
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+          <DataTable {...tableProps} columns={staColumns} />
         )}
         {activeTab === 'ST' && stOrdersStageLayout && (
-          <table className="orders-table orders-table--st-stages">
-            <thead>
-              <tr>
-                <th className="sticky-col sticky-1 col-order-number" title="NR. REKLAMACJI">
-                  NR. REKLAMACJI
-                </th>
-                <th className="sticky-col sticky-2 col-order-number" title="NR. ZLECENIA">
-                  NR. ZLECENIA
-                </th>
-                <th className="sticky-col sticky-3 col-company" title="FIRMA">
-                  FIRMA
-                </th>
-                <th className="col-order-text col-order-date" title="DATA">
-                  DATA
-                </th>
-                <th className="col-order-text" title="PRODUKCJA">
-                  PRODUKCJA
-                </th>
-                <th className="col-order-text" title="ILOŚĆ">
-                  ILOŚĆ
-                </th>
-                <th className="rush-cell" title="PILNE">
-                  PILNE
-                </th>
-                <th className="col-order-text" title="CO REKLAMOWANE">
-                  CO REKLAMOWANE
-                </th>
-                <th className="col-order-text" title="SYSTEM">
-                  SYSTEM
-                </th>
-                <th className="col-order-text" title="MODEL">
-                  MODEL
-                </th>
-                <th className="col-order-text" title="KOLOR">
-                  KOLOR
-                </th>
-                <th className="col-order-text" title="SZEROKOŚĆ">
-                  SZEROKOŚĆ
-                </th>
-                <th className="col-order-text" title="KIERUNEK">
-                  KIERUNEK
-                </th>
-                <th className="col-order-text" title="OTWIERANIE">
-                  OTWIERANIE
-                </th>
-                <th className="col-order-text" title="WYSOKOŚĆ">
-                  WYSOKOŚĆ
-                </th>
-                <th className="col-order-text" title="SZKLENIE">
-                  SZKLENIE
-                </th>
-                <th className="col-order-text" title="OKUCIA">
-                  OKUCIA
-                </th>
-                <th className="col-order-text" title="POCHWYT">
-                  POCHWYT
-                </th>
-                <th className="col-order-text" title="WIZJER">
-                  WIZJER
-                </th>
-                {stOrdersStageLayout.defs.map((def) => (
-                  <th key={def.key} className="production-stage-th col-stage" title={def.title}>
-                    {def.header}
-                  </th>
-                ))}
-                {(stOrdersStageLayout.mode === 'titan' || stOrdersStageLayout.mode === 'mixed') && (
-                  <th
-                    className="production-stage-th sta-osc-pack-th col-osc-pack"
-                    title="Skrzydło spakowane w STA (E5)"
-                  >
-                    SKR ✓
-                  </th>
-                )}
-                <th className="col-order-text" title="WYDANIE">
-                  WYDANIE
-                </th>
-                <th className="col-order-text" title="INFO">
-                  INFO
-                </th>
-                <th className="col-order-text" title="UWAGI">
-                  UWAGI
-                </th>
-                <th className="col-order-text" title="NUMER ZAMÓWIENIA KLIENTA">
-                  NUMER ZAMÓWIENIA KLIENTA
-                </th>
-                <th className="col-order-text" title="WPISAŁ">
-                  WPISAŁ
-                </th>
-                <th className="col-order-text" title="WARTOŚĆ KONFIGURATOR">
-                  WARTOŚĆ KONFIGURATOR
-                </th>
-                <th className="col-order-text" title="AIRTABLE ID">
-                  AIRTABLE ID
-                </th>
-                <th className="col-order-text" title="NR W ARKUSZU STA">
-                  NR W ARKUSZU STA
-                </th>
-                <th className="col-order-text" title="POWÓD REKLAMACJI">
-                  POWÓD REKLAMACJI
-                </th>
-                {isManager && <th className="col-order-actions">Akcje</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredComplaints.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={
-                      3 +
-                      15 +
-                      stOrdersStageLayout.defs.length +
-                      (stOrdersStageLayout.mode === 'titan' || stOrdersStageLayout.mode === 'mixed'
-                        ? 1
-                        : 0) +
-                      10 +
-                      (isManager ? 1 : 0)
-                    }
-                    style={{ textAlign: 'center', padding: '2rem', color: '#888' }}
-                  >
-                    Brak reklamacji
-                  </td>
-                </tr>
-              ) : (
-                filteredComplaints.map((c) => {
-                  const rowStages = parseProductionStages(c.production_stages, 'ST')
-                  const stLayoutMode = stOrdersStageLayout.mode
-                  const stDefs = stOrdersStageLayout.defs
-                  const isTitanSt = isStTitanComplaint(c)
-                  const rushRow = c.is_rush
-                  const rowReleased = !isReleaseDateEmpty(c.release_date)
-                  const efRow = c.extra_fields
-                  const distCancelled =
-                    typeof efRow === 'object' &&
-                    efRow !== null &&
-                    (efRow as Record<string, unknown>).disting_cancelled === true
-                  const isComplaintCancelled =
-                    typeof c.extra_fields === 'object' &&
-                    c.extra_fields !== null &&
-                    (c.extra_fields as Record<string, unknown>).cancelled === true
-                  return (
-                    <tr
-                      key={c.id ?? c.complaint_number}
-                      className={[
-                        'orders-table-row',
-                        rushRow ? 'orders-table-row--priority' : '',
-                        distCancelled ? 'orders-table-row--partner-cancelled' : '',
-                        distCancelled ? 'orders-table-row--cancelled' : '',
-                        rowReleased ? 'orders-table-row--released' : '',
-                        rowReleased ? 'orders-table-row--completed' : '',
-                        isComplaintCancelled ? 'orders-table-row--cancelled-own' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                    >
-                      <td
-                        className="sticky-col sticky-1 col-order-number"
-                        title={orderCellTooltip(c.complaint_number)}
-                      >
-                        <span className="order-num-value">{c.complaint_number}</span>
-                      </td>
-                      <td
-                        className="sticky-col sticky-2 col-order-number"
-                        title={orderCellTooltip(c.order_number)}
-                      >
-                        {rowReleased ? (
-                          <span className="released-badge order-badge" title="Zrealizowane (wydanie)">
-                            ZREALIZOWANE
-                          </span>
-                        ) : null}
-                        <span className="order-num-value">{c.order_number}</span>
-                      </td>
-                      <td className="sticky-col sticky-3 col-company" title={orderCellTooltip(c.company)}>
-                        {c.company}
-                      </td>
-                      <td className="col-order-text col-order-date" title={orderCellTooltip(c.order_date)}>
-                        {c.order_date}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.production_day)}>
-                        {c.production_day}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.quantity)}>
-                        {c.quantity}
-                      </td>
-                      <td className="rush-cell" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="rush-checkbox"
-                          checked={c.is_rush}
-                          disabled={!isManager}
-                          title="Pilne (snapshot reklamacji)"
-                          aria-label="Pilne"
-                          onChange={(e) => {
-                            void onComplaintRushToggle(c, e.target.checked)
-                          }}
-                        />
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.what_complained)}>
-                        {c.what_complained}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.system)}>
-                        {c.system}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.model)}>
-                        {c.model}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.wing_color)}>
-                        {c.wing_color}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.width)}>
-                        {c.width}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.direction)}>
-                        {c.direction}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.opening)}>
-                        {c.opening}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.height)}>
-                        {c.height}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.glazing)}>
-                        {c.glazing}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.hardware)}>
-                        {c.hardware}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.handle)}>
-                        {c.handle}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.peephole)}>
-                        {c.peephole}
-                      </td>
-                      {stDefs.map((def) => {
-                        const cellKind = stStageCellKind(def, isTitanSt, stLayoutMode)
-                        if (cellKind.kind === 'none') {
-                          return (
-                            <td
-                              key={def.key}
-                              className="production-stage-td col-stage"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              —
-                            </td>
-                          )
-                        }
-                        if (cellKind.kind === 'skr_badge') {
-                          const skrInitials = String(rowStages.sta_e5 ?? '').trim()
-                          const skrDone = Boolean(skrInitials)
-                          return (
-                            <td
-                              key={def.key}
-                              className="production-stage-td sta-osc-pack-td col-osc-pack"
-                              title={
-                                skrDone
-                                  ? 'Skrzydło spakowane w STA (E5)'
-                                  : 'Oczekiwanie na pakowanie skrzydła w STA (E5)'
-                              }
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span
-                                className={
-                                  skrDone
-                                    ? 'st-skr-pack-badge st-skr-pack-badge--done'
-                                    : 'st-skr-pack-badge st-skr-pack-badge--wait'
-                                }
-                              >
-                                {skrDone ? (
-                                  <>
-                                    SKR ✓ <span className="sta-osc-badge-initials">{skrInitials}</span>
-                                  </>
-                                ) : (
-                                  'SKR —'
-                                )}
-                              </span>
-                            </td>
-                          )
-                        }
-                        if (cellKind.kind === 'e2_sta') {
-                          const e2Val = String(rowStages.sta_e5 ?? '').trim()
-                          const filled = Boolean(e2Val)
-                          return (
-                            <td
-                              key={def.key}
-                              className="production-stage-td col-stage"
-                              title={filled ? e2Val : 'Status z arkusza STA (E5)'}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span
-                                className={[
-                                  'production-stage-readonly',
-                                  filled
-                                    ? 'production-stage-readonly--linked-done'
-                                    : 'production-stage-readonly--linked-empty',
-                                ].join(' ')}
-                                title="E2 — skrzydło odebrane (STA E5)"
-                              >
-                                {filled ? e2Val : '—'}
-                              </span>
-                            </td>
-                          )
-                        }
-                        const stageKey = cellKind.stageKey
-                        const blockedKeys = getComplaintBlockedStages(
-                          'ST',
-                          c.what_complained as WhatComplained | '',
-                          c.linked_complaint_id,
-                        )
-                        const isBlocked = blockedKeys.includes(stageKey)
-                        return (
-                          <td
-                            key={def.key}
-                            className="production-stage-td col-stage"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ProductionStageCell
-                              value={rowStages[stageKey] ?? ''}
-                              disabled={
-                                !isManager || c.id === undefined || isBlocked || isComplaintCancelled
-                              }
-                              onPickEmpty={() => {
-                                if (c.id === undefined) return
-                                void onComplaintStageClick(c.id, stageKey, rowStages, 'ST')
-                              }}
-                              onPickFilled={() => {
-                                if (c.id === undefined) return
-                                void onComplaintStageClick(c.id, stageKey, rowStages, 'ST')
-                              }}
-                            />
-                          </td>
-                        )
-                      })}
-                      {stLayoutMode === 'titan' &&
-                        (() => {
-                          const skrInitials = String(rowStages.sta_e5 ?? '').trim()
-                          const skrDone = Boolean(skrInitials)
-                          return (
-                            <td
-                              className="production-stage-td sta-osc-pack-td col-osc-pack"
-                              title={
-                                skrDone
-                                  ? 'Skrzydło spakowane w STA (E5)'
-                                  : 'Oczekiwanie na pakowanie skrzydła w STA (E5)'
-                              }
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span
-                                className={
-                                  skrDone
-                                    ? 'st-skr-pack-badge st-skr-pack-badge--done'
-                                    : 'st-skr-pack-badge st-skr-pack-badge--wait'
-                                }
-                              >
-                                {skrDone ? (
-                                  <>
-                                    SKR ✓ <span className="sta-osc-badge-initials">{skrInitials}</span>
-                                  </>
-                                ) : (
-                                  'SKR —'
-                                )}
-                              </span>
-                            </td>
-                          )
-                        })()}
-                      {stLayoutMode === 'mixed' &&
-                        (() => {
-                          const skrInitials = String(rowStages.sta_e5 ?? '').trim()
-                          const skrDone = Boolean(skrInitials)
-                          if (!isTitanSt) {
-                            return (
-                              <td
-                                className="production-stage-td sta-osc-pack-td col-osc-pack"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {'\u00a0'}
-                              </td>
-                            )
-                          }
-                          return (
-                            <td
-                              className="production-stage-td sta-osc-pack-td col-osc-pack"
-                              title={
-                                skrDone
-                                  ? 'Skrzydło spakowane w STA (E5)'
-                                  : 'Oczekiwanie na pakowanie skrzydła w STA (E5)'
-                              }
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span
-                                className={
-                                  skrDone
-                                    ? 'st-skr-pack-badge st-skr-pack-badge--done'
-                                    : 'st-skr-pack-badge st-skr-pack-badge--wait'
-                                }
-                              >
-                                {skrDone ? (
-                                  <>
-                                    SKR ✓ <span className="sta-osc-badge-initials">{skrInitials}</span>
-                                  </>
-                                ) : (
-                                  'SKR —'
-                                )}
-                              </span>
-                            </td>
-                          )
-                        })()}
-                      <td
-                        className="release-date-td col-order-text"
-                        title={
-                          isReleaseDateEmpty(c.release_date)
-                            ? undefined
-                            : String(c.release_date ?? '').trim() || undefined
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {isReleaseDateEmpty(c.release_date) ? (
-                          <span className="release-date-placeholder">—</span>
-                        ) : (
-                          <span className="release-date-value release-date-value--readonly">
-                            {String(c.release_date).trim()}
-                          </span>
-                        )}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.info)}>
-                        {c.info}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.notes)}>
-                        {c.notes}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.client_order_number)}>
-                        {c.client_order_number}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.created_by)}>
-                        {c.created_by}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.configurator_value)}>
-                        {c.configurator_value}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.airtable_id)}>
-                        {c.airtable_id}
-                      </td>
-                      <td className="col-order-text" onClick={(e) => e.stopPropagation()}>
-                        {String(c.sta_sheet ?? '').trim() || '—'}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.reason)}>
-                        {c.reason}
-                      </td>
-                      {isManager &&
-                        c.id !== undefined &&
-                        (() => {
-                          const ef = c.extra_fields
-                          const isCancelled =
-                            typeof ef === 'object' &&
-                            ef !== null &&
-                            (ef as Record<string, unknown>).cancelled === true
-                          return (
-                            <td className="col-order-actions" onClick={(e) => e.stopPropagation()}>
-                              {!isCancelled && (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() => onCancelComplaint(c)}
-                                >
-                                  Anuluj
-                                </button>
-                              )}
-                              {isCancelled && (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => void onRestoreComplaint(c)}
-                                >
-                                  Przywróć
-                                </button>
-                              )}
-                            </td>
-                          )
-                        })()}
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+          <DataTable {...tableProps} columns={stColumns} className="orders-table--st-stages" />
         )}
-        {activeTab === 'Techniczne' && (
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <th className="sticky-col sticky-1 col-order-number" title="NR. REKLAMACJI">
-                  NR. REKLAMACJI
-                </th>
-                <th className="sticky-col sticky-2 col-order-number" title="NR. ZLECENIA">
-                  NR. ZLECENIA
-                </th>
-                <th className="sticky-col sticky-3 col-company" title="FIRMA">
-                  FIRMA
-                </th>
-                <th className="col-order-text col-order-date" title="DATA">
-                  DATA
-                </th>
-                <th className="col-order-text" title="PRODUKCJA">
-                  PRODUKCJA
-                </th>
-                <th className="col-order-text" title="ILOŚĆ">
-                  ILOŚĆ
-                </th>
-                <th className="rush-cell" title="PILNE">
-                  PILNE
-                </th>
-                <th className="col-order-text" title="CO REKLAMOWANE">
-                  CO REKLAMOWANE
-                </th>
-                <th className="col-order-text" title="SYSTEM">
-                  SYSTEM
-                </th>
-                <th className="col-order-text" title="MODEL">
-                  MODEL
-                </th>
-                <th className="col-order-text" title="KOLOR">
-                  KOLOR
-                </th>
-                <th className="col-order-text" title="PRÓG">
-                  PRÓG
-                </th>
-                <th className="col-order-text" title="SZEROKOŚĆ">
-                  SZEROKOŚĆ
-                </th>
-                <th className="col-order-text" title="KIERUNEK">
-                  KIERUNEK
-                </th>
-                <th className="col-order-text" title="OTWIERANIE">
-                  OTWIERANIE
-                </th>
-                <th className="col-order-text" title="WYSOKOŚĆ">
-                  WYSOKOŚĆ
-                </th>
-                <th className="col-order-text" title="SZKLENIE">
-                  SZKLENIE
-                </th>
-                <th className="col-order-text" title="OKUCIA">
-                  OKUCIA
-                </th>
-                <th className="col-order-text" title="POCHWYT">
-                  POCHWYT
-                </th>
-                <th className="col-order-text" title="WIZJER">
-                  WIZJER
-                </th>
-                <th className="col-order-text" title="WYDANIE">
-                  WYDANIE
-                </th>
-                <th className="col-order-text" title="INFO">
-                  INFO
-                </th>
-                <th className="col-order-text" title="UWAGI">
-                  UWAGI
-                </th>
-                <th className="col-order-text" title="NUMER ZAMÓWIENIA KLIENTA">
-                  NUMER ZAMÓWIENIA KLIENTA
-                </th>
-                <th className="col-order-text" title="WPISAŁ">
-                  WPISAŁ
-                </th>
-                <th className="col-order-text" title="POWÓD REKLAMACJI">
-                  POWÓD REKLAMACJI
-                </th>
-                {isManager && <th className="col-order-actions">Akcje</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredComplaints.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={3 + 23 + (isManager ? 1 : 0)}
-                    style={{ textAlign: 'center', padding: '2rem', color: '#888' }}
-                  >
-                    Brak reklamacji
-                  </td>
-                </tr>
-              ) : (
-                filteredComplaints.map((c) => {
-                  const rushRow = c.is_rush
-                  const rowReleased = !isReleaseDateEmpty(c.release_date)
-                  const efRow = c.extra_fields
-                  const distCancelled =
-                    typeof efRow === 'object' &&
-                    efRow !== null &&
-                    (efRow as Record<string, unknown>).disting_cancelled === true
-                  const isComplaintCancelled =
-                    typeof c.extra_fields === 'object' &&
-                    c.extra_fields !== null &&
-                    (c.extra_fields as Record<string, unknown>).cancelled === true
-                  return (
-                    <tr
-                      key={c.id ?? c.complaint_number}
-                      className={[
-                        'orders-table-row',
-                        rushRow ? 'orders-table-row--priority' : '',
-                        distCancelled ? 'orders-table-row--partner-cancelled' : '',
-                        distCancelled ? 'orders-table-row--cancelled' : '',
-                        rowReleased ? 'orders-table-row--released' : '',
-                        rowReleased ? 'orders-table-row--completed' : '',
-                        isComplaintCancelled ? 'orders-table-row--cancelled-own' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                    >
-                      <td
-                        className="sticky-col sticky-1 col-order-number"
-                        title={orderCellTooltip(c.complaint_number)}
-                      >
-                        <span className="order-num-value">{c.complaint_number}</span>
-                      </td>
-                      <td
-                        className="sticky-col sticky-2 col-order-number"
-                        title={orderCellTooltip(c.order_number)}
-                      >
-                        {rowReleased ? (
-                          <span className="released-badge order-badge" title="Zrealizowane (wydanie)">
-                            ZREALIZOWANE
-                          </span>
-                        ) : null}
-                        <span className="order-num-value">{c.order_number}</span>
-                      </td>
-                      <td className="sticky-col sticky-3 col-company" title={orderCellTooltip(c.company)}>
-                        {c.company}
-                      </td>
-                      <td className="col-order-text col-order-date" title={orderCellTooltip(c.order_date)}>
-                        {c.order_date}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.production_day)}>
-                        {c.production_day}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.quantity)}>
-                        {c.quantity}
-                      </td>
-                      <td className="rush-cell" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="rush-checkbox"
-                          checked={c.is_rush}
-                          disabled={!isManager}
-                          title="Pilne (snapshot reklamacji)"
-                          aria-label="Pilne"
-                          onChange={(e) => {
-                            void onComplaintRushToggle(c, e.target.checked)
-                          }}
-                        />
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.what_complained)}>
-                        {c.what_complained}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.system)}>
-                        {c.system}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.model)}>
-                        {c.model}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.wing_color)}>
-                        {c.wing_color}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.threshold_color)}>
-                        {c.threshold_color}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.width)}>
-                        {c.width}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.direction)}>
-                        {c.direction}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.opening)}>
-                        {c.opening}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.height)}>
-                        {c.height}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.glazing)}>
-                        {c.glazing}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.hardware)}>
-                        {c.hardware}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.handle)}>
-                        {c.handle}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.peephole)}>
-                        {c.peephole}
-                      </td>
-                      <td
-                        className="release-date-td col-order-text"
-                        title={
-                          isReleaseDateEmpty(c.release_date)
-                            ? undefined
-                            : String(c.release_date ?? '').trim() || undefined
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {isReleaseDateEmpty(c.release_date) ? (
-                          <span className="release-date-placeholder">—</span>
-                        ) : (
-                          <span className="release-date-value release-date-value--readonly">
-                            {String(c.release_date).trim()}
-                          </span>
-                        )}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.info)}>
-                        {c.info}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.notes)}>
-                        {c.notes}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.client_order_number)}>
-                        {c.client_order_number}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.created_by)}>
-                        {c.created_by}
-                      </td>
-                      <td className="col-order-text" title={orderCellTooltip(c.reason)}>
-                        {c.reason}
-                      </td>
-                      {isManager &&
-                        c.id !== undefined &&
-                        (() => {
-                          const ef = c.extra_fields
-                          const isCancelled =
-                            typeof ef === 'object' &&
-                            ef !== null &&
-                            (ef as Record<string, unknown>).cancelled === true
-                          return (
-                            <td className="col-order-actions" onClick={(e) => e.stopPropagation()}>
-                              {!isCancelled && (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() => onCancelComplaint(c)}
-                                >
-                                  Anuluj
-                                </button>
-                              )}
-                              {isCancelled && (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => void onRestoreComplaint(c)}
-                                >
-                                  Przywróć
-                                </button>
-                              )}
-                            </td>
-                          )
-                        })()}
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        )}
+        {activeTab === 'Techniczne' && <DataTable {...tableProps} columns={techColumns} />}
       </div>
     </div>
   )
+}
+
+const extraFlag = (c: Complaint, flag: string): boolean =>
+  typeof c.extra_fields === 'object' &&
+  c.extra_fields !== null &&
+  (c.extra_fields as Record<string, unknown>)[flag] === true
+
+const isDistingCancelled = (c: Complaint) => extraFlag(c, 'disting_cancelled')
+const isComplaintCancelled = (c: Complaint) => extraFlag(c, 'cancelled')
+
+function complaintRowClass(c: Complaint): string {
+  const distCancelled = isDistingCancelled(c)
+  const rowReleased = !isReleaseDateEmpty(c.release_date)
+  return [
+    'orders-table-row',
+    c.is_rush ? 'orders-table-row--priority' : '',
+    distCancelled ? 'orders-table-row--partner-cancelled' : '',
+    distCancelled ? 'orders-table-row--cancelled' : '',
+    rowReleased ? 'orders-table-row--released' : '',
+    rowReleased ? 'orders-table-row--completed' : '',
+    isComplaintCancelled(c) ? 'orders-table-row--cancelled-own' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+// zwykła kolumna tekstowa: klasa na th/td, tooltip z wartości, sortowanie (domyślnie włączone)
+function textCol(
+  key: string,
+  label: string,
+  get: (c: Complaint) => string | number | null | undefined,
+  className = 'col-order-text',
+  sortable = true,
+): DataTableColumn<Complaint> {
+  return {
+    key,
+    label,
+    title: label,
+    className,
+    tdTitle: (c) => orderCellTooltip(get(c)),
+    sortValue: sortable ? get : undefined,
+    render: (c) => get(c),
+  }
 }

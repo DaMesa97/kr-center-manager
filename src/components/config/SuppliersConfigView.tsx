@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Supplier } from '../../types'
 import Spinner from '../Spinner'
+import DataTable, { type DataTableColumn } from '../DataTable'
 
 type Props = {
   suppliers: Supplier[]
@@ -39,6 +40,87 @@ export default function SuppliersConfigView({
     [showInactive, sorted],
   )
 
+  const columns = useMemo<DataTableColumn<Supplier>[]>(() => {
+    const muted = { color: '#6b7280', fontSize: '0.85rem' }
+    const cols: DataTableColumn<Supplier>[] = [
+      { key: 'name', label: 'Nazwa', sortValue: (s) => s.name, render: (s) => s.name },
+      {
+        key: 'contact',
+        label: 'Kontakt',
+        sortValue: (s) => s.email || null,
+        render: (s) => (
+          <>
+            <div>{s.email || '—'}</div>
+            <div style={muted}>{s.phone || '—'}</div>
+          </>
+        ),
+      },
+      { key: 'person', label: 'Osoba kontaktowa', sortValue: (s) => s.contact_person || null, render: (s) => s.contact_person || '—' },
+      {
+        key: 'lead_time',
+        label: 'Czas realizacji',
+        sortValue: (s) => s.lead_time_days,
+        render: (s) => (
+          <>
+            <strong>{s.lead_time_days} dni</strong>
+            <div style={muted}>{weeksLabel(s.lead_time_days)}</div>
+          </>
+        ),
+      },
+      {
+        key: 'tir',
+        label: 'Pełny TIR',
+        sortValue: (s) => (s.requires_full_tir ? 0 : 1),
+        render: (s) => (
+          <span className={`supplier-badge ${s.requires_full_tir ? 'supplier-badge--yes' : 'supplier-badge--no'}`}>
+            {s.requires_full_tir ? 'TAK' : 'NIE'}
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        sortValue: (s) => (s.is_active ? 0 : 1),
+        render: (s) => (
+          <span className={`supplier-badge ${s.is_active ? 'supplier-badge--active' : 'supplier-badge--inactive'}`}>
+            {s.is_active ? 'Aktywny' : 'Nieaktywny'}
+          </span>
+        ),
+      },
+    ]
+    if (isManager) {
+      cols.push({
+        key: 'actions',
+        label: 'Akcje',
+        render: (s) => (
+          <div className="contractor-actions">
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(s)
+              }}
+            >
+              Edytuj
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={(e) => {
+                e.stopPropagation()
+                void onToggleActive(s)
+              }}
+            >
+              {s.is_active ? 'Dezaktywuj' : 'Aktywuj'}
+            </button>
+          </div>
+        ),
+      })
+    }
+    return cols
+  }, [isManager, onEdit, onToggleActive])
+
   return (
     <div className="config-main">
       <div className="config-main-header">
@@ -64,81 +146,14 @@ export default function SuppliersConfigView({
       {loading ? (
         <Spinner center label="Ładowanie dostawców…" />
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table">
-            <thead>
-              <tr>
-                <th>Nazwa</th>
-                <th>Kontakt</th>
-                <th>Osoba kontaktowa</th>
-                <th>Czas realizacji</th>
-                <th>Pełny TIR</th>
-                <th>Status</th>
-                {isManager && <th>Akcje</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((supplier) => (
-                <tr
-                  key={supplier.id}
-                  className={supplier.is_active ? '' : 'supplier-row--inactive'}
-                  onClick={() => {
-                    if (isManager) onEdit(supplier)
-                  }}
-                  style={{ cursor: isManager ? 'pointer' : 'default' }}
-                >
-                  <td>{supplier.name}</td>
-                  <td>
-                    <div>{supplier.email || '—'}</div>
-                    <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>{supplier.phone || '—'}</div>
-                  </td>
-                  <td>{supplier.contact_person || '—'}</td>
-                  <td>
-                    <strong>{supplier.lead_time_days} dni</strong>
-                    <div style={{ color: '#6b7280', fontSize: '0.85rem' }}>{weeksLabel(supplier.lead_time_days)}</div>
-                  </td>
-                  <td>
-                    <span className={`supplier-badge ${supplier.requires_full_tir ? 'supplier-badge--yes' : 'supplier-badge--no'}`}>
-                      {supplier.requires_full_tir ? 'TAK' : 'NIE'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`supplier-badge ${supplier.is_active ? 'supplier-badge--active' : 'supplier-badge--inactive'}`}>
-                      {supplier.is_active ? 'Aktywny' : 'Nieaktywny'}
-                    </span>
-                  </td>
-                  {isManager && (
-                    <td>
-                      <div className="contractor-actions">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onEdit(supplier)
-                          }}
-                        >
-                          Edytuj
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void onToggleActive(supplier)
-                          }}
-                        >
-                          {supplier.is_active ? 'Dezaktywuj' : 'Aktywuj'}
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {visible.length === 0 && <p className="no-results">Brak dostawców do wyświetlenia.</p>}
-        </div>
+        <DataTable
+          rows={visible}
+          rowKey={(s) => s.id}
+          columns={columns}
+          rowClassName={(s) => (s.is_active ? '' : 'supplier-row--inactive')}
+          onRowClick={isManager ? (s) => onEdit(s) : undefined}
+          emptyText="Brak dostawców do wyświetlenia."
+        />
       )}
     </div>
   )

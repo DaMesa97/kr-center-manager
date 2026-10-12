@@ -17,6 +17,7 @@ import SuppliersConfigView from './config/SuppliersConfigView'
 import CompanySettingsView from './config/CompanySettingsView'
 import LeadTimeRulesView from './config/LeadTimeRulesView'
 import Spinner from './Spinner'
+import DataTable, { type DataTableColumn } from './DataTable'
 
 type ExclusionFormState = {
   category: string
@@ -189,6 +190,88 @@ export default function ConfigView({
   // wymiary rozmiaru z dimension_map (kategoria + kod)
   const dimsForCode = (code: string) =>
     dimensionMap.find((d) => d.category === selectedConfigCategory && d.dimension_code === code)
+
+  const dimensionMapColumns: DataTableColumn<DimensionMap>[] = [
+    { key: 'category', label: 'Kategoria', sortValue: (r) => r.category, render: (r) => r.category },
+    { key: 'code', label: 'Kod', sortValue: (r) => r.dimension_code, render: (r) => r.dimension_code },
+    { key: 'width', label: 'Szerokość (mm)', sortValue: (r) => r.width_mm, render: (r) => `${r.width_mm} mm` },
+    { key: 'height', label: 'Wysokość (mm)', sortValue: (r) => r.height_mm, render: (r) => `${r.height_mm} mm` },
+  ]
+  if (isManager) {
+    dimensionMapColumns.push({
+      key: 'actions',
+      label: 'Akcje',
+      render: (r) => (
+        <button type="button" className="btn btn-sm btn-danger" onClick={() => void handleDeleteDimensionMap(r.id)}>
+          Usuń
+        </button>
+      ),
+    })
+  }
+
+  // edycja inline — bez sortowania (wiersz nie może uciec spod kursora)
+  const extensionProfileColumns: DataTableColumn<{ category: string; profile_width_mm: number }>[] = [
+    { key: 'category', label: 'Kategoria', render: (p) => p.category },
+    {
+      key: 'width',
+      label: 'Szerokość profilu (mm)',
+      render: (p) => (
+        <input
+          type="number"
+          className="extension-qty-input"
+          value={p.profile_width_mm}
+          onChange={(e) => void handleUpdateExtensionProfileWidth(p.category, parseInt(e.target.value) || 0)}
+        />
+      ),
+    },
+  ]
+  if (isManager) {
+    extensionProfileColumns.push({
+      key: 'actions',
+      label: 'Akcje',
+      render: (p) => (
+        <button type="button" className="btn btn-sm btn-danger" onClick={() => void handleDeleteExtensionProfile(p.category)}>
+          Usuń
+        </button>
+      ),
+    })
+  }
+
+  // edycja inline — bez sortowania
+  const glassAllowanceColumns: DataTableColumn<GlassAllowance>[] = [
+    { key: 'category', label: 'Kategoria', render: (a) => a.category },
+    {
+      key: 'element',
+      label: 'Element',
+      render: (a) => (a.element === 'top_light' ? 'Naświetle górne' : 'Dostawka boczna'),
+    },
+    {
+      key: 'w',
+      label: 'Naddatek szer. (mm)',
+      render: (a) => (
+        <input
+          type="number"
+          className="extension-qty-input"
+          value={a.allowance_w_mm}
+          onChange={(e) => void handleUpdateGlassAllowance(a.id, 'allowance_w_mm', parseInt(e.target.value) || 0)}
+        />
+      ),
+    },
+    {
+      key: 'h',
+      label: 'Naddatek wys. (mm)',
+      render: (a) => (
+        <input
+          type="number"
+          className="extension-qty-input"
+          value={a.allowance_h_mm}
+          onChange={(e) => void handleUpdateGlassAllowance(a.id, 'allowance_h_mm', parseInt(e.target.value) || 0)}
+        />
+      ),
+    },
+  ]
+  // nagłówek „Akcje” był w tabeli od zawsze (bez akcji w wierszach) — zostaje pusta kolumna
+  if (isManager) glassAllowanceColumns.push({ key: 'actions', label: 'Akcje', render: () => null })
 
   return (
     <>
@@ -732,46 +815,14 @@ export default function ConfigView({
             </button>
           </div>
 
-          <table className="orders-table exclusions-table">
-            <thead>
-              <tr>
-                <th>Kategoria</th>
-                <th>Kod</th>
-                <th>Szerokość (mm)</th>
-                <th>Wysokość (mm)</th>
-                {isManager && <th>Akcje</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {dimensionMap.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>
-                    Brak wpisów
-                  </td>
-                </tr>
-              ) : (
-                dimensionMap.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.category}</td>
-                    <td>{row.dimension_code}</td>
-                    <td>{row.width_mm} mm</td>
-                    <td>{row.height_mm} mm</td>
-                    {isManager && (
-                      <td>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-danger"
-                          onClick={() => void handleDeleteDimensionMap(row.id)}
-                        >
-                          Usuń
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <DataTable
+            rows={dimensionMap}
+            rowKey={(r) => r.id}
+            columns={dimensionMapColumns}
+            className="exclusions-table"
+            wrapped={false}
+            emptyText="Brak wpisów"
+          />
 
           <h3 className="exclusions-title" style={{ marginTop: '1.5rem' }}>
             Rozmiary profili poszerzeń
@@ -809,98 +860,25 @@ export default function ConfigView({
               Dodaj
             </button>
           </div>
-          <table className="orders-table exclusions-table">
-            <thead>
-              <tr>
-                <th>Kategoria</th>
-                <th>Szerokość profilu (mm)</th>
-                {isManager && <th>Akcje</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {extensionProfileWidths.map((p) => (
-                <tr key={p.category}>
-                  <td>{p.category}</td>
-                  <td>
-                    <input
-                      type="number"
-                      className="extension-qty-input"
-                      value={p.profile_width_mm}
-                      onChange={(e) =>
-                        void handleUpdateExtensionProfileWidth(
-                          p.category,
-                          parseInt(e.target.value) || 0,
-                        )
-                      }
-                    />
-                  </td>
-                  {isManager && (
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-danger"
-                        onClick={() => void handleDeleteExtensionProfile(p.category)}
-                      >
-                        Usuń
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            rows={extensionProfileWidths}
+            rowKey={(p) => p.category}
+            columns={extensionProfileColumns}
+            className="exclusions-table"
+            wrapped={false}
+          />
         </div>
       )}
       {activeConfigSubTab === 'Naddatki szyb (naświetla)' && isManager && (
         <div className="exclusions-section">
           <h3 className="exclusions-title">Naddatki szyb</h3>
-          <table className="orders-table exclusions-table">
-            <thead>
-              <tr>
-                <th>Kategoria</th>
-                <th>Element</th>
-                <th>Naddatek szer. (mm)</th>
-                <th>Naddatek wys. (mm)</th>
-                {isManager && <th>Akcje</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {glassAllowances.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.category}</td>
-                  <td>{a.element === 'top_light' ? 'Naświetle górne' : 'Dostawka boczna'}</td>
-                  <td>
-                    <input
-                      type="number"
-                      className="extension-qty-input"
-                      value={a.allowance_w_mm}
-                      onChange={(e) =>
-                        void handleUpdateGlassAllowance(
-                          a.id,
-                          'allowance_w_mm',
-                          parseInt(e.target.value) || 0,
-                        )
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      className="extension-qty-input"
-                      value={a.allowance_h_mm}
-                      onChange={(e) =>
-                        void handleUpdateGlassAllowance(
-                          a.id,
-                          'allowance_h_mm',
-                          parseInt(e.target.value) || 0,
-                        )
-                      }
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            rows={glassAllowances}
+            rowKey={(a) => a.id}
+            columns={glassAllowanceColumns}
+            className="exclusions-table"
+            wrapped={false}
+          />
         </div>
       )}
       {activeConfigSubTab === 'Dostawcy' && (

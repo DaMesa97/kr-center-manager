@@ -1,7 +1,9 @@
+import { useMemo } from 'react'
 import type { Order, OrderNeedingReview } from '../types'
 import type { DuplicateCandidate, DuplicateGroup } from '../lib/duplicateDetect'
 import { countCompletedStages } from '../utils'
 import Spinner from './Spinner'
+import DataTable, { type DataTableColumn } from './DataTable'
 
 // Licznik etapów przy zleceniu w grupie dubli — kopia z postępem produkcji
 // powinna ZOSTAĆ, anuluje się tę bez postępu. Kategorie bez etapów → brak licznika.
@@ -41,6 +43,122 @@ const formatWhen = (value: string | null): string => {
 }
 
 export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMarkVerified, onCancel, duplicates }: Props) {
+  const reviewColumns = useMemo<DataTableColumn<OrderNeedingReview>[]>(
+    () => [
+      { key: 'idx', label: '#', render: (_o, index) => index + 1 },
+      {
+        key: 'number',
+        label: 'Numer ZD',
+        sortValue: (o) => `${o.category} ${o.order_number}`,
+        render: (o) => (
+          <>
+            {o.category} #{o.order_number}
+          </>
+        ),
+      },
+      {
+        key: 'client',
+        label: 'Klient',
+        sortValue: (o) => o.client_order_number || null,
+        render: (o) => (
+          <>
+            <div>{o.client_order_number || '—'}</div>
+            <div className="orders-review-company">{o.company || '—'}</div>
+          </>
+        ),
+      },
+      { key: 'model', label: 'Model', sortValue: (o) => o.model || null, render: (o) => o.model || '—' },
+      { key: 'received', label: 'Przyjęto', sortValue: (o) => o.bot_received_at, render: (o) => formatWhen(o.bot_received_at) },
+      {
+        key: 'warnings',
+        label: 'Powody weryfikacji',
+        render: (o) =>
+          o.warnings.length > 0
+            ? o.warnings.map((w, i) => (
+                <span key={i} className="review-warning-tag" title={w}>
+                  ⚠️ {w}
+                </span>
+              ))
+            : '—',
+      },
+      {
+        key: 'actions',
+        label: 'Akcje',
+        render: (o) => (
+          <div className="orders-review-actions">
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => onEdit(o.id)}>
+              Otwórz / Napraw
+            </button>
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => void onMarkVerified(o.id)}>
+              Oznacz jako zweryfikowane
+            </button>
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => void onCancel(o.id)}>
+              Anuluj zamówienie
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [onEdit, onMarkVerified, onCancel],
+  )
+
+  const duplicateColumns = useMemo<DataTableColumn<DuplicateGroup>[]>(
+    () => [
+      { key: 'idx', label: '#', render: (_g, index) => index + 1 },
+      {
+        key: 'client',
+        label: 'Nr zam. klienta',
+        sortValue: (g) => g.clientOrderNumber,
+        render: (g) => (
+          <>
+            {g.clientOrderNumber}
+            {g.matchedBy === 'tresc' && (
+              <span
+                className="badge badge-warning"
+                title="Brak numeru zamówienia klienta — dopasowanie po produkcie (system, model, kolory, wymiary) w oknie 3 dni. Oceń ręcznie."
+              >
+                PO TREŚCI
+              </span>
+            )}
+          </>
+        ),
+      },
+      { key: 'company', label: 'Firma', sortValue: (g) => g.company, render: (g) => g.company },
+      { key: 'category', label: 'Kategoria', sortValue: (g) => g.category, render: (g) => g.category },
+      {
+        key: 'orders',
+        label: 'Zlecenia w grupie',
+        render: (g) => (
+          <div className="orders-review-actions">
+            {g.orders.map((order) => {
+              const stages = stageCounter(order)
+              return (
+                <button
+                  key={order.id}
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  title={`${order.model || ''} ${order.width || ''}×${order.height || ''} — otwórz zlecenie`}
+                  onClick={() => order.id !== undefined && onEdit(order.id)}
+                >
+                  {sourceBadge(order.source)} #{order.order_number}
+                  {stages && (
+                    <span
+                      className={stages.started ? 'badge badge-warning' : 'badge badge-success'}
+                      title={stages.started ? 'Ma postęp produkcji — ta kopia powinna zostać' : 'Bez postępu — bezpieczna do anulowania'}
+                    >
+                      {stages.label} etap.
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        ),
+      },
+    ],
+    [onEdit],
+  )
+
   return (
     <div className="orders-review-view">
       <div className="orders-review-header">
@@ -57,69 +175,13 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
       ) : orders.length === 0 ? (
         <p className="no-results">🎉 Brak zamówień do weryfikacji! Wszystko czyste.</p>
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table orders-review-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Numer ZD</th>
-                <th>Klient</th>
-                <th>Model</th>
-                <th>Przyjęto</th>
-                <th>Powody weryfikacji</th>
-                <th>Akcje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order, index) => (
-                <tr key={order.id} className="orders-review-row">
-                  <td>{index + 1}</td>
-                  <td>
-                    {order.category} #{order.order_number}
-                  </td>
-                  <td>
-                    <div>{order.client_order_number || '—'}</div>
-                    <div className="orders-review-company">{order.company || '—'}</div>
-                  </td>
-                  <td>{order.model || '—'}</td>
-                  <td>{formatWhen(order.bot_received_at)}</td>
-                  <td>
-                    {order.warnings.length > 0 ? (
-                      order.warnings.map((w, i) => (
-                        <span key={i} className="review-warning-tag" title={w}>
-                          ⚠️ {w}
-                        </span>
-                      ))
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <div className="orders-review-actions">
-                      <button type="button" className="btn btn-sm btn-primary" onClick={() => onEdit(order.id)}>
-                        Otwórz / Napraw
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={() => void onMarkVerified(order.id)}
-                      >
-                        Oznacz jako zweryfikowane
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-danger"
-                        onClick={() => void onCancel(order.id)}
-                      >
-                        Anuluj zamówienie
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={orders}
+          rowKey={(o) => o.id}
+          columns={reviewColumns}
+          className="orders-review-table"
+          rowClassName={() => 'orders-review-row'}
+        />
       )}
 
       <div className="orders-review-header" style={{ marginTop: 32 }}>
@@ -135,65 +197,13 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
       {duplicates.length === 0 ? (
         <p className="no-results">🎉 Brak podejrzanych dubli.</p>
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table orders-review-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Nr zam. klienta</th>
-                <th>Firma</th>
-                <th>Kategoria</th>
-                <th>Zlecenia w grupie</th>
-              </tr>
-            </thead>
-            <tbody>
-              {duplicates.map((group, index) => (
-                <tr key={`${group.category}-${group.clientOrderNumber}-${index}`} className="orders-review-row">
-                  <td>{index + 1}</td>
-                  <td>
-                    {group.clientOrderNumber}
-                    {group.matchedBy === 'tresc' && (
-                      <span
-                        className="badge badge-warning"
-                        title="Brak numeru zamówienia klienta — dopasowanie po produkcie (system, model, kolory, wymiary) w oknie 3 dni. Oceń ręcznie."
-                      >
-                        PO TREŚCI
-                      </span>
-                    )}
-                  </td>
-                  <td>{group.company}</td>
-                  <td>{group.category}</td>
-                  <td>
-                    <div className="orders-review-actions">
-                      {group.orders.map((order) => {
-                        const stages = stageCounter(order)
-                        return (
-                          <button
-                            key={order.id}
-                            type="button"
-                            className="btn btn-sm btn-secondary"
-                            title={`${order.model || ''} ${order.width || ''}×${order.height || ''} — otwórz zlecenie`}
-                            onClick={() => order.id !== undefined && onEdit(order.id)}
-                          >
-                            {sourceBadge(order.source)} #{order.order_number}
-                            {stages && (
-                              <span
-                                className={stages.started ? 'badge badge-warning' : 'badge badge-success'}
-                                title={stages.started ? 'Ma postęp produkcji — ta kopia powinna zostać' : 'Bez postępu — bezpieczna do anulowania'}
-                              >
-                                {stages.label} etap.
-                              </span>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={duplicates}
+          rowKey={(g, index) => `${g.category}-${g.clientOrderNumber}-${index}`}
+          columns={duplicateColumns}
+          className="orders-review-table"
+          rowClassName={() => 'orders-review-row'}
+        />
       )}
     </div>
   )

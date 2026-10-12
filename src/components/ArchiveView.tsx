@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import ArchivedOrderDetailsModal from './ArchivedOrderDetailsModal'
 import type { ArchivedOrder, ArchiveRunLog } from '../types'
 import Spinner from './Spinner'
+import DataTable, { type DataTableColumn } from './DataTable'
 
 type ArchiveViewProps = {
   orders: ArchivedOrder[]
@@ -26,6 +27,18 @@ function formatDate(value: string | null | undefined): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+
+const runLogColumns: DataTableColumn<ArchiveRunLog>[] = [
+  { key: 'run_at', label: 'DATA', sortValue: (l) => l.run_at, render: (l) => formatDate(l.run_at) },
+  {
+    key: 'status',
+    label: 'STATUS',
+    sortValue: (l) => l.status,
+    render: (l) => <span className={`archive-run-log-status--${l.status}`}>{l.status}</span>,
+  },
+  { key: 'archived_count', label: 'LICZBA ARCHIWIZOWANYCH', sortValue: (l) => l.archived_count, render: (l) => l.archived_count },
+  { key: 'duration_ms', label: 'CZAS (ms)', sortValue: (l) => l.duration_ms, render: (l) => l.duration_ms ?? '—' },
+]
 
 export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCreateComplaint }: ArchiveViewProps) {
   const [filters, setFilters] = useState<ArchiveFilters>({
@@ -61,6 +74,35 @@ export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCre
   }, [orders, filters])
 
   const latestRun = runLogs[0]
+
+  const orderColumns = useMemo<DataTableColumn<ArchivedOrder>[]>(
+    () => [
+      { key: 'order_number', label: 'NR ZLECENIA', sortValue: (o) => o.order_number, render: (o) => o.order_number },
+      { key: 'created_at', label: 'DATA UTWORZENIA', sortValue: (o) => o.created_at, render: (o) => formatDate(o.created_at) },
+      { key: 'archived_at', label: 'DATA ARCH.', sortValue: (o) => o.archived_at, render: (o) => formatDate(o.archived_at) },
+      { key: 'category', label: 'KATEGORIA', sortValue: (o) => o.category, render: (o) => o.category },
+      { key: 'company', label: 'FIRMA', sortValue: (o) => o.company, render: (o) => o.company },
+      { key: 'system', label: 'SYSTEM', sortValue: (o) => o.system, render: (o) => o.system },
+      { key: 'model', label: 'MODEL', sortValue: (o) => o.model, render: (o) => o.model },
+      { key: 'quantity', label: 'ILOŚĆ', sortValue: (o) => o.quantity, render: (o) => o.quantity },
+      {
+        key: 'actions',
+        label: 'AKCJE',
+        tdClassName: 'col-order-actions',
+        render: (o) => (
+          <>
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => setSelectedOrder(o)}>
+              Szczegóły
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => onCreateComplaint(o)}>
+              Utwórz reklamację
+            </button>
+          </>
+        ),
+      },
+    ],
+    [onCreateComplaint],
+  )
 
   return (
     <div>
@@ -131,89 +173,25 @@ export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCre
       {loading ? (
         <Spinner center label="Ładowanie archiwum…" />
       ) : (
-        <div className="table-wrapper">
-          <table className="orders-table audit-table">
-            <thead>
-              <tr>
-                <th>NR ZLECENIA</th>
-                <th>DATA UTWORZENIA</th>
-                <th>DATA ARCH.</th>
-                <th>KATEGORIA</th>
-                <th>FIRMA</th>
-                <th>SYSTEM</th>
-                <th>MODEL</th>
-                <th>ILOŚĆ</th>
-                <th>AKCJE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="no-results">
-                    Brak archiwalnych zamówień dla podanych filtrów.
-                  </td>
-                </tr>
-              ) : (
-                filteredOrders.map((order) => (
-                  <tr key={`${order.id ?? order.order_number}-${order.archived_at}`}>
-                    <td>{order.order_number}</td>
-                    <td>{formatDate(order.created_at)}</td>
-                    <td>{formatDate(order.archived_at)}</td>
-                    <td>{order.category}</td>
-                    <td>{order.company}</td>
-                    <td>{order.system}</td>
-                    <td>{order.model}</td>
-                    <td>{order.quantity}</td>
-                    <td className="col-order-actions">
-                      <button type="button" className="btn btn-sm btn-primary" onClick={() => setSelectedOrder(order)}>
-                        Szczegóły
-                      </button>
-                      <button type="button" className="btn btn-primary" onClick={() => onCreateComplaint(order)}>
-                        Utwórz reklamację
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={filteredOrders}
+          rowKey={(o) => `${o.id ?? o.order_number}-${o.archived_at}`}
+          columns={orderColumns}
+          className="audit-table"
+          emptyText="Brak archiwalnych zamówień dla podanych filtrów."
+        />
       )}
 
       <div className="archive-run-log">
         <h3>Historia archiwizacji</h3>
-        <div className="table-wrapper">
-          <table className="orders-table audit-table">
-            <thead>
-              <tr>
-                <th>DATA</th>
-                <th>STATUS</th>
-                <th>LICZBA ARCHIWIZOWANYCH</th>
-                <th>CZAS (ms)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runLogs.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="no-results">
-                    Brak logów archiwizacji.
-                  </td>
-                </tr>
-              ) : (
-                runLogs.map((log) => (
-                  <tr key={log.id} title={log.error_message ?? undefined}>
-                    <td>{formatDate(log.run_at)}</td>
-                    <td>
-                      <span className={`archive-run-log-status--${log.status}`}>{log.status}</span>
-                    </td>
-                    <td>{log.archived_count}</td>
-                    <td>{log.duration_ms ?? '—'}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={runLogs}
+          rowKey={(log) => log.id}
+          columns={runLogColumns}
+          className="audit-table"
+          rowTitle={(log) => log.error_message ?? undefined}
+          emptyText="Brak logów archiwizacji."
+        />
       </div>
 
       <ArchivedOrderDetailsModal
