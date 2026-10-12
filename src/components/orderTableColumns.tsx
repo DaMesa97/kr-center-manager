@@ -210,6 +210,8 @@ export function rushCol(ctx: OrderTableCtx): DataTableColumn<Order> {
 
 type ReleaseColOpts = {
   label?: string
+  /** Rzeczownik w podpowiedziach: „wydanie” (domyślnie) albo „realizację” (Bastion). */
+  noun?: 'wydanie' | 'realizację'
   /** Dodatkowa klasa nagłówka (np. release-date-th). */
   thClassName?: string
 }
@@ -217,6 +219,7 @@ type ReleaseColOpts = {
 /** WYDANIE — pusty: „oznacz dziś”; wypełniony: data, klik = cofnięcie (z potwierdzeniem). */
 export function releaseCol(ctx: OrderTableCtx, opts: ReleaseColOpts = {}): DataTableColumn<Order> {
   const label = opts.label ?? 'WYDANIE'
+  const noun = opts.noun ?? 'wydanie'
   return {
     key: 'release_date',
     label,
@@ -244,8 +247,8 @@ export function releaseCol(ctx: OrderTableCtx, opts: ReleaseColOpts = {}): DataT
           disabled={disabled}
           role="checkbox"
           aria-checked={false}
-          aria-label="Oznacz wydanie dzisiejszą datą"
-          title="Oznacz wydanie"
+          aria-label={`Oznacz ${noun} dzisiejszą datą`}
+          title={`Oznacz ${noun}`}
           onClick={withId((id) => void ctx.onApplyReleaseDateUpdate(id, new Date().toISOString().split('T')[0]))}
         />
       ) : (
@@ -253,7 +256,7 @@ export function releaseCol(ctx: OrderTableCtx, opts: ReleaseColOpts = {}): DataT
           type="button"
           className="release-date-value"
           disabled={disabled}
-          title="Kliknij, aby cofnąć wydanie"
+          title={`Kliknij, aby cofnąć ${noun}`}
           onClick={withId((id) => ctx.onSetReleaseClearTarget({ orderId: id }))}
         >
           {String(o.release_date).trim()}
