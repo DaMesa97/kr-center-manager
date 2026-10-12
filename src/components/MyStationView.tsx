@@ -50,20 +50,33 @@ export default function MyStationView({
   const columns = useMemo<DataTableColumn<MyTask>[]>(
     () => [
       {
+        // numer + firma w jednej komórce — tabela mieści się bez przewijania w bok
         key: 'nr',
-        label: 'NR ZLECENIA',
+        label: 'ZLECENIE',
         sortValue: (task) => task.order.order_number,
         render: (task) => (
           <>
-            <span className="my-station-expand-icon">{expandedKey === taskKey(task) ? '▾' : '▸'}</span>{' '}
-            {task.order.order_number}
+            <div className="my-station-cell-main">
+              <span className="my-station-expand-icon">{expandedKey === taskKey(task) ? '▾' : '▸'}</span>{' '}
+              {task.order.order_number}
+            </div>
+            <div className="my-station-cell-sub">{task.order.company}</div>
           </>
         ),
       },
-      { key: 'company', label: 'FIRMA', sortValue: (task) => task.order.company, render: (task) => task.order.company },
-      { key: 'category', label: 'KATEGORIA', sortValue: (task) => task.category, render: (task) => task.category },
-      { key: 'model', label: 'MODEL', sortValue: (task) => task.order.model, render: (task) => task.order.model },
-      { key: 'qty', label: 'ILOŚĆ', sortValue: (task) => task.order.quantity, render: (task) => task.order.quantity },
+      {
+        key: 'product',
+        label: 'PRODUKT',
+        sortValue: (task) => task.order.model,
+        render: (task) => (
+          <>
+            <div className="my-station-cell-main">{task.order.model}</div>
+            <div className="my-station-cell-sub">
+              {task.category} · {task.order.quantity} szt.
+            </div>
+          </>
+        ),
+      },
       {
         key: 'stage',
         label: 'ETAP',
@@ -113,7 +126,7 @@ export default function MyStationView({
             <span className="my-station-waiting-badge">Czeka na poprzednie</span>
           ),
       },
-      { key: 'notes', label: 'UWAGI', render: (task) => task.order.notes || '—' },
+      { key: 'notes', label: 'UWAGI', tdClassName: 'my-station-notes', render: (task) => task.order.notes || '—' },
     ],
     [expandedKey, isManager],
   )
@@ -136,6 +149,7 @@ export default function MyStationView({
         rows={tasks}
         rowKey={taskKey}
         columns={columns}
+        className="my-station-table"
         wrapperClassName="orders-table-wrapper"
         loading={loading}
         loadingText={<Spinner center label="Ładowanie…" />}

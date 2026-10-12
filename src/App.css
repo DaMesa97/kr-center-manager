@@ -7487,6 +7487,28 @@ html, body, #root {
   color: #1d4ed8;
 }
 
+/* Moje stanowisko — spiętrowane komórki, tabela na szerokość ekranu (bez przewijania w bok) */
+.orders-table.my-station-table {
+  width: 100%;
+  min-width: 0;
+}
+.orders-table.my-station-table td {
+  vertical-align: top;
+}
+.orders-table.my-station-table td.my-station-notes {
+  white-space: normal;
+  min-width: 160px;
+  max-width: 420px;
+}
+.my-station-cell-main {
+  font-weight: 600;
+}
+.my-station-cell-sub {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
 /* Moje stanowisko — rozwijany wiersz ze szczegółami */
 .my-station-row {
   cursor: pointer;
