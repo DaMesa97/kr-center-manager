@@ -15,7 +15,7 @@
 //     emptyText="Brak danych."
 //   />
 // =====================================================================
-import { Fragment, useMemo, useState, type CSSProperties, type MouseEvent, type MutableRefObject, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type CSSProperties, type HTMLAttributes, type MouseEvent, type MutableRefObject, type ReactNode } from 'react'
 import { TopScrollTableWrapper } from './TopScrollTableWrapper'
 import { sortRows, toggleSort, type SortState } from '../lib/tableSort'
 
@@ -65,6 +65,8 @@ type Props<T> = {
   rowStyle?: (row: T, index: number) => CSSProperties | undefined
   rowTitle?: (row: T, index: number) => string | undefined
   onRowClick?: (row: T, e: MouseEvent<HTMLTableRowElement>) => void
+  /** Pozostałe atrybuty <tr> (np. draggable + onDragStart/onDragOver do zmiany kolejności). */
+  rowProps?: (row: T, index: number) => HTMLAttributes<HTMLTableRowElement> | undefined
   /** Dodatkowe wiersze pod danym wierszem (rozwinięcia, szczegóły). */
   renderAfterRow?: (row: T, index: number) => ReactNode
   /**
@@ -101,6 +103,7 @@ export default function DataTable<T>({
   rowStyle,
   rowTitle,
   onRowClick,
+  rowProps,
   renderAfterRow,
   renderRow,
   headerTop,
@@ -185,6 +188,7 @@ export default function DataTable<T>({
   } else {
     const defaultRow = (row: T, i: number) => (
       <tr
+        {...rowProps?.(row, i)}
         className={rowClassName?.(row, i)}
         style={{ ...rowStyle?.(row, i), ...(onRowClick ? { cursor: 'pointer' } : null) }}
         title={rowTitle?.(row, i)}
