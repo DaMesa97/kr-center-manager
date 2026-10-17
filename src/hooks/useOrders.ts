@@ -905,9 +905,33 @@ export function useOrders({
         clearTimeout(timeoutId)
         if (response.ok) {
           const today = new Date().toISOString().split('T')[0]
-          await supabase.from('orders').update({ glass_order_date: today }).eq('id', order.id)
+          const { error: stampErr } = await supabase
+            .from('orders')
+            .update({ glass_order_date: today })
+            .eq('id', order.id)
+          if (stampErr) {
+            // Webhook POSZEDŁ — bez daty w bazie zamówienie wróci jako
+            // "niezamówione" i grozi podwójnym zamówieniem u szklarza
+            pushToast(
+              `UWAGA: szyba zamówiona u szklarza, ale NIE zapisała się data zamówienia (${stampErr.message}). Nie zamawiaj ponownie — uzupełnij datę po odświeżeniu.`,
+              'error',
+            )
+          }
+          // Disting Plus: para dzieli te same naświetla/dostawki — stemplujemy
+          // też partnera, żeby ta sama szyba nie wyszła drugi raz z drugiej zakładki
+          if (order.linked_order_id != null) {
+            const { error: linkStampErr } = await supabase
+              .from('orders')
+              .update({ glass_order_date: today })
+              .eq('id', order.linked_order_id)
+            if (linkStampErr) console.error('glass_order_date (partner):', linkStampErr)
+          }
           setOrders((prev) =>
-            prev.map((o) => (o.id === order.id ? { ...o, glass_order_date: today } : o)),
+            prev.map((o) =>
+              o.id === order.id || (order.linked_order_id != null && o.id === order.linked_order_id)
+                ? { ...o, glass_order_date: today }
+                : o,
+            ),
           )
           pushToast('Zamówienie szyby wysłane', 'success')
         } else {

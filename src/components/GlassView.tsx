@@ -69,6 +69,13 @@ export default function GlassView({
 
   const handleSend = async (order: Order) => {
     if (order.id === undefined || sendingIds.has(order.id)) return
+    // Wysyłka idzie od razu do szklarza (Make) i nie da się jej cofnąć —
+    // pojedynczy klik bez potwierdzenia bywał przypadkowy
+    const ok = await appConfirm(
+      `Wysłać zamówienie szyb dla zlecenia ${order.order_number} (${order.company ?? ''}) do szklarza?`,
+      { title: 'Zamówienie szyby', confirmLabel: 'Wyślij zamówienie' },
+    )
+    if (!ok) return
     setSendingIds((prev) => new Set(prev).add(order.id!))
     try {
       await onSendGlassOrder(order)

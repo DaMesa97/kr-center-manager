@@ -3302,7 +3302,7 @@ function App() {
                       orders={filteredOrders}
                       activeTab={activeTab}
                       glassAllowances={glassAllowances}
-                      onSendGlassOrder={(order) => void sendGlassOrderWebhook(order)}
+                      onSendGlassOrder={(order) => sendGlassOrderWebhook(order)}
                       onGlassReceived={(orderId) => void handleGlassReceived(orderId)}
                       tableWrapperRef={glassTableWrapperRef}
                     />

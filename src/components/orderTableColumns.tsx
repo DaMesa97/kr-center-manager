@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useLayoutEffect, type DependencyList, type MutableRefObject, type ReactNode } from 'react'
 import StockStatusBadge from './StockStatusBadge'
 import OrderCommentsButton from './OrderCommentsButton'
+import { appConfirm } from '../lib/appDialogs'
 import type { DataTableColumn } from './DataTable'
 import type { GlassAllowance, Order, ToastVariant } from '../types'
 import { getBotWarnings, needsBotReview } from '../utils/botOrder'
@@ -260,7 +261,19 @@ export function releaseCol(ctx: OrderTableCtx, opts: ReleaseColOpts = {}): DataT
           aria-checked={false}
           aria-label={`Oznacz ${noun} dzisiejszą datą`}
           title={`Oznacz ${noun}`}
-          onClick={withId((id) => void ctx.onApplyReleaseDateUpdate(id, new Date().toISOString().split('T')[0]))}
+          onClick={withId((id) => {
+            // Wydanie zdejmuje z magazynu wszystkie pozostałe rezerwacje,
+            // a wiersz znika z listy (filtr "Ukryj zrealizowane") — pomyłkowy
+            // klik obok kolumny etapów nie może przechodzić bez pytania
+            void (async () => {
+              const ok = await appConfirm(
+                `Oznaczyć ${noun} zamówienia nr ${o.order_number} dzisiejszą datą? Z magazynu zejdą wszystkie pozostałe rezerwacje tego zamówienia.`,
+                { title: noun === 'wydanie' ? 'Wydanie zamówienia' : 'Realizacja zamówienia', confirmLabel: 'Tak, oznacz' },
+              )
+              if (!ok) return
+              void ctx.onApplyReleaseDateUpdate(id, new Date().toISOString().split('T')[0])
+            })()
+          })}
         />
       ) : (
         <button

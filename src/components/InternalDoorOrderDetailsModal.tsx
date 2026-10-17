@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import DeleteConfirmDialog from './DeleteConfirmDialog'
+import { isManagerRole } from '../lib/permissions'
 import type { InternalDoorItem, Order, ToastVariant } from '../types'
 
 type DetailsUser = {
@@ -216,7 +217,9 @@ function InternalDoorOrderDetailsModal({
           </div>
 
           <div className="order-form-actions">
-            {isInProgress && currentUser.role === 'manager' && (
+            {/* isManagerRole zamiast sztywnego 'manager' — nowe role kierownicze
+                (admin, kierownik_*) nie widziały tu żadnych przycisków */}
+            {isInProgress && isManagerRole(currentUser.role) && (
               <button
                 type="button"
                 className="btn btn-sm btn-primary"
@@ -229,13 +232,14 @@ function InternalDoorOrderDetailsModal({
               </button>
             )}
             {isInProgress &&
-              (currentUser.role === 'manager' ||
+              (isManagerRole(currentUser.role) ||
+                String(currentUser.role) === 'magazynier' ||
                 (currentUser.role === 'worker' && currentUser.department === 'magazyn')) && (
                 <button type="button" className="btn btn-primary" onClick={requestRelease}>
                   ✓ Wydane
                 </button>
               )}
-            {isInProgress && currentUser.role === 'manager' && (
+            {isInProgress && isManagerRole(currentUser.role) && (
               <button type="button" className="btn btn-danger" onClick={requestCancel}>
                 Anuluj zamówienie
               </button>

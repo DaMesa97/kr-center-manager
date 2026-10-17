@@ -326,12 +326,14 @@ export default function ComplaintsView({
           {
             key: 'osc-pack',
             label: 'OŚC.',
-            title: 'Ościeżnica (snapshot z koloru ościeżnicy reklamacji)',
+            title: 'Pakowanie ościeżnicy (Disting E5) — reklamacje DISTING PLUS',
             thClassName: 'production-stage-th sta-osc-pack-th col-osc-pack',
             tdClassName: 'production-stage-td sta-osc-pack-td col-osc-pack',
             render: (c: Complaint) => {
               if (c.linked_complaint_id == null) return ' '
-              const oscInitials = String(c.frame_color ?? '').trim()
+              // Etap E5 powiązanej reklamacji Disting (jak w zamówieniach) —
+              // wcześniej badge pokazywał KOLOR ościeżnicy jako "inicjały"
+              const oscInitials = String(staRowInfo.get(c)?.distStages.e5 ?? '').trim()
               const oscDone = Boolean(oscInitials)
               return (
                 <span

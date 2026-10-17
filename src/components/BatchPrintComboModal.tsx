@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Printer, X } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { renderLabelBody, renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
-import { matchedDocsForOrder, type DopDocument } from '../lib/dopMatch'
+import { matchedDocsForOrder, noDocReason, type DopDocument } from '../lib/dopMatch'
 import { renderPdfForPrint, renderPdfPages } from '../lib/pdfPrint'
 import { buildCombinedPdfHtml, type PdfSection } from '../lib/printBundle'
 import type { Order, ToastVariant } from '../types'
@@ -310,7 +310,13 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
                                   DoP: {String(bestDoc.name).slice(0, 28)}
                                 </span>
                               ) : (
-                                <span className="batch-chip" style={{ color: '#b91c1c' }}>brak DoP</span>
+                                <span
+                                  className="batch-chip"
+                                  style={{ color: '#b91c1c', cursor: 'help' }}
+                                  title={noDocReason(o, documents)}
+                                >
+                                  brak DoP ⓘ
+                                </span>
                               )
                             ) : null}
                           </span>

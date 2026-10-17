@@ -43,7 +43,9 @@ export function orderFrameKind(order: Order): 'stalowa' | 'drewniana' | '' {
 
 // Czy dokument pasuje do zamówienia (wszystkie USTAWIONE cechy muszą się zgadzać).
 export function docMatchesOrder(doc: DopDocument, order: Order): boolean {
-  if (doc.category !== order.category) return false
+  // norm() jak pozostałe pola — drobny rozjazd wielkości liter nie może
+  // po cichu wykluczyć deklaracji
+  if (norm(doc.category) !== norm(order.category)) return false
   if (norm(doc.system) && norm(doc.system) !== norm(order.system)) return false
   if (norm(doc.wykonawca) && norm(doc.wykonawca) !== norm(orderWykonawca(order))) return false
   if (norm(doc.glazing_type) && norm(doc.glazing_type) !== norm(orderGlazingType(order))) return false
@@ -61,4 +63,19 @@ export function matchedDocsForOrder(order: Order, docs: DopDocument[]): DopDocum
   return docs
     .filter((d) => docMatchesOrder(d, order))
     .sort((a, b) => docSpecificity(b) - docSpecificity(a))
+}
+
+// Czytelny powód braku dopasowania — do tooltipa "brak DoP" w druku zbiorczym.
+export function noDocReason(order: Order, docs: DopDocument[]): string {
+  if (docs.length === 0) return 'Nie wczytano żadnych deklaracji — sprawdź zakładkę Dokumenty.'
+  const inCategory = docs.filter((d) => norm(d.category) === norm(order.category))
+  if (inCategory.length === 0) return `Brak deklaracji dla kategorii ${order.category} — dodaj ją w Dokumentach.`
+  const wyk = orderWykonawca(order)
+  const traits = [
+    `system: ${String(order.system ?? '').trim() || '—'}`,
+    `wykonawca: ${wyk || 'BRAK W ZAMÓWIENIU'}`,
+    `szklenie: ${orderGlazingType(order)}`,
+    `ościeżnica: ${orderFrameKind(order) || '—'}`,
+  ].join(', ')
+  return `Żadna z ${inCategory.length} deklaracji kategorii ${order.category} nie pasuje do cech zamówienia (${traits}). Sprawdź warunki doboru w Dokumentach.`
 }
