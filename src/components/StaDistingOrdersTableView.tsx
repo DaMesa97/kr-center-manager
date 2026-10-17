@@ -349,7 +349,7 @@ function StaDistingOrdersTableView({
       textCol('intarsja', 'INTARSJA', (o) => o.intarsja ?? '', { title: 'INTARSJA (Titan)' }),
       textCol('hardware', 'OKUCIA', (o) => o.hardware),
       textCol('handle', 'POCHWYT', (o) => o.handle),
-      textCol('electric_strike', 'ELEKTROZACZEP', (o) => o.electric_strike),
+      textCol('electric_strike', 'ZACZEP', (o) => o.electric_strike || o.zaczep),
       textCol('peephole', 'WIZJER', (o) => o.peephole),
       textCol('top_light', 'NAŚWIETLE GÓRNE', topLightOf),
       textCol('top_light_glazing', 'SZKLENIE NAŚWIETLE GÓRNE', (o) =>

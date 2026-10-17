@@ -212,12 +212,21 @@ export const RECIPE_CRITERIA_FIELD_DEFS: Array<{
   { key: 'top_light_glazing', label: 'Szklenie naświetla', dict: 'szklenie_dostawki' },
   { key: 'side_panel_a_glazing', label: 'Szklenie dostawki A', dict: 'szklenie_dostawki' },
   { key: 'side_panel_b_glazing', label: 'Szklenie dostawki B', dict: 'szklenie_dostawki' },
+  // #58: kryteria po WYMIARACH dostawek/naświetla — pola liczbowe (mm),
+  // wartość może być ZAKRESEM "od-do", np. "200-400" ("1-9999" = dowolny wymiar)
+  { key: 'side_panel_a_w', label: 'Dostawka A — szerokość (mm, np. 200-400)' },
+  { key: 'side_panel_a_h', label: 'Dostawka A — wysokość (mm, np. 2000-2100)' },
+  { key: 'side_panel_b_w', label: 'Dostawka B — szerokość (mm, zakres od-do)' },
+  { key: 'side_panel_b_h', label: 'Dostawka B — wysokość (mm, zakres od-do)' },
+  { key: 'top_light_w', label: 'Naświetle — szerokość (mm, zakres od-do)' },
+  { key: 'top_light_h', label: 'Naświetle — wysokość (mm, zakres od-do)' },
   { key: 'decorative_panel', label: 'Panel dekoracyjny', dict: 'panel' },
   { key: 'hardware', label: 'Okucia', dict: 'okucia' },
   { key: 'handle', label: 'Pochwyt', dict: 'pochwyt' },
   { key: 'peephole', label: 'Wizjer', dict: 'wizjer' },
-  { key: 'electric_strike', label: 'Elektrozaczep', dict: 'zaczep' },
-  { key: 'zaczep', label: 'Zaczep', dict: 'zaczep' },
+  // #57: jedno kryterium (duplikat 'zaczep' usunięty — wszystkie receptury
+  // i tak używały electric_strike); etykieta spójna ze słownikiem "Zaczepy"
+  { key: 'electric_strike', label: 'Zaczep', dict: 'zaczep' },
   { key: 'intarsja', label: 'Intarsja (Titan)', options: ['JEDNOSTRONNA', 'DWUSTRONNA'] },
   { key: 'oslonki', label: 'Osłonki', dict: 'oslonki' },
   { key: 'prog', label: 'Próg (rodzaj)', dict: 'prog' },

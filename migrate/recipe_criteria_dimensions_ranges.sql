@@ -1,0 +1,24 @@
+-- =====================================================================
+-- KRYTERIA RECEPTUR PO WYMIARACH + ZAKRESY (zgłoszenie #58, 2026-10-17)
+-- [WYKONANE w bazie przez konektor — plik dla historii; pełne definicje
+--  funkcji w migracjach Supabase: recipe_criteria_dimensions_and_ranges
+--  oraz preview_order_stock_dimensions_and_ranges]
+--
+-- 1. match_recipes_for_order i preview_order_stock wzbogacają dane
+--    zamówienia o pochodne pola liczbowe parsowane z "SZER×WYS":
+--      side_panel_a_w / side_panel_a_h  (dostawka A; fallback side_panel)
+--      side_panel_b_w / side_panel_b_h  (dostawka B)
+--      top_light_w   / top_light_h      (naświetle górne)
+--    Preview dodatkowo falluje na surowe pola formularza
+--    (side_panel_a_w_mm / side_panel_h_mm / top_light_w_mm / ...).
+--
+-- 2. Dozwolona wartość kryterium "N-M" (np. "200-400") = ZAKRES liczbowy,
+--    dla dowolnego pola o wartości liczbowej. "1-9999" = ma element
+--    o dowolnym wymiarze. Zwykłe wartości porównują się jak dotąd
+--    (TRIM+UPPER, równość) — zero zmian dla istniejących receptur.
+--
+-- Decyzja projektowa: BEZ rozbijania kolumn zamówień na szer/wys —
+-- pochodne pola w matcherze dają to samo bez migracji danych i zmian
+-- w formularzach/tabelach.
+-- =====================================================================
+-- (treść funkcji: patrz supabase migrations / pg_get_functiondef)

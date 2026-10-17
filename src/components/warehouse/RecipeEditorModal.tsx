@@ -201,7 +201,8 @@ function RecipeEditorModal({
           <p className="order-field-full recipe-crit-hint">
             Sam decydujesz, po czym receptura dobiera się do zlecenia. Dodaj tylko potrzebne pola —
             brak kryterium = „nie dotyczy". W jednym kryterium możesz zaznaczyć <b>kilka wartości</b>
-            (wystarczy, że zlecenie pasuje do którejkolwiek).
+            (wystarczy, że zlecenie pasuje do którejkolwiek). Pola liczbowe (wymiary dostawek/naświetla)
+            przyjmują <b>zakresy „od-do"</b>, np. <code>200-400</code>; <code>1-9999</code> = dowolny wymiar.
           </p>
           <div className="order-field-full recipe-crit-list">
             {criteria.length === 0 && (

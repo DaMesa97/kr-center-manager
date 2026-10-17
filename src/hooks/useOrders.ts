@@ -1079,7 +1079,10 @@ export function useOrders({
         client_order_number: staFormData.client_order_number,
         category: staFormData.category || activeTab,
         oslonki: staFormData.oslonki,
+        // #57: jedno pole "Zaczep" w UI zapisuje OBA (electric_strike = źródło
+        // dla tabeli/receptur/DoP; zaczep = legacy, trzymane w sync)
         zaczep: staFormData.zaczep,
+        electric_strike: staFormData.zaczep,
         intarsja: staFormData.intarsja,
         extra_fields: mergeOrderExtraFields(
           isEditing ? editingOrderBaseline.extra_fields : null,

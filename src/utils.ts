@@ -1143,7 +1143,9 @@ export function orderToStaForm(order: Order): StaOrderFormData {
     hardware: order.hardware ?? '',
     handle: order.handle ?? '',
     oslonki: order.oslonki ?? '',
-    zaczep: order.zaczep ?? '',
+    // scalenie zaczep/elektrozaczep (#57): jedno pole UI, źródłem electric_strike
+    // (fallback na stare zamówienia pisane tylko do zaczep)
+    zaczep: order.electric_strike || order.zaczep || '',
     intarsja: order.intarsja ?? '',
     stage1: st.e1 ?? '',
     stage2_1: st.e2_1 ?? '',

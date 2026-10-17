@@ -13,7 +13,7 @@ export const SHARED_LINKED_FIELDS = [
   'side_panel', 'side_panel_glazing', 'side_panel_a', 'side_panel_b',
   'side_panel_a_glazing', 'side_panel_b_glazing',
   'extension', 'extension_a_dim', 'extension_b_dim', 'extension_top_dim', 'extension_qtys',
-  'notes', 'client_order_number', 'oslonki', 'zaczep',
+  'notes', 'client_order_number', 'oslonki', 'zaczep', 'electric_strike',
 ] as const
 
 // Buduje payload aktualizacji partnera z zapisywanych pól (tylko wspólne, bez undefined).
