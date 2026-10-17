@@ -1179,6 +1179,15 @@ export function useOrders({
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
         await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
+        // Partner (Disting Plus / Titan) dostał te same zmiany pól przez sync —
+        // jego rezerwacje też trzeba przeliczyć (wcześniej trzymał stare)
+        if (editingOrderBaseline.linked_order_id != null) {
+          await syncWarehouseStockAfterOrderEdit(
+            editingOrderBaseline.linked_order_id,
+            editingOrderBaseline,
+            mapped,
+          )
+        }
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
           await fetchOrdersNeedingReview()
@@ -1501,6 +1510,14 @@ export function useOrders({
         } = mapped
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, stSyncFields)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
+        // Partner STA (Titan) dostał zmiany wspólnych pól — przelicz też jego rezerwacje
+        if (editingOrderBaseline.linked_order_id != null) {
+          await syncWarehouseStockAfterOrderEdit(
+            editingOrderBaseline.linked_order_id,
+            editingOrderBaseline,
+            stSyncFields,
+          )
+        }
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
           await fetchOrdersNeedingReview()
@@ -2188,7 +2205,24 @@ export function useOrders({
         return
       }
 
-      await reserveStockForOrderWithToasts(id)
+      // Najpierw próbujemy ODWRÓCIĆ anulowanie rezerwacji (działa też po
+      // częściowym wydaniu — reserve_stock_for_order widział wtedy wiersze
+      // 'released' i nic nie robił); świeża rezerwacja tylko gdy nie było czego przywrócić
+      const restoreReservations = async (orderId: number) => {
+        const { data: restored, error: resErr } = await supabase.rpc('restore_order_reservations', {
+          p_order_id: orderId,
+        })
+        if (resErr) {
+          pushToast(`Ostrzeżenie: przywracanie rezerwacji: ${resErr.message}`, 'error')
+          return
+        }
+        if (Number(restored ?? 0) > 0) {
+          pushToast(`Przywrócono ${restored} rezerwacji magazynowych`, 'success')
+        } else {
+          await reserveStockForOrderWithToasts(orderId)
+        }
+      }
+      await restoreReservations(id)
 
       if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
         const { error: linkErr } = await supabase.rpc('merge_order_extra_fields', {
@@ -2207,12 +2241,12 @@ export function useOrders({
         const bastionIds = await findTitanBastionLegIds(order)
         for (const bid of bastionIds) {
           await supabase.rpc('merge_order_extra_fields', { p_order_id: bid, p_patch: restorePatch })
-          await reserveStockForOrderWithToasts(bid)
+          await restoreReservations(bid)
         }
       }
 
       if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
-        await reserveStockForOrderWithToasts(linkedId)
+        await restoreReservations(linkedId)
       }
 
       await fetchWarehouseStock()
@@ -2707,14 +2741,45 @@ export function useOrders({
     }
     await applyProductionStagesUpdate(order.id, stageRevertTarget.stageKey, '')
     await syncMirrorStagesToLinkedOrder(order, stageRevertTarget.stageKey, '')
+    // Zwrot wydanych pozycji etapu na magazyn (ZWR) — wcześniej cofnięcie
+    // tylko czyściło pole, a towar zostawał zdjęty ze stanu
+    try {
+      const { data: zwr, error: zwrErr } = await supabase.rpc('return_stock_for_stage', {
+        p_order_id: order.id,
+        p_stage_key: stageRevertTarget.stageKey,
+      })
+      if (zwrErr) {
+        pushToast(`Ostrzeżenie: zwrot na magazyn nie powiódł się: ${zwrErr.message}`, 'error')
+      } else if ((zwr ?? []).length > 0) {
+        pushToast(`Zwrócono na magazyn ${(zwr as unknown[]).length} pozycji (ZWR)`, 'success')
+        await fetchWarehouseStock()
+      }
+    } catch (err) {
+      console.error('return_stock_for_stage error:', err)
+    }
     setStageRevertTarget(null)
-  }, [stageRevertTarget, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder])
+  }, [stageRevertTarget, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast, fetchWarehouseStock])
 
   const confirmReleaseClear = useCallback(async () => {
     if (!releaseClearTarget) return
     await applyReleaseDateUpdate(releaseClearTarget.orderId, null)
+    // Zwrot pozycji wydanych wydaniem końcowym (etapy oznaczone jako zrobione
+    // zostają zużyte) — wcześniej cofnięcie wydania nie oddawało nic na stan
+    try {
+      const { data: zwr, error: zwrErr } = await supabase.rpc('return_remaining_for_order', {
+        p_order_id: releaseClearTarget.orderId,
+      })
+      if (zwrErr) {
+        pushToast(`Ostrzeżenie: zwrot na magazyn nie powiódł się: ${zwrErr.message}`, 'error')
+      } else if ((zwr ?? []).length > 0) {
+        pushToast(`Zwrócono na magazyn ${(zwr as unknown[]).length} pozycji (ZWR)`, 'success')
+        await fetchWarehouseStock()
+      }
+    } catch (err) {
+      console.error('return_remaining_for_order error:', err)
+    }
     setReleaseClearTarget(null)
-  }, [releaseClearTarget, applyReleaseDateUpdate])
+  }, [releaseClearTarget, applyReleaseDateUpdate, pushToast, fetchWarehouseStock])
 
   // Computed values used in App.tsx as memos
   const topLightDimsFilled =

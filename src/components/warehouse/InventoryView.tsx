@@ -112,10 +112,12 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
     saveTimers.current[lineId] = setTimeout(async () => {
       setSaving((prev) => new Set(prev).add(lineId))
       const parsed = value.trim() === '' ? null : Number(value.replace(',', '.'))
-      await supabase
-        .from('inventory_lines')
-        .update({ counted_qty: isNaN(parsed as number) ? null : parsed })
-        .eq('id', lineId)
+      // RPC stempluje system_qty stanem z CHWILI liczenia tej pozycji —
+      // snapshot z otwarcia sesji liczył podwójnie ruchy zrobione w trakcie spisu
+      await supabase.rpc('record_inventory_count_line', {
+        p_line_id: lineId,
+        p_counted: isNaN(parsed as number) ? null : parsed,
+      })
       setSaving((prev) => { const s = new Set(prev); s.delete(lineId); return s })
       setOpenSessions((prev) => prev.map((sd) => ({
         ...sd,
@@ -174,10 +176,10 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
           pendingIds.map((id) => {
             const raw = draftCounts[id]
             const parsed = raw == null || raw.trim() === '' ? null : Number(raw.replace(',', '.'))
-            return supabase
-              .from('inventory_lines')
-              .update({ counted_qty: parsed != null && isNaN(parsed) ? null : parsed })
-              .eq('id', id)
+            return supabase.rpc('record_inventory_count_line', {
+              p_line_id: id,
+              p_counted: parsed != null && isNaN(parsed) ? null : parsed,
+            })
           }),
         )
       }

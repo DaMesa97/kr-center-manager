@@ -610,20 +610,28 @@ export function useWarehouse({
     async (componentId: number, warehouseIds: number[]) => {
       const { data: existing, error: exErr } = await supabase
         .from('warehouse_stock')
-        .select('id, warehouse_id, quantity')
+        .select('id, warehouse_id, quantity, reserved_quantity')
         .eq('component_id', componentId)
       if (exErr) {
         pushToast(`Błąd: ${exErr.message}`, 'error')
         return
       }
-      const existingRows = (existing ?? []) as Array<{ id: number; warehouse_id: number; quantity: number }>
+      const existingRows = (existing ?? []) as Array<{
+        id: number
+        warehouse_id: number
+        quantity: number
+        reserved_quantity: number
+      }>
       const existingIds = new Set(existingRows.map((r) => r.warehouse_id))
       const target = new Set(warehouseIds)
 
       const toAdd = warehouseIds.filter((id) => !existingIds.has(id))
       const toRemove = existingRows.filter((r) => !target.has(r.warehouse_id))
-      const removable = toRemove.filter((r) => Number(r.quantity) === 0)
-      const blocked = toRemove.filter((r) => Number(r.quantity) !== 0)
+      // Usuwalna TYLKO półka bez stanu I bez rezerwacji — skasowanie wiersza
+      // z rezerwacjami gubiło licznik reserved_quantity (rezerwacje w
+      // stock_reservations dalej istnieją i "Dostępne" kłamało)
+      const removable = toRemove.filter((r) => Number(r.quantity) === 0 && Number(r.reserved_quantity ?? 0) === 0)
+      const blocked = toRemove.filter((r) => Number(r.quantity) !== 0 || Number(r.reserved_quantity ?? 0) !== 0)
 
       if (toAdd.length > 0) {
         const rows = toAdd.map((id) => ({ warehouse_id: id, component_id: componentId, quantity: 0 }))
@@ -645,7 +653,7 @@ export function useWarehouse({
       }
       if (blocked.length > 0) {
         pushToast(
-          `Pominięto ${blocked.length} magazyn(y) z niezerowym stanem — najpierw wyzeruj stan.`,
+          `Pominięto ${blocked.length} magazyn(y) z niezerowym stanem lub aktywnymi rezerwacjami — najpierw wyzeruj stan i zwolnij rezerwacje.`,
           'error',
         )
       }
@@ -668,14 +676,15 @@ export function useWarehouse({
 
     const { data: stockData, error: stErr } = await supabase
       .from('warehouse_stock')
-      .select('id, warehouse_id, quantity, warehouse_components(product_category)')
+      .select('id, warehouse_id, quantity, reserved_quantity, warehouse_components(product_category)')
     if (stErr) {
       pushToast(`Błąd: ${stErr.message}`, 'error')
       return
     }
     const toDelete: number[] = []
     for (const r of (stockData ?? []) as Array<Record<string, unknown>>) {
-      if (Number(r.quantity) !== 0) continue
+      // półka z rezerwacjami NIE jest sierotą — jej usunięcie gubi licznik
+      if (Number(r.quantity) !== 0 || Number(r.reserved_quantity ?? 0) !== 0) continue
       const wc = r.warehouse_components as { product_category?: string | null } | { product_category?: string | null }[] | null
       const wcObj = Array.isArray(wc) ? wc[0] : wc
       const cat = wcObj?.product_category ?? 'raw'
@@ -858,27 +867,55 @@ export function useWarehouse({
     async (orderId: number, baseline: Order | null, newData: Partial<Order>) => {
       if (!baseline) return
 
-      const relevantFields: (keyof Order)[] = [
+      // WSZYSTKIE pola, po których mogą dobierać się receptury (kryteria w
+      // constants.ts + pochodne wymiarów w matcherze). Wcześniej lista była
+      // niepełna — zmiana np. progu, wysokości czy dołożenie dostawki nie
+      // przerezerwowywały komponentów.
+      const relevantFields: string[] = [
         'quantity',
         'category',
         'system',
         'model',
         'wing_color',
         'frame_color',
+        'threshold_color',
         'width',
+        'height',
         'glazing',
         'direction',
+        'opening',
         'decorative_panel',
         'hardware',
         'handle',
         'peephole',
         'electric_strike',
+        'zaczep',
+        'oslonki',
+        'prog',
+        'intarsja',
+        'wentylacja',
+        'extension',
+        'top_light',
+        'top_light_glazing',
+        'side_panel',
+        'side_panel_glazing',
+        'side_panel_a',
+        'side_panel_b',
+        'side_panel_a_glazing',
+        'side_panel_b_glazing',
+        'bastion_frame_type',
+        'bastion_frame_range',
       ]
 
+      const baseRec = baseline as unknown as Record<string, unknown>
+      const newRec = newData as unknown as Record<string, unknown>
       const changed = relevantFields.some((field) => {
-        const oldVal = baseline[field] ?? null
-        const newVal = newData[field] ?? null
-        return String(oldVal) !== String(newVal)
+        // Pole nieobecne w payloadzie edycji (undefined) = formularz go nie
+        // dotykał — nie traktuj jako zmiany na null
+        if (!(field in newRec) || newRec[field] === undefined) return false
+        const oldVal = baseRec[field] ?? null
+        const newVal = newRec[field] ?? null
+        return String(oldVal ?? '') !== String(newVal ?? '')
       })
 
       if (!changed) return

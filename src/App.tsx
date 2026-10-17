@@ -1540,6 +1540,22 @@ function App() {
   const handleDeleteWarehouseComponent = useCallback(
     async (id: number) => {
       touchSession()
+      // Komponent z aktywnymi rezerwacjami nie znika — usunięcie półek
+      // gubiło licznik reserved_quantity (rezerwacje w stock_reservations
+      // dalej istnieją i "Dostępne" kłamało)
+      const { data: activeRes } = await supabase
+        .from('stock_reservations')
+        .select('id')
+        .eq('component_id', id)
+        .in('status', ['reserved', 'partially_released'])
+        .limit(1)
+      if (activeRes && activeRes.length > 0) {
+        pushToast(
+          'Komponent ma aktywne rezerwacje magazynowe — zwolnij je (lub wydaj zamówienia) zanim go usuniesz.',
+          'error',
+        )
+        return
+      }
       const { error } = await supabase
         .from('warehouse_components')
         .update({ is_active: false })

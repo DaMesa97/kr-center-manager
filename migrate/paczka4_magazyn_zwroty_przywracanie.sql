@@ -1,0 +1,48 @@
+-- =====================================================================
+-- PACZKA 4 ZE ZWIADU: MAGAZYN — ZWROTY I DOMKNIĘCIE OBIEGU (2026-10-17)
+-- [WYKONANE w bazie przez konektor — migracje Supabase:
+--  zwroty_zwr_i_przywracanie_rezerwacji,
+--  reserve_stock_missing_warehouse_jako_issue, record_inventory_count_line]
+--
+-- 1. ZWROTY (ruch ZWR — wcześniej ŻADNE cofnięcie nie oddawało stanu):
+--    - return_stock_for_stage(order, stage): cofnięcie etapu zwraca wydane
+--      pozycje tego etapu (stan+, rezerwacja wraca do 'reserved', ZWR).
+--    - return_remaining_for_order(order): cofnięcie WYDANIA zwraca pozycje
+--      wydane wydaniem końcowym — czyli te, których etap NIE jest oznaczony
+--      (oznaczone etapy = komponenty zużyte, zostają); wiersze bez etapu
+--      wracają tylko gdy zamówienie nie ma żadnego własnego ukończonego
+--      etapu (mirrory dist_*/sta_* nie liczą się).
+--    Frontend: popupy cofnięcia wywołują zwroty i mówią o tym w treści.
+--
+-- 2. restore_order_reservations(order): przywrócenie anulowanego zamówienia
+--    ODWRACA anulowanie rezerwacji (cancelled -> reserved/partially_released,
+--    reserved_quantity wraca na stan) — reserve_stock_for_order widział
+--    wiersze 'released' po częściowym wydaniu i NIC nie robił. Frontend:
+--    najpierw restore, świeża rezerwacja tylko gdy nie było czego przywrócić.
+--
+-- 3. reserve_stock_for_order: brak przypisania magazynu dla części to
+--    ostrzeżenie w stock_issues (type: missing_warehouse, status
+--    partial_recipe) i POMINIĘCIE tej części — nie EXCEPTION wycofujący
+--    całą rezerwację zamówienia.
+--
+-- 4. undo_damage_report(id): cofnięcie zniszczenia zwraca stan (ZWR-ZN-{id})
+--    i usuwa wpis; bezpośrednia polityka DELETE na damage_reports usunięta
+--    (usuwanie tylko przez RPC). UI cofania powstanie przy zakładce zniszczeń.
+--
+-- 5. Inwentaryzacja: record_inventory_count_line(line, counted) stempluje
+--    system_qty stanem z CHWILI liczenia pozycji — snapshot z otwarcia sesji
+--    liczył podwójnie ruchy zrobione między otwarciem a policzeniem półki.
+--
+-- 6. Frontend (bez zmian w bazie):
+--    - syncWarehouseStockAfterOrderEdit: pełna lista pól receptur (wymiary,
+--      próg, dostawki, naświetla, intarsja, bastion_*) + przeliczanie
+--      rezerwacji PARTNERA (Disting Plus / Titan) po synchronizacji pól;
+--      pola nieobecne w payloadzie edycji nie liczą się jako zmiana.
+--    - Usuwanie półek/komponentów zablokowane przy aktywnych rezerwacjach
+--      (kasowanie wiersza gubiło licznik reserved_quantity).
+--
+-- ODŁOŻONE (wymaga decyzji): "W drodze" liczone per komponent i doliczane
+-- do każdego magazynu — ZD nie ma magazynu docelowego (kolumna + UI);
+-- ręczne "+ Przyjmij dostawę" nie zamyka pozycji ZD (podwójne liczenie).
+-- =====================================================================
+-- (treść funkcji: patrz supabase migrations / pg_get_functiondef)

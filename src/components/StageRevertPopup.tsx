@@ -27,7 +27,9 @@ export default function StageRevertPopup({ onCancel, onConfirm }: StageRevertPop
         <h2 id="stage-revert-title" className="production-stage-popup-title">
           Cofnięcie etapu
         </h2>
-        <p className="production-stage-popup-message">Czy cofnąć etap?</p>
+        <p className="production-stage-popup-message">
+          Czy cofnąć etap? Komponenty wydane z magazynu na ten etap wrócą na stan (ruch ZWR).
+        </p>
         <div className="production-stage-popup-actions">
           <button type="button" className="btn btn-secondary" onClick={onCancel}>
             Nie

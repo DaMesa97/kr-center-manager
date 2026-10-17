@@ -27,7 +27,10 @@ export default function ReleaseClearPopup({ onCancel, onConfirm }: ReleaseClearP
         <h2 id="release-clear-title" className="production-stage-popup-title">
           Wydanie
         </h2>
-        <p className="production-stage-popup-message">Czy cofnąć wydanie?</p>
+        <p className="production-stage-popup-message">
+          Czy cofnąć wydanie? Pozycje wydane przy oznaczeniu wydania wrócą na magazyn (ruch ZWR);
+          komponenty zużyte na oznaczonych etapach zostają zużyte.
+        </p>
         <div className="production-stage-popup-actions">
           <button type="button" className="btn btn-secondary" onClick={onCancel}>
             Nie
