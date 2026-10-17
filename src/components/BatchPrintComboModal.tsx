@@ -80,9 +80,9 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
   const copiesFor = (order: Order): number => {
     const id = order.id
     if (id === undefined) return 1
-    // domyślnie label_qty (Bastion: mnożnik ościeżnicy × ilość) — wcześniej
-    // wyliczane, ale nigdy nieużywane przy druku (audyt druku)
-    const fallback = Math.max(1, Number((order as { label_qty?: unknown }).label_qty) || 1)
+    // domyślnie bastion_label_qty (Bastion: mnożnik etykiet) — kolumna
+    // nazywa się bastion_label_qty, nie label_qty (ta nie istnieje)
+    const fallback = Math.max(1, Number((order as { bastion_label_qty?: unknown }).bastion_label_qty) || 1)
     return Math.max(1, copiesByOrder[id] ?? fallback)
   }
   const setCopiesForOrder = (order: Order, value: number) => {

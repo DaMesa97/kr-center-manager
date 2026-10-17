@@ -172,6 +172,8 @@ export default function FeedbackView({ isManager, currentUser, pushToast }: Prop
                     className="feedback-status"
                     style={{ borderColor: STATUS_COLOR[item.status] ?? '#cbd5e1', color: STATUS_COLOR[item.status] }}
                     value={item.status}
+                    disabled={!isManager}
+                    title={isManager ? undefined : 'Status zgłoszeń zmienia kierownik'}
                     onChange={(e) => void setStatus(item, e.target.value)}
                   >
                     {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}

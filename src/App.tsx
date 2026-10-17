@@ -924,8 +924,13 @@ function App() {
       setSearchTerm(order.order_number)
       setShowCancelledOrders(true)
       setHideCompletedOrders(false)
+      // Zresetuj też pozostałe filtry — zapamiętany dzień produkcji/źródło/
+      // wykonawca potrafiły schować kliknięty wynik ("Brak zamówień")
+      setSelectedProductionDay('Wszystkie dni')
+      setSourceFilter('all')
+      setWykonawcaFilter([])
     }
-  }, [setActiveTab, setActiveSubTab, setSearchTerm, setShowCancelledOrders, setHideCompletedOrders])
+  }, [setActiveTab, setActiveSubTab, setSearchTerm, setShowCancelledOrders, setHideCompletedOrders, setSelectedProductionDay, setSourceFilter, setWykonawcaFilter])
 
   useEffect(() => {
     if (!authSession) return
