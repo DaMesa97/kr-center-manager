@@ -27,7 +27,9 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
   const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginSubmitting, setLoginSubmitting] = useState(false)
-  const [sessionLastActivity, setSessionLastActivity] = useState<number>(Date.now())
+  // Aktywność w REF, nie w stanie — touchSession woła się na początku niemal
+  // każdego fetcha i każdy setState przerysowywał całe App (3+ tys. linii)
+  const sessionLastActivityRef = useRef<number>(Date.now())
   const [sessionWarningOpen, setSessionWarningOpen] = useState(false)
   // Supabase odpala onAuthStateChange (SIGNED_IN) przy KAŻDYM powrocie focusu na okno.
   // Bez tych guardów każdy taki event przeładowywał profil i sesję → ciężki re-render
@@ -36,8 +38,9 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
   const authTokenRef = useRef<string | null>(null)
 
   const touchSession = useCallback(() => {
-    setSessionLastActivity(Date.now())
-    setSessionWarningOpen(false)
+    sessionLastActivityRef.current = Date.now()
+    // setState tylko gdy realnie zamykamy ostrzeżenie (ta sama wartość = brak renderu)
+    setSessionWarningOpen((open) => (open ? false : open))
   }, [])
 
   const loadProfile = useCallback(async (user: User) => {
@@ -129,24 +132,24 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-logout po braku aktywności
+  // Auto-logout po braku aktywności — interwał stabilny (czyta ref),
+  // nie odtwarza się przy każdym fetchu/aktywności
   useEffect(() => {
     if (!authSession) return
     const interval = setInterval(() => {
-      const now = Date.now()
-      const elapsed = now - sessionLastActivity
+      const elapsed = Date.now() - sessionLastActivityRef.current
       if (elapsed >= SESSION_TIMEOUT_MS) {
         void (async () => {
           await supabase.auth.signOut()
           setSessionWarningOpen(false)
           pushToast('Zostałeś automatycznie wylogowany z powodu braku aktywności', 'error')
         })()
-      } else if (elapsed >= SESSION_WARNING_MS && !sessionWarningOpen) {
-        setSessionWarningOpen(true)
+      } else if (elapsed >= SESSION_WARNING_MS) {
+        setSessionWarningOpen((open) => (open ? open : true))
       }
     }, 10_000)
     return () => clearInterval(interval)
-  }, [authSession, sessionLastActivity, sessionWarningOpen, pushToast])
+  }, [authSession, pushToast])
 
   const handleLoginSubmit = useCallback(
     async (e: FormEvent) => {

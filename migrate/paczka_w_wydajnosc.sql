@@ -1,0 +1,41 @@
+-- =====================================================================
+-- PACZKA W ZE ZWIADU #2: WYDAJNOŚĆ (2026-10-18)
+-- [WYKONANE w bazie przez konektor — migracje Supabase: wydajnosc_indeksy,
+--  get_stock_alerts_lateral_forecast, wydajnosc_rls_initplan]
+--
+-- Diagnoza z pg_stat_statements: realtime ~12 h czasu bazy, get_stock_alerts
+-- ~3,7 h (pełne alerty przy KAŻDYM zdarzeniu realtime magazynu), orders
+-- 79k seq scanów / 203 mln przeczytanych wierszy.
+--
+-- 1. INDEKSY orders: (category, id desc) pod paginację fetchOrders,
+--    (category, order_number) pod dedup/lookup, częściowy (category) where
+--    release_date is null pod liczniki Pulpitu, częściowy pod polling
+--    weryfikacji bota; FK: orders.linked_order_id, movements.component_id,
+--    movements.reference_doc, complaints.order_id; drop duplikatu indeksu
+--    na forecast_runs.
+--
+-- 2. get_stock_alerts: najnowsza prognoza przez LATERAL (sonda indeksu per
+--    komponent) zamiast DISTINCT ON po całym forecast_runs (42k wierszy,
+--    +479/dzień). Bufory 42586 -> 3532; czas trzyma symulacja per wiersz,
+--    więc kluczowe jest RZADSZE wołanie (pkt 3-4).
+--
+-- 3. FRONTEND: badge alertów magazynu liczy get_stock_alerts_summary
+--    (jak dzwonek w zamówieniach) zamiast pełnych alertów; kanały realtime
+--    magazynu (stock+movements) mają DEBOUNCE 1,5 s — wydanie etapu
+--    (N update'ów + N insertów) odpala jeden refetch zamiast 2N.
+--
+-- 4. touchSession trzyma aktywność w REF — każdy fetch przerysowywał całe
+--    App (setState przy każdym wywołaniu); interwał auto-wylogowania
+--    stabilny, ostrzeżenie setState tylko przy realnej zmianie.
+--
+-- 5. RLS initplan: auth.role()/auth.uid() w politykach odczytu orders,
+--    warehouse_stock, warehouse_movements, notifications owinięte w
+--    (select ...) — bez tego liczone per wiersz (advisor auth_rls_initplan).
+--
+-- ŚWIADOMIE ODŁOŻONE (większe refaktory): konsolidacja edycji zamówienia
+-- do jednego RPC (dziś do ~6 UPDATE = 6 broadcastów + 6 wpisów audytu),
+-- wirtualizacja DataTable + memo wierszy (4-5 pełnych renderów tabeli na
+-- klik etapu, O(n^2) w isStaTitanLinked), cache słowników companies/
+-- wykluczeń, odchudzenie audit_log (pełny OLD+NEW ~650 MB/rok), retencja
+-- forecast_runs i api_request_logs.
+-- =====================================================================

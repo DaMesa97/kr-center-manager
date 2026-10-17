@@ -734,16 +734,18 @@ export function useWarehouse({
   // ---------------------------------------------------------------------------
 
   const fetchAlertsBadgeCount = useCallback(async () => {
-    const { data, error } = await supabase.rpc('get_stock_alerts')
+    // Lekki licznik (get_stock_alerts_summary) zamiast pełnych alertów —
+    // pełne get_stock_alerts (840 wierszy + symulacja) było wołane przy
+    // KAŻDYM zdarzeniu realtime magazynu i zjadało godziny czasu bazy
+    const { data, error } = await supabase.rpc('get_stock_alerts_summary')
     if (error) {
       console.warn('[Alerts] badge count fetch error:', error.message)
       return
     }
-    const count = (data ?? []).filter(
-      (r: Record<string, unknown>) =>
-        r.r_alert_level === 'critical' || r.r_alert_level === 'warning',
-    ).length
-    setAlertsBadgeCount(count)
+    const arr = Array.isArray(data) ? data : data != null ? [data] : []
+    const row = arr[0] as Record<string, unknown> | undefined
+    const count = Number(row?.r_total_needs_attention ?? 0)
+    setAlertsBadgeCount(Number.isFinite(count) ? count : 0)
   }, [setAlertsBadgeCount])
 
   // ---------------------------------------------------------------------------
@@ -1678,16 +1680,36 @@ export function useWarehouse({
   useEffect(() => {
     if (!isWarehouseTab) return
 
+    // DEBOUNCE: wydanie etapu to seria N UPDATE'ów stanów + N INSERT'ów ruchów,
+    // a każde zdarzenie odpalało pełny refetch (stany + alerty). Zbieramy
+    // zdarzenia i odświeżamy raz, 1,5 s po ostatnim.
+    let stockTimer: ReturnType<typeof setTimeout> | null = null
+    let movTimer: ReturnType<typeof setTimeout> | null = null
+    const refreshStock = () => {
+      if (stockTimer) clearTimeout(stockTimer)
+      stockTimer = setTimeout(() => {
+        void fetchWarehouseStock()
+        void fetchAlertsBadgeCount()
+      }, 1500)
+    }
+    const refreshMovements = () => {
+      if (movTimer) clearTimeout(movTimer)
+      movTimer = setTimeout(() => {
+        void fetchWarehouseMovements()
+        void fetchWarehouseStock()
+        void fetchAlertsBadgeCount()
+        if (activeWarehouseSubTab === 'Przyjęcia') void fetchPzGroups()
+        if (activeWarehouseSubTab === 'Przesunięcia') void fetchMmGroups()
+      }, 1500)
+    }
+
     // warehouse_stock → odśwież stany + alerty
     const stockChannel = supabase
       .channel('warehouse:stock:realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'warehouse_stock' },
-        () => {
-          void fetchWarehouseStock()
-          void fetchAlertsBadgeCount()
-        },
+        refreshStock,
       )
       .subscribe()
 
@@ -1697,17 +1719,13 @@ export function useWarehouse({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'warehouse_movements' },
-        () => {
-          void fetchWarehouseMovements()
-          void fetchWarehouseStock()
-          void fetchAlertsBadgeCount()
-          if (activeWarehouseSubTab === 'Przyjęcia') void fetchPzGroups()
-          if (activeWarehouseSubTab === 'Przesunięcia') void fetchMmGroups()
-        },
+        refreshMovements,
       )
       .subscribe()
 
     return () => {
+      if (stockTimer) clearTimeout(stockTimer)
+      if (movTimer) clearTimeout(movTimer)
       void supabase.removeChannel(stockChannel)
       void supabase.removeChannel(movChannel)
     }
