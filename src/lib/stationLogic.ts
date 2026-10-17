@@ -34,12 +34,26 @@ export function isStageReady(
   actualKey: string,
   parsed: Record<string, string>,
   defs: StageDef[],
+  opts?: { blocked?: Set<string>; glassExtra?: boolean },
 ): boolean {
   if (category === 'Bastion') return true
-  // Etap "zrobiony" = dowolna niepusta wartość (inicjały/'T'/'X'), nie tylko 'T'
-  const done = (k: string) => String(parsed[k] ?? '').trim() !== ''
-  const deps = STAGE_DEPS[category]?.[actualKey]
+  const blocked = opts?.blocked ?? new Set<string>()
+  // Etap "zrobiony" = dowolna niepusta wartość (inicjały/'T'/'X'), nie tylko 'T'.
+  // Etap BLOKOWANY (robi go partner pary/Titana) nie może wstrzymywać naszych —
+  // bez tego E5 (pakowanie) wisiało wiecznie na parach i Titanach.
+  // E2.2 (szklenie dodatków) liczy się jako zrobione, gdy zamówienie nie ma
+  // szklanych dodatków — to zadanie wtedy w ogóle nie istnieje.
+  const done = (k: string) => {
+    if (blocked.has(k)) return true
+    if (k === 'e2_2' && (category === 'STA' || category === 'Disting') && opts?.glassExtra === false) return true
+    return String(parsed[k] ?? '').trim() !== ''
+  }
+  let deps = STAGE_DEPS[category]?.[actualKey]
   if (deps) {
+    // Titan STA: e4 (okuwanie) robi Bastion — tor skrzydła pilnuje wtedy e3
+    if (deps.includes('e4') && blocked.has('e4') && !blocked.has('e3')) {
+      deps = [...deps.filter((d) => d !== 'e4'), 'e3']
+    }
     return deps.every(done)
   }
   const idx = defs.findIndex((d) => d.key === actualKey)
@@ -124,7 +138,10 @@ export function buildTasks(orders: Order[], workerStages: WorkerStage[]): MyTask
         category,
         stageHeader: def.header,
         stageTitle: def.title ?? '',
-        readyToWork: isStageReady(category, actualKey, parsed, defs),
+        readyToWork: isStageReady(category, actualKey, parsed, defs, {
+          blocked,
+          glassExtra: hasGlassExtra(order),
+        }),
       })
     }
   }

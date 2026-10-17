@@ -424,7 +424,10 @@ export function orderAddonAbsentForE22Lock(value: unknown): boolean {
 
 export function isE22StageLockedNoAddons(order: Order): boolean {
   if (order.category !== 'STA' && order.category !== 'Disting') return false
-  return orderAddonAbsentForE22Lock(order.top_light) && orderAddonAbsentForE22Lock(order.side_panel)
+  // JEDNO kryterium "ma szklany dodatek" dla tabeli i stanowiska —
+  // stara wersja pomijała side_panel_a/b: zlecenie tylko z dostawką A miało
+  // e2_2 zablokowane w tabeli, a na stanowisku dostawało zadanie
+  return !hasGlassExtra(order)
 }
 
 export function createEmptyProductionStages(tab: string): Record<string, string> {
@@ -817,9 +820,11 @@ export function calcGlassIssueDim(
   const allowKey = glassPartToAllowanceKey(issue.part)
   if (!allowKey) return null
 
-  const parts = String(issue.raw_dim).split('×')
-  const w = parseInt(parts[0] ?? '0') || 0
-  const h = parseInt(parts[1] ?? '0') || 0
+  // splitWxH akceptuje ×/x/* — wymiar "900x400" (ASCII x) z danych migracji
+  // znikał z braków szkła, choć webhook szyb go rozumiał
+  const { w: wRaw, h: hRaw } = splitWxH(String(issue.raw_dim))
+  const w = parseInt(wRaw) || 0
+  const h = parseInt(hRaw) || 0
   if (!w || !h) return null
 
   const allowance = getGlassAllowance(glassAllowances, category, allowKey)
@@ -1004,7 +1009,8 @@ export function getDaysElapsed(order: {
 export function hasGlassExtra(order: Order): boolean {
   const check = (v: string | null | undefined) => {
     const s = String(v ?? '').trim()
-    return s !== '' && s.toUpperCase() !== 'NIE'
+    // dodatek istnieje tylko, gdy pole ma wymiar (cyfrę) — '-', 'NIE' itp. to brak
+    return s !== '' && s.toUpperCase() !== 'NIE' && /\d/.test(s)
   }
   return (
     check(order.top_light) ||

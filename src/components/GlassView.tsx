@@ -1,6 +1,6 @@
 import { useMemo, useState, type MutableRefObject, type RefObject } from 'react'
 import type { GlassAllowance, Order } from '../types'
-import { calcGlassDim, getGlassAllowance } from '../utils'
+import { calcGlassDim, getGlassAllowance, splitWxH } from '../utils'
 import { generateGlassOrderPdf, type GlassOrderLine } from '../utils/glassOrderPdfGenerator'
 import { appAlert, appConfirm } from '../lib/appDialogs'
 import DataTable, { type DataTableColumn } from './DataTable'
@@ -18,7 +18,10 @@ function glassLinesFor(
   const lines: GlassOrderLine[] = []
 
   const dim = (raw: unknown, aw: { w: number; h: number }): string => {
-    const [w, h] = String(raw ?? '').split('×').map((v) => parseInt(v) || 0)
+    // splitWxH akceptuje ×/x/* — "900x400" (ASCII x) znikało z listy szyb
+    const p = splitWxH(String(raw ?? ''))
+    const w = parseInt(p.w) || 0
+    const h = parseInt(p.h) || 0
     return w && h ? calcGlassDim(w, h, aw.w, aw.h) : ''
   }
 
@@ -31,10 +34,10 @@ function glassLinesFor(
   return lines
 }
 
-// Wymiar "W×H" → [w, h] (0 przy braku)
+// Wymiar "W×H" → [w, h] (0 przy braku); splitWxH akceptuje ×/x/*
 function parseDim(raw: unknown): [number, number] {
-  const parts = String(raw ?? '').split('×')
-  return [parseInt(parts[0] ?? '0') || 0, parseInt(parts[1] ?? '0') || 0]
+  const p = splitWxH(String(raw ?? ''))
+  return [parseInt(p.w) || 0, parseInt(p.h) || 0]
 }
 
 type GlassRow = {
