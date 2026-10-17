@@ -72,10 +72,10 @@ export default function MobileShippingView() {
     setSaving(true)
     try {
       // NAJPIERW fizyczne wydanie pozostałych rezerwacji z magazynu (WZ) —
-      // jak desktop. Dla Technicznych/drzwi wewn. to JEDYNY moment wydania;
-      // bez tego rezerwacje wisiały na zawsze. Braki wydajemy z force=true
-      // (zamówienie fizycznie wyjeżdża z produkcji — stan może zejść na minus),
-      // a błąd RPC nie blokuje oznaczenia (produkcja > magazyn).
+      // jak desktop. Drzwi wewnętrzne nie mają rezerwacji (stan schodzi przy
+      // utworzeniu przez issue_internal_door_stock) — dla nich to no-op.
+      // Braki wydajemy z force=true (zamówienie fizycznie wyjeżdża z produkcji
+      // — stan może zejść na minus), a błąd RPC nie blokuje oznaczenia.
       try {
         const { error: relErr } = await supabase.rpc('release_remaining_for_order', {
           p_order_id: order.id!,

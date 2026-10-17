@@ -73,6 +73,35 @@ const OPERATION_LABELS: Record<string, string> = {
   DELETE: 'Usunięto',
 }
 
+// Operacje magazynowe audytowane pod table_name='stock_reservations'
+// (record_id = id zamówienia) — tłumaczymy akcję z new_data na człowieka
+const STOCK_ACTION_LABELS: Record<string, string> = {
+  release_stage: 'Wydanie z magazynu (etap)',
+  release_final: 'Wydanie końcowe z magazynu',
+  cancel_reservations: 'Zwolnienie rezerwacji (anulowanie)',
+  restore_reservations: 'Przywrócenie rezerwacji',
+}
+
+function renderStockEntry(newData: Record<string, unknown> | null): string {
+  const action = String(newData?.action ?? '')
+  const label = STOCK_ACTION_LABELS[action] ?? `Operacja magazynowa: ${action || '?'}`
+  const items = Array.isArray(newData?.items) ? (newData?.items as Array<Record<string, unknown>>) : []
+  const stage = typeof newData?.stage_key === 'string' ? ` — etap ${String(newData.stage_key).toUpperCase()}` : ''
+  const forced = newData?.forced === true ? ' [WYMUSZONE — braki]' : ''
+  const parts = items
+    .slice(0, 6)
+    .map((i) => `${String(i.component_code ?? '?')}×${String(i.qty ?? '?')}`)
+    .join(', ')
+  const more = items.length > 6 ? ` i ${items.length - 6} więcej` : ''
+  const counts =
+    typeof newData?.cancelled_count === 'number'
+      ? ` (${newData.cancelled_count} pozycji)`
+      : typeof newData?.restored_count === 'number'
+        ? ` (${newData.restored_count} pozycji)`
+        : ''
+  return `${label}${stage}${forced}${counts}${parts ? `: ${parts}${more}` : ''}`
+}
+
 const labelFor = (field: string): string => FIELD_LABELS[field] ?? field
 
 type Props = {
@@ -94,9 +123,11 @@ function renderFieldValue(field: string, value: unknown): string {
 
   if (field === 'production_stages' && typeof value === 'object' && value !== null && !Array.isArray(value)) {
     const obj = value as Record<string, string>
+    // "Zrobione" = KAŻDA niepusta wartość (etapy trzymają inicjały pracownika,
+    // nie tylko 'T') — pokazujemy etap z inicjałami, np. E3(TW)
     const setStages = Object.entries(obj)
-      .filter(([, v]) => v === 'T')
-      .map(([k]) => k.toUpperCase())
+      .filter(([, v]) => String(v ?? '').trim() !== '')
+      .map(([k, v]) => `${k.toUpperCase()}(${String(v).trim()})`)
     return setStages.length > 0 ? setStages.join(', ') : '(brak)'
   }
 
@@ -128,11 +159,13 @@ export default function OrderHistoryModal({ open, orderId, orderNumber, onClose 
 
     const run = async () => {
       setLoading(true)
+      // Historia = zmiany zamówienia + operacje magazynowe (wydania/zwroty/
+      // rezerwacje audytowane jako table_name='stock_reservations')
       const [{ data, error }, { data: orderData }] = await Promise.all([
         supabase
           .from('audit_log')
           .select('*')
-          .eq('table_name', 'orders')
+          .in('table_name', ['orders', 'stock_reservations'])
           .eq('record_id', String(orderId))
           .order('created_at', { ascending: false }),
         supabase.from('orders').select('created_at, order_date').eq('id', orderId).single(),
@@ -194,24 +227,33 @@ export default function OrderHistoryModal({ open, orderId, orderNumber, onClose 
               const changedFields = row.changed_fields ?? []
               const oldData = row.old_data ?? {}
               const newData = row.new_data ?? {}
+              const isStockEntry = row.table_name === 'stock_reservations'
 
               return (
                 <div
                   key={row.id}
-                  className={`order-history-entry order-history-entry--${row.operation.toLowerCase()}`}
+                  className={`order-history-entry order-history-entry--${isStockEntry ? 'stock' : row.operation.toLowerCase()}`}
                 >
                   <div className="order-history-entry-header">
                     <span>{formatDateTime(row.created_at)}</span>
                     <span>{row.user_email || '(brak użytkownika)'}</span>
-                    <span className={`audit-op-badge audit-op-badge--${row.operation.toLowerCase()}`}>
-                      {OPERATION_LABELS[row.operation] ?? row.operation}
+                    <span className={`audit-op-badge audit-op-badge--${isStockEntry ? 'update' : row.operation.toLowerCase()}`}>
+                      {isStockEntry ? 'Magazyn' : OPERATION_LABELS[row.operation] ?? row.operation}
                     </span>
                   </div>
 
-                  {row.operation === 'INSERT' && <div className="order-history-changes">Utworzono zamówienie</div>}
-                  {row.operation === 'DELETE' && <div className="order-history-changes">Usunięto zamówienie</div>}
+                  {isStockEntry && (
+                    <div className="order-history-changes">{renderStockEntry(newData as Record<string, unknown>)}</div>
+                  )}
 
-                  {row.operation === 'UPDATE' && (
+                  {!isStockEntry && row.operation === 'INSERT' && (
+                    <div className="order-history-changes">Utworzono zamówienie</div>
+                  )}
+                  {!isStockEntry && row.operation === 'DELETE' && (
+                    <div className="order-history-changes">Usunięto zamówienie</div>
+                  )}
+
+                  {!isStockEntry && row.operation === 'UPDATE' && (
                     <div className="order-history-changes">
                       <div>Zmienione pola:</div>
                       {changedFields.length === 0 ? (

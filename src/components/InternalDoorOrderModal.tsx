@@ -86,9 +86,12 @@ function InternalDoorOrderModal({
 
   const fetchStocksFor = useCallback(async (componentIds: number[]) => {
     if (componentIds.length === 0) return
+    // Tylko magazyn wewnętrzny (id 3) — z niego schodzą pozycje; sumowanie
+    // wszystkich magazynów pokazywało "Stan: 5", gdy na WEWNETRZNE było 0
     const { data, error } = await supabase
       .from('warehouse_stock')
       .select('component_id, quantity')
+      .eq('warehouse_id', 3)
       .in('component_id', componentIds)
     if (error) {
       console.error(error)
@@ -137,20 +140,18 @@ function InternalDoorOrderModal({
     updateItem(idx, { component_id: componentId, component: comp })
   }
 
-  const fetchNextInternalDoorOrderNumber = useCallback(async (): Promise<string> => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('order_number')
-      .eq('category', 'DrzwiWewnetrzne')
-    if (error) {
+  const fetchNextInternalDoorOrderNumber = useCallback(async (): Promise<string | null> => {
+    // RPC w SQL — bez limitu 1000 wierszy PostgREST (stary MAX+1 w JS
+    // po przekroczeniu 1000 zamówień liczyłby z obciętego podzbioru,
+    // a unikalny indeks numerów zamieniłby to w blokadę zapisu)
+    const { data, error } = await supabase.rpc('get_next_order_number', {
+      p_category: 'DrzwiWewnetrzne',
+    })
+    if (error || !data) {
       console.error(error)
-      return '1'
+      return null
     }
-    const numbers = (data ?? [])
-      .map((row) => Number((row as { order_number?: string | null }).order_number ?? 0))
-      .filter((n) => Number.isFinite(n))
-    const max = numbers.length > 0 ? Math.max(...numbers) : 0
-    return String(max + 1)
+    return String(data)
   }, [])
 
   const savingRef = useRef(false)
@@ -175,10 +176,15 @@ function InternalDoorOrderModal({
 
     setSaving(true)
     let orderId: number
-    const userIdForMovement = currentUserId || (await supabase.auth.getUser()).data.user?.id || null
+    let createdNewOrder = false
 
     if (mode === 'create') {
       const nextOrderNumber = await fetchNextInternalDoorOrderNumber()
+      if (!nextOrderNumber) {
+        setSaving(false)
+        pushToast('Nie udało się pobrać numeru zamówienia — spróbuj ponownie', 'error')
+        return
+      }
       const { data, error } = await supabase
         .from('orders')
         .insert({
@@ -223,10 +229,16 @@ function InternalDoorOrderModal({
 
       if (error || !data) {
         setSaving(false)
-        pushToast(`Błąd zapisu zamówienia: ${error?.message ?? 'Nieznany błąd'}`, 'error')
+        // Kolizja numeru (równoległy zapis z drugiego stanowiska) — jasny komunikat
+        if ((error as { code?: string } | null)?.code === '23505') {
+          pushToast('Numer zamówienia został właśnie zajęty — kliknij Zapisz ponownie', 'error')
+        } else {
+          pushToast(`Błąd zapisu zamówienia: ${error?.message ?? 'Nieznany błąd'}`, 'error')
+        }
         return
       }
       orderId = Number((data as { id: number }).id)
+      createdNewOrder = true
     } else {
       if (!initialOrder?.id) {
         setSaving(false)
@@ -235,12 +247,8 @@ function InternalDoorOrderModal({
       }
       orderId = initialOrder.id
 
-      const { error: returnErr } = await supabase.rpc('return_stock_for_order', { p_order_id: orderId })
-      if (returnErr) {
-        setSaving(false)
-        pushToast(`Błąd zwrotu stocku: ${returnErr.message}`, 'error')
-        return
-      }
+      // Zwrot przed edycją NIEpotrzebny — issue_internal_door_stock rozlicza
+      // na końcu RÓŻNICĘ netto (dośle brakujące / zwróci nadmiar ZWR-em)
 
       const { error } = await supabase
         .from('orders')
@@ -277,62 +285,28 @@ function InternalDoorOrderModal({
     const { error: itemsErr } = await supabase.from('order_internal_door_items').insert(itemsPayload)
 
     if (itemsErr) {
+      // Nie zostawiaj sieroty: świeżo utworzone zamówienie bez pozycji usuwamy,
+      // przy edycji rozliczamy stan do aktualnych (pustych) pozycji
+      if (createdNewOrder) {
+        await supabase.from('orders').delete().eq('id', orderId)
+        pushToast(`Błąd zapisu pozycji: ${itemsErr.message}. Zamówienie nie zostało utworzone.`, 'error')
+      } else {
+        await supabase.rpc('issue_internal_door_stock', { p_order_id: orderId })
+        pushToast(
+          `Błąd zapisu pozycji: ${itemsErr.message}. Pozycje NIE zapisały się — stan zwrócony, uzupełnij pozycje ponownie.`,
+          'error',
+        )
+      }
       setSaving(false)
-      pushToast(`Błąd zapisu pozycji: ${itemsErr.message}`, 'error')
       return
     }
 
-    const validItems = items.filter((it): it is ItemDraft & { component_id: number } => it.component_id !== null)
-    for (const item of validItems) {
-      const { error: movementErr } = await supabase.from('warehouse_movements').insert({
-        movement_type: 'WZ',
-        warehouse_from_id: 3,
-        warehouse_to_id: null,
-        component_id: item.component_id,
-        quantity: item.quantity,
-        order_id: orderId,
-        reference_doc: `WZ-INTDOOR-${orderId}`,
-        notes: `Rezerwacja zamówienia Drzwi wewnętrzne #${orderId}`,
-        created_by: userIdForMovement,
-      })
-      if (movementErr) {
-        pushToast(`Błąd zapisu ruchu magazynowego: ${movementErr.message}`, 'error')
-      }
-
-      const nowIso = new Date().toISOString()
-      const { data: stockRow, error: stockFetchErr } = await supabase
-        .from('warehouse_stock')
-        .select('id, quantity')
-        .eq('warehouse_id', 3)
-        .eq('component_id', item.component_id)
-        .maybeSingle()
-
-      if (stockFetchErr) {
-        pushToast(`Błąd odczytu stanu magazynu: ${stockFetchErr.message}`, 'error')
-        continue
-      }
-
-      if (stockRow) {
-        const currentQty = Number((stockRow as { quantity: number }).quantity) || 0
-        const nextQty = currentQty - item.quantity
-        const { error: stockUpdateErr } = await supabase
-          .from('warehouse_stock')
-          .update({ quantity: nextQty, updated_at: nowIso })
-          .eq('id', (stockRow as { id: number }).id)
-        if (stockUpdateErr) {
-          pushToast(`Błąd aktualizacji stanu magazynu: ${stockUpdateErr.message}`, 'error')
-        }
-      } else {
-        const { error: stockInsertErr } = await supabase.from('warehouse_stock').insert({
-          warehouse_id: 3,
-          component_id: item.component_id,
-          quantity: -item.quantity,
-          updated_at: nowIso,
-        })
-        if (stockInsertErr) {
-          pushToast(`Błąd dodawania stanu magazynu: ${stockInsertErr.message}`, 'error')
-        }
-      }
+    // Atomowe wydanie z magazynu wewnętrznego po stronie bazy — jedna
+    // transakcja (upsert), zero wyścigów odczyt-zapis; po edycji rozlicza
+    // tylko różnicę względem już wydanego
+    const { error: issueErr } = await supabase.rpc('issue_internal_door_stock', { p_order_id: orderId })
+    if (issueErr) {
+      pushToast(`Ostrzeżenie: wydanie z magazynu nie powiodło się: ${issueErr.message}`, 'error')
     }
 
     setSaving(false)
