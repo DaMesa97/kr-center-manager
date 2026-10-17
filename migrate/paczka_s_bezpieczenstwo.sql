@@ -1,0 +1,51 @@
+-- =====================================================================
+-- PACZKA S ZE ZWIADU #2: BEZPIECZEŃSTWO (2026-10-18)
+-- [WYKONANE w bazie przez konektor — migracje Supabase:
+--  security_revoke_anon_i_intake, security_guardy_funkcji_kierowniczych,
+--  security_rls_i_dzwonek, protect_profile_department,
+--  security_revoke_anon_powtorka]
+--
+-- 1. ANON ODCIĘTY OD RPC: wszystkie funkcje w public straciły EXECUTE dla
+--    PUBLIC/anon (miały go domyślnie — klucz anon siedzi w paczce Electrona,
+--    więc ~70 funkcji SECURITY DEFINER było dostępnych BEZ logowania,
+--    w tym create_api_key i archive_old_orders!).
+--
+-- 2. FUNKCJE INTAKE tylko dla service_role: create_bot_order,
+--    verify_api_key, check_rate_limit, log_api_request, generate_api_key
+--    (bezpośrednie wywołanie omijało weryfikację klucza i rate limit).
+--
+-- 3. GUARDY KIEROWNICZE — wzorzec wrapper: oryginał przemianowany na
+--    <nazwa>__impl (bez EXECUTE dla authenticated), wrapper pod starą nazwą
+--    woła assert_manager_or_service() i deleguje. Objęte: archiwizacja
+--    (archive_old_orders, restore_from_archive), dokumenty magazynowe
+--    (create_pz/mm_document, receive_purchase_order), ZD (create/cancel/
+--    mark_sent), inwentaryzacja (open/close/record_count), rezerwacje
+--    kierownicze (cancel/restore_order_reservations, consume/return_stock_*),
+--    mark_bot_order_verified. create_api_key wymaga admina (stary warunek
+--    był POMIJANY dla anon i sprawdzał nieistniejącą rolę 'manager').
+--    Pracownicze zostały otwarte: update_order_stage, merge_order_stages,
+--    merge_order_extra_fields, release_stock_for_stage/remaining,
+--    reserve_stock_for_order, get_*.
+--    Usunięte stare przeciążenie create_purchase_order(4 arg) — razem z
+--    5-arg dawało niejednoznaczność w PostgREST.
+--
+-- 4. RLS: orders DELETE tylko kierownik; UPDATE/INSERT kierownik +
+--    magazynier + obsluga_klienta (pracownik oznacza etapy przez RPC);
+--    companies/config_options zapis tylko kierownik; inwentaryzacja zapis
+--    kierownik (liczenie przez RPC); purchase_order_sequences i
+--    api_rate_limits bez dostępu klienta (tylko funkcje); notifications
+--    INSERT tylko dla samego siebie; order_photos usuwanie kierownik;
+--    profiles: department chroniony jak rola (trigger).
+--
+-- 5. DZWONEK NAPRAWIONY: notify_managers_new_review/complaint szły do
+--    role='manager', której nie ma po migracji ról — teraz do
+--    admin + kierownik_* . Od tygodni nikt nie dostawał powiadomień.
+--
+-- 6. NAPRAWY DANYCH z audytu: reserved_quantity przeliczone z aktywnych
+--    rezerwacji (rozjazd +61,75 po moim ręcznym DELETE duplikatu 4430 —
+--    lekcja: najpierw cancel_order_reservations, potem delete!);
+--    glass_order_date domknięte na obu stronach 7 par Disting Plus.
+--
+-- UWAGA DLA STARYCH KLIENTÓW (beta.47-): liczenie inwentaryzacji przez
+-- bezpośredni UPDATE inventory_lines przestało działać (beta.48+ używa RPC).
+-- =====================================================================
