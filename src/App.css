@@ -5809,6 +5809,13 @@ html, body, #root {
   animation: bot-badge-pulse 2s infinite;
 }
 
+/* Wariant do tabel zamówień (przy numerze zlecenia) — sam trójkąt, ciasny */
+.bot-badge--table {
+  margin-left: 4px;
+  padding: 1px 4px;
+  font-size: 0.7rem;
+}
+
 @keyframes bot-badge-pulse {
   0%,
   100% {

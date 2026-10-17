@@ -8,6 +8,7 @@ import StockStatusBadge from './StockStatusBadge'
 import OrderCommentsButton from './OrderCommentsButton'
 import type { DataTableColumn } from './DataTable'
 import type { GlassAllowance, Order, ToastVariant } from '../types'
+import { getBotWarnings, needsBotReview } from '../utils/botOrder'
 import {
   isReleaseDateEmpty,
   isRushOrderSequence,
@@ -150,6 +151,14 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
           ) : null}
           <span className="order-number-wrapper">
             <span className="order-num-value order-number-value">{o.order_number}</span>
+            {needsBotReview(o) && (
+              <span
+                className="bot-badge bot-badge--review bot-badge--table"
+                title={`🤖 Zamówienie z konfiguratora — wymaga weryfikacji:\n${getBotWarnings(o).join('\n')}`}
+              >
+                ⚠️
+              </span>
+            )}
             {opts.afterNumber?.(o)}
             <OrderCommentsButton
               order={o}
