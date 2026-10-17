@@ -239,7 +239,9 @@ export function getComplaintBlockedStages(
       return ['e1', 'e2_1', 'e2_2']
     }
     if (category === 'Disting') {
-      return ['e3', 'e4', 'e5']
+      // E5 (pakowanie ościeżnicy) ROBI Disting — jak w zamówieniach.
+      // Blokada e5 zamrażała plakietkę OŚC w STA na zawsze.
+      return ['e3', 'e4']
     }
   }
 
@@ -266,17 +268,15 @@ export function getComplaintBlockedStages(
 }
 
 export async function generateComplaintNumber(): Promise<string> {
-  const year = new Date().getFullYear()
-  const { data } = await supabase
-    .from('complaints')
-    .select('complaint_number')
-    .ilike('complaint_number', `RK/${year}/%`)
-    .order('complaint_number', { ascending: false })
-    .limit(1)
-  const last = data?.[0]?.complaint_number
-  const lastNum = last ? parseInt(last.split('/')[2] ?? '0', 10) : 0
-  const next = String(lastNum + 1).padStart(3, '0')
-  return `RK/${year}/${next}`
+  // RPC w SQL — numerycznie i bez wyścigów. Stare tekstowe sortowanie z
+  // limit 1 po RK/{rok}/999 dawałoby każdej kolejnej reklamacji numer 1000.
+  const { data, error } = await supabase.rpc('get_next_complaint_number')
+  if (error || !data) {
+    console.error(error)
+    // awaryjnie: unikalny znacznik czasowy zamiast dubla
+    return `RK/${new Date().getFullYear()}/${Date.now() % 100000}`
+  }
+  return String(data)
 }
 
 // Systemy Titana — JEDNA lista używana wszędzie (tworzenie pary, wyświetlanie, reklamacje).

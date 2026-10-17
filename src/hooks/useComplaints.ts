@@ -1,8 +1,9 @@
-import { appAlert } from '../lib/appDialogs'
+﻿import { appAlert } from '../lib/appDialogs'
 import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { INITIAL_COMPLAINT_FORM_DATA, TABS } from '../constants'
 import { generateComplaintNumber } from '../utils'
+import { mirrorStageKey } from '../lib/stageMirror'
 import { isManagerRole } from '../lib/permissions'
 import type {
   ArchivedOrder,
@@ -114,7 +115,7 @@ export function useComplaints({
       side_panel: o.side_panel,
       side_panel_glazing: o.side_panel_glazing,
       extension: o.extension,
-      release_date: o.release_date ?? null,
+      release_date: null, // realizacja reklamacji to osobna decyzja, nie stan zamówienia
       disting_sheet: o.disting_sheet,
       sta_sheet: o.sta_sheet ?? '',
       notes: o.notes,
@@ -128,6 +129,64 @@ export function useComplaints({
       linked_complaint_id: null,
     }))
   }, [])
+
+  // Wybór zamówienia ARCHIWALNEGO w otwartym formularzu — dociąga PEŁNY
+  // rekord z archiwum. (Stary wariant ustawiał tylko numer+firmę, a model,
+  // kolory i wymiary zostawały z poprzednio wybranego zamówienia!)
+  const selectArchivedOrderForComplaint = useCallback(
+    async (archived: ArchivedOrder) => {
+      let full: ArchivedOrder = archived
+      if (archived.id != null) {
+        const { data, error } = await supabase
+          .from('orders_archive')
+          .select('*')
+          .eq('id', archived.id)
+          .single()
+        if (!error && data) full = data as ArchivedOrder
+      }
+      setComplaintFormData((p) => ({
+        ...p,
+        order_id: null,
+        order_number: full.order_number ?? '',
+        company: full.company ?? '',
+        order_date: full.order_date ?? '',
+        production_day: full.production_day ?? '',
+        quantity: full.quantity ?? 1,
+        sequence: full.sequence ?? '',
+        system: full.system ?? '',
+        model: full.model ?? '',
+        wing_color: full.wing_color ?? '',
+        frame_color: full.frame_color ?? '',
+        threshold_color: full.threshold_color ?? '',
+        width: full.width ?? '',
+        direction: full.direction ?? '',
+        opening: full.opening ?? '',
+        height: full.height ?? '',
+        glazing: full.glazing ?? '',
+        decorative_panel: full.decorative_panel ?? '',
+        hardware: full.hardware ?? '',
+        handle: full.handle ?? '',
+        electric_strike: full.electric_strike ?? '',
+        peephole: full.peephole ?? '',
+        top_light: full.top_light ?? '',
+        top_light_glazing: full.top_light_glazing ?? '',
+        side_panel: full.side_panel ?? '',
+        side_panel_glazing: full.side_panel_glazing ?? '',
+        extension: full.extension ?? '',
+        release_date: null,
+        disting_sheet: full.disting_sheet ?? '',
+        sta_sheet: full.sta_sheet ?? '',
+        notes: full.notes ?? '',
+        client_order_number: full.client_order_number ?? '',
+        defects: full.defects ?? '',
+        configurator_value: full.configurator_value ?? null,
+        info: full.info ?? '',
+        airtable_id: full.airtable_id ?? '',
+        label: full.label ?? '',
+      }))
+    },
+    [],
+  )
 
   const handleCreateComplaintFromArchive = useCallback(
     (archivedOrder: ArchivedOrder) => {
@@ -160,7 +219,7 @@ export function useComplaints({
         side_panel: archivedOrder.side_panel,
         side_panel_glazing: archivedOrder.side_panel_glazing,
         extension: archivedOrder.extension,
-        release_date: archivedOrder.release_date ?? null,
+        release_date: null, // realizacja reklamacji to osobna decyzja, nie stan zamówienia
         disting_sheet: archivedOrder.disting_sheet,
         sta_sheet: archivedOrder.sta_sheet ?? '',
         notes: archivedOrder.notes,
@@ -243,7 +302,7 @@ export function useComplaints({
           side_panel: complaintFormData.side_panel ?? '',
           side_panel_glazing: complaintFormData.side_panel_glazing ?? '',
           extension: complaintFormData.extension ?? '',
-          release_date: complaintFormData.release_date ?? null,
+          release_date: null,
           disting_sheet: complaintFormData.disting_sheet ?? '',
           sta_sheet: complaintFormData.sta_sheet ?? '',
           notes: complaintFormData.notes ?? '',
@@ -303,7 +362,7 @@ export function useComplaints({
           side_panel: staOrder?.side_panel ?? '',
           side_panel_glazing: staOrder?.side_panel_glazing ?? '',
           extension: staOrder?.extension ?? '',
-          release_date: staOrder?.release_date ?? null,
+          release_date: null,
           disting_sheet: staOrder?.disting_sheet ?? '',
           sta_sheet: staOrder?.sta_sheet ?? '',
           notes: staOrder?.notes ?? '',
@@ -366,7 +425,7 @@ export function useComplaints({
         side_panel: complaintFormData.side_panel ?? '',
         side_panel_glazing: complaintFormData.side_panel_glazing ?? '',
         extension: complaintFormData.extension ?? '',
-        release_date: complaintFormData.release_date ?? null,
+        release_date: null,
         disting_sheet: complaintFormData.disting_sheet ?? '',
         sta_sheet: complaintFormData.sta_sheet ?? '',
         notes: complaintFormData.notes ?? '',
@@ -402,7 +461,8 @@ export function useComplaints({
         return
       }
       const linkedId = complaint.linked_complaint_id
-      const isDistingPlus = complaint.category === 'Disting' && linkedId != null
+      // para reaguje z OBU stron (wcześniej tylko od strony Disting)
+      const isDistingPlus = linkedId != null
 
       // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
       // lokalną kopią, żeby nie skasować zmian z innych stanowisk
@@ -442,7 +502,8 @@ export function useComplaints({
         return
       }
       const linkedId = complaint.linked_complaint_id
-      const isDistingPlus = complaint.category === 'Disting' && linkedId != null
+      // para reaguje z OBU stron (wcześniej tylko od strony Disting)
+      const isDistingPlus = linkedId != null
 
       const baseMsg = `Czy na pewno chcesz anulować reklamację nr ${complaint.complaint_number}?`
       const message = isDistingPlus
@@ -493,26 +554,65 @@ export function useComplaints({
       complaintId: number,
       stageKey: string,
       currentStages: Record<string, string>,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      _category: string,
+      category: string,
     ) => {
       const currentValue = currentStages[stageKey] ?? ''
       const filled = Boolean(currentValue.trim())
       const newValue = filled ? '' : currentUser?.initials?.trim() || 'T'
-      const updatedStages = { ...currentStages, [stageKey]: newValue }
 
-      const { error } = await supabase
-        .from('complaints')
-        .update({ production_stages: updatedStages })
-        .eq('id', complaintId)
+      // RPC dokleja JEDEN klucz po stronie bazy — zapis całego JSONB
+      // z lokalnej kopii kasował etapy klikane równolegle na innym stanowisku
+      const { error } = await supabase.rpc('update_complaint_stage', {
+        p_complaint_id: complaintId,
+        p_stage_key: stageKey,
+        p_stage_value: newValue,
+      })
 
       if (error) {
-        console.error(error)
+        pushToast(`Błąd zapisu etapu reklamacji: ${error.message}`, 'error')
         return
+      }
+
+      // Mirror u powiązanej reklamacji pary Disting Plus — ta sama mapa co
+      // w zamówieniach (STA e3/e4/e5 → sta_*, Disting e1/e2_*/e5 → dist_*)
+      const complaint = complaints.find((c) => c.id === complaintId)
+      const linkedId = complaint?.linked_complaint_id
+      const mirrorKey = mirrorStageKey(category, stageKey)
+      if (mirrorKey && linkedId != null) {
+        const { error: mErr } = await supabase.rpc('update_complaint_stage', {
+          p_complaint_id: linkedId,
+          p_stage_key: mirrorKey,
+          p_stage_value: newValue,
+        })
+        if (mErr) console.error('complaint mirror stage error:', mErr)
       }
       void fetchComplaints()
     },
-    [currentUser, fetchComplaints],
+    [currentUser, complaints, fetchComplaints, pushToast],
+  )
+
+  // Zakończenie reklamacji (data realizacji) — wcześniej "ZREALIZOWANE" było
+  // zamrożonym stanem ZAMÓWIENIA z chwili utworzenia i nie dało się go zmienić
+  const handleCompleteComplaint = useCallback(
+    async (complaint: Complaint, done: boolean) => {
+      if (!isManager) return
+      const id = complaint.id
+      if (id === undefined) return
+      const today = new Date().toISOString().split('T')[0]
+      const value = done ? today : null
+      const { error } = await supabase.from('complaints').update({ release_date: value }).eq('id', id)
+      if (error) {
+        pushToast(`Błąd: ${error.message}`, 'error')
+        return
+      }
+      // para Disting Plus kończy się razem
+      if (complaint.linked_complaint_id != null) {
+        await supabase.from('complaints').update({ release_date: value }).eq('id', complaint.linked_complaint_id)
+      }
+      pushToast(done ? 'Reklamacja oznaczona jako zrealizowana' : 'Cofnięto realizację reklamacji', 'success')
+      void fetchComplaints()
+    },
+    [isManager, pushToast, fetchComplaints],
   )
 
   const handleComplaintRushToggle = useCallback(
@@ -551,11 +651,13 @@ export function useComplaints({
     setLinkedComplaints,
     fetchComplaints,
     searchOrdersForComplaint,
+    selectArchivedOrderForComplaint,
     handleCreateComplaintFromArchive,
     handleSaveComplaint,
     handleRestoreComplaint,
     handleCancelComplaintClick,
     handleComplaintStageClick,
     handleComplaintRushToggle,
+    handleCompleteComplaint,
   }
 }

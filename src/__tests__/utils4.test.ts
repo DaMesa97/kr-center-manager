@@ -45,7 +45,9 @@ describe('isFieldValueExcluded — wykluczenia kombinacji z Konfiguracji', () =>
 describe('getComplaintBlockedStages — reklamacje zleceń łączonych', () => {
   it('reklamacja powiązana: STA blokuje etapy ościeżnicy, Disting etapy skrzydła', () => {
     expect(getComplaintBlockedStages('STA', '', 1)).toEqual(['e1', 'e2_1', 'e2_2'])
-    expect(getComplaintBlockedStages('Disting', '', 1)).toEqual(['e3', 'e4', 'e5'])
+    // e5 (pakowanie ościeżnicy) ROBI Disting — nie jest blokowane,
+    // inaczej plakietka OŚC w STA nigdy się nie wypełnia
+    expect(getComplaintBlockedStages('Disting', '', 1)).toEqual(['e3', 'e4'])
   })
   it('reklamacja Komplet / bez wskazania — nic nie blokuje', () => {
     expect(getComplaintBlockedStages('STA', 'Komplet', null)).toEqual([])

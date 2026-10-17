@@ -13,6 +13,7 @@ import {
   staDistingPlusMirrorTitle,
   stStageCellKind,
 } from '../utils'
+import { appConfirm } from '../lib/appDialogs'
 
 type ComplaintsViewProps = {
   activeTab: string
@@ -32,6 +33,7 @@ type ComplaintsViewProps = {
   ) => void | Promise<void>
   onCancelComplaint: (complaint: Complaint) => void
   onRestoreComplaint: (complaint: Complaint) => void | Promise<void>
+  onCompleteComplaint: (complaint: Complaint, done: boolean) => void | Promise<void>
 }
 
 export default function ComplaintsView({
@@ -47,6 +49,7 @@ export default function ComplaintsView({
   onComplaintStageClick,
   onCancelComplaint,
   onRestoreComplaint,
+  onCompleteComplaint,
 }: ComplaintsViewProps) {
   const syncComplaintsStickyWidths = useCallback(() => {
     const root = tableWrapperRef.current
@@ -182,16 +185,56 @@ export default function ComplaintsView({
     textCol('model', 'MODEL', (c) => c.model, opts.modelClass),
   ]
 
+  // REALIZACJA reklamacji — klikalna dla kierownika (wcześniej pole było
+  // tylko-do-odczytu kopią stanu zamówienia i reklamacji nie dało się zamknąć)
   const releaseColumn = (thClassName: string): DataTableColumn<Complaint> => ({
     key: 'release_date',
-    label: 'WYDANIE',
-    title: 'WYDANIE',
+    label: 'REALIZACJA',
+    title: 'Realizacja reklamacji (klik = oznacz / cofnij)',
     thClassName,
     tdClassName: 'release-date-td col-order-text',
+    stopRowClick: true,
     tdTitle: (c) => (isReleaseDateEmpty(c.release_date) ? undefined : String(c.release_date ?? '').trim() || undefined),
     render: (c) =>
       isReleaseDateEmpty(c.release_date) ? (
-        <span className="release-date-placeholder">—</span>
+        isManager ? (
+          <button
+            type="button"
+            className="release-checkbox-btn"
+            role="checkbox"
+            aria-checked={false}
+            aria-label="Oznacz realizację reklamacji dzisiejszą datą"
+            title="Oznacz realizację reklamacji"
+            onClick={() => {
+              void (async () => {
+                const ok = await appConfirm(
+                  `Oznaczyć reklamację ${c.complaint_number ?? ''} jako zrealizowaną (naprawa zakończona)?`,
+                  { title: 'Realizacja reklamacji', confirmLabel: 'Tak, zrealizowana' },
+                )
+                if (ok) void onCompleteComplaint(c, true)
+              })()
+            }}
+          />
+        ) : (
+          <span className="release-date-placeholder">—</span>
+        )
+      ) : isManager ? (
+        <button
+          type="button"
+          className="release-date-value"
+          title="Kliknij, aby cofnąć realizację"
+          onClick={() => {
+            void (async () => {
+              const ok = await appConfirm(`Cofnąć realizację reklamacji ${c.complaint_number ?? ''}?`, {
+                title: 'Realizacja reklamacji',
+                confirmLabel: 'Tak, cofnij',
+              })
+              if (ok) void onCompleteComplaint(c, false)
+            })()
+          }}
+        >
+          {String(c.release_date).trim()}
+        </button>
       ) : (
         <span className="release-date-value release-date-value--readonly">{String(c.release_date).trim()}</span>
       ),

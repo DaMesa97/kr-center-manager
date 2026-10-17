@@ -753,12 +753,14 @@ function App() {
     setLinkedComplaints,
     fetchComplaints,
     searchOrdersForComplaint,
+    selectArchivedOrderForComplaint,
     handleCreateComplaintFromArchive,
     handleSaveComplaint,
     handleRestoreComplaint,
     handleCancelComplaintClick,
     handleComplaintStageClick,
     handleComplaintRushToggle,
+    handleCompleteComplaint,
   } = useComplaints({
     pushToast,
     touchSession,
@@ -2671,14 +2673,7 @@ function App() {
           }}
           onFormChange={(patch) => setComplaintFormData((p) => ({ ...p, ...patch }))}
           onSelectOrder={searchOrdersForComplaint}
-          onSelectArchived={(orderNumber, company) =>
-            setComplaintFormData((p) => ({
-              ...p,
-              order_id: null,
-              order_number: orderNumber,
-              company,
-            }))
-          }
+          onSelectArchived={(archived) => void selectArchivedOrderForComplaint(archived)}
           onSave={() => void handleSaveComplaint()}
           submitOnEnterInInput={submitOnEnterInInput}
         />
@@ -3311,6 +3306,7 @@ function App() {
                     onComplaintStageClick={handleComplaintStageClick}
                     onCancelComplaint={handleCancelComplaintClick}
                     onRestoreComplaint={handleRestoreComplaint}
+                    onCompleteComplaint={handleCompleteComplaint}
                   />
                 )}
                 {activeSubTab === 'Naświetla' &&

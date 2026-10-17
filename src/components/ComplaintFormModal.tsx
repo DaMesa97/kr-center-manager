@@ -12,7 +12,7 @@ type ComplaintFormModalProps = {
   onClose: () => void
   onFormChange: (patch: Partial<ComplaintFormData>) => void
   onSelectOrder: (order: Order) => void
-  onSelectArchived: (orderNumber: string, company: string) => void
+  onSelectArchived: (archived: ArchivedOrder) => void
   onSave: () => void
   submitOnEnterInInput: (e: React.KeyboardEvent<HTMLElement>, action: () => void) => void
 }
@@ -81,7 +81,7 @@ export default function ComplaintFormModal({
                 } else if (v.startsWith('arch:')) {
                   const orderNum = v.slice(5)
                   const a = archivedOrdersForComplaints.find((x) => x.order_number === orderNum)
-                  if (a) onSelectArchived(a.order_number ?? '', a.company ?? '')
+                  if (a) onSelectArchived(a)
                 }
               }}
             >
