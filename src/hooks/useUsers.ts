@@ -101,7 +101,9 @@ export function useUsers({
       initials: row.initials.slice(0, 3),
       password: '',
       role: row.role || 'pracownik_produkcji',
-      department: 'all',
+      // zachowaj dział z profilu — edycja (np. zmiana inicjałów) nadpisywała
+      // każdemu department na 'all'
+      department: ((row as { department?: string }).department || 'all') as UserFormState['department'],
       categories: Array.isArray((row as { categories?: string[] }).categories)
         ? ((row as { categories?: string[] }).categories as string[])
         : [],
@@ -192,7 +194,7 @@ export function useUsers({
         full_name,
         initials,
         role: userForm.role,
-        department: 'all',
+        department: userForm.department || 'all',
         categories: userForm.categories ?? [],
       })
       .eq('id', editingProfileId)
@@ -238,6 +240,52 @@ export function useUsers({
     })
   }
 
+  // Dezaktywacja (ban) — twarde usunięcie wywala się na kluczach obcych
+  // (ruchy magazynowe, ZD, inwentaryzacje); ban blokuje logowanie,
+  // a historia pracownika zostaje
+  const handleDeactivateUser = async (row: DbProfileRow, deactivate: boolean) => {
+    if (!isManager) return
+    if (row.id === currentUser?.id) {
+      pushToast('Nie możesz dezaktywować własnego konta', 'error')
+      return
+    }
+    const { data, error } = await supabase.functions.invoke<{ error?: string; ok?: boolean }>(
+      'manage-users',
+      { body: { action: deactivate ? 'deactivate' : 'reactivate', user_id: row.id } },
+    )
+    if (error) {
+      pushToast(await fnErrorMessage(error, 'Błąd zmiany statusu konta'), 'error')
+      return
+    }
+    if (data && typeof data === 'object' && 'error' in data && data.error) {
+      pushToast(String(data.error), 'error')
+      return
+    }
+    pushToast(deactivate ? `Konto ${row.full_name} dezaktywowane` : `Konto ${row.full_name} aktywne`, 'success')
+  }
+
+  const handleResetPassword = async (row: DbProfileRow, newPassword: string): Promise<boolean> => {
+    if (!isManager) return false
+    if (newPassword.length < 6) {
+      pushToast('Hasło musi mieć co najmniej 6 znaków', 'error')
+      return false
+    }
+    const { data, error } = await supabase.functions.invoke<{ error?: string; ok?: boolean }>(
+      'manage-users',
+      { body: { action: 'reset_password', user_id: row.id, password: newPassword } },
+    )
+    if (error) {
+      pushToast(await fnErrorMessage(error, 'Błąd resetu hasła'), 'error')
+      return false
+    }
+    if (data && typeof data === 'object' && 'error' in data && data.error) {
+      pushToast(String(data.error), 'error')
+      return false
+    }
+    pushToast(`Hasło użytkownika ${row.full_name} zmienione`, 'success')
+    return true
+  }
+
   return {
     profilesList,
     setProfilesList,
@@ -259,5 +307,7 @@ export function useUsers({
     closeUserModal,
     handleSaveUser,
     handleDeleteUserClick,
+    handleDeactivateUser,
+    handleResetPassword,
   }
 }

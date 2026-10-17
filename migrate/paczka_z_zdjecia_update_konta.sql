@@ -1,0 +1,27 @@
+-- =====================================================================
+-- PACZKA Z ZE ZWIADU #3: ZDJĘCIA + AKTUALIZACJE + KONTA (2026-10-18)
+-- [WYKONANE: migracja order_photos_storage_hardening, manage-users v6]
+--
+-- 1. ZDJĘCIA ZAMÓWIEŃ:
+--    - storage.objects delete dla bucketu order-photos tylko kierownik
+--      (pracownik klikając kosz kasował PLIK zostawiając martwy wiersz —
+--      zdjęcie nie do odzyskania);
+--    - frontend sprawdza wynik DELETE wiersza (RLS zwraca 0 wierszy bez
+--      błędu) i dopiero potem kasuje plik; komunikat "tylko kierownik";
+--    - bucket: limit 10 MB + tylko jpeg/png/webp/gif (HEIC dawał pustą
+--      miniaturę); upload liczy realnie dodane pliki.
+--
+-- 2. AKTUALIZACJE: pełnoekranowy UpdateBlocker tylko przy STARCIE apki;
+--    ręczne "Sprawdź aktualizacje" i NOWY cykliczny check co 4 h idą na
+--    baner (kanał update:available:background) — koniec z blokadą
+--    przykrywającą niezapisany formularz; stanowiska chodzące dniami
+--    dowiadują się o nowej wersji bez restartu. Przy okazji: preload
+--    naprawiony (off() nie zdejmował wrapniętych listenerów — przeciek).
+--
+-- 3. KONTA (manage-users v6): akcje deactivate/reactivate (ban — twarde
+--    usunięcie wywala się na FK ruchów magazynowych/ZD/inwentaryzacji,
+--    ban blokuje logowanie zostawiając historię) i reset_password
+--    (dotąd tylko panel Supabase). UI: przyciski Hasło / Dezaktywuj /
+--    Aktywuj w zakładce Użytkownicy (+ nowy appPrompt bez natywnych
+--    dialogów). Edycja profilu NIE nadpisuje już department na 'all'.
+-- =====================================================================

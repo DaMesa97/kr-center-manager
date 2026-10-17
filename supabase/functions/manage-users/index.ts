@@ -101,6 +101,68 @@ serve(async (req) => {
       })
     }
 
+    // Dezaktywacja (ban) — twarde usunięcie wywala się na kluczach obcych
+    // (ruchy magazynowe, ZD, inwentaryzacje wskazują na profil). Ban blokuje
+    // logowanie, a historia zostaje nietknięta.
+    if (action === 'deactivate' || action === 'reactivate') {
+      const user_id = String(body.user_id ?? '').trim()
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: 'Brak identyfikatora użytkownika' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (user_id === caller.id) {
+        return new Response(JSON.stringify({ error: 'Nie można dezaktywować własnego konta' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
+        // 100 lat = dezaktywacja; 'none' zdejmuje bana
+        ban_duration: action === 'deactivate' ? '876000h' : 'none',
+      })
+      if (banErr) {
+        return new Response(JSON.stringify({ error: banErr.message }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Reset hasła przez admina — wcześniej jedyna droga to panel Supabase
+    if (action === 'reset_password') {
+      const user_id = String(body.user_id ?? '').trim()
+      const password = String(body.password ?? '')
+      if (!user_id || !password) {
+        return new Response(JSON.stringify({ error: 'Podaj użytkownika i nowe hasło' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (password.length < 6) {
+        return new Response(JSON.stringify({ error: 'Hasło musi mieć co najmniej 6 znaków' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(user_id, { password })
+      if (pwErr) {
+        return new Response(JSON.stringify({ error: pwErr.message }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     if (action === 'delete') {
       const user_id = String(body.user_id ?? '').trim()
       if (!user_id) {

@@ -84,6 +84,9 @@ export default function UpdateBanner() {
 
     ipc.on('update:checking', onChecking)
     ipc.on('update:available', onAvailable)
+    // update w trakcie pracy (ręczny check / cykliczny co 4 h) — baner,
+    // bez pełnoekranowej blokady UpdateBlockera
+    ipc.on('update:available:background', onAvailable)
     ipc.on('update:not-available', onNotAvailable)
     ipc.on('update:progress', onProgress)
     ipc.on('update:downloaded', onDownloaded)
@@ -92,6 +95,7 @@ export default function UpdateBanner() {
     return () => {
       ipc.off('update:checking', onChecking)
       ipc.off('update:available', onAvailable)
+      ipc.off('update:available:background', onAvailable)
       ipc.off('update:not-available', onNotAvailable)
       ipc.off('update:progress', onProgress)
       ipc.off('update:downloaded', onDownloaded)

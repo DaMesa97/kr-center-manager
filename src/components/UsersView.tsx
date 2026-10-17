@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { DbProfileRow } from '../types'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
+import { appConfirm, appPrompt } from '../lib/appDialogs'
 
 type UsersViewProps = {
   profilesLoading: boolean
@@ -9,6 +10,8 @@ type UsersViewProps = {
   currentUserId?: string
   onEditUser: (row: DbProfileRow) => void
   onDeleteUser: (row: DbProfileRow) => void
+  onDeactivateUser: (row: DbProfileRow, deactivate: boolean) => void | Promise<void>
+  onResetPassword: (row: DbProfileRow, newPassword: string) => Promise<boolean> | boolean | void
   onManageWorkerStages: (row: DbProfileRow) => void
   getRoleLabel: (role: string) => string
   getDepartmentLabel: (department: string, role: string) => string
@@ -20,6 +23,8 @@ export default function UsersView({
   currentUserId,
   onEditUser,
   onDeleteUser,
+  onDeactivateUser,
+  onResetPassword,
   onManageWorkerStages,
   getRoleLabel,
   getDepartmentLabel,
@@ -49,10 +54,59 @@ export default function UsersView({
             </button>
             <button
               type="button"
+              className="btn btn-sm btn-secondary"
+              title="Ustaw nowe hasło użytkownika"
+              onClick={() => {
+                void (async () => {
+                  const pw = await appPrompt(`Nowe hasło dla ${row.full_name} (min. 6 znaków):`, {
+                    title: 'Reset hasła',
+                    confirmLabel: 'Zmień hasło',
+                    inputType: 'password',
+                  })
+                  if (pw) void onResetPassword(row, pw)
+                })()
+              }}
+            >
+              Hasło
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={row.id === currentUserId}
+              title="Zablokuj logowanie bez usuwania historii (odblokowanie: ten sam przycisk)"
+              onClick={() => {
+                void (async () => {
+                  const deactivate = await appConfirm(
+                    `Dezaktywować konto ${row.full_name}? (logowanie zablokowane, historia zostaje). Jeśli konto jest już dezaktywowane — zostanie odblokowane.`,
+                    { title: 'Dezaktywacja konta', confirmLabel: 'Dezaktywuj' },
+                  )
+                  if (deactivate) {
+                    void onDeactivateUser(row, true)
+                  }
+                })()
+              }}
+            >
+              Dezaktywuj
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              disabled={row.id === currentUserId}
+              title="Odblokuj wcześniej dezaktywowane konto"
+              onClick={() => void onDeactivateUser(row, false)}
+            >
+              Aktywuj
+            </button>
+            <button
+              type="button"
               className="btn btn-sm btn-danger"
               onClick={() => onDeleteUser(row)}
               disabled={row.id === currentUserId}
-              title={row.id === currentUserId ? 'Nie można usunąć własnego konta' : undefined}
+              title={
+                row.id === currentUserId
+                  ? 'Nie można usunąć własnego konta'
+                  : 'Twarde usunięcie — zadziała tylko dla kont bez historii (ruchy magazynowe, ZD). W innym wypadku użyj Dezaktywuj.'
+              }
             >
               Usuń
             </button>
@@ -60,7 +114,7 @@ export default function UsersView({
         ),
       },
     ]
-  }, [currentUserId, onEditUser, onDeleteUser, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
+  }, [currentUserId, onEditUser, onDeleteUser, onDeactivateUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
 
   return (
     <>

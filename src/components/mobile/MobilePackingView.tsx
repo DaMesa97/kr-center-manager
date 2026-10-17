@@ -150,8 +150,15 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
 
   const deletePhoto = async (photo: Photo) => {
     if (!(await appConfirm('Usunąć zdjęcie?'))) return
-    const { error } = await supabase.from('order_photos').delete().eq('id', photo.id)
+    // RLS blokujące DELETE zwraca 0 wierszy bez błędu — bez tej kontroli
+    // pracownik kasował PLIK ze storage zostawiając martwy wiersz
+    const { data: deleted, error } = await supabase
+      .from('order_photos')
+      .delete()
+      .eq('id', photo.id)
+      .select('id')
     if (error) { flash('Błąd usuwania'); return }
+    if (!deleted || deleted.length === 0) { flash('Zdjęcia może usuwać tylko kierownik'); return }
     await supabase.storage.from(BUCKET).remove([photo.storage_path])
     setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
   }

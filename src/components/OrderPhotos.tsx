@@ -34,9 +34,19 @@ export default function OrderPhotos({ orderId, currentUserId, currentUserInitial
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return
     setUploading(true)
+    let okCount = 0
     try {
       for (const file of Array.from(files)) {
-        if (!file.type.startsWith('image/')) continue
+        // bucket przyjmuje jpeg/png/webp/gif do 10 MB — HEIC z telefonu
+        // przechodził i dawał pustą miniaturę (Chromium go nie wyświetla)
+        if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
+          pushToast?.(`Pominięto ${file.name} — obsługiwane formaty: JPG/PNG/WEBP/GIF`, 'error')
+          continue
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          pushToast?.(`Pominięto ${file.name} — plik większy niż 10 MB`, 'error')
+          continue
+        }
         const ext = file.name.split('.').pop() || 'jpg'
         // unikalna ścieżka — bez Date.now w nazwie polegamy na losowości czasu uploadu
         const stamp = new Date().toISOString().replace(/[:.]/g, '-')
@@ -71,8 +81,9 @@ export default function OrderPhotos({ orderId, currentUserId, currentUserInitial
           continue
         }
         setPhotos((prev) => [inserted as OrderPhoto, ...prev])
+        okCount++
       }
-      pushToast?.('Zdjęcia dodane', 'success')
+      if (okCount > 0) pushToast?.(`Dodano ${okCount} zdjęć`, 'success')
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ''
@@ -81,9 +92,19 @@ export default function OrderPhotos({ orderId, currentUserId, currentUserInitial
 
   const handleDelete = async (photo: OrderPhoto) => {
     if (!(await appConfirm('Usunąć to zdjęcie?'))) return
-    const { error: dbErr } = await supabase.from('order_photos').delete().eq('id', photo.id)
+    // RLS blokujące DELETE nie zwraca błędu, tylko 0 wierszy — sprawdzamy
+    // select(), żeby pracownik nie skasował PLIKU zostawiając martwy wiersz
+    const { data: deleted, error: dbErr } = await supabase
+      .from('order_photos')
+      .delete()
+      .eq('id', photo.id)
+      .select('id')
     if (dbErr) {
       pushToast?.(`Błąd usuwania zdjęcia: ${dbErr.message}`, 'error')
+      return
+    }
+    if (!deleted || deleted.length === 0) {
+      pushToast?.('Zdjęcia może usuwać tylko kierownik', 'error')
       return
     }
     // Storage usuwamy best-effort — rekord w DB już skasowany

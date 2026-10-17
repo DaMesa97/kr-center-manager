@@ -62,6 +62,11 @@ autoUpdater.autoInstallOnAppQuit = true // instaluj cicho przy zamknięciu po po
 // Zapamiętaj wykryty update — renderer może zapytać o niego po zamontowaniu
 let pendingUpdate: { version: string } | null = null
 
+// Pełnoekranowy UpdateBlocker ma sens tylko przy STARCIE aplikacji.
+// Ręczne "Sprawdź aktualizacje" i cykliczny check w trakcie pracy nie mogą
+// przykrywać niezapisanej roboty — idą na kanał background (baner).
+let startupPhase = true
+
 function setupAutoUpdater(mainWin: BrowserWindow) {
   // --- eventy od electron-updater → renderer ---
 
@@ -71,7 +76,7 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
 
   autoUpdater.on('update-available', (info) => {
     pendingUpdate = { version: info.version }
-    mainWin.webContents.send('update:available', {
+    mainWin.webContents.send(startupPhase ? 'update:available' : 'update:available:background', {
       version: info.version,
       releaseDate: info.releaseDate,
     })
@@ -118,6 +123,7 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
 
   ipcMain.handle('updater:check', async () => {
     try {
+      startupPhase = false // ręczny check nie może odpalić pełnoekranowej blokady
       const result = await autoUpdater.checkForUpdates()
       const newVersion = result?.updateInfo?.version
       // Porównaj z aktualną wersją — nie raportuj "dostępna" jeśli ta sama
@@ -170,7 +176,17 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
     } else {
       console.warn('[AutoUpdater] startup check error:', msg)
     }
+  }).finally(() => {
+    // koniec fazy startowej — od teraz update-available idzie na baner,
+    // nie na pełnoekranową blokadę
+    setTimeout(() => { startupPhase = false }, 30_000)
   })
+
+  // Cykliczny check co 4 h — stanowiska w hali chodzą dniami bez restartu
+  // i bez tego nie dowiadywały się o nowej wersji aż do ponownego uruchomienia
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch(() => { /* cisza — baner i tak nie wyskoczy */ })
+  }, 4 * 60 * 60 * 1000)
 }
 
 // ---------------------------------------------------------------------------

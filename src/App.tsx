@@ -526,6 +526,8 @@ function App() {
     closeUserModal,
     handleSaveUser,
     handleDeleteUserClick,
+    handleDeactivateUser,
+    handleResetPassword,
   } = useUsers({ pushToast, touchSession, currentUser, reloadProfile, setDeleteConfirm, authSession })
 
   const {
@@ -2782,6 +2784,8 @@ function App() {
             currentUserId={currentUser?.id}
             onEditUser={openEditUserModal}
             onDeleteUser={handleDeleteUserClick}
+            onDeactivateUser={handleDeactivateUser}
+            onResetPassword={handleResetPassword}
             onManageWorkerStages={(profile) => setWorkerStagesModal({ open: true, worker: profile })}
             getRoleLabel={profileRoleLabel}
             getDepartmentLabel={profileDepartmentLabel}
