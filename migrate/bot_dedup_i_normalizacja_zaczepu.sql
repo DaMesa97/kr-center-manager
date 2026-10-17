@@ -1,0 +1,23 @@
+-- =====================================================================
+-- DEDUP BOT<->BOT + NORMALIZACJA ZACZEPU (2026-10-17)
+-- [WYKONANE w bazie przez konektor — plik dla historii; pełne definicje
+--  w migracjach Supabase: create_bot_order_normalize_zaczep,
+--  create_bot_order_dedup_identyczny_payload]
+--
+-- 1. NORMALIZACJA ZACZEPU (#57, ogon): konfigurator i Excel wysyłały
+--    "Nie" zamiast słownikowego "BRAK", przez co receptury
+--    "Okucia wykończeniowe / BRAK" nie łapały zamówień z API.
+--    - create_bot_order: NIE→BRAK, TAK→ELEKTROZACZEP (przy wejściu)
+--    - orders-excel-intake (edge fn v20): to samo + pisze też kolumnę zaczep
+--    - backfill: 4725 zamówień NIE→BRAK, 28 TAK→ELEKTROZACZEP
+--
+-- 2. DEDUP BOT<->BOT (incydent STA 4429/4430): to samo zamówienie wysłane
+--    z konfiguratora dwa razy = dwa recordId z Airtable, a dedup sprawdzał
+--    tylko recordId. Teraz create_bot_order dodatkowo:
+--    - TWARDO odrzuca payload identyczny (bez recordId) z zamówieniem bota
+--      z ostatnich 21 dni ("Duplikat: identyczne zamowienie ... zlecenie N"),
+--    - MIĘKKO flaguje needs_review, gdy firma + numer zamówienia klienta
+--      powtarzają się w 21 dniach, ale dane się różnią (korekta/dogrywka).
+--    Duplikat STA 4430 (id 14826) usunięty z bazy wraz z 21 rezerwacjami.
+-- =====================================================================
+-- (treść funkcji: patrz supabase migrations / pg_get_functiondef)
