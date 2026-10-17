@@ -75,6 +75,15 @@ export const combineDim = (w: string, h: string): string => {
   return ww || hh || ''
 }
 
+// #57: normalizacja zaczepu do słownika (BRAK/MECHANICZNY/ELEKTROZACZEP);
+// arkusz/konfigurator wysyła "Nie" gdy zaczepu brak, historyczne "Tak" = elektrozaczep
+export const normalizeZaczep = (raw: string): string => {
+  const u = raw.trim().toUpperCase()
+  if (u === 'NIE') return 'BRAK'
+  if (u === 'TAK') return 'ELEKTROZACZEP'
+  return raw
+}
+
 export const emptyStagesFor = (category: string): Record<string, string> => {
   // Mirrory Disting Plus są ASYMETRYCZNE (spójnie z aplikacją):
   // STA trzyma dist_* (podgląd ościeżnicy), Disting trzyma sta_e3/sta_e4 (podgląd skrzydła).
@@ -191,6 +200,8 @@ export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknow
         }
       : {}
 
+  const zaczepValue = normalizeZaczep(get('Elektrozaczep'))
+
   return {
     order_number: get('Numer zlecenia'),
     company,
@@ -213,7 +224,8 @@ export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknow
     decorative_panel: get('Panel dekoracyjny'),
     hardware: get('Okucia'),
     handle: get('Pochwyt'),
-    electric_strike: get('Elektrozaczep'),
+    electric_strike: zaczepValue,
+    zaczep: zaczepValue,
     peephole: get('Wizjer'),
     oslonki: get('Oslonki'),
     wentylacja: get('Wentylacja'),
