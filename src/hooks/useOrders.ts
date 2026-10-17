@@ -1231,7 +1231,8 @@ export function useOrders({
           production_stages: createEmptyProductionStages('Bastion'),
           extra_fields: groupExtra('Bastion'),
         })
-        const { error: bastionErr } = await supabase.from('orders').insert([bastionPayload])
+        const { data: bastionRow, error: bastionErr } = await supabase
+          .from('orders').insert([bastionPayload]).select('id').single()
         if (bastionErr) {
           pushToast(`ST i STA zapisane, ale Bastion nie: ${bastionErr.message}`, 'error')
         }
@@ -1245,6 +1246,9 @@ export function useOrders({
 
         await reserveStockForOrderWithToasts(staId)
         await reserveStockForOrderWithToasts(stId)
+        // Bastion też rezerwuje (intarsja/okucia są przypisane do Bastionu) —
+        // wcześniej noga powstawała bez id i bez rezerwacji
+        if (bastionRow) await reserveStockForOrderWithToasts(Number((bastionRow as { id: number }).id))
 
         pushToast(`Utworzono Titan: STA ${staNr} + ST ${stNr} + Bastion ${bastionNrNext}`, 'success')
         setIsModalOpen(false)
@@ -1563,10 +1567,41 @@ export function useOrders({
           pushToast(`Powiązanie ST↔STA nie zostało zapisane: ${linkErr.message}`, 'error')
         }
 
+        // 3) Bastion (skrzydło do okuwania) + titan_group — spójnie z formularzem
+        // STA i intakem. Wcześniej Titan tworzony od strony ST NIE dostawał nogi
+        // Bastion (okuwanie/montaż/pakowanie) ani grupy titan_group.
+        const group = staId
+        const bastionNrNext = await fetchNextOrderNumber('Bastion')
+        const bastionPayload = sanitizeOrderPayloadForDb({
+          ...emptyOrderMeta,
+          ...mapped,
+          order_number: bastionNrNext,
+          category: 'Bastion' as const,
+          linked_order_id: null,
+          sta_ref: '',
+          st_sheet: '',
+          production_stages: createEmptyProductionStages('Bastion'),
+          extra_fields: { titan_group: group, titan_role: 'Bastion' },
+        })
+        const { data: bastionRow, error: bastionErr } = await supabase
+          .from('orders').insert([bastionPayload]).select('id').single()
+        if (bastionErr) {
+          pushToast(`ST i STA zapisane, ale Bastion nie: ${bastionErr.message}`, 'error')
+        }
+        await supabase.rpc('merge_order_extra_fields', {
+          p_order_id: stId,
+          p_patch: { titan_group: group, titan_role: 'ST' },
+        })
+        await supabase.rpc('merge_order_extra_fields', {
+          p_order_id: staId,
+          p_patch: { titan_group: group, titan_role: 'STA' },
+        })
+
         await reserveStockForOrderWithToasts(stId)
         await reserveStockForOrderWithToasts(staId)
+        if (bastionRow) await reserveStockForOrderWithToasts(Number((bastionRow as { id: number }).id))
 
-        pushToast(`Utworzono ST nr ${stNr} oraz powiązaną STA nr ${staNr}`, 'success')
+        pushToast(`Utworzono Titan: ST ${stNr} + STA ${staNr} + Bastion ${bastionNrNext}`, 'success')
         setIsModalOpen(false)
         setStFormData(INITIAL_ST_ORDER_FORM)
         await fetchOrders()
@@ -2087,6 +2122,20 @@ export function useOrders({
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, label: newValue } : o)))
   }, [pushToast])
 
+  // Noga Bastion Titana jest spięta tylko extra_fields.titan_group (bez
+  // linked_order_id) — anulowanie/przywracanie pary STA↔ST musi ją objąć osobno.
+  const findTitanBastionLegIds = useCallback(async (order: Order): Promise<number[]> => {
+    const group = (order.extra_fields as Record<string, unknown> | null)?.titan_group
+    if (group == null) return []
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('category', 'Bastion')
+      .contains('extra_fields', { titan_group: group })
+    if (error || !data) return []
+    return data.map((r) => Number((r as { id: number }).id)).filter((n) => n !== order.id)
+  }, [])
+
   const handleRestoreOrder = useCallback(
     async (order: Order) => {
       if (!isManager) return
@@ -2129,6 +2178,15 @@ export function useOrders({
         }
       }
 
+      // Noga Bastion Titana (titan_group) — przywracamy razem z parą STA↔ST
+      if (isTitanLink || isTitanLinked) {
+        const bastionIds = await findTitanBastionLegIds(order)
+        for (const bid of bastionIds) {
+          await supabase.rpc('merge_order_extra_fields', { p_order_id: bid, p_patch: restorePatch })
+          await reserveStockForOrderWithToasts(bid)
+        }
+      }
+
       if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
         await reserveStockForOrderWithToasts(linkedId)
       }
@@ -2136,7 +2194,7 @@ export function useOrders({
       await fetchWarehouseStock()
       void fetchOrders()
     },
-    [isManager, orders, linkedOrders, fetchOrders, pushToast, reserveStockForOrderWithToasts, fetchWarehouseStock],
+    [isManager, orders, linkedOrders, fetchOrders, pushToast, reserveStockForOrderWithToasts, fetchWarehouseStock, findTitanBastionLegIds],
   )
 
   const handleCancelOrderClick = useCallback((order: Order) => {
@@ -2225,6 +2283,21 @@ export function useOrders({
           }
         }
 
+        // Noga Bastion Titana (titan_group) — anulujemy razem z parą STA↔ST
+        // (wcześniej Bastion zostawał w produkcji po anulowaniu Titana!)
+        if (isTitanLink || isTitanLinked) {
+          const bastionIds = await findTitanBastionLegIds(order)
+          for (const bid of bastionIds) {
+            await supabase.rpc('merge_order_extra_fields', { p_order_id: bid, p_patch: { cancelled: true } })
+            await supabase.from('orders').update({ stock_status: null, stock_issues: null }).eq('id', bid)
+            try {
+              await supabase.rpc('cancel_order_reservations', { p_order_id: bid })
+            } catch (err) {
+              console.error('cancel_order_reservations error (bastion):', err)
+            }
+          }
+        }
+
         try {
           const { error: retErr } = await supabase.rpc('cancel_order_reservations', { p_order_id: id })
           if (retErr) {
@@ -2273,7 +2346,7 @@ export function useOrders({
         )
       },
     })
-  }, [isManager, orders, linkedOrders, fetchOrders, fetchWarehouseStock, fetchSmartRop, pushToast, currentUser, setDeleteConfirm])
+  }, [isManager, orders, linkedOrders, fetchOrders, fetchWarehouseStock, fetchSmartRop, pushToast, currentUser, setDeleteConfirm, findTitanBastionLegIds])
 
   const openEditOrderModal = useCallback((order: Order) => {
     if (!isManager) return

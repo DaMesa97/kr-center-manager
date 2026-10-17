@@ -71,6 +71,24 @@ export default function MobileShippingView() {
   const markReleased = async (order: Order) => {
     setSaving(true)
     try {
+      // NAJPIERW fizyczne wydanie pozostałych rezerwacji z magazynu (WZ) —
+      // jak desktop. Dla Technicznych/drzwi wewn. to JEDYNY moment wydania;
+      // bez tego rezerwacje wisiały na zawsze. Braki wydajemy z force=true
+      // (zamówienie fizycznie wyjeżdża z produkcji — stan może zejść na minus),
+      // a błąd RPC nie blokuje oznaczenia (produkcja > magazyn).
+      try {
+        const { error: relErr } = await supabase.rpc('release_remaining_for_order', {
+          p_order_id: order.id!,
+          p_force: true,
+        })
+        if (relErr) {
+          console.error('release_remaining_for_order error:', relErr)
+          flash('Ostrzeżenie: wydanie z magazynu nie powiodło się')
+        }
+      } catch (err) {
+        console.error('release_remaining_for_order error:', err)
+      }
+      if (!mountedRef.current) return
       const today = new Date().toISOString().split('T')[0]
       const { error } = await supabase.from('orders').update({ release_date: today }).eq('id', order.id!)
       if (!mountedRef.current) return

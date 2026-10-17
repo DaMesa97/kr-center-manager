@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Check, RefreshCw, Zap } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
+import { mirrorStageKey } from '../../lib/stageMirror'
 import { isReleaseDateEmpty, isRushOrderSequence, parseProductionStages } from '../../utils'
 import { buildTasks, fieldsForStage, type MyTask } from '../../lib/stationLogic'
 import type { Order, WorkerStage } from '../../types'
+
+type ShortageRow = {
+  r_component_name: string
+  r_quantity: number
+  r_status: 'released' | 'insufficient'
+  r_shortage: number
+}
 
 type Props = {
   userId: string
@@ -20,8 +28,10 @@ export default function MobileStationView({ userId }: Props) {
   const [loading, setLoading] = useState(true)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [confirmTask, setConfirmTask] = useState<MyTask | null>(null)
+  const [shortageConfirm, setShortageConfirm] = useState<{ task: MyTask; shortages: ShortageRow[] } | null>(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [myInitials, setMyInitials] = useState('')
   const mountedRef = useRef(true)
 
   const flash = (msg: string) => {
@@ -32,15 +42,21 @@ export default function MobileStationView({ userId }: Props) {
   const load = useCallback(async () => {
     if (!userId) return
     setLoading(true)
-    const [stagesRes, ordersRes] = await Promise.all([
+    const [stagesRes, ordersRes, profileRes] = await Promise.all([
       supabase.from('worker_stages').select('*').eq('worker_id', userId),
-      supabase.from('orders').select('*').order('order_number', { ascending: false }).limit(2000),
+      // Sort po id (numerycznie, stabilnie) — order_number to tekst i po
+      // przekroczeniu limitu ucinał ŚWIEŻE zlecenia (desktop: ten sam fix)
+      supabase.from('orders').select('*').order('id', { ascending: false }).limit(2000),
+      supabase.from('profiles').select('initials').eq('id', userId).single(),
     ])
     if (!mountedRef.current) return
     setLoading(false)
     if (stagesRes.error || ordersRes.error) {
       flash('Błąd ładowania zadań')
       return
+    }
+    if (!profileRes.error) {
+      setMyInitials(String((profileRes.data as { initials?: string } | null)?.initials ?? '').trim())
     }
     setWorkerStages((stagesRes.data ?? []) as WorkerStage[])
     const filtered = (ordersRes.data ?? []).filter((o: Order) => {
@@ -76,29 +92,81 @@ export default function MobileStationView({ userId }: Props) {
   const tasks = useMemo(() => buildTasks(orders, workerStages), [orders, workerStages])
   const readyCount = tasks.filter((t) => t.readyToWork).length
 
-  const completeStage = async (task: MyTask) => {
+  const completeStage = async (task: MyTask, opts?: { force?: boolean }) => {
     const actualKey = task.actualStageKey
     const current = parseProductionStages(task.order.production_stages, task.category)
-    // Guard: ktoś inny mógł już oznaczyć ten etap (realtime/odświeżenie)
-    if (current[actualKey] === 'T') {
+    // Guard: ktoś inny mógł już oznaczyć ten etap (realtime/odświeżenie) —
+    // "zrobione" = jakakolwiek niepusta wartość (inicjały), nie tylko 'T'
+    if (String(current[actualKey] ?? '').trim() !== '') {
       flash('Ten etap jest już oznaczony')
       setConfirmTask(null)
       return
     }
     setSaving(true)
     try {
-      const updated = { ...current, [actualKey]: 'T' }
-      const { error } = await supabase
-        .from('orders')
-        .update({ production_stages: updated })
-        .eq('id', task.order.id!)
+      // 1) Wydanie z magazynu (WZ) jak na desktopie — braki pokazujemy do
+      // decyzji, błąd RPC nie blokuje oznaczenia (produkcja > magazyn)
+      try {
+        const { data: relData, error: relError } = await supabase.rpc('release_stock_for_stage', {
+          p_order_id: task.order.id!,
+          p_stage_key: actualKey,
+          p_force: opts?.force === true,
+        })
+        if (!mountedRef.current) return
+        if (relError) {
+          console.error('release_stock_for_stage error:', relError)
+          flash('Ostrzeżenie: wydanie z magazynu nie powiodło się')
+        } else {
+          const rows = (relData ?? []) as ShortageRow[]
+          const shortages = rows.filter((r) => r.r_status === 'insufficient')
+          if (shortages.length > 0) {
+            setShortageConfirm({ task, shortages })
+            setConfirmTask(null)
+            return
+          }
+        }
+      } catch (err) {
+        console.error('release_stock_for_stage error:', err)
+      }
+
+      // 2) Oznaczenie etapu: RPC dokleja JEDEN klucz po stronie bazy —
+      // zapis całego obiektu kasował etapy innych stanowisk. Inicjały jak desktop.
+      const mark = myInitials || 'T'
+      const { error } = await supabase.rpc('update_order_stage', {
+        p_order_id: task.order.id!,
+        p_stage_key: actualKey,
+        p_stage_value: mark,
+      })
       if (!mountedRef.current) return
       if (error) { flash(`Błąd: ${error.message}`); return }
+
+      // 3) Mirror u partnera (Disting Plus / Titan) — jak tabela i Moje stanowisko
+      const mirrorKey = mirrorStageKey(task.order.category, actualKey)
+      if (mirrorKey && task.order.linked_order_id != null) {
+        const { error: mErr } = await supabase.rpc('update_order_stage', {
+          p_order_id: task.order.linked_order_id,
+          p_stage_key: mirrorKey,
+          p_stage_value: mark,
+        })
+        if (mErr) console.error('mirror stage error:', mErr)
+      }
+
       setOrders((prev) =>
-        prev.map((o) => (o.id === task.order.id ? { ...o, production_stages: updated } : o)),
+        prev.map((o) => {
+          if (o.id === task.order.id) {
+            const cur = parseProductionStages(o.production_stages, task.category)
+            return { ...o, production_stages: { ...cur, [actualKey]: mark } }
+          }
+          if (mirrorKey && o.id === task.order.linked_order_id) {
+            const cur = parseProductionStages(o.production_stages, o.category)
+            return { ...o, production_stages: { ...cur, [mirrorKey]: mark } }
+          }
+          return o
+        }),
       )
       flash('Etap oznaczony ✓')
       setConfirmTask(null)
+      setShortageConfirm(null)
     } finally {
       if (mountedRef.current) setSaving(false)
     }
@@ -198,6 +266,44 @@ export default function MobileStationView({ userId }: Props) {
               </button>
               <button type="button" className="mstation-confirm-ok" onClick={() => void completeStage(confirmTask)} disabled={saving}>
                 {saving ? 'Zapisywanie…' : 'Tak, zrobione'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shortageConfirm && (
+        <div className="mstation-confirm-overlay" onClick={() => !saving && setShortageConfirm(null)}>
+          <div className="mstation-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="mstation-confirm-title">Brak na magazynie</div>
+            <div className="mstation-confirm-body">
+              Zlecenie {shortageConfirm.task.order.order_number}
+              <br />
+              {shortageConfirm.shortages.slice(0, 4).map((s) => (
+                <span key={s.r_component_name}>
+                  {s.r_component_name}: brakuje {s.r_shortage}
+                  <br />
+                </span>
+              ))}
+              {shortageConfirm.shortages.length > 4 && <span>…i {shortageConfirm.shortages.length - 4} więcej</span>}
+              Wydać mimo braku (stan zejdzie na minus) i oznaczyć etap?
+            </div>
+            <div className="mstation-confirm-actions">
+              <button
+                type="button"
+                className="mstation-confirm-cancel"
+                onClick={() => setShortageConfirm(null)}
+                disabled={saving}
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                className="mstation-confirm-ok"
+                onClick={() => void completeStage(shortageConfirm.task, { force: true })}
+                disabled={saving}
+              >
+                {saving ? 'Zapisywanie…' : 'Wydaj mimo braku'}
               </button>
             </div>
           </div>
