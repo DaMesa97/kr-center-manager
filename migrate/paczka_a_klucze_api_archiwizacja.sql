@@ -1,0 +1,25 @@
+-- =====================================================================
+-- PACZKA A ZE ZWIADU #3: KLUCZE API + ARCHIWIZACJA (2026-10-18)
+-- [WYKONANE: migracja archiwizacja_dynamiczna_i_restore_fix + frontend]
+--
+-- 1. KLUCZE API: zakładka w aplikacji pisała do martwej tabeli
+--    integration_api_keys, a edge functions intake czytają api_keys —
+--    klucz z UI nigdy się nie autoryzował, a 2 prawdziwych kluczy nie było
+--    widać. useApiKeys przepięte na api_keys + RPC create_api_key (wymaga
+--    admina, wstawia tam gdzie trzeba). integration_api_keys i
+--    generate_api_key zostają do skasowania przy porządkach.
+--
+-- 2. ARCHIWIZACJA (cron 3:00 przenosi wydane/anulowane > N mies. i USUWA
+--    z orders): archive_old_orders__impl przepisane na DYNAMICZNE kopiowanie
+--    części wspólnej kolumn orders ∩ orders_archive — stara zaszyta lista
+--    gubiła intarsję, wentylację i panele Bastiona. Dodane kolumny archiwum
+--    + photos jsonb: wiersze zdjęć zamówienia (public_url/storage_path/
+--    inicjały/data) zapisują się do archiwum przed CASCADE; pliki w
+--    publicznym buckecie zostają, więc URL-e działają dalej.
+--
+-- 3. restore_from_archive__impl przepisane dynamicznie (stare odwoływało
+--    się do nieistniejących kolumn — nigdy nie mogło zadziałać).
+--
+-- Nowe kolumny orders wystarczy dodać też do orders_archive — funkcje
+-- same je podchwycą.
+-- =====================================================================

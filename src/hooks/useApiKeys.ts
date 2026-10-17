@@ -36,8 +36,11 @@ export function useApiKeys({ pushToast, touchSession }: UseApiKeysParams) {
     touchSession()
     setLoading(true)
     try {
+      // api_keys = tabela, którą faktycznie czytają edge functions intake
+      // (stare UI pisało do martwej integration_api_keys — klucz z UI
+      // nigdy się nie autoryzował, a prawdziwych kluczy nie było widać)
       const { data, error } = await supabase
-        .from('integration_api_keys')
+        .from('api_keys')
         .select('id, name, key_prefix, is_active, rate_limit_per_minute, total_requests, total_orders_created, last_used_at, created_at')
         .order('created_at', { ascending: false })
 
@@ -60,7 +63,9 @@ export function useApiKeys({ pushToast, touchSession }: UseApiKeysParams) {
     touchSession()
     setGenerateModal((p) => ({ ...p, saving: true }))
     try {
-      const { data, error } = await supabase.rpc('generate_api_key', {
+      // create_api_key wstawia do api_keys (tej, którą czyta verify_api_key);
+      // wymaga roli admin
+      const { data, error } = await supabase.rpc('create_api_key', {
         p_name: generateModal.name.trim(),
         p_rate_limit: generateModal.rateLimit,
       })
@@ -70,7 +75,8 @@ export function useApiKeys({ pushToast, touchSession }: UseApiKeysParams) {
         return
       }
 
-      const rawKey = typeof data === 'string' ? data : (data as { raw_key?: string })?.raw_key ?? null
+      const arr = Array.isArray(data) ? data : data != null ? [data] : []
+      const rawKey = (arr[0] as { api_key?: string } | undefined)?.api_key ?? null
       if (!rawKey) {
         pushToast('Klucz wygenerowany, ale serwer nie zwrócił wartości. Sprawdź bazę.', 'info')
         setGenerateModal(INITIAL_GENERATE_MODAL)
@@ -93,7 +99,7 @@ export function useApiKeys({ pushToast, touchSession }: UseApiKeysParams) {
       setDeactivatingId(id)
       try {
         const { error } = await supabase
-          .from('integration_api_keys')
+          .from('api_keys')
           .update({ is_active: active })
           .eq('id', id)
 
