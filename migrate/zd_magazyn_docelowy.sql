@@ -1,0 +1,25 @@
+-- =====================================================================
+-- ZD Z MAGAZYNEM DOCELOWYM + "W DRODZE" PER MAGAZYN (2026-10-17)
+-- [WYKONANE w bazie przez konektor — migracje Supabase:
+--  zd_magazyn_docelowy_i_w_drodze_per_magazyn,
+--  get_stock_alerts_w_drodze_per_magazyn (+fix reserved_qty)]
+--
+-- Problem: "w drodze" było liczone per komponent i doliczane do KAŻDEGO
+-- magazynu — jedna dostawa zasilała prognozę Marklowickiej i Bukowej naraz
+-- (zawyżone prognozy, zaniżone sugestie zamówień).
+--
+-- 1. purchase_orders.warehouse_id (nullable) — magazyn docelowy dostawy.
+--    create_purchase_order dostało 5. parametr p_warehouse_id (default null,
+--    stare 4-argumentowe wywołania działają); lista zakupowa w aplikacji
+--    wymaga wyboru magazynu (domyślnie pierwszy surowcowy, bez WEW*).
+-- 2. get_incoming_stock_per_warehouse(): "w drodze" per (komponent, magazyn).
+-- 3. get_stock_overview i get_stock_alerts: incoming/prognoza/sugestia
+--    tylko dla magazynu docelowego ZD; ZD bez magazynu nie dolicza się
+--    do żadnego wiersza per magazyn (get_incoming_stock_per_component
+--    zostaje do widoku zbiorczego "W drodze" i statusów rezerwacji).
+-- 4. Odbiór dostawy: magazyn prefillowany z ZD (można zmienić, gdy towar
+--    fizycznie przyjechał gdzie indziej).
+-- 5. Ręczne PZ: ostrzeżenie, gdy komponent ma otwarte pozycje ZD —
+--    przyjęcie poza ZD nie zamyka pozycji i towar liczy się podwójnie.
+-- =====================================================================
+-- (treść funkcji: patrz supabase migrations / pg_get_functiondef)

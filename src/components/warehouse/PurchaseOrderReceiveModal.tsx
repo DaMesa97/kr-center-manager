@@ -33,16 +33,18 @@ export default function PurchaseOrderReceiveModal({
   const [receivedQty, setReceivedQty] = useState<Record<number, number>>({})
   const [saving, setSaving] = useState(false)
 
-  // Reset stanu przy otwarciu — zapobiega kontaminacji danych między różnymi ZD
+  // Reset stanu przy otwarciu — zapobiega kontaminacji danych między różnymi ZD.
+  // Magazyn prefillowany z magazynu docelowego ZD (można zmienić, gdy dostawa
+  // fizycznie przyjechała gdzie indziej).
   useEffect(() => {
     if (open) {
-      setWarehouseId(null)
+      setWarehouseId(purchaseOrder?.warehouse_id ?? null)
       setReferenceDoc('')
       setNotes('')
       setReceivedQty({})
       setSaving(false)
     }
-  }, [open, purchaseOrder?.id])
+  }, [open, purchaseOrder?.id, purchaseOrder?.warehouse_id])
 
   const componentById = useMemo(() => new Map(components.map((c) => [c.id, c])), [components])
 

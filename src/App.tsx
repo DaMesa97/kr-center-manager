@@ -2568,6 +2568,7 @@ function App() {
             warehouses={warehouses}
             components={warehouseComponents}
             suppliers={suppliers}
+            incoming={incomingStock}
             onChange={handlePzFormChange}
             onItemChange={handlePzItemChange}
             onAddItem={handleAddPzItem}

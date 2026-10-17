@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { PzFormState, PzItem, Supplier, Warehouse, WarehouseComponent } from '../../types'
+import type { IncomingStockRow, PzFormState, PzItem, Supplier, Warehouse, WarehouseComponent } from '../../types'
 import SearchableSelect from '../SearchableSelect'
 import DataTable from '../DataTable'
 import { isInternalWarehouseCode } from '../../utils'
@@ -19,6 +19,8 @@ type PzFormModalProps = {
   onSave: () => Promise<void>
   onClose: () => void
   saving: boolean
+  /** Otwarte pozycje ZD ("w drodze") — do ostrzeżenia przed podwójnym liczeniem */
+  incoming?: IncomingStockRow[]
 }
 
 function componentOptionLabel(c: WarehouseComponent): string {
@@ -48,6 +50,7 @@ function PzFormModal({
   onSave,
   onClose,
   saving,
+  incoming = [],
 }: PzFormModalProps) {
   const [componentCategoryFilter, setComponentCategoryFilter] = useState<(typeof COMPONENT_FILTERS)[number]['key']>('all')
   const [supplierFilter, setSupplierFilter] = useState<number | 'all' | 'none'>('all')
@@ -419,6 +422,36 @@ function PzFormModal({
             </button>
           </div>
         </div>
+
+        {/* Ostrzeżenie: komponent z pozycji PZ ma otwarte ZD — przyjęcie ręcznym
+            PZ nie zamyka pozycji ZD i towar liczy się podwójnie (półka + w drodze) */}
+        {(() => {
+          const incomingByComp = new Map(incoming.map((r) => [r.component_id, r]))
+          const clashes = formData.items
+            .filter((it) => it.component_id != null && incomingByComp.has(Number(it.component_id)))
+            .map((it) => {
+              const comp = components.find((c) => c.id === Number(it.component_id))
+              const inc = incomingByComp.get(Number(it.component_id))!
+              return `${comp?.name ?? it.component_id} (w drodze: ${inc.incoming_qty})`
+            })
+          if (clashes.length === 0) return null
+          return (
+            <div
+              style={{
+                margin: '10px 0',
+                padding: '10px 12px',
+                borderRadius: 6,
+                background: '#fef3c7',
+                color: '#92400e',
+                fontSize: '0.85rem',
+              }}
+            >
+              ⚠️ Te komponenty mają otwarte zamówienia do dostawcy (ZD): {clashes.join(', ')}. Jeśli ta
+              dostawa pochodzi z ZD, przyjmij ją przez <b>Zamawianie → szczegóły ZD → Przyjmij dostawę</b> —
+              ręczne PZ nie zamknie pozycji ZD i towar będzie liczony podwójnie (na półce i „w drodze").
+            </div>
+          )
+        })()}
 
         <div className="order-form-actions">
           <button type="button" className="btn btn-primary" onClick={() => void onSave()} disabled={saving}>

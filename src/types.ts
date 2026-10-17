@@ -923,6 +923,8 @@ export type PurchaseOrder = {
   notes: string | null
   created_at: string
   created_by: string | null
+  /** Magazyn docelowy dostawy — od niego liczy się "w drodze" per magazyn */
+  warehouse_id: number | null
 }
 
 export type PurchaseOrderItem = {

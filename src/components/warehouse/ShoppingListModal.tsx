@@ -1,5 +1,5 @@
 import { appConfirm } from '../../lib/appDialogs'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
 import type {
@@ -48,6 +48,25 @@ export default function ShoppingListModal({
   const [notesBySupplier, setNotesBySupplier] = useState<Record<number, string>>({})
   const [generatingSupplierId, setGeneratingSupplierId] = useState<number | null>(null)
   const [generatingAll, setGeneratingAll] = useState(false)
+  // Magazyn docelowy dostawy — "w drodze" liczy się per magazyn, więc ZD
+  // musi wiedzieć, dokąd jedzie towar (magazyny WEW* to wyroby, nie surowce)
+  const [targetWarehouses, setTargetWarehouses] = useState<{ id: number; code: string; name: string }[]>([])
+  const [targetWarehouseId, setTargetWarehouseId] = useState<number | ''>('')
+  useEffect(() => {
+    if (!open) return
+    void (async () => {
+      const { data } = await supabase
+        .from('warehouses')
+        .select('id, code, name')
+        .eq('is_active', true)
+        .order('id')
+      const raw = ((data ?? []) as { id: number; code: string; name: string }[]).filter(
+        (w) => !String(w.code).toUpperCase().startsWith('WEW'),
+      )
+      setTargetWarehouses(raw)
+      setTargetWarehouseId((prev) => (prev === '' && raw.length > 0 ? raw[0].id : prev))
+    })()
+  }, [open])
   const [suggestedQuantities, setSuggestedQuantities] = useState<Record<number, number>>({})
   const [quickSearch, setQuickSearch] = useState('')
   const [quickQty, setQuickQty] = useState<Record<number, string>>({})
@@ -178,6 +197,10 @@ export default function ShoppingListModal({
   }
 
   const generateForGroup = async (group: Group) => {
+    if (targetWarehouseId === '') {
+      pushToast('Wybierz magazyn docelowy dostawy', 'error')
+      return
+    }
     setGeneratingSupplierId(group.supplier.id)
     const payload = group.items.map((item) => ({
       component_id: item.component_id,
@@ -188,6 +211,7 @@ export default function ShoppingListModal({
       p_supplier_id: group.supplier.id,
       p_items: payload,
       p_notes: notesBySupplier[group.supplier.id]?.trim() || null,
+      p_warehouse_id: targetWarehouseId,
     })
     setGeneratingSupplierId(null)
     if (error) {
@@ -200,6 +224,10 @@ export default function ShoppingListModal({
   }
 
   const generateAll = async () => {
+    if (targetWarehouseId === '') {
+      pushToast('Wybierz magazyn docelowy dostawy', 'error')
+      return
+    }
     setGeneratingAll(true)
     // Snapshot grup — chroni przed zmianą danych (realtime) w trakcie pętli
     const groupsSnapshot = [...groups]
@@ -215,6 +243,7 @@ export default function ShoppingListModal({
         p_supplier_id: group.supplier.id,
         p_items: payload,
         p_notes: notesBySupplier[group.supplier.id]?.trim() || null,
+        p_warehouse_id: targetWarehouseId,
       })
       if (error) {
         // Nie przerywaj całości — pomiń tego dostawcę, kontynuuj resztę
@@ -246,6 +275,20 @@ export default function ShoppingListModal({
         <div className="order-modal-header">
           <h2>Lista zakupowa ({shoppingList.length} pozycji)</h2>
           <div className="contractor-actions">
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}>
+              Magazyn docelowy:
+              <select
+                value={targetWarehouseId}
+                onChange={(e) => setTargetWarehouseId(e.target.value === '' ? '' : Number(e.target.value))}
+                title="Dokąd pojedzie ta dostawa — od tego liczy się 'w drodze' i prognoza magazynu"
+              >
+                {targetWarehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               className="btn btn-sm btn-danger"

@@ -42,6 +42,7 @@ export default function PurchaseOrdersView({
   suppliers,
   components,
   companySettings,
+  warehouses,
   onShowDetails,
   pushToast,
   incoming = [],
@@ -149,6 +150,13 @@ export default function PurchaseOrdersView({
       thStyle: { width: 'auto' },
       sortValue: (po) => supplierById.get(po.supplier_id)?.name ?? null,
       render: (po) => supplierById.get(po.supplier_id)?.name ?? '—',
+    },
+    {
+      key: 'warehouse',
+      label: 'Magazyn',
+      thStyle: { width: 130 },
+      sortValue: (po) => warehouses.find((w) => w.id === po.warehouse_id)?.code ?? null,
+      render: (po) => warehouses.find((w) => w.id === po.warehouse_id)?.code ?? '—',
     },
     {
       key: 'created',
