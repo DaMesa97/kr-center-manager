@@ -1,0 +1,35 @@
+-- =====================================================================
+-- PACZKA 1 ZE ZWIADU: "NIE GUB CUDZYCH ZMIAN" + NUMERACJA (2026-10-17)
+-- [WYKONANE w bazie przez konektor — plik dla historii; migracje Supabase:
+--  order_number_rpc_i_merge_rpc, unikalnosc_numerow_zlecen_od_2026_10_17,
+--  create_bot_order_retry_numeru, merge_complaint_extra_fields]
+--
+-- 1. NUMERACJA ZLECEŃ — żywy bug limitu 1000 wierszy PostgREST:
+--    frontend i edge functions liczyły MAX(order_number) z obciętego
+--    tysiąca rekordów, przez co KAŻDA para DISTING PLUS dostawała numer
+--    STA 2388 (x89!), wcześniej 2387 (x63), a nogi Titana Bastion 5268 (x17).
+--    - get_next_order_number(p_category): MAX+1 w SQL, bez limitu
+--      (używają: frontend fetchNextOrderNumber, orders-intake v14,
+--       orders-excel-intake v21)
+--    - unikalny indeks częściowy orders_unique_number_per_category_new
+--      na (category, order_number) dla created_at >= 2026-10-17
+--      (historia ma duble — ewentualne przenumerowanie to osobna decyzja)
+--    - create_bot_order: retry x3 przy kolizji numeru (unique_violation)
+--
+-- 2. SCALANIE ZAMIAST NADPISYWANIA (zapisy z wielu stanowisk):
+--    - merge_order_extra_fields(p_order_id, p_patch):
+--        extra_fields = extra_fields || patch (RETURNING nową wartość)
+--    - merge_order_stages(p_order_id, p_patch): bulk update_order_stage
+--    - merge_complaint_extra_fields(p_complaint_id, p_patch): j.w. dla reklamacji
+--    Frontend przestawiony: edycja zamówienia wysyła TYLKO pola formularza
+--    (usunięte orderMetaForUpdate — snapshot z chwili otwarcia okna kasował
+--    etapy/wydanie/anulowanie zrobione w międzyczasie; edycja Technicznych
+--    wysyłała wręcz PUSTE etapy), etapy z formularza idą jako diff przez
+--    merge_order_stages, anulowanie/przywracanie/osc_received/
+--    ready_to_invoice/reklamacje przez RPC merge.
+--    Moje stanowisko: update_order_stage (jeden klucz) + mirror partnera
+--    zamiast zapisu całego JSONB z lokalnej kopii.
+--    Edycja ST (Titan): sync do partnera STA bez pól, których formularz ST
+--    nie ma (zerował kolor ościeżnicy, naświetle, dostawki na STA).
+-- =====================================================================
+-- (treść funkcji: patrz supabase migrations / pg_get_functiondef)

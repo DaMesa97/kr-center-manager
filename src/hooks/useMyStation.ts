@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { mirrorStageKey } from '../lib/stageMirror'
 import { isReleaseDateEmpty, parseProductionStages } from '../utils'
 import type { CurrentUser, Order, Profile, WorkerStage } from '../types'
 import type { ToastVariant } from '../types'
@@ -120,23 +121,45 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
         pushToast('Ostrzeżenie: wydanie z magazynu nie powiodło się', 'error')
       }
 
-      const current = parseProductionStages(order.production_stages, category)
-      // Zapisujemy INICJAŁY pracownika (spójnie z resztą apki), nie 'T'
+      // Zapisujemy INICJAŁY pracownika (spójnie z resztą apki), nie 'T'.
+      // RPC dokleja JEDEN klucz po stronie bazy (jsonb ||) — zapis całego
+      // obiektu z lokalnej kopii kasował etapy oznaczone w międzyczasie
+      // przez inne stanowiska.
       const mark = (currentUser?.initials ?? '').trim() || 'T'
-      const updated = { ...current, [actualKey]: mark }
-
-      const { error } = await supabase
-        .from('orders')
-        .update({ production_stages: updated })
-        .eq('id', order.id!)
+      const { error } = await supabase.rpc('update_order_stage', {
+        p_order_id: order.id!,
+        p_stage_key: actualKey,
+        p_stage_value: mark,
+      })
 
       if (error) {
         pushToast(`Błąd: ${error.message}`, 'error')
         return { status: 'error' }
       }
 
+      // Mirror u partnera (Disting Plus / Titan) — tabela zamówień robi to samo
+      const mirrorKey = mirrorStageKey(order.category, actualKey)
+      if (mirrorKey && order.linked_order_id != null) {
+        const { error: mErr } = await supabase.rpc('update_order_stage', {
+          p_order_id: order.linked_order_id,
+          p_stage_key: mirrorKey,
+          p_stage_value: mark,
+        })
+        if (mErr) pushToast(`Błąd synchronizacji etapu powiązanego: ${mErr.message}`, 'error')
+      }
+
       setMyStationOrders((prev) =>
-        prev.map((o) => (o.id === order.id ? { ...o, production_stages: updated } : o)),
+        prev.map((o) => {
+          if (o.id === order.id) {
+            const current = parseProductionStages(o.production_stages, category)
+            return { ...o, production_stages: { ...current, [actualKey]: mark } }
+          }
+          if (mirrorKey && o.id === order.linked_order_id) {
+            const current = parseProductionStages(o.production_stages, o.category)
+            return { ...o, production_stages: { ...current, [mirrorKey]: mark } }
+          }
+          return o
+        }),
       )
 
       if (forcedCount > 0) {

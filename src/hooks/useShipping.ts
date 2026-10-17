@@ -103,17 +103,23 @@ export function useShipping({
       const id = order.id
       if (id === undefined) return
 
-      const currentExtra = (order.extra_fields as Record<string, unknown>) ?? {}
-      const newExtra = { ...currentExtra, ready_to_invoice: ready }
-
-      const { error } = await supabase.from('orders').update({ extra_fields: newExtra }).eq('id', id)
+      // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
+      // lokalną kopią, żeby nie skasować zmian z innych stanowisk
+      const { data: newExtra, error } = await supabase.rpc('merge_order_extra_fields', {
+        p_order_id: id,
+        p_patch: { ready_to_invoice: ready },
+      })
 
       if (error) {
         pushToast(`Błąd: ${error.message}`, 'error')
         return
       }
 
-      setShippingOrders((prev) => prev.map((o) => (o.id === id ? { ...o, extra_fields: newExtra } : o)))
+      setShippingOrders((prev) =>
+        prev.map((o) =>
+          o.id === id ? { ...o, extra_fields: (newExtra as Order['extra_fields']) ?? o.extra_fields } : o,
+        ),
+      )
 
       pushToast(ready ? 'Oznaczono jako gotowe do fakturowania' : 'Usunięto oznaczenie', 'success')
     },

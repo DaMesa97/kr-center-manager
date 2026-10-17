@@ -114,15 +114,13 @@ const createTitanLegs = async (supabase: any, orderId: number): Promise<void> =>
   await supabase.from('orders').update(upd).eq('id', staId)
 }
 
-// Następny numer zlecenia w danej kategorii (max numeryczny + 1)
+// Następny numer zlecenia w danej kategorii — RPC w SQL (bez limitu 1000
+// wierszy PostgREST). Stary wariant liczył MAX z obciętego tysiąca — stąd
+// duble typu STA 2388 dla każdej pary DISTING PLUS.
 const nextOrderNumber = async (supabase: any, category: string): Promise<string> => {
-  const { data } = await supabase.from('orders').select('order_number').eq('category', category)
-  let maxN = 0
-  for (const r of data ?? []) {
-    const n = Number((r as { order_number?: unknown }).order_number)
-    if (Number.isFinite(n) && n > maxN) maxN = n
-  }
-  return String(maxN + 1)
+  const { data, error } = await supabase.rpc('get_next_order_number', { p_category: category })
+  if (error || !data) throw new Error(`get_next_order_number(${category}): ${error?.message ?? 'brak danych'}`)
+  return String(data)
 }
 
 // DISTING PLUS: po utworzeniu zlecenia tworzymy powiązanego partnera (STA↔Disting)

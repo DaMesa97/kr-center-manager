@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import DeleteConfirmDialog from './DeleteConfirmDialog'
-import { mergeOrderExtraFields } from '../utils'
 import type { InternalDoorItem, Order, ToastVariant } from '../types'
 
 type DetailsUser = {
@@ -136,15 +135,11 @@ function InternalDoorOrderDetailsModal({
         }
         const cancelledAt = new Date().toISOString()
         const cancelledBy = currentUser.initials
-        const newExtra = mergeOrderExtraFields(order.extra_fields, {
-          cancelled: true,
-          cancelled_at: cancelledAt,
-          cancelled_by: cancelledBy,
+        // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
+        const { error: updErr } = await supabase.rpc('merge_order_extra_fields', {
+          p_order_id: order.id!,
+          p_patch: { cancelled: true, cancelled_at: cancelledAt, cancelled_by: cancelledBy },
         })
-        const { error: updErr } = await supabase
-          .from('orders')
-          .update({ extra_fields: newExtra })
-          .eq('id', order.id!)
         if (updErr) {
           pushToast(`Błąd anulowania zamówienia: ${updErr.message}`, 'error')
           return

@@ -404,47 +404,23 @@ export function useComplaints({
       const linkedId = complaint.linked_complaint_id
       const isDistingPlus = complaint.category === 'Disting' && linkedId != null
 
-      const currentExtra = {
-        ...(typeof complaint.extra_fields === 'object' && complaint.extra_fields !== null
-          ? (complaint.extra_fields as Record<string, unknown>)
-          : {}),
-        cancelled: false,
-        cancelled_at: '',
-        cancelled_by: '',
-      }
-      const { error: upErr } = await supabase
-        .from('complaints')
-        .update({ extra_fields: currentExtra })
-        .eq('id', complaint.id)
+      // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
+      // lokalną kopią, żeby nie skasować zmian z innych stanowisk
+      const restorePatch = { cancelled: false, cancelled_at: '', cancelled_by: '' }
+      const { error: upErr } = await supabase.rpc('merge_complaint_extra_fields', {
+        p_complaint_id: complaint.id,
+        p_patch: restorePatch,
+      })
       if (upErr) {
         pushToast(`Wystąpił błąd: ${upErr.message}`, 'error')
         return
       }
 
       if (isDistingPlus && linkedId != null) {
-        const { data: linkedRow, error: fetchErr } = await supabase
-          .from('complaints')
-          .select('extra_fields')
-          .eq('id', linkedId)
-          .single()
-        if (fetchErr) {
-          pushToast(`Nie udało się odczytać powiązanej reklamacji: ${fetchErr.message}`, 'error')
-          void fetchComplaints()
-          return
-        }
-        const linkedExtra = {
-          ...(typeof (linkedRow as { extra_fields?: unknown })?.extra_fields === 'object' &&
-          (linkedRow as { extra_fields?: unknown })?.extra_fields !== null
-            ? ((linkedRow as { extra_fields?: unknown }).extra_fields as Record<string, unknown>)
-            : {}),
-          cancelled: false,
-          cancelled_at: '',
-          cancelled_by: '',
-        }
-        const { error: linkErr } = await supabase
-          .from('complaints')
-          .update({ extra_fields: linkedExtra })
-          .eq('id', linkedId)
+        const { error: linkErr } = await supabase.rpc('merge_complaint_extra_fields', {
+          p_complaint_id: linkedId,
+          p_patch: restorePatch,
+        })
         if (linkErr) {
           pushToast(`Nie udało się przywrócić powiązania: ${linkErr.message}`, 'error')
           void fetchComplaints()
@@ -481,45 +457,23 @@ export function useComplaints({
         runDelete: async () => {
           const cancelledAt = new Date().toISOString()
           const cancelledBy = currentUser?.initials?.trim() ?? ''
-          const currentExtra = {
-            ...(typeof complaint.extra_fields === 'object' && complaint.extra_fields !== null
-              ? (complaint.extra_fields as Record<string, unknown>)
-              : {}),
-            cancelled: true,
-            cancelled_at: cancelledAt,
-            cancelled_by: cancelledBy,
-          }
+          // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
+          const cancelPatch = { cancelled: true, cancelled_at: cancelledAt, cancelled_by: cancelledBy }
 
-          const { error } = await supabase.from('complaints').update({ extra_fields: currentExtra }).eq('id', id)
+          const { error } = await supabase.rpc('merge_complaint_extra_fields', {
+            p_complaint_id: id,
+            p_patch: cancelPatch,
+          })
           if (error) {
             pushToast(`Wystąpił błąd: ${error.message}`, 'error')
             return
           }
 
           if (isDistingPlus && linkedId != null) {
-            const { data: linkedRow, error: fetchErr } = await supabase
-              .from('complaints')
-              .select('extra_fields')
-              .eq('id', linkedId)
-              .single()
-            if (fetchErr) {
-              pushToast(`Nie udało się odczytać powiązanej reklamacji: ${fetchErr.message}`, 'error')
-              void fetchComplaints()
-              return
-            }
-            const linkedExtra = {
-              ...(typeof (linkedRow as { extra_fields?: unknown })?.extra_fields === 'object' &&
-              (linkedRow as { extra_fields?: unknown })?.extra_fields !== null
-                ? ((linkedRow as { extra_fields?: unknown }).extra_fields as Record<string, unknown>)
-                : {}),
-              cancelled: true,
-              cancelled_at: cancelledAt,
-              cancelled_by: cancelledBy,
-            }
-            const { error: linkErr } = await supabase
-              .from('complaints')
-              .update({ extra_fields: linkedExtra })
-              .eq('id', linkedId)
+            const { error: linkErr } = await supabase.rpc('merge_complaint_extra_fields', {
+              p_complaint_id: linkedId,
+              p_patch: cancelPatch,
+            })
             if (linkErr) {
               pushToast(`Nie udało się oznaczyć powiązania: ${linkErr.message}`, 'error')
               void fetchComplaints()

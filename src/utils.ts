@@ -1074,35 +1074,11 @@ export function sanitizeOrderPayloadForDb<T extends Record<string, unknown>>(pay
   return out as T
 }
 
-export function orderMetaForUpdate(o: Order): Record<string, unknown> {
-  return {
-    order_number: o.order_number,
-    sequence: o.sequence,
-    order_date: o.order_date,
-    production_stages: o.production_stages,
-    release_date: o.release_date,
-    disting_sheet: o.disting_sheet,
-    sta_sheet: o.sta_sheet,
-    sta_ref: o.sta_ref ?? '',
-    st_sheet: o.st_sheet ?? '',
-    linked_order_id: o.linked_order_id,
-    defects: o.defects,
-    entered_by: o.entered_by,
-    configurator_value: supabaseNumericFromForm(o.configurator_value),
-    info: o.info,
-    airtable_id: o.airtable_id,
-    label: o.label,
-    category: o.category,
-    electric_strike: o.electric_strike,
-    oslonki: o.oslonki,
-    zaczep: o.zaczep,
-    intarsja: o.intarsja ?? '',
-    podwalina_1: o.podwalina_1,
-    podwalina_1_qty: o.podwalina_1_qty,
-    podwalina_2: o.podwalina_2,
-    podwalina_2_qty: o.podwalina_2_qty,
-  }
-}
+// orderMetaForUpdate USUNIĘTE: wysyłało przy edycji snapshot całego zamówienia
+// z chwili otwarcia okna (etapy, wydanie, linki), nadpisując zmiany zrobione
+// w międzyczasie przez inne stanowiska. Edycja wysyła teraz tylko pola
+// formularza; etapy i extra_fields scalają RPC merge_order_stages /
+// merge_order_extra_fields po stronie bazy.
 
 export function orderToStaForm(order: Order): StaOrderFormData {
   const top = splitWxH(order.top_light)

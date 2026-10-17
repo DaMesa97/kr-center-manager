@@ -85,12 +85,15 @@ describe('orders-intake — DISTING PLUS: automatyczna para STA↔Disting', () =
     const { supabase, calls } = makeFakeSupabase(
       [
         { data: base, error: null },                       // odczyt bazowego zlecenia
-        { data: [{ order_number: '41' }], error: null },   // nextOrderNumber('STA') → max 41
         { data: { id: 77, order_number: '42' }, error: null }, // insert partnera
         { data: null, error: null },                        // update bazowego (linki)
         { data: base, error: null },                        // createTitanLegs: odczyt (nie Titan → stop)
       ],
-      RPCS_OK(10, '500'),
+      {
+        ...RPCS_OK(10, '500'),
+        // nextOrderNumber idzie teraz przez RPC (fix limitu 1000 wierszy)
+        get_next_order_number: { data: '42', error: null },
+      },
     )
     __setSupabaseClient(supabase)
 
@@ -173,13 +176,15 @@ describe('orders-intake — Titan: trójka STA + ST + Bastion', () => {
       [
         { data: base, error: null },  // DISTING PLUS check (CORE → stop)
         { data: base, error: null },  // createTitanLegs: odczyt bazy
-        { data: [], error: null },    // nextOrderNumber('ST') → 1
         { data: { id: 20, order_number: '1' }, error: null }, // insert ST
-        { data: [], error: null },    // nextOrderNumber('Bastion') → 1
         { data: null, error: null },  // insert Bastion
         { data: null, error: null },  // update STA (linki + rola)
       ],
-      RPCS_OK(10, '900'),
+      {
+        ...RPCS_OK(10, '900'),
+        // nextOrderNumber idzie teraz przez RPC (fix limitu 1000 wierszy)
+        get_next_order_number: { data: '1', error: null },
+      },
     )
     __setSupabaseClient(supabase)
 

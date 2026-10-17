@@ -27,7 +27,6 @@ import {
   isStTitanSystemLabel,
   isTitanSystem,
   mergeOrderExtraFields,
-  orderMetaForUpdate,
   orderToBastionForm,
   orderToLegacyForm,
   orderToStForm,
@@ -433,17 +432,22 @@ export function useOrders({
       const ef = (order.extra_fields as Record<string, unknown>) ?? {}
       const isSet = Boolean(ef.osc_received)
       const initials = (currentUser?.initials ?? '').trim() || 'T'
-      const newExtra = {
-        ...ef,
-        osc_received: isSet ? '' : initials,
-        osc_received_at: isSet ? '' : new Date().toISOString(),
-      }
-      const { error } = await supabase.from('orders').update({ extra_fields: newExtra }).eq('id', id)
+      // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
+      // lokalną kopią, żeby nie skasować zmian z innych stanowisk
+      const { data: newExtra, error } = await supabase.rpc('merge_order_extra_fields', {
+        p_order_id: id,
+        p_patch: {
+          osc_received: isSet ? '' : initials,
+          osc_received_at: isSet ? '' : new Date().toISOString(),
+        },
+      })
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
         return
       }
-      setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, extra_fields: newExtra } : o)))
+      setOrders((prev) =>
+        prev.map((o) => (o.id === id ? { ...o, extra_fields: (newExtra as Order['extra_fields']) ?? o.extra_fields } : o)),
+      )
     },
     [pushToast, currentUser?.initials],
   )
@@ -451,20 +455,20 @@ export function useOrders({
   const fetchNextOrderNumber = useCallback(
     async (category: string): Promise<string> => {
       touchSession()
-      const { data, error } = await supabase
-        .from('orders')
-        .select('order_number')
-        .eq('category', category)
-      if (error) {
+      // RPC w SQL — bez limitu 1000 wierszy PostgREST (stary wariant liczył
+      // MAX z obciętego tysiąca → duble numerów, np. STA 2388 x89)
+      const { data, error } = await supabase.rpc('get_next_order_number', {
+        p_category: category,
+      })
+      if (error || !data) {
         console.error(error)
-        pushToast(`Nie udało się pobrać numeru zlecenia: ${error.message}`, 'error')
-        return '1'
+        pushToast(
+          `Nie udało się pobrać numeru zlecenia: ${error?.message ?? 'brak danych'}. Uzupełnij numer ręcznie lub spróbuj ponownie.`,
+          'error',
+        )
+        return ''
       }
-      const numbers = (data ?? [])
-        .map((row) => Number(row.order_number))
-        .filter((n) => Number.isFinite(n))
-      const maxNumber = numbers.length > 0 ? Math.max(...numbers) : 0
-      return String(maxNumber + 1)
+      return String(data)
     },
     [pushToast, touchSession],
   )
@@ -1108,17 +1112,45 @@ export function useOrders({
       }
 
       if (isEditing) {
-        const payload = sanitizeOrderPayloadForDb({
-          ...orderMetaForUpdate(editingOrderBaseline),
-          ...mapped,
-        })
+        // UPDATE wysyła TYLKO pola formularza — bez snapshotu całego zamówienia
+        // (orderMetaForUpdate nadpisywało m.in. etapy, wydanie i anulowanie
+        // ustawione w międzyczasie przez inne stanowiska starą kopią).
+        const { production_stages: mergedStages, extra_fields: _efIgnored, ...formFields } = mapped
+        const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {
           pushToast(`Wystąpił błąd: ${error.message}`, 'error')
           setIsSaving(false)
           return
         }
-        const merged = { ...editingOrderBaseline, ...payload } as Order
+        // Etapy: merge po stronie bazy TYLKO kluczy zmienionych w formularzu
+        const baselineStages = parseProductionStages(
+          editingOrderBaseline.production_stages,
+          editingOrderBaseline.category,
+        )
+        const stagePatch: Record<string, string> = {}
+        for (const [k, v] of Object.entries(mergedStages as Record<string, string>)) {
+          if ((baselineStages[k] ?? '') !== v) stagePatch[k] = v
+        }
+        if (Object.keys(stagePatch).length > 0) {
+          const { error: stErr } = await supabase.rpc('merge_order_stages', {
+            p_order_id: editId,
+            p_patch: stagePatch,
+          })
+          if (stErr) pushToast(`Błąd zapisu etapów: ${stErr.message}`, 'error')
+        }
+        // extra_fields: merge po stronie bazy (formularz edytuje tylko wykonawcę)
+        const { data: newExtra, error: efErr } = await supabase.rpc('merge_order_extra_fields', {
+          p_order_id: editId,
+          p_patch: { wykonawca: staFormData.wykonawca || '' },
+        })
+        if (efErr) pushToast(`Błąd zapisu wykonawcy: ${efErr.message}`, 'error')
+        const merged = {
+          ...editingOrderBaseline,
+          ...payload,
+          production_stages: { ...baselineStages, ...stagePatch },
+          extra_fields: (newExtra as Order['extra_fields']) ?? editingOrderBaseline.extra_fields,
+        } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
         await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)
@@ -1410,10 +1442,16 @@ export function useOrders({
       }
 
       if (isEditing) {
-        const payload = sanitizeOrderPayloadForDb({
-          ...orderMetaForUpdate(editingOrderBaseline),
-          ...mapped,
-        })
+        // UPDATE wysyła TYLKO pola formularza ST — bez snapshotu zamówienia
+        // (etapy, wydanie, linki zostają nietknięte w bazie).
+        const {
+          production_stages: _psIgnored,
+          linked_order_id: _loIgnored,
+          sta_ref: _srIgnored,
+          st_sheet: _ssIgnored,
+          ...formFields
+        } = mapped
+        const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {
           pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -1422,7 +1460,18 @@ export function useOrders({
         }
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
-        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
+        // Titan: formularz ST nie ma pól ościeżnicy/naświetla/dostawki STA —
+        // wysyłał je jako puste stringi i sync CZYŚCIŁ je na partnerze STA.
+        const {
+          frame_color: _fcIgnored,
+          decorative_panel: _dpIgnored,
+          top_light: _tlIgnored,
+          top_light_glazing: _tgIgnored,
+          side_panel: _spIgnored,
+          side_panel_glazing: _sgIgnored,
+          ...stSyncFields
+        } = mapped
+        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, stSyncFields)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
@@ -1604,10 +1653,10 @@ export function useOrders({
       }
 
       if (isEditing) {
-        const payload = sanitizeOrderPayloadForDb({
-          ...orderMetaForUpdate(editingOrderBaseline),
-          ...mapped,
-        })
+        // UPDATE wysyła TYLKO pola formularza — bez etapów (stary kod wysyłał
+        // tu PUSTE etapy createEmptyProductionStages i zerował oznaczone!).
+        const { production_stages: _psIgnored, ...formFields } = mapped
+        const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {
           pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -1737,10 +1786,10 @@ export function useOrders({
       }
 
       if (isEditing) {
-        const payload = sanitizeOrderPayloadForDb({
-          ...orderMetaForUpdate(editingOrderBaseline),
-          ...mapped,
-        })
+        // UPDATE wysyła TYLKO pola formularza — bez snapshotu etapów z chwili
+        // otwarcia okna (kasował etapy oznaczone w międzyczasie przez halę).
+        const { production_stages: _psIgnored, ...formFields } = mapped
+        const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {
           pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -1789,16 +1838,14 @@ export function useOrders({
     }
 
     if (isEditing && editingOrderBaseline) {
+      // UPDATE wysyła TYLKO pola formularza — etapy zostają nietknięte w bazie
+      // (snapshot z chwili otwarcia kasował zmiany innych stanowisk).
       const mapped = {
         ...formData,
         category: formData.category || activeTab,
         order_date: formData.order_date || editingOrderBaseline.order_date,
-        production_stages: editingOrderBaseline.production_stages,
       }
-      const payload = sanitizeOrderPayloadForDb({
-        ...orderMetaForUpdate(editingOrderBaseline),
-        ...mapped,
-      })
+      const payload = sanitizeOrderPayloadForDb(mapped)
       const { error } = await supabase.from('orders').update(payload).eq('id', editId)
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -2056,12 +2103,13 @@ export function useOrders({
       const isTitanLink =
         linkedId != null && (order.category === 'ST' || isTitanLinked)
 
-      const currentExtra = mergeOrderExtraFields(order.extra_fields, {
-        cancelled: false,
-        cancelled_at: '',
-        cancelled_by: '',
+      // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
+      // lokalną kopią, żeby nie skasować zmian z innych stanowisk
+      const restorePatch = { cancelled: false, cancelled_at: '', cancelled_by: '' }
+      const { error: upErr } = await supabase.rpc('merge_order_extra_fields', {
+        p_order_id: id,
+        p_patch: restorePatch,
       })
-      const { error: upErr } = await supabase.from('orders').update({ extra_fields: currentExtra }).eq('id', id)
       if (upErr) {
         pushToast(`Wystąpił błąd: ${upErr.message}`, 'error')
         return
@@ -2070,24 +2118,10 @@ export function useOrders({
       await reserveStockForOrderWithToasts(id)
 
       if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
-        const { data: linkedRow, error: fetchErr } = await supabase
-          .from('orders')
-          .select('extra_fields')
-          .eq('id', linkedId)
-          .single()
-        if (fetchErr) {
-          pushToast(`Nie udało się odczytać powiązanego zamówienia: ${fetchErr.message}`, 'error')
-          void fetchOrders()
-          return
-        }
-        const linkedExtra = mergeOrderExtraFields(
-          (linkedRow as { extra_fields?: unknown })?.extra_fields,
-          { cancelled: false, cancelled_at: '', cancelled_by: '' },
-        )
-        const { error: linkErr } = await supabase
-          .from('orders')
-          .update({ extra_fields: linkedExtra })
-          .eq('id', linkedId)
+        const { error: linkErr } = await supabase.rpc('merge_order_extra_fields', {
+          p_order_id: linkedId,
+          p_patch: restorePatch,
+        })
         if (linkErr) {
           pushToast(`Nie udało się przywrócić powiązania: ${linkErr.message}`, 'error')
           void fetchOrders()
@@ -2148,13 +2182,12 @@ export function useOrders({
       runDelete: async () => {
         const cancelledAt = new Date().toISOString()
         const cancelledBy = currentUser?.initials ?? ''
-        const currentExtra = mergeOrderExtraFields(order.extra_fields, {
-          cancelled: true,
-          cancelled_at: cancelledAt,
-          cancelled_by: cancelledBy,
+        // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
+        // lokalną kopią, żeby nie skasować zmian z innych stanowisk
+        const { data: currentExtra, error } = await supabase.rpc('merge_order_extra_fields', {
+          p_order_id: id,
+          p_patch: { cancelled: true, cancelled_at: cancelledAt, cancelled_by: cancelledBy },
         })
-
-        const { error } = await supabase.from('orders').update({ extra_fields: currentExtra }).eq('id', id)
         if (error) {
           pushToast(`Wystąpił błąd: ${error.message}`, 'error')
           return
@@ -2170,27 +2203,10 @@ export function useOrders({
         }
 
         if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
-          const { data: linkedRow, error: fetchErr } = await supabase
-            .from('orders')
-            .select('extra_fields')
-            .eq('id', linkedId)
-            .single()
-          if (fetchErr) {
-            pushToast(`Nie udało się odczytać powiązanego zamówienia: ${fetchErr.message}`, 'error')
-            // Główne zamówienie jest już anulowane — zwolnij przynajmniej jego rezerwacje
-            try { await supabase.rpc('cancel_order_reservations', { p_order_id: id }) } catch (e) { console.error(e) }
-            await fetchWarehouseStock()
-            void fetchOrders()
-            return
-          }
-          const linkedExtra = mergeOrderExtraFields(
-            (linkedRow as { extra_fields?: unknown }).extra_fields,
-            { cancelled: true },
-          )
-          const { error: linkUpErr } = await supabase
-            .from('orders')
-            .update({ extra_fields: linkedExtra })
-            .eq('id', linkedId)
+          const { error: linkUpErr } = await supabase.rpc('merge_order_extra_fields', {
+            p_order_id: linkedId,
+            p_patch: { cancelled: true },
+          })
           if (linkUpErr) {
             pushToast(`Nie udało się oznaczyć powiązania: ${linkUpErr.message}`, 'error')
             try { await supabase.rpc('cancel_order_reservations', { p_order_id: id }) } catch (e) { console.error(e) }
@@ -2239,7 +2255,7 @@ export function useOrders({
             if (o.id === id) {
               return {
                 ...o,
-                extra_fields: currentExtra,
+                extra_fields: (currentExtra as Order['extra_fields']) ?? o.extra_fields,
                 stock_status: null,
                 stock_issues: null,
               }
