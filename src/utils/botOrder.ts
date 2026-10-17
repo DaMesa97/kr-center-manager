@@ -10,14 +10,14 @@ export const isBotOrder = (order: Order | null | undefined): boolean => {
 }
 
 export const getBotWarnings = (order: Order | null | undefined): string[] => {
-  if (!isBotOrder(order)) return []
+  // Ostrzeżenia dotyczą nie tylko bota — Excel-intake flaguje też konflikty
+  // numerów z arkusza (needs_review + warnings w extra_fields)
   const extras = asRecord(order?.extra_fields)
   const warnings = extras?.warnings
   return Array.isArray(warnings) ? warnings.filter((w): w is string => typeof w === 'string') : []
 }
 
 export const needsBotReview = (order: Order | null | undefined): boolean => {
-  if (!isBotOrder(order)) return false
   const extras = asRecord(order?.extra_fields)
   return extras?.needs_review === true || getBotWarnings(order).length > 0
 }

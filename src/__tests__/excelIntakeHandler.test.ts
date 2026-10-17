@@ -142,9 +142,13 @@ describe('orders-excel-intake — handler HTTP', () => {
     expect(calls.rpc.map(([n]) => n)).toContain('log_api_request')
   })
 
-  it('duplikat (kategoria + numer istnieje) → pominięty, zero insertów', async () => {
+  it('duplikat (kategoria + numer + TA SAMA treść) → pominięty, zero insertów', async () => {
     const { supabase, calls } = makeFakeSupabase(
-      [{ data: [{ id: 1 }], error: null }], // dedup: istnieje
+      [
+        // dedup: istnieje zamówienie o tym numerze i zgodnej treści
+        // (model/szerokość/firma) — dopiero wtedy to duplikat
+        { data: [{ id: 1, model: '', width: '', company: 'ADAM KOŚCIELNY', client_order_number: '' }], error: null },
+      ],
       VALID_KEY_RPCS,
     )
     __setSupabaseClient(supabase)
@@ -153,6 +157,31 @@ describe('orders-excel-intake — handler HTTP', () => {
     const body = (await res.json()) as { summary: Record<string, number> }
     expect(body.summary).toMatchObject({ received: 1, created: 0, duplicates: 1 })
     expect(calls.inserted).toHaveLength(0)
+  })
+
+  it('kolizja numeru z INNYM zamówieniem → nowy numer z RPC + flaga do weryfikacji (nie gubimy wiersza)', async () => {
+    const base = { id: 21, order_number: '999', category: 'Bastion', system: 'BASIC LOCK PLUS', extra_fields: {}, linked_order_id: null }
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        // dedup: numer zajęty przez INNE zamówienie (inny model/firma)
+        { data: [{ id: 1, model: 'TORINO 13B', width: '90', company: 'ROJAR Tuchów', client_order_number: 'X/1' }], error: null },
+        { data: base, error: null }, // insert
+        { data: base, error: null }, // partner check (stop)
+        { data: base, error: null }, // titan check (stop — BASIC nie jest Titanem)
+      ],
+      { ...VALID_KEY_RPCS, get_next_order_number: { data: '999', error: null } },
+    )
+    __setSupabaseClient(supabase)
+
+    const res = await handler()(post([BASTION_ROW]))
+    const body = (await res.json()) as { results: Array<{ status: string }> }
+    expect(body.results[0].status).toBe('created')
+    expect(calls.inserted).toHaveLength(1)
+    const payload = calls.inserted[0][0] as Record<string, unknown>
+    expect(payload.order_number).toBe('999')
+    const ef = payload.extra_fields as Record<string, unknown>
+    expect(ef.needs_review).toBe(true)
+    expect(ef.sheet_number_conflict).toBe('4145')
   })
 
   it('wiersz bez firmy i systemu → skipped (nie wywala całej paczki)', async () => {
@@ -172,7 +201,8 @@ describe('orders-excel-intake — handler HTTP', () => {
         { data: base, error: null },        // wiersz 1: insert
         { data: base, error: null },        // wiersz 1: partner check (stop)
         { data: base, error: null },        // wiersz 1: titan check (stop)
-        { data: [{ id: 9 }], error: null }, // wiersz 2: duplikat
+        // wiersz 2: duplikat (zgodna treść: firma/model/szerokość)
+        { data: [{ id: 9, model: '', width: '', company: 'B', client_order_number: '' }], error: null },
       ],
       VALID_KEY_RPCS,
     )

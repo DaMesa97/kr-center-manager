@@ -155,7 +155,7 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
             {needsBotReview(o) && (
               <span
                 className="bot-badge bot-badge--review bot-badge--table"
-                title={`🤖 Zamówienie z konfiguratora — wymaga weryfikacji:\n${getBotWarnings(o).join('\n')}`}
+                title={`Zamówienie wymaga weryfikacji:\n${getBotWarnings(o).join('\n')}`}
               >
                 ⚠️
               </span>

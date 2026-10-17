@@ -271,10 +271,10 @@ serve(async (req) => {
     })
 
     if (orderError) {
-      // Sprawdź czy to duplikat
-      if (orderError.message.includes('juz istnieje (duplikat)')) {
+      // Sprawdź czy to duplikat (recordId albo identyczny payload)
+      if (orderError.message.includes('juz istnieje (duplikat)') || orderError.message.includes('Duplikat:')) {
         statusCode = 409
-        responseBody = { error: 'Duplicate order (recordId already exists)', detail: orderError.message }
+        responseBody = { error: 'Duplicate order', detail: orderError.message }
       } else {
         statusCode = 400
         responseBody = { error: 'Failed to create order', detail: orderError.message }

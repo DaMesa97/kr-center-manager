@@ -58,12 +58,14 @@ export const determineCategory = (system: string): string => {
 }
 
 // "Typ" → firma fakturująca (wykonawca).
-// CD/CA/C* oraz KR = Center; PD/P* = Profil; WZ/W*/Z* = WZ.
+// CD/CA/C* oraz KR = Center; PD/P*/MR = Profil; WZ/W*/Z* = WZ.
 export const typToWykonawca = (typ: string): string => {
   const t = typ.trim().toUpperCase()
   if (!t) return ''
   if (t === 'KR' || t.startsWith('C')) return 'Center'
-  if (t.startsWith('P')) return 'Profil'
+  // MR = MR Profil (bot mapuje tak samo w orders-intake) — brak tej gałęzi
+  // zostawił 242 Bastiony bez wykonawcy
+  if (t === 'MR' || t.startsWith('P')) return 'Profil'
   if (t.startsWith('W') || t.startsWith('Z')) return 'WZ'
   return ''
 }
@@ -417,13 +419,44 @@ serve(async (req) => {
       const orderNumber = String(payload.order_number ?? '').trim()
       const category = String(payload.category ?? '')
 
-      // Dedup po (kategoria, numer zlecenia) — nie wstawiamy dwa razy
+      // Dedup po (kategoria, numer zlecenia) — ale z porównaniem TREŚCI.
+      // Sam numer to za mało: bot nadaje numery w tej samej puli co arkusz,
+      // więc kolizja numeru z INNYM zamówieniem wyrzucała prawdziwe zlecenia
+      // jako "duplikaty" (od 1.09 zginęło tak co najmniej 125 zamówień!).
       if (orderNumber) {
         const { data: existing } = await supabase
-          .from('orders').select('id').eq('category', category).eq('order_number', orderNumber).limit(1)
-        if (existing && existing.length > 0) {
-          results.push({ index: i, status: 'duplicate', order_number: orderNumber, category })
-          continue
+          .from('orders')
+          .select('id, model, width, company, client_order_number')
+          .eq('category', category)
+          .eq('order_number', orderNumber)
+          .limit(1)
+        const ex = (existing ?? [])[0] as
+          | { id: number; model: string | null; width: string | null; company: string | null; client_order_number: string | null }
+          | undefined
+        if (ex) {
+          const norm = (v: unknown) => String(v ?? '').trim().toUpperCase()
+          const sameContent =
+            norm(ex.model) === norm(payload.model) &&
+            norm(ex.width) === norm(payload.width) &&
+            (companiesMatch(ex.company, payload.company) ||
+              (norm(ex.client_order_number) !== '' && norm(ex.client_order_number) === norm(payload.client_order_number)))
+          if (sameContent) {
+            // to samo zamówienie — pomijamy jak dotąd
+            results.push({ index: i, status: 'duplicate', order_number: orderNumber, category })
+            continue
+          }
+          // KONFLIKT NUMERU: inny towar pod tym numerem — nadajemy nowy numer
+          // z RPC i wstawiamy z flagą do weryfikacji, zamiast cicho wyrzucać
+          const newNumber = await nextOrderNumber(supabase, category)
+          payload.order_number = newNumber
+          payload.extra_fields = {
+            ...((payload.extra_fields as Record<string, unknown>) ?? {}),
+            needs_review: true,
+            warnings: [
+              `Numer ${orderNumber} z arkusza był już zajęty (${norm(ex.model) || 'inne zamówienie'}) — nadano numer ${newNumber}`,
+            ],
+            sheet_number_conflict: orderNumber,
+          }
         }
       }
 

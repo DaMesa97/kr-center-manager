@@ -1,0 +1,36 @@
+-- =====================================================================
+-- PACZKA I ZE ZWIADU #3: RATUNEK INTAKE'U (2026-10-18)
+-- [WYKONANE: migracja create_bot_order_miekki_dedup_i_uwagi2,
+--  edge function orders-excel-intake v22, login_rate_limit_grant_anon]
+--
+-- 1. EXCEL: dedup po (kategoria, numer) porównuje TREŚĆ (model+szerokość+
+--    firma/nr klienta). Zgodna treść = duplikat (pomijany jak dotąd).
+--    KONFLIKT NUMERU (inne zamówienie pod numerem z arkusza — bot nadaje
+--    numery w tej samej puli!) = nowy numer z RPC + needs_review + warning
+--    + extra_fields.sheet_number_conflict. Stary dedup po samym numerze
+--    WYRZUCIŁ od 1.09 co najmniej 114 prawdziwych zamówień (lista CSV
+--    przekazana Tymkowi; Make może je dosłać ponownie — v22 je przyjmie).
+--
+-- 2. BOT: twardy dedup identycznego payloadu ZMIĘKCZONY do needs_review —
+--    Airtable wysyła wieloelementowe rekordy jako N identycznych żądań
+--    po 1 szt. (44 legalne przypadki/6 mies.), twarde 409 gubiłoby realne
+--    zamówienia. Duble wyłapuje kierownik (badge ⚠️ + dzwonek). Dedup po
+--    recordId zostaje twardy.
+--
+-- 3. BOT: uwagi2 ("DOSTAWA DO...", "nawiercić otwory") trafia do kolumny
+--    bastion_notes_2 (Uwagi 2) — było niewidoczne w extra_fields.
+--
+-- 4. EXCEL: Typ 'MR' mapowany na wykonawcę Profil (jak w bocie) — brak
+--    tej gałęzi zostawił 242 Bastiony bez wykonawcy.
+--
+-- 5. Badge ⚠️ przy numerze działa dla KAŻDEGO zamówienia z needs_review
+--    (nie tylko z bota) — konflikty numerów z Excela też są widoczne.
+--
+-- 6. LOGOWANIE: check_login_rate_limit i log_login_attempt odzyskały
+--    EXECUTE dla anon (wołane PRZED zalogowaniem; bez tego limit prób
+--    logowania nie działał — nieudane próby nie zapisywały się od 31.08).
+--
+-- PO STRONIE TYMKA/MAKE: scenariusz Excel milczy od 13.10 06:32 (!);
+-- nowy formularz Bastion nie wysyła firmaRealizujaca (593 zlecenia bez
+-- wykonawcy); arkusz nie wysyła nagłówków Wpisał/Panel*/Rodzaj intarsji.
+-- =====================================================================
