@@ -7954,3 +7954,41 @@ html, body, #root {
   min-width: 52px;
   justify-content: center;
 }
+
+/* ── Moje stanowisko: chipy etapow + naglowki sekcji ──────────────── */
+.station-stage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+}
+.station-stage-chip {
+  padding: 0.35rem 0.75rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+.station-stage-chip--active {
+  border-color: #005faf;
+  background: #005faf;
+  color: #fff;
+}
+.my-station-group-row td {
+  background: #e8eef5;
+  border-top: 2px solid #94a3b8;
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: #1e293b;
+  padding: 0.45rem 0.75rem;
+}
+.my-station-group-counts {
+  margin-left: 0.6rem;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.78rem;
+}

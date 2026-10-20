@@ -629,3 +629,44 @@ html, body, #root {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Stanowisko: chipy etapow + naglowki sekcji ───────────────────── */
+.mstation-stage-chips {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding: 0.5rem 0.75rem 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+.mstation-stage-chip {
+  flex: none;
+  padding: 0.35rem 0.7rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+}
+.mstation-stage-chip--active {
+  border-color: #005faf;
+  background: #005faf;
+  color: #fff;
+}
+.mstation-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.6rem 0 0.35rem;
+  padding: 0.35rem 0.6rem;
+  background: #e8eef5;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+.mstation-group-counts {
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.75rem;
+}

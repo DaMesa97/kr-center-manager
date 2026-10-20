@@ -194,6 +194,49 @@ export default function MobileStationView({ userId }: Props) {
   )
   const readyCount = tasks.filter((t) => t.readyToWork).length
 
+  // Grupowanie po etapie — kilka etapów (np. E3 i E5) wymieszanych na jednej
+  // liście to prosta droga do oznaczenia złego. Sekcje + chipy filtra.
+  const groups = useMemo(() => {
+    const catOrder = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+    const multiCat = new Set(tasks.map((t) => t.category)).size > 1
+    const map = new Map<string, { label: string; category: string; header: string; tasks: MyTask[] }>()
+    for (const t of tasks) {
+      const key = `${t.category}|${t.stageKey}`
+      const g = map.get(key) ?? {
+        label: `${multiCat ? `${t.category} · ` : ''}${t.stageHeader} — ${t.stageTitle}`,
+        category: t.category,
+        header: t.stageHeader,
+        tasks: [],
+      }
+      g.tasks.push(t)
+      map.set(key, g)
+    }
+    return Array.from(map.entries())
+      .map(([key, g]) => ({ key, ...g }))
+      .sort(
+        (a, b) =>
+          catOrder.indexOf(a.category) - catOrder.indexOf(b.category) ||
+          a.header.localeCompare(b.header, 'pl', { numeric: true }),
+      )
+  }, [tasks])
+  const [stageFilter, setStageFilter] = useState<string>(() => {
+    try {
+      return localStorage.getItem('stationStageFilter') ?? 'all'
+    } catch {
+      return 'all'
+    }
+  })
+  const setStageFilterPersist = (v: string) => {
+    setStageFilter(v)
+    try {
+      localStorage.setItem('stationStageFilter', v)
+    } catch {
+      /* ignore */
+    }
+  }
+  const activeFilter = stageFilter !== 'all' && groups.some((g) => g.key === stageFilter) ? stageFilter : 'all'
+  const visibleGroups = activeFilter === 'all' ? groups : groups.filter((g) => g.key === activeFilter)
+
   const rememberWorker = (w: StationWorker | null) => {
     if (!w) return
     setLastWorkerId(w.id)
@@ -353,8 +396,40 @@ export default function MobileStationView({ userId }: Props) {
       {tasks.length === 0 ? (
         <div className="mpack-info">Brak zadań dla Twoich etapów 🎉</div>
       ) : (
-        <div className="mstation-list">
-          {tasks.map((task) => {
+        <>
+          {groups.length > 1 && (
+            <div className="mstation-stage-chips">
+              <button
+                type="button"
+                className={`mstation-stage-chip ${activeFilter === 'all' ? 'mstation-stage-chip--active' : ''}`}
+                onClick={() => setStageFilterPersist('all')}
+              >
+                Wszystkie ({tasks.length})
+              </button>
+              {groups.map((g) => (
+                <button
+                  key={g.key}
+                  type="button"
+                  className={`mstation-stage-chip ${activeFilter === g.key ? 'mstation-stage-chip--active' : ''}`}
+                  onClick={() => setStageFilterPersist(g.key)}
+                >
+                  {g.header} ({g.tasks.length})
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="mstation-list">
+            {visibleGroups.map((group) => (
+              <div key={group.key}>
+                {activeFilter === 'all' && groups.length > 1 && (
+                  <div className="mstation-group-head">
+                    {group.label}
+                    <span className="mstation-group-counts">
+                      {group.tasks.filter((t) => t.readyToWork).length}/{group.tasks.length}
+                    </span>
+                  </div>
+                )}
+                {group.tasks.map((task) => {
             // Reklamacje mają własną numerację id — prefiks chroni przed kolizją kluczy z zamówieniami
             const key = `${task.isComplaint ? 'r' : ''}${task.order.id}-${task.stageKey}`
             const expanded = expandedKey === key
@@ -415,7 +490,10 @@ export default function MobileStationView({ userId }: Props) {
               </div>
             )
           })}
-        </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {confirmTask && (() => {

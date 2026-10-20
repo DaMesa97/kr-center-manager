@@ -18,6 +18,11 @@ import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 import type { ToastVariant } from '../types'
 
+/** Wiersz tabeli stanowiska: nagłówek sekcji etapu albo zadanie */
+type StationRow =
+  | { kind: 'header'; key: string; label: string; count: number; ready: number }
+  | { kind: 'task'; task: MyTask }
+
 type Props = {
   currentUserId: string
   orders: Order[]
@@ -85,6 +90,70 @@ export default function MyStationView({
   )
   const readyCount = tasks.filter((t) => t.readyToWork).length
   const waitingCount = tasks.length - readyCount
+
+  // ── Grupowanie po etapie ──────────────────────────────────────────
+  // Kto ma kilka etapów (np. składa skrzydła E3 i pakuje E5), widział je
+  // wymieszane jedno pod drugim — prosta droga do oznaczenia złego etapu.
+  // Sekcje per etap + chipy filtra (wybór zapamiętany na tym komputerze).
+  const groups = useMemo(() => {
+    const catOrder = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+    const multiCat = new Set(tasks.map((t) => t.category)).size > 1
+    const map = new Map<string, { label: string; category: string; header: string; tasks: MyTask[] }>()
+    for (const t of tasks) {
+      const key = `${t.category}|${t.stageKey}`
+      const g = map.get(key) ?? {
+        label: `${multiCat ? `${t.category} · ` : ''}${t.stageHeader} — ${t.stageTitle}`,
+        category: t.category,
+        header: t.stageHeader,
+        tasks: [],
+      }
+      g.tasks.push(t)
+      map.set(key, g)
+    }
+    return Array.from(map.entries())
+      .map(([key, g]) => ({ key, ...g }))
+      .sort(
+        (a, b) =>
+          catOrder.indexOf(a.category) - catOrder.indexOf(b.category) ||
+          a.header.localeCompare(b.header, 'pl', { numeric: true }),
+      )
+  }, [tasks])
+
+  const [stageFilter, setStageFilter] = useState<string>(() => {
+    try {
+      return localStorage.getItem('stationStageFilter') ?? 'all'
+    } catch {
+      return 'all'
+    }
+  })
+  const setStageFilterPersist = (v: string) => {
+    setStageFilter(v)
+    try {
+      localStorage.setItem('stationStageFilter', v)
+    } catch {
+      /* ignore */
+    }
+  }
+  const activeFilter = stageFilter !== 'all' && groups.some((g) => g.key === stageFilter) ? stageFilter : 'all'
+
+  const rows = useMemo<StationRow[]>(() => {
+    const visible = activeFilter === 'all' ? groups : groups.filter((g) => g.key === activeFilter)
+    const out: StationRow[] = []
+    for (const g of visible) {
+      // nagłówek sekcji tylko gdy jest co rozdzielać
+      if (activeFilter === 'all' && groups.length > 1) {
+        out.push({
+          kind: 'header',
+          key: g.key,
+          label: g.label,
+          count: g.tasks.length,
+          ready: g.tasks.filter((t) => t.readyToWork).length,
+        })
+      }
+      for (const t of g.tasks) out.push({ kind: 'task', task: t })
+    }
+    return out
+  }, [groups, activeFilter])
 
   const columns = useMemo<DataTableColumn<MyTask>[]>(
     () => [
@@ -181,6 +250,19 @@ export default function MyStationView({
     [expandedKey, isManager],
   )
 
+  // Kolumny na wierszach sekcyjnych — BEZ sortValue: kolejka jest jedna
+  // (gotowe→pilne→data), a klik w nagłówek po cichu ją przestawiał
+  const rowColumns = useMemo<DataTableColumn<StationRow>[]>(
+    () =>
+      columns.map((c) => ({
+        key: c.key,
+        label: c.label,
+        tdClassName: typeof c.tdClassName === 'string' ? c.tdClassName : undefined,
+        render: (r: StationRow, i: number) => (r.kind === 'task' ? c.render(r.task, i) : null),
+      })),
+    [columns],
+  )
+
   return (
     <div className="my-station-view">
       <div className="my-station-meta">
@@ -195,28 +277,68 @@ export default function MyStationView({
         </div>
       </div>
 
+      {groups.length > 1 && (
+        <div className="station-stage-chips">
+          <button
+            type="button"
+            className={`station-stage-chip ${activeFilter === 'all' ? 'station-stage-chip--active' : ''}`}
+            onClick={() => setStageFilterPersist('all')}
+          >
+            Wszystkie ({tasks.length})
+          </button>
+          {groups.map((g) => (
+            <button
+              key={g.key}
+              type="button"
+              className={`station-stage-chip ${activeFilter === g.key ? 'station-stage-chip--active' : ''}`}
+              onClick={() => setStageFilterPersist(g.key)}
+            >
+              {g.label} ({g.tasks.length})
+            </button>
+          ))}
+        </div>
+      )}
+
       <DataTable
-        rows={tasks}
-        rowKey={taskKey}
-        columns={columns}
+        rows={rows}
+        rowKey={(r) => (r.kind === 'header' ? `h-${r.key}` : taskKey(r.task))}
+        columns={rowColumns}
         className="my-station-table"
         wrapperClassName="orders-table-wrapper"
         loading={loading}
         loadingText={<Spinner center label="Ładowanie…" />}
         emptyText="Brak zadań dla przypisanych etapów."
-        rowClassName={(task) =>
-          `my-station-row ${isRushOrderSequence(task.order.sequence) ? 'orders-table-row--priority' : ''}`
+        renderRow={(r) => {
+          if (r.kind !== 'header') return undefined
+          return (
+            <tr className="my-station-group-row">
+              <td colSpan={rowColumns.length}>
+                <span className="my-station-group-label">{r.label}</span>
+                <span className="my-station-group-counts">
+                  gotowe {r.ready} / {r.count}
+                </span>
+              </td>
+            </tr>
+          )
+        }}
+        rowClassName={(r) =>
+          r.kind === 'task'
+            ? `my-station-row ${isRushOrderSequence(r.task.order.sequence) ? 'orders-table-row--priority' : ''}`
+            : undefined
         }
-        onRowClick={(task) => {
-          const key = taskKey(task)
+        onRowClick={(r) => {
+          if (r.kind !== 'task') return
+          const key = taskKey(r.task)
           setExpandedKey(expandedKey === key ? null : key)
         }}
-        renderAfterRow={(task) => {
+        renderAfterRow={(r) => {
+          if (r.kind !== 'task') return null
+          const task = r.task
           if (expandedKey !== taskKey(task)) return null
           const details = fieldsForStage(task.order, task.category, task.actualStageKey)
           return (
             <tr className="my-station-details-row">
-              <td colSpan={columns.length}>
+              <td colSpan={rowColumns.length}>
                 <div className="my-station-details">
                   {details.length === 0 ? (
                     <span className="my-station-details-empty">Brak dodatkowych szczegółów dla tego etapu.</span>
