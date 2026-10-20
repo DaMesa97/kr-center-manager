@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { appConfirm } from '../lib/appDialogs'
 import { CONFIG_DICTIONARIES } from '../constants'
 import type {
   ConfigExclusion,
@@ -695,6 +696,7 @@ export function useConfig({
   }
 
   const handleDeleteExclusion = async (id: number) => {
+    if (!(await appConfirm('Usunąć to wykluczenie?', { confirmLabel: 'Usuń' }))) return
     setGlobalLoading(true)
     try {
       const { error } = await supabase.from('config_exclusions').delete().eq('id', id)
@@ -713,6 +715,7 @@ export function useConfig({
     sourceField: string,
     sourceValue: string,
   ) => {
+    if (!(await appConfirm(`Usunąć całą grupę wykluczeń dla „${sourceValue}"?`, { confirmLabel: 'Usuń grupę' }))) return
     setGlobalLoading(true)
     try {
       const { error } = await supabase
@@ -822,6 +825,7 @@ export function useConfig({
   }
 
   const handleDeleteDimensionMap = async (id: number) => {
+    if (!(await appConfirm('Usunąć ten wymiar ze słownika? Formularze przestaną go podpowiadać.', { confirmLabel: 'Usuń' }))) return
     setGlobalLoading(true)
     try {
       await supabase.from('dimension_map').delete().eq('id', id)
@@ -890,6 +894,7 @@ export function useConfig({
   }
 
   const handleDeleteExtensionProfile = async (category: string) => {
+    if (!(await appConfirm(`Usunąć szerokość profilu poszerzenia dla kategorii ${category}?`, { confirmLabel: 'Usuń' }))) return
     setGlobalLoading(true)
     try {
       await supabase

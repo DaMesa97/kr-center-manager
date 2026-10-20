@@ -779,6 +779,7 @@ function App() {
 
   const {
     shippingOrders,
+    shippingReleasedOrders,
     shippingOrdersLoading,
     shippingCompaniesMap,
     shippingDetailsModal,
@@ -2941,6 +2942,7 @@ function App() {
         ) : isShippingTab && isManager ? (
           <ShippingView
             orders={shippingOrders}
+            releasedOrders={shippingReleasedOrders}
             companiesMap={shippingCompaniesMap}
             loading={shippingOrdersLoading}
             onRefresh={() => void fetchShippingOrders()}

@@ -34,6 +34,9 @@ export function useShipping({
   isActive,
 }: UseShippingParams) {
   const [shippingOrders, setShippingOrders] = useState<Order[]>([])
+  // Wydane w ostatnich 14 dniach — „gotowe do fakturowania" nie może znikać
+  // z Wysyłki w momencie wydania (fakturowanie bywa później niż wydanie)
+  const [shippingReleasedOrders, setShippingReleasedOrders] = useState<Order[]>([])
   const [shippingOrdersLoading, setShippingOrdersLoading] = useState(false)
   const [shippingCompaniesMap, setShippingCompaniesMap] = useState<
     Map<string, { production_day: string; route_day: string }>
@@ -47,7 +50,8 @@ export function useShipping({
     touchSession()
     setShippingOrdersLoading(true)
 
-    const [ordersRes, companiesRes] = await Promise.all([
+    const releasedCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const [ordersRes, releasedRes, companiesRes] = await Promise.all([
       supabase
         .from('orders')
         .select('*')
@@ -55,6 +59,12 @@ export function useShipping({
         .order('category', { ascending: true })
         .order('order_number', { ascending: false })
         .limit(2000),
+      supabase
+        .from('orders')
+        .select('*')
+        .gte('release_date', releasedCutoff)
+        .order('release_date', { ascending: false })
+        .limit(1000),
       supabase.from('companies').select('name, production_day, route_day'),
     ])
 
@@ -92,6 +102,13 @@ export function useShipping({
     }) as Order[]
 
     setShippingOrders(filtered)
+    if (!releasedRes.error) {
+      const released = ((releasedRes.data ?? []) as Order[]).filter((o) => {
+        const extra = o.extra_fields as Record<string, unknown> | null
+        return extra?.cancelled !== true
+      })
+      setShippingReleasedOrders(released)
+    }
     const internalDoorOrdersInShipping = filtered.filter((o) => o.category === 'DrzwiWewnetrzne')
     if (internalDoorOrdersInShipping.length > 0) {
       await fetchInternalDoorItemsForVisibleOrders(internalDoorOrdersInShipping)
@@ -115,11 +132,12 @@ export function useShipping({
         return
       }
 
-      setShippingOrders((prev) =>
+      const applyExtra = (prev: Order[]) =>
         prev.map((o) =>
           o.id === id ? { ...o, extra_fields: (newExtra as Order['extra_fields']) ?? o.extra_fields } : o,
-        ),
-      )
+        )
+      setShippingOrders(applyExtra)
+      setShippingReleasedOrders(applyExtra)
 
       pushToast(ready ? 'Oznaczono jako gotowe do fakturowania' : 'Usunięto oznaczenie', 'success')
     },
@@ -208,6 +226,7 @@ export function useShipping({
   return {
     shippingOrders,
     setShippingOrders,
+    shippingReleasedOrders,
     shippingOrdersLoading,
     setShippingOrdersLoading,
     shippingCompaniesMap,

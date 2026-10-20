@@ -94,13 +94,16 @@ export default function MobileOrdersView() {
 
   const load = useCallback(async (cat: string) => {
     setLoading(true)
+    // Tylko OTWARTE (release_date null) — stary limit 500 liczył też wydane,
+    // więc stare otwarte zlecenie potrafiło wypaść z listy na telefonie
     const { data, error } = await supabase
       .from('orders')
       .select('*')
       .eq('category', cat)
+      .is('release_date', null)
       .order('order_date', { ascending: false })
       .order('id', { ascending: false })
-      .limit(500)
+      .limit(2000)
     if (!mountedRef.current) return
     setLoading(false)
     if (error) return

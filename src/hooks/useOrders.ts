@@ -870,15 +870,22 @@ export function useOrders({
       }
 
       try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000)
-        const response = await fetch('https://hook.eu2.make.com/tzy1k1wrzpkbwv32sa57sprtkv5vnogx', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-        })
-        clearTimeout(timeoutId)
+        // Webhook Make idzie przez edge function glass-order-webhook — URL
+        // webhooka nie siedzi już w kliencie, a wysyłka wymaga zalogowania.
+        // Timeout 15 s obejmuje bramkę + 10 s, które funkcja daje Make'owi.
+        const invokePromise = supabase.functions.invoke('glass-order-webhook', { body: payload })
+        const { data: fnData, error: fnError } = await Promise.race([
+          invokePromise,
+          new Promise<{ data: null; error: Error }>((resolve) =>
+            setTimeout(() => resolve({ data: null, error: new Error('AbortError-timeout') }), 15000),
+          ),
+        ])
+        const response = {
+          ok: !fnError && (fnData as { ok?: boolean } | null)?.ok === true,
+        }
+        if (fnError && String(fnError.message ?? fnError).includes('AbortError-timeout')) {
+          throw Object.assign(new Error('timeout'), { name: 'AbortError' })
+        }
         if (response.ok) {
           const today = new Date().toISOString().split('T')[0]
           const { error: stampErr } = await supabase
@@ -1194,8 +1201,16 @@ export function useOrders({
         const staId = Number((staRow as { id: number }).id)
         const staNr = String((staRow as { order_number: string }).order_number ?? '')
         const group = staId
-        const groupExtra = (cat: string) =>
-          mergeOrderExtraFields(payload.extra_fields, { titan_group: group, titan_role: cat })
+        const groupExtra = (cat: string) => {
+          const merged = mergeOrderExtraFields(payload.extra_fields, {
+            titan_group: group,
+            titan_role: cat,
+          }) as Record<string, unknown>
+          // Nogi tworzy człowiek w formularzu — nie dziedziczą flagi weryfikacji
+          // bota (⚠️ wisiał na ST/Bastion mimo zweryfikowania bazowego STA)
+          delete merged.needs_review
+          return merged
+        }
 
         // 2) ST (ościeżnica)
         const stNrNext = await fetchNextOrderNumber('ST')
@@ -2582,10 +2597,17 @@ export function useOrders({
 
   const handleCancelReviewOrder = useCallback(
     async (orderId: number) => {
-      const order = orders.find((o) => o.id === orderId)
+      // Zakładka Weryfikacja nie trzyma zamówień w stanie `orders` (to stan
+      // aktywnej kategorii) — find zawsze pudłował i „Anuluj" kończył się
+      // błędem „Nie znaleziono zamówienia". Dociągamy wiersz z bazy.
+      let order = orders.find((o) => o.id === orderId)
       if (!order) {
-        pushToast('Nie znaleziono zamówienia', 'error')
-        return
+        const { data, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle()
+        if (error || !data) {
+          pushToast(`Nie znaleziono zamówienia${error ? `: ${error.message}` : ''}`, 'error')
+          return
+        }
+        order = data as Order
       }
       handleCancelOrderClick(order)
     },

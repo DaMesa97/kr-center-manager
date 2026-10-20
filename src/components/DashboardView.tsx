@@ -58,7 +58,16 @@ export default function DashboardView({
         }),
       )
       setCounts(results)
-      setTotalActive(results.reduce((s, r) => s + r.count, 0))
+      // Nogi Titana (ST/Bastion z titan_role) to części JEDNEGO zlecenia —
+      // kafelki kategorii je pokazują (są wierszami w swoich zakładkach),
+      // ale suma „aktywnych zleceń" nie liczy ich potrójnie
+      const { count: legsCount } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .is('release_date', null)
+        .in('extra_fields->>titan_role', ['ST', 'Bastion'])
+        .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.eq.false')
+      setTotalActive(results.reduce((s, r) => s + r.count, 0) - (legsCount ?? 0))
 
       // Wysyłka — wszystkie aktywne (nie wydane) to potencjalna wysyłka
       const { count: shipCount } = await supabase

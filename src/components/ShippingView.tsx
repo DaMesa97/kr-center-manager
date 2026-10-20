@@ -42,6 +42,9 @@ function compareOrderNumberDesc(a: string, b: string): number {
 
 // Status zamówienia (badge) — też wartość sortowania kolumny STATUS
 function orderStatus(order: Order): { cls: string; label: string } {
+  if (order.release_date) {
+    return { cls: 'shipping-status-badge shipping-status-badge--done', label: 'Wydane' }
+  }
   const { total, percent } = countCompletedStages(order)
   const cat = order.category ?? ''
   if (cat === 'DrzwiWewnetrzne') {
@@ -61,6 +64,8 @@ type ShippingRow = RouteRow | { kind: 'order'; order: Order }
 
 export type ShippingViewProps = {
   orders: Order[]
+  /** Wydane w ostatnich 14 dniach — do dokończenia oznaczania fakturowania */
+  releasedOrders?: Order[]
   companiesMap: Map<string, { production_day: string; route_day: string }>
   loading: boolean
   onRefresh: () => void
@@ -75,6 +80,7 @@ export type ShippingViewProps = {
 
 export default function ShippingView({
   orders,
+  releasedOrders = [],
   companiesMap,
   loading,
   onRefresh,
@@ -105,6 +111,13 @@ export default function ShippingView({
   const [onlyUrgent, setOnlyUrgent] = useState(false)
   const [onlyOverdue, setOnlyOverdue] = useState(false)
   const [groupByRoute, setGroupByRoute] = useState(false)
+  // „Gotowe do fakturowania" nie znika już w momencie wydania — wydane
+  // z ostatnich 14 dni można dociągnąć na listę i dokończyć oznaczanie
+  const [showReleased, setShowReleased] = useState(false)
+  const visibleOrders = useMemo(
+    () => (showReleased ? [...orders, ...releasedOrders] : orders),
+    [orders, releasedOrders, showReleased],
+  )
 
   const availableProductionDays = useMemo(() => {
     const set = new Set<string>()
@@ -126,7 +139,7 @@ export default function ShippingView({
 
   const filteredOrders = useMemo(() => {
     const companyQ = companyFilter.trim().toLowerCase()
-    return orders.filter((o) => {
+    return visibleOrders.filter((o) => {
       if (categoryFilter && (o.category ?? '') !== categoryFilter) return false
       if (companyQ && !String(o.company ?? '').toLowerCase().includes(companyQ)) return false
       if (onlyReadyToInvoice && !isOrderReadyToInvoice(o)) return false
@@ -152,7 +165,7 @@ export default function ShippingView({
       return true
     })
   }, [
-    orders,
+    visibleOrders,
     categoryFilter,
     companyFilter,
     onlyReadyToInvoice,
@@ -516,6 +529,10 @@ export default function ShippingView({
         <label className="orders-filter-checkbox">
           <input type="checkbox" checked={onlyReadyToInvoice} onChange={(e) => setOnlyReadyToInvoice(e.target.checked)} />
           <span>Tylko gotowe do fakturowania</span>
+        </label>
+        <label className="orders-filter-checkbox" title="Dociąga zamówienia wydane w ostatnich 14 dniach — można dokończyć oznaczanie fakturowania po wydaniu">
+          <input type="checkbox" checked={showReleased} onChange={(e) => setShowReleased(e.target.checked)} />
+          <span>Pokaż wydane (ost. 14 dni){releasedOrders.length ? ` — ${releasedOrders.length}` : ''}</span>
         </label>
         <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <input type="checkbox" checked={onlyWithStockIssues} onChange={(e) => setOnlyWithStockIssues(e.target.checked)} />
