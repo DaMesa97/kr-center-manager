@@ -156,6 +156,29 @@ export default function GlassView({
     sortValue: get,
   })
 
+  // Wymiar z etykietą „całk.” / „szyba” — po spiętrowaniu oba lądują w jednej komórce
+  // i bez etykiety nie da się ich odróżnić
+  const dimCol = (
+    key: string,
+    label: string,
+    tag: string,
+    get: (r: GlassRow) => string,
+    stackUnder: string,
+  ): DataTableColumn<GlassRow> => ({
+    ...textCol(key, label, get),
+    stackUnder,
+    render: (r) => {
+      const v = get(r)
+      return v ? (
+        <>
+          <span className="glass-dim-tag">{tag}</span> {v}
+        </>
+      ) : (
+        ''
+      )
+    },
+  })
+
   const columns: DataTableColumn<GlassRow>[] = [
     {
       key: 'order_number',
@@ -183,14 +206,14 @@ export default function GlassView({
     { ...textCol('height', 'WYSOKOŚĆ', (r) => r.order.height), stackUnder: 'width' },
     textCol('glazing', 'SZKLENIE', (r) => r.order.glazing),
     textCol('tl_glazing', 'SZKLENIE NAŚWIETLA', (r) => r.order.top_light_glazing),
-    { ...textCol('tl_total', 'WYMIAR CAŁKOWITY NAŚWIETLA', (r) => r.tlTotal), stackUnder: 'tl_glazing' },
-    { ...textCol('tl_glass', 'WYMIAR SZYBY NAŚWIETLA', (r) => r.tlGlass), stackUnder: 'tl_glazing' },
+    dimCol('tl_total', 'WYMIAR CAŁKOWITY NAŚWIETLA', 'całk.', (r) => r.tlTotal, 'tl_glazing'),
+    dimCol('tl_glass', 'WYMIAR SZYBY NAŚWIETLA', 'szyba', (r) => r.tlGlass, 'tl_glazing'),
     textCol('spa_glazing', 'SZKLENIE DOSTAWKI A', (r) => r.order.side_panel_a_glazing || r.order.side_panel_glazing),
-    { ...textCol('spa_total', 'WYMIAR CAŁKOWITY DOSTAWKI A', (r) => r.spATotal), stackUnder: 'spa_glazing' },
-    { ...textCol('spa_glass', 'WYMIAR SZYBY DOSTAWKI A', (r) => r.spAGlass), stackUnder: 'spa_glazing' },
+    dimCol('spa_total', 'WYMIAR CAŁKOWITY DOSTAWKI A', 'całk.', (r) => r.spATotal, 'spa_glazing'),
+    dimCol('spa_glass', 'WYMIAR SZYBY DOSTAWKI A', 'szyba', (r) => r.spAGlass, 'spa_glazing'),
     textCol('spb_glazing', 'SZKLENIE DOSTAWKI B', (r) => r.order.side_panel_b_glazing),
-    { ...textCol('spb_total', 'WYMIAR CAŁKOWITY DOSTAWKI B', (r) => r.spBTotal), stackUnder: 'spb_glazing' },
-    { ...textCol('spb_glass', 'WYMIAR SZYBY DOSTAWKI B', (r) => r.spBGlass), stackUnder: 'spb_glazing' },
+    dimCol('spb_total', 'WYMIAR CAŁKOWITY DOSTAWKI B', 'całk.', (r) => r.spBTotal, 'spb_glazing'),
+    dimCol('spb_glass', 'WYMIAR SZYBY DOSTAWKI B', 'szyba', (r) => r.spBGlass, 'spb_glazing'),
     {
       key: 'glass_order_date',
       label: 'DATA ZAM. SZYBY',

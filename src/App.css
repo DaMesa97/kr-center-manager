@@ -3556,6 +3556,14 @@ html, body, #root {
   text-decoration: underline;
 }
 
+/* Naświetla: etykieta przy wymiarze (całk. / szyba) */
+.glass-dim-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
 /* DataTable: pusty stan / ładowanie (jedna komórka na całą szerokość) */
 .orders-table td.data-table-empty {
   text-align: center;
