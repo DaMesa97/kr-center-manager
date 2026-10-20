@@ -59,10 +59,17 @@ export function docSpecificity(doc: DopDocument): number {
 }
 
 // Pasujące dokumenty dla zamówienia, posortowane od najbardziej szczegółowych.
+// Tie-break: nazwa, potem id — przy równej szczegółowości wynik nie może
+// zależeć od kolejności wierszy z bazy (ta sama DoP na obu komputerach).
 export function matchedDocsForOrder(order: Order, docs: DopDocument[]): DopDocument[] {
   return docs
     .filter((d) => docMatchesOrder(d, order))
-    .sort((a, b) => docSpecificity(b) - docSpecificity(a))
+    .sort(
+      (a, b) =>
+        docSpecificity(b) - docSpecificity(a) ||
+        String(a.name).localeCompare(String(b.name), 'pl') ||
+        a.id - b.id,
+    )
 }
 
 // Czytelny powód braku dopasowania — do tooltipa "brak DoP" w druku zbiorczym.
