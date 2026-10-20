@@ -7926,3 +7926,31 @@ html, body, #root {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Stabilne sloty w NR. ZLECENIA — plakietki nie "faluja" ───────── */
+/* numer: stala szerokosc min. 4 cyfry + cyfry tabelaryczne */
+.order-number-wrapper .order-num-value {
+  min-width: 4ch;
+  font-variant-numeric: tabular-nums;
+}
+/* slot na ⚠️ weryfikacji — zawsze obecny, nawet pusty */
+.order-slot-review {
+  display: inline-flex;
+  width: 20px;
+  justify-content: center;
+  flex: none;
+}
+.order-slot-review .bot-badge--table {
+  margin-left: 0;
+}
+/* slot na badge wykonawcy (Center/Profil) — stala szerokosc takze bez badge'a */
+.wykonawca-slot {
+  display: inline-flex;
+  min-width: 56px;
+  justify-content: center;
+  flex: none;
+}
+.wykonawca-slot .wykonawca-badge {
+  min-width: 52px;
+  justify-content: center;
+}

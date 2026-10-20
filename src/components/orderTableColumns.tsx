@@ -152,14 +152,18 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
           ) : null}
           <span className="order-number-wrapper">
             <span className="order-num-value order-number-value">{o.order_number}</span>
-            {needsBotReview(o) && (
-              <span
-                className="bot-badge bot-badge--review bot-badge--table"
-                title={`Zamówienie wymaga weryfikacji:\n${getBotWarnings(o).join('\n')}`}
-              >
-                ⚠️
-              </span>
-            )}
+            {/* Stały slot na ⚠️ — plakietki za numerem nie „falują", gdy część
+                wierszy ma weryfikację, a część nie (wyrównanie kolumienki) */}
+            <span className="order-slot-review">
+              {needsBotReview(o) && (
+                <span
+                  className="bot-badge bot-badge--review bot-badge--table"
+                  title={`Zamówienie wymaga weryfikacji:\n${getBotWarnings(o).join('\n')}`}
+                >
+                  ⚠️
+                </span>
+              )}
+            </span>
             {opts.afterNumber?.(o)}
             <OrderCommentsButton
               order={o}

@@ -322,10 +322,15 @@ function StaDistingOrdersTableView({
         releasedLabel: (o) => (o.category === 'Disting' && o.linked_order_id != null ? 'WYSŁANE DO STA' : 'ZREALIZOWANE'),
         afterNumber: (o) => {
           const wyk = (o.extra_fields as Record<string, unknown> | null)?.wykonawca as string | undefined
-          if (!wyk) return null
+          // Slot o stałej szerokości też dla wierszy BEZ wykonawcy — komentarze
+          // i status magazynu stoją w jednej kolumience zamiast falować
           return (
-            <span className="wykonawca-badge" style={{ background: WYKONAWCA_COLORS[wyk] ?? '#475569' }}>
-              {wyk}
+            <span className="wykonawca-slot">
+              {wyk ? (
+                <span className="wykonawca-badge" style={{ background: WYKONAWCA_COLORS[wyk] ?? '#475569' }}>
+                  {wyk}
+                </span>
+              ) : null}
             </span>
           )
         },
