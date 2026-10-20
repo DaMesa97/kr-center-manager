@@ -53,27 +53,33 @@ export async function renderPdfPages(
   let widthMm = 210
   let heightMm = 297
 
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await withTimeout(pdf.getPage(p), 15000, `Strona ${p} PDF`)
-    const base = page.getViewport({ scale: 1 })
-    if (p === 1) {
-      widthMm = Math.round(base.width * PT_TO_MM * 10) / 10
-      heightMm = Math.round(base.height * PT_TO_MM * 10) / 10
+  try {
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await withTimeout(pdf.getPage(p), 15000, `Strona ${p} PDF`)
+      const base = page.getViewport({ scale: 1 })
+      if (p === 1) {
+        widthMm = Math.round(base.width * PT_TO_MM * 10) / 10
+        heightMm = Math.round(base.height * PT_TO_MM * 10) / 10
+      }
+      const viewport = page.getViewport({ scale: RENDER_SCALE })
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.ceil(viewport.width)
+      canvas.height = Math.ceil(viewport.height)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Brak kontekstu canvas')
+      await withTimeout(
+        page.render({ canvasContext: ctx, viewport }).promise,
+        20000,
+        `Render strony ${p} PDF`,
+      )
+      imgs.push(canvas.toDataURL('image/png'))
     }
-    const viewport = page.getViewport({ scale: RENDER_SCALE })
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.ceil(viewport.width)
-    canvas.height = Math.ceil(viewport.height)
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('Brak kontekstu canvas')
-    await withTimeout(
-      page.render({ canvasContext: ctx, viewport }).promise,
-      20000,
-      `Render strony ${p} PDF`,
-    )
-    imgs.push(canvas.toDataURL('image/png'))
+    return { imgs, widthMm, heightMm }
+  } finally {
+    // Zwolnij dokument w workerze — bez tego duże eksporty (dziesiątki
+    // deklaracji PDF) kumulowały pamięć aż do OOM workera pdfjs
+    void pdf.destroy().catch(() => {})
   }
-  return { imgs, widthMm, heightMm }
 }
 
 export async function renderPdfForPrint(

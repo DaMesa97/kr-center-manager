@@ -193,6 +193,40 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
 // Druk etykiet
 // ---------------------------------------------------------------------------
 
+// Windows zgłasza "sukces" druku już gdy spooler przyjmie zadanie — nawet dla
+// drukarki OFFLINE (zadanie wisi w kolejce, nic nie wychodzi, a apka pokazała
+// zielony toast). Przed drukiem pytamy WMI o WorkOffline/PrinterStatus.
+// Błąd/timeout sprawdzenia NIE blokuje druku (fail-open — ważniejsze, żeby
+// dało się drukować, niż żeby kontrola była szczelna).
+async function checkPrinterOffline(deviceName: string | undefined): Promise<string | null> {
+  if (process.platform !== 'win32') return null
+  const filter = deviceName
+    ? `Name='${deviceName.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`
+    : "Default=TRUE"
+  const ps = `$p = Get-CimInstance Win32_Printer -Filter "${filter}" | Select-Object -First 1; if ($p) { @{ off = [bool]$p.WorkOffline; status = [int]$p.PrinterStatus } | ConvertTo-Json -Compress }`
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+      { timeout: 5000 },
+      (err, stdout) => {
+        if (err) return resolve(null)
+        try {
+          const o = JSON.parse(String(stdout).trim() || 'null') as { off?: boolean; status?: number } | null
+          if (!o) return resolve(null)
+          if (o.off) {
+            return resolve('Drukarka jest OFFLINE — wydruk czekałby w kolejce. Sprawdź połączenie/zasilanie drukarki.')
+          }
+          if (o.status === 7) return resolve('Drukarka zgłasza status offline — sprawdź połączenie.')
+          return resolve(null)
+        } catch {
+          resolve(null)
+        }
+      },
+    )
+  })
+}
+
 function setupPrinting(mainWin: BrowserWindow) {
   // Lista drukarek widocznych w systemie/sieci (dla etykiet HTML przez driver)
   ipcMain.handle('printers:list', async () => {
@@ -231,7 +265,7 @@ function setupPrinting(mainWin: BrowserWindow) {
         // Wirtualna drukarka PDF: cichy druk czeka na NIEWIDOCZNY dialog
         // zapisu i wisi w nieskończoność. Zamiast tego generujemy PDF sami
         // i pokazujemy normalne okno zapisu (nazwa z <title> etykiety).
-        if (/print to pdf|adobe pdf|pdfcreator|pdf24|dopdf|foxit|nitro pdf/i.test(deviceName || '')) {
+        if (/print to pdf|adobe pdf|pdfcreator|pdf24|dopdf|foxit|nitro pdf|cutepdf|bullzip|primopdf|novapdf|tinypdf|pdf995/i.test(deviceName || '')) {
           const titleMatch = /<title>([^<]*)<\/title>/i.exec(html)
           const baseName = (titleMatch?.[1] || 'wydruk').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'wydruk'
           const pdfData = await printWin.webContents.printToPDF({
@@ -250,6 +284,11 @@ function setupPrinting(mainWin: BrowserWindow) {
           writeFileSync(filePath, pdfData)
           return { success: true }
         }
+
+        // Offline = czytelny błąd zamiast fałszywego sukcesu (spooler przyjmuje
+        // zadania do martwej drukarki bez mrugnięcia)
+        const offlineMsg = await checkPrinterOffline(deviceName)
+        if (offlineMsg) return { success: false, failureReason: offlineMsg }
 
         const pageSize =
           widthMm && heightMm
@@ -331,6 +370,9 @@ function setupPrinting(mainWin: BrowserWindow) {
       if (!deviceName || !zpl) return { success: false, error: 'Brak drukarki lub treści ZPL' }
       if (process.platform !== 'win32') return { success: false, error: 'RAW spool tylko na Windows' }
       const body = zpl.repeat(Math.max(1, copies))
+      // RAW spool też "udaje się" do drukarki offline — zadanie wisi w kolejce
+      const offlineMsg = await checkPrinterOffline(deviceName)
+      if (offlineMsg) return { success: false, error: offlineMsg }
       const tmp = path.join(os.tmpdir(), `krzpl_${Date.now()}_${Math.floor(Math.random() * 1e6)}.bin`)
       try {
         // UTF-8, nie latin1! latin1 gubiło polskie znaki ("ł" → "B") —

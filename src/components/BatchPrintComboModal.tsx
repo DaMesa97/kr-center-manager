@@ -41,6 +41,17 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
   const [printing, setPrinting] = useState(false)
   const [progress, setProgress] = useState(0)
   const mountedRef = useRef(true)
+  // Świadome przerwanie partii (przycisk) — zamknięcie modala w trakcie druku
+  // ucinało pętlę PO CICHU i nikt nie wiedział, ile się wydrukowało
+  const cancelRef = useRef(false)
+
+  const safeClose = () => {
+    if (printing) {
+      pushToast('Trwa drukowanie — użyj „Przerwij drukowanie" albo poczekaj', 'info')
+      return
+    }
+    onClose()
+  }
 
   const categories = useMemo(
     () => Array.from(new Set(orders.map((o) => String(o.category)))),
@@ -111,6 +122,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
     if (!ipc) { pushToast('Eksport dostępny tylko w aplikacji desktop', 'error'); return }
     setPrinting(true)
     setProgress(0)
+    cancelRef.current = false
     let labelsSkip = 0
     let docsSkip = 0
     let zplSkipped = 0
@@ -118,6 +130,10 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
       try {
       const sections: PdfSection[] = []
       for (let i = 0; i < orders.length; i++) {
+        if (cancelRef.current) {
+          pushToast(`Eksport przerwany (przygotowano ${i} z ${orders.length} zam., plik nie powstał)`, 'info')
+          return
+        }
         const order = orders[i]
         if (doLabels) {
           const tpl = templateForCategory(String(order.category))
@@ -183,15 +199,18 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
     if (printerName === PDF_EXPORT) { await handleExportPdf(); return }
     setPrinting(true)
     setProgress(0)
+    cancelRef.current = false
     localStorage.setItem(PRINTER_LS_KEY, printerName)
     let labelsOk = 0, labelsFail = 0, labelsSkip = 0
     let docsOk = 0, docsFail = 0, docsSkip = 0
     let lastDocError = ''
+    let processed = 0 // licznik lokalny — stan `progress` w closure byłby nieświeży
     try {
       // ZPL zbieramy do JEDNEJ paczki — każde wywołanie printRaw to osobny
       // PowerShell z kompilacją C# (sekundy!), więc paczka = jeden strzał
       const zplParts: string[] = []
       for (let i = 0; i < orders.length; i++) {
+        if (cancelRef.current) break
         const order = orders[i]
         // 1) etykieta QR (HTML -> Windows)
         if (doLabels) {
@@ -232,6 +251,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
           }
         }
         if (!mountedRef.current) return
+        processed = i + 1
         setProgress(i + 1)
       }
       if (doDocs && zplParts.length > 0) {
@@ -247,19 +267,23 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
       if (doLabels) parts.push(`etykiety ${labelsOk}${labelsFail ? `/bł.${labelsFail}` : ''}${labelsSkip ? `/brak szablonu ${labelsSkip}` : ''}`)
       if (doDocs) parts.push(`DoP ${docsOk}${docsFail ? `/bł.${docsFail}` : ''}${docsSkip ? `/bez dok. ${docsSkip}` : ''}`)
       const anyFail = labelsFail + docsFail > 0
-      pushToast(`Wydruk: ${parts.join(', ')}${docsFail && lastDocError ? ` — ${lastDocError.slice(0, 160)}` : ''}`, anyFail ? 'error' : 'success')
-      if (!anyFail) { onDone?.(); onClose() }
+      const cancelled = cancelRef.current
+      pushToast(
+        `${cancelled ? `PRZERWANO po ${processed}/${orders.length} — ` : ''}Wydruk: ${parts.join(', ')}${docsFail && lastDocError ? ` — ${lastDocError.slice(0, 160)}` : ''}`,
+        anyFail ? 'error' : cancelled ? 'info' : 'success',
+      )
+      if (!anyFail && !cancelled) { onDone?.(); onClose() }
     } finally {
       if (mountedRef.current) setPrinting(false)
     }
   }
 
   return createPortal(
-    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={safeClose}>
       <div className="order-modal order-modal--sta" style={{ maxWidth: 600 }} onClick={(e) => e.stopPropagation()}>
         <div className="order-modal-header">
           <h2>Drukuj komplet — {orders.length} zam.</h2>
-          <button type="button" className="btn btn-icon btn-ghost" onClick={onClose}><X size={18} /></button>
+          <button type="button" className="btn btn-icon btn-ghost" onClick={safeClose}><X size={18} /></button>
         </div>
 
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -346,7 +370,13 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
           <button type="button" className="btn btn-primary" disabled={printing || loading} onClick={() => void handlePrint()}>
             <Printer size={16} /> {printing ? `Drukuję… ${progress}/${orders.length}` : 'Drukuj komplet'}
           </button>
-          <button type="button" className="btn btn-sm btn-primary" onClick={onClose}>Anuluj</button>
+          {printing ? (
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => { cancelRef.current = true }}>
+              Przerwij drukowanie
+            </button>
+          ) : (
+            <button type="button" className="btn btn-sm btn-primary" onClick={onClose}>Anuluj</button>
+          )}
         </div>
       </div>
     </div>,
