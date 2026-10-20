@@ -1,6 +1,6 @@
 import { useMemo, useState, type MutableRefObject, type RefObject } from 'react'
 import type { GlassAllowance, Order } from '../types'
-import { calcGlassDim, getGlassAllowance, splitWxH } from '../utils'
+import { calcGlassDim, getGlassAllowance, parseGlassDim } from '../utils'
 import { generateGlassOrderPdf, type GlassOrderLine } from '../utils/glassOrderPdfGenerator'
 import { appAlert, appConfirm } from '../lib/appDialogs'
 import DataTable, { type DataTableColumn } from './DataTable'
@@ -18,26 +18,24 @@ function glassLinesFor(
   const lines: GlassOrderLine[] = []
 
   const dim = (raw: unknown, aw: { w: number; h: number }): string => {
-    // splitWxH akceptuje ×/x/* — "900x400" (ASCII x) znikało z listy szyb
-    const p = splitWxH(String(raw ?? ''))
-    const w = parseInt(p.w) || 0
-    const h = parseInt(p.h) || 0
+    const [w, h] = parseGlassDim(raw)
     return w && h ? calcGlassDim(w, h, aw.w, aw.h) : ''
   }
 
   const tl = dim(order.top_light, tlAllowance)
   if (tl) lines.push({ ...base, element: 'Naświetle', glazing: String(order.top_light_glazing ?? '').trim(), glassDim: tl })
-  const spA = dim(order.side_panel_a || order.side_panel, spAllowance)
+  const spA = dim(sidePanelARaw(order), spAllowance)
   if (spA) lines.push({ ...base, element: 'Dostawka A', glazing: String(order.side_panel_a_glazing || order.side_panel_glazing || '').trim(), glassDim: spA })
   const spB = dim(order.side_panel_b, spAllowance)
   if (spB) lines.push({ ...base, element: 'Dostawka B', glazing: String(order.side_panel_b_glazing ?? '').trim(), glassDim: spB })
   return lines
 }
 
-// Wymiar "W×H" → [w, h] (0 przy braku); splitWxH akceptuje ×/x/*
-function parseDim(raw: unknown): [number, number] {
-  const p = splitWxH(String(raw ?? ''))
-  return [parseInt(p.w) || 0, parseInt(p.h) || 0]
+// Dostawka A: side_panel_a, a gdy nie ma w nim wymiaru — stare pole side_panel
+function sidePanelARaw(order: Order): string {
+  const a = String(order.side_panel_a ?? '')
+  const [w, h] = parseGlassDim(a)
+  return w && h ? a : String(order.side_panel ?? '')
 }
 
 type GlassRow = {
@@ -95,10 +93,7 @@ export default function GlassView({
   // dla szklarza (pogrupowany po rodzaju szkła), potem opcjonalny stempel daty
   const [generating, setGenerating] = useState(false)
   const pendingOrders = orders.filter(
-    (o) =>
-      (o.top_light || o.side_panel_a || o.side_panel || o.side_panel_b) &&
-      !o.glass_order_date &&
-      glassLinesFor(o, activeTab, glassAllowances).length > 0,
+    (o) => !o.glass_order_date && glassLinesFor(o, activeTab, glassAllowances).length > 0,
   )
 
   const handleGenerateGlassOrder = async () => {
@@ -129,11 +124,10 @@ export default function GlassView({
     const tlAllowance = getGlassAllowance(glassAllowances, activeTab, 'top_light')
     const spAllowance = getGlassAllowance(glassAllowances, activeTab, 'side_panel')
     return orders
-      .filter((o) => o.top_light || o.side_panel_a || o.side_panel || o.side_panel_b)
       .map((order) => {
-        const [tlW, tlH] = parseDim(order.top_light)
-        const [spAW, spAH] = parseDim(order.side_panel_a || order.side_panel)
-        const [spBW, spBH] = parseDim(order.side_panel_b)
+        const [tlW, tlH] = parseGlassDim(order.top_light)
+        const [spAW, spAH] = parseGlassDim(sidePanelARaw(order))
+        const [spBW, spBH] = parseGlassDim(order.side_panel_b)
         return {
           order,
           tlTotal: tlW && tlH ? `${tlW}×${tlH}` : '',
@@ -144,6 +138,8 @@ export default function GlassView({
           spBGlass: spBW && spBH ? calcGlassDim(spBW, spBH, spAllowance.w, spAllowance.h) : '',
         }
       })
+      // tylko zamówienia z prawdziwym wymiarem szyby ("NIE", samo "2080" itp. pomijamy)
+      .filter((r) => r.tlTotal || r.spATotal || r.spBTotal)
   }, [orders, activeTab, glassAllowances])
 
   // Zwykła kolumna tekstowa (nagłówek z klasą col-order-text, td bez klas)

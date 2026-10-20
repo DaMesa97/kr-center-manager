@@ -780,6 +780,16 @@ export function calcExtensionDims(
   return { sideDim, topDim }
 }
 
+/**
+ * Wymiar naświetla/dostawki "W×H" → [w, h] liczbowo (0 przy braku) — nakładka na
+ * wspólny parser splitWxH (×/x/*). Łapie też "380 mm x 2081 mm" ze starych danych.
+ * "NIE" → [0, 0]; sama liczba ("2080") → [2080, 0], czyli BRAK pełnego wymiaru.
+ */
+export function parseGlassDim(raw: unknown): [number, number] {
+  const p = splitWxH(String(raw ?? ''))
+  return [parseInt(p.w) || 0, parseInt(p.h) || 0]
+}
+
 export function calcGlassDim(
   totalW: number,
   totalH: number,
