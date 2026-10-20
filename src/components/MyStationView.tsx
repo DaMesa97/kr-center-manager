@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import type { Order, WorkerStage } from '../types'
+import type { Complaint, Order, WorkerStage } from '../types'
 import { isRushOrderSequence } from '../utils'
-import { buildTasks, fieldsForStage, type MyTask } from '../lib/stationLogic'
+import { buildComplaintTasks, buildTasks, fieldsForStage, sortTasks, type MyTask } from '../lib/stationLogic'
 import type { StageCompleteResult, StockReleaseRow } from '../hooks/useMyStation'
 import DeleteConfirmDialog from './DeleteConfirmDialog'
 import StockShortageDialog from './StockShortageDialog'
@@ -13,6 +13,7 @@ import type { ToastVariant } from '../types'
 type Props = {
   currentUserId: string
   orders: Order[]
+  complaints: Complaint[]
   workerStages: WorkerStage[]
   onStageComplete: (
     order: Order,
@@ -20,6 +21,7 @@ type Props = {
     category: string,
     opts?: { force?: boolean },
   ) => Promise<StageCompleteResult>
+  onComplaintStageComplete: (task: MyTask) => Promise<StageCompleteResult>
   loading: boolean
   pushToast: (msg: string, variant: ToastVariant) => void
   /** zgłaszanie zniszczeń tylko dla kierownika (wyprowadza towar ze stanu) */
@@ -29,8 +31,10 @@ type Props = {
 export default function MyStationView({
   currentUserId,
   orders,
+  complaints,
   workerStages,
   onStageComplete,
+  onComplaintStageComplete,
   loading,
   pushToast,
   isManager,
@@ -43,7 +47,10 @@ export default function MyStationView({
     shortages: StockReleaseRow[]
   } | null>(null)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
-  const tasks = useMemo(() => buildTasks(orders, workerStages), [orders, workerStages])
+  const tasks = useMemo(
+    () => sortTasks([...buildTasks(orders, workerStages), ...buildComplaintTasks(complaints, workerStages)]),
+    [orders, complaints, workerStages],
+  )
   const readyCount = tasks.filter((t) => t.readyToWork).length
   const waitingCount = tasks.length - readyCount
 
@@ -59,8 +66,19 @@ export default function MyStationView({
             <div className="my-station-cell-main">
               <span className="my-station-expand-icon">{expandedKey === taskKey(task) ? '▾' : '▸'}</span>{' '}
               {task.order.order_number}
+              {task.isComplaint && (
+                <span
+                  className="bot-badge bot-badge--review bot-badge--table"
+                  title={`Zadanie z reklamacji ${task.complaintNumber ?? ''}`}
+                >
+                  REKLAMACJA
+                </span>
+              )}
             </div>
-            <div className="my-station-cell-sub">{task.order.company}</div>
+            <div className="my-station-cell-sub">
+              {task.order.company}
+              {task.isComplaint && task.complaintNumber ? ` · ${task.complaintNumber}` : ''}
+            </div>
           </>
         ),
       },
@@ -96,7 +114,7 @@ export default function MyStationView({
             >
               ✓ Zrobione
             </button>
-            {isManager && (
+            {isManager && !task.isComplaint && (
               <>
                 {' '}
                 <button
@@ -188,7 +206,11 @@ export default function MyStationView({
       {confirmTask && (
         <DeleteConfirmDialog
           title="Oznaczyć etap jako zrobiony?"
-          message={`Zamówienie nr ${confirmTask.order.order_number}, etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`}
+          message={
+            confirmTask.isComplaint
+              ? `REKLAMACJA ${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number}), etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
+              : `Zamówienie nr ${confirmTask.order.order_number}, etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
+          }
           confirmLabel="Tak, oznacz jako zrobione"
           cancelLabel="Anuluj"
           tone="success"
@@ -196,7 +218,9 @@ export default function MyStationView({
             const run = async () => {
               if (!confirmTask) return
               const task = confirmTask
-              const result = await onStageComplete(task.order, task.stageKey, task.category)
+              const result = task.isComplaint
+                ? await onComplaintStageComplete(task)
+                : await onStageComplete(task.order, task.stageKey, task.category)
               setConfirmTask(null)
               if (result.status === 'shortage') {
                 setShortageDialog({ task, shortages: result.shortages })
@@ -240,4 +264,6 @@ export default function MyStationView({
   )
 }
 
-const taskKey = (task: MyTask) => `${task.order.id ?? task.order.order_number}-${task.stageKey}`
+// Prefiks dla reklamacji — mają własną numerację id i mogłyby kolidować z zamówieniami
+const taskKey = (task: MyTask) =>
+  `${task.isComplaint ? 'r' : ''}${task.order.id ?? task.order.order_number}-${task.stageKey}`

@@ -500,6 +500,7 @@ function App() {
 
   const {
     myStationOrders,
+    myStationComplaints,
     myStationLoading,
     workerStagesForCurrent,
     workerStagesModal,
@@ -507,6 +508,7 @@ function App() {
     fetchMyWorkerStages,
     fetchMyStationOrders,
     handleStageComplete,
+    handleComplaintStageComplete,
   } = useMyStation({ pushToast, currentUser })
 
   const {
@@ -2849,8 +2851,10 @@ function App() {
           <MyStationView
             currentUserId={currentUser?.id ?? ''}
             orders={myStationOrders}
+            complaints={myStationComplaints}
             workerStages={workerStagesForCurrent}
             onStageComplete={handleStageComplete}
+            onComplaintStageComplete={handleComplaintStageComplete}
             loading={myStationLoading}
             pushToast={pushToast}
             isManager={isManager}

@@ -3,8 +3,8 @@ import { ChevronDown, ChevronRight, Check, RefreshCw, Zap } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { mirrorStageKey } from '../../lib/stageMirror'
 import { isReleaseDateEmpty, isRushOrderSequence, parseProductionStages } from '../../utils'
-import { buildTasks, fieldsForStage, type MyTask } from '../../lib/stationLogic'
-import type { Order, WorkerStage } from '../../types'
+import { buildComplaintTasks, buildTasks, fieldsForStage, sortTasks, type MyTask } from '../../lib/stationLogic'
+import type { Complaint, Order, WorkerStage } from '../../types'
 
 type ShortageRow = {
   r_component_name: string
@@ -25,6 +25,7 @@ const CAT_COLORS: Record<string, string> = {
 export default function MobileStationView({ userId }: Props) {
   const [workerStages, setWorkerStages] = useState<WorkerStage[]>([])
   const [orders, setOrders] = useState<Order[]>([])
+  const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [confirmTask, setConfirmTask] = useState<MyTask | null>(null)
@@ -42,12 +43,13 @@ export default function MobileStationView({ userId }: Props) {
   const load = useCallback(async () => {
     if (!userId) return
     setLoading(true)
-    const [stagesRes, ordersRes, profileRes] = await Promise.all([
+    const [stagesRes, ordersRes, profileRes, complaintsRes] = await Promise.all([
       supabase.from('worker_stages').select('*').eq('worker_id', userId),
       // Sort po id (numerycznie, stabilnie) — order_number to tekst i po
       // przekroczeniu limitu ucinał ŚWIEŻE zlecenia (desktop: ten sam fix)
       supabase.from('orders').select('*').order('id', { ascending: false }).limit(2000),
       supabase.from('profiles').select('initials').eq('id', userId).single(),
+      supabase.from('complaints').select('*').is('release_date', null),
     ])
     if (!mountedRef.current) return
     setLoading(false)
@@ -66,6 +68,13 @@ export default function MobileStationView({ userId }: Props) {
       return true
     }) as Order[]
     setOrders(filtered)
+    if (!complaintsRes.error) {
+      const openComplaints = ((complaintsRes.data ?? []) as Complaint[]).filter((c) => {
+        const extra = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
+        return extra?.cancelled !== true
+      })
+      setComplaints(openComplaints)
+    }
   }, [userId])
 
   useEffect(() => {
@@ -89,7 +98,10 @@ export default function MobileStationView({ userId }: Props) {
     }
   }, [load, userId])
 
-  const tasks = useMemo(() => buildTasks(orders, workerStages), [orders, workerStages])
+  const tasks = useMemo(
+    () => sortTasks([...buildTasks(orders, workerStages), ...buildComplaintTasks(complaints, workerStages)]),
+    [orders, complaints, workerStages],
+  )
   const readyCount = tasks.filter((t) => t.readyToWork).length
 
   const completeStage = async (task: MyTask, opts?: { force?: boolean }) => {
@@ -102,6 +114,53 @@ export default function MobileStationView({ userId }: Props) {
       setConfirmTask(null)
       return
     }
+
+    // Reklamacja: bez magazynu — komponenty napraw rozlicza kierownik
+    // (Zniszczenia / ręczne WZ). Tylko oznaczenie etapu + mirror pary.
+    if (task.isComplaint) {
+      if (task.complaintId == null) return
+      setSaving(true)
+      try {
+        const mark = myInitials || 'T'
+        const { error } = await supabase.rpc('update_complaint_stage', {
+          p_complaint_id: task.complaintId,
+          p_stage_key: actualKey,
+          p_stage_value: mark,
+        })
+        if (!mountedRef.current) return
+        if (error) { flash(`Błąd: ${error.message}`); return }
+
+        const mirrorKey = mirrorStageKey(task.category, actualKey)
+        if (mirrorKey && task.linkedComplaintId != null) {
+          const { error: mErr } = await supabase.rpc('update_complaint_stage', {
+            p_complaint_id: task.linkedComplaintId,
+            p_stage_key: mirrorKey,
+            p_stage_value: mark,
+          })
+          if (mErr) console.error('complaint mirror stage error:', mErr)
+        }
+
+        setComplaints((prev) =>
+          prev.map((c) => {
+            if (c.id === task.complaintId) {
+              const cur = parseProductionStages(c.production_stages, task.category)
+              return { ...c, production_stages: { ...cur, [actualKey]: mark } }
+            }
+            if (mirrorKey && c.id === task.linkedComplaintId) {
+              const cur = parseProductionStages(c.production_stages, c.category)
+              return { ...c, production_stages: { ...cur, [mirrorKey]: mark } }
+            }
+            return c
+          }),
+        )
+        flash('Etap reklamacji oznaczony ✓')
+        setConfirmTask(null)
+      } finally {
+        if (mountedRef.current) setSaving(false)
+      }
+      return
+    }
+
     setSaving(true)
     try {
       // 1) Wydanie z magazynu (WZ) jak na desktopie — braki pokazujemy do
@@ -195,7 +254,8 @@ export default function MobileStationView({ userId }: Props) {
       ) : (
         <div className="mstation-list">
           {tasks.map((task) => {
-            const key = `${task.order.id}-${task.stageKey}`
+            // Reklamacje mają własną numerację id — prefiks chroni przed kolizją kluczy z zamówieniami
+            const key = `${task.isComplaint ? 'r' : ''}${task.order.id}-${task.stageKey}`
             const expanded = expandedKey === key
             const urgent = isRushOrderSequence(task.order.sequence)
             const details = expanded ? fieldsForStage(task.order, task.category, task.actualStageKey) : []
@@ -213,6 +273,11 @@ export default function MobileStationView({ userId }: Props) {
                     <span className="mstation-card-nr">
                       {urgent && <Zap size={13} className="mstation-urgent" />}
                       {task.order.order_number} · {task.order.company}
+                      {task.isComplaint && (
+                        <span className="mstation-rekl-badge" title={`Zadanie z reklamacji ${task.complaintNumber ?? ''}`}>
+                          REKLAMACJA
+                        </span>
+                      )}
                     </span>
                     <span className="mstation-card-stage">
                       {task.stageHeader} — {task.stageTitle}
@@ -257,7 +322,10 @@ export default function MobileStationView({ userId }: Props) {
           <div className="mstation-confirm" onClick={(e) => e.stopPropagation()}>
             <div className="mstation-confirm-title">Oznaczyć etap jako zrobiony?</div>
             <div className="mstation-confirm-body">
-              Zlecenie {confirmTask.order.order_number}<br />
+              {confirmTask.isComplaint
+                ? `REKLAMACJA ${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number})`
+                : `Zlecenie ${confirmTask.order.order_number}`}
+              <br />
               {confirmTask.stageHeader} — {confirmTask.stageTitle}
             </div>
             <div className="mstation-confirm-actions">

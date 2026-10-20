@@ -2,8 +2,9 @@ import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { mirrorStageKey } from '../lib/stageMirror'
 import { isReleaseDateEmpty, parseProductionStages } from '../utils'
-import type { CurrentUser, Order, Profile, WorkerStage } from '../types'
+import type { Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
 import type { ToastVariant } from '../types'
+import type { MyTask } from '../lib/stationLogic'
 
 type UseMyStationParams = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -27,6 +28,7 @@ export type StageCompleteResult =
 
 export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
   const [myStationOrders, setMyStationOrders] = useState<Order[]>([])
+  const [myStationComplaints, setMyStationComplaints] = useState<Complaint[]>([])
   const [myStationLoading, setMyStationLoading] = useState(false)
   const [workerStagesForCurrent, setWorkerStagesForCurrent] = useState<WorkerStage[]>([])
   const [workerStagesModal, setWorkerStagesModal] = useState<{
@@ -82,6 +84,21 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     })
 
     setMyStationOrders(filtered)
+
+    // Reklamacje jako zadania stanowisk — otwarte (nieanulowane, niezrealizowane)
+    const { data: complaintsData, error: complaintsErr } = await supabase
+      .from('complaints')
+      .select('*')
+      .is('release_date', null)
+    if (complaintsErr) {
+      console.error('station complaints fetch:', complaintsErr)
+    } else {
+      const openComplaints = ((complaintsData ?? []) as Complaint[]).filter((c) => {
+        const extra = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
+        return extra?.cancelled !== true
+      })
+      setMyStationComplaints(openComplaints)
+    }
   }, [pushToast])
 
   const handleStageComplete = useCallback(
@@ -177,9 +194,60 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     [pushToast, currentUser?.initials],
   )
 
+  // Oznaczenie etapu REKLAMACJI ze stanowiska: update_complaint_stage (jeden
+  // klucz) + mirror pary Disting Plus. Bez magazynu — komponenty napraw
+  // rozlicza kierownik (Zniszczenia / ręczne WZ).
+  const handleComplaintStageComplete = useCallback(
+    async (task: MyTask): Promise<StageCompleteResult> => {
+      const complaintId = task.complaintId
+      if (complaintId == null) return { status: 'error' }
+      const mark = (currentUser?.initials ?? '').trim() || 'T'
+
+      const { error } = await supabase.rpc('update_complaint_stage', {
+        p_complaint_id: complaintId,
+        p_stage_key: task.actualStageKey,
+        p_stage_value: mark,
+      })
+      if (error) {
+        pushToast(`Błąd: ${error.message}`, 'error')
+        return { status: 'error' }
+      }
+
+      const mirrorKey = mirrorStageKey(task.category, task.actualStageKey)
+      if (mirrorKey && task.linkedComplaintId != null) {
+        const { error: mErr } = await supabase.rpc('update_complaint_stage', {
+          p_complaint_id: task.linkedComplaintId,
+          p_stage_key: mirrorKey,
+          p_stage_value: mark,
+        })
+        if (mErr) console.error('complaint mirror stage error:', mErr)
+      }
+
+      setMyStationComplaints((prev) =>
+        prev.map((c) => {
+          if (c.id === complaintId) {
+            const cur = parseProductionStages(c.production_stages, task.category)
+            return { ...c, production_stages: { ...cur, [task.actualStageKey]: mark } }
+          }
+          if (mirrorKey && c.id === task.linkedComplaintId) {
+            const cur = parseProductionStages(c.production_stages, c.category)
+            return { ...c, production_stages: { ...cur, [mirrorKey]: mark } }
+          }
+          return c
+        }),
+      )
+      pushToast('Etap reklamacji oznaczony jako zrobiony', 'success')
+      return { status: 'ok' }
+    },
+    [pushToast, currentUser?.initials],
+  )
+
   return {
     myStationOrders,
     setMyStationOrders,
+    myStationComplaints,
+    setMyStationComplaints,
+    handleComplaintStageComplete,
     myStationLoading,
     setMyStationLoading,
     workerStagesForCurrent,

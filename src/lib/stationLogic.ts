@@ -1,6 +1,15 @@
 import { BASTION_STAGE_DEFS, BASTION_TITAN_STAGE_DEFS, STA_DISTING_STAGE_DEFS, ST_STAGE_DEFS, ST_TITAN_STAGE_DEFS } from '../constants'
-import type { Order, StageDef, WorkerStage } from '../types'
-import { hasGlassExtra, isRushOrderSequence, isStaTitanLinked, isStTitanOrder, isTitanBastionOrder, parseProductionStages } from '../utils'
+import type { Complaint, Order, StageDef, WhatComplained, WorkerStage } from '../types'
+import {
+  getComplaintBlockedStages,
+  hasGlassExtra,
+  isReleaseDateEmpty,
+  isRushOrderSequence,
+  isStaTitanLinked,
+  isStTitanOrder,
+  isTitanBastionOrder,
+  parseProductionStages,
+} from '../utils'
 
 export type MyTask = {
   order: Order
@@ -10,6 +19,11 @@ export type MyTask = {
   stageHeader: string
   stageTitle: string
   readyToWork: boolean
+  /** Zadanie z REKLAMACJI (etapy pisze update_complaint_stage, bez magazynu) */
+  isComplaint?: boolean
+  complaintId?: number
+  complaintNumber?: string
+  linkedComplaintId?: number | null
 }
 
 export type DetailField = { label: string; value: string }
@@ -146,15 +160,85 @@ export function buildTasks(orders: Order[], workerStages: WorkerStage[]): MyTask
     }
   }
 
+  return sortTasks(tasks)
+}
+
+/** Wspólne sortowanie zadań (zamówienia + reklamacje): gotowe → pilne → data. */
+export function sortTasks(tasks: MyTask[]): MyTask[] {
   tasks.sort((a, b) => {
     if (a.readyToWork !== b.readyToWork) return a.readyToWork ? -1 : 1
-    const aUrgent = isRushOrderSequence(a.order.sequence)
-    const bUrgent = isRushOrderSequence(b.order.sequence)
+    const aUrgent = a.isComplaint ? (a.order as unknown as Complaint).is_rush === true : isRushOrderSequence(a.order.sequence)
+    const bUrgent = b.isComplaint ? (b.order as unknown as Complaint).is_rush === true : isRushOrderSequence(b.order.sequence)
     if (aUrgent !== bUrgent) return aUrgent ? -1 : 1
     const aDate = a.order.order_date ?? ''
     const bDate = b.order.order_date ?? ''
     return aDate.localeCompare(bDate)
   })
+  return tasks
+}
+
+// Reklamacje jako zadania stanowisk — do tej pory istniały TYLKO w podzakładce
+// Reklamacje i stolarz/ościeżniczarz nigdy ich nie widział w swojej kolejce.
+// Etapy pisze update_complaint_stage (bez magazynu — komponenty napraw
+// rozlicza kierownik przez Zniszczenia/ręczne WZ).
+export function buildComplaintTasks(complaints: Complaint[], workerStages: WorkerStage[]): MyTask[] {
+  const tasks: MyTask[] = []
+
+  for (const c of complaints) {
+    const category = c.category ?? ''
+    if (!category) continue
+    const ef = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
+    if (ef?.cancelled === true) continue
+    if (!isReleaseDateEmpty((c as { release_date?: string | null }).release_date ?? null)) continue
+
+    const stagesForCategory = workerStages.filter((ws) => ws.category === category)
+    if (stagesForCategory.length === 0) continue
+
+    const defs: StageDef[] =
+      category === 'STA' || category === 'Disting'
+        ? STA_DISTING_STAGE_DEFS
+        : category === 'ST'
+          ? ST_STAGE_DEFS
+          : category === 'Bastion'
+            ? BASTION_STAGE_DEFS
+            : []
+    if (defs.length === 0) continue
+
+    const parsed = parseProductionStages(c.production_stages, category)
+    const blocked = new Set(
+      getComplaintBlockedStages(category, (c.what_complained ?? '') as WhatComplained | '', c.linked_complaint_id),
+    )
+    const orderLike = c as unknown as Order
+
+    for (const ws of stagesForCategory) {
+      if (ws.stage_key.startsWith('titan_')) continue // reklamacje nie są titanowe
+      const actualKey = ws.stage_key
+      if (blocked.has(actualKey)) continue
+      const def = defs.find((d) => d.key === actualKey)
+      if (!def) continue
+      if (String(parsed[actualKey] ?? '').trim() !== '') continue
+      if (actualKey === 'e2_2' && (category === 'STA' || category === 'Disting') && !hasGlassExtra(orderLike)) {
+        continue
+      }
+
+      tasks.push({
+        order: orderLike,
+        stageKey: ws.stage_key,
+        actualStageKey: actualKey,
+        category,
+        stageHeader: def.header,
+        stageTitle: def.title ?? '',
+        readyToWork: isStageReady(category, actualKey, parsed, defs, {
+          blocked,
+          glassExtra: hasGlassExtra(orderLike),
+        }),
+        isComplaint: true,
+        complaintId: c.id,
+        complaintNumber: c.complaint_number,
+        linkedComplaintId: c.linked_complaint_id ?? null,
+      })
+    }
+  }
 
   return tasks
 }

@@ -376,6 +376,17 @@ html, body, #root {
   gap: 0.3rem;
 }
 .mstation-urgent { color: #dc2626; }
+.mstation-rekl-badge {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #b3261e;
+  background: #fde8e7;
+  border: 1px solid #f3b6b2;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  white-space: nowrap;
+}
 .mstation-card-stage { font-size: 0.8rem; color: #64748b; }
 .mstation-card-body {
   padding: 0 0.75rem 0.75rem;
