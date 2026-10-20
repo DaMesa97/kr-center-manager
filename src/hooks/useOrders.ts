@@ -113,7 +113,6 @@ type UseOrdersParams = {
   glassAllowances: GlassAllowance[]
   extensionProfileWidths: { category: string; profile_width_mm: number }[]
   // z useWarehouse:
-  consumeStockForOrderWithToasts: (orderId: number, category?: string) => Promise<void>
   reserveStockForOrderWithToasts: (orderId: number) => Promise<void>
   syncWarehouseStockAfterOrderEdit: (orderId: number, oldOrder: Order, newData: Record<string, unknown>) => Promise<void>
   fetchOrdersNeedingReview: () => Promise<void>

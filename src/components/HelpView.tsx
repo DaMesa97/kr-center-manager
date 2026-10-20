@@ -18,6 +18,44 @@ type Section = {
 }
 
 const SECTIONS: Section[] = [
+  // ── 0. Co nowego ────────────────────────────────────────────────────
+  {
+    id: 'co-nowego',
+    title: '✨ Co nowego (beta.47–52)',
+    keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
+    body: (
+      <>
+        <h4>Produkcja</h4>
+        <ul>
+          <li><b>Reklamacje na „Moje stanowisko"</b> (też na telefonie) — etapy otwartych reklamacji pojawiają się jako zadania z czerwoną plakietką REKLAMACJA. Części do napraw NIE schodzą same z magazynu — rozlicza je kierownik (Zniszczenia / ręczna WZ).</li>
+          <li><b>E5 (pakowanie) odblokowane</b> dla zleceń łączonych i bez szkła — zadanie pojawia się, gdy zrobione są etapy, które faktycznie blokują.</li>
+          <li><b>Cofnięcie etapu</b> przez kierownika od razu widać na innych stanowiskach (wcześniej wymagało odświeżenia).</li>
+        </ul>
+        <h4>Zamówienia</h4>
+        <ul>
+          <li><b>Plakietka ⚠️ przy numerze</b> = zamówienie z bota/Excela wymaga weryfikacji (duplikat treści, konflikt numeru). Szczegóły w zakładce Weryfikacja.</li>
+          <li><b>Zaczep</b> to jedno pole: BRAK / MECHANICZNY / ELEKTROZACZEP — spięte z recepturami i DoP.</li>
+          <li>Duże zakładki ładują się szybciej, a tabela dorysowuje wiersze w miarę przewijania.</li>
+        </ul>
+        <h4>Magazyn</h4>
+        <ul>
+          <li><b>Eksport stanu na wybrany dzień do CSV</b> (Magazyn → Stan).</li>
+          <li>Zwroty ZWR: cofnięcie etapu/wydania umie oddać towar na półkę; ZD ma magazyn docelowy, a „w drodze" liczy się per magazyn.</li>
+        </ul>
+        <h4>Druk</h4>
+        <ul>
+          <li><b>Drukarka offline = czytelny błąd</b> zamiast fałszywego „wydrukowano" (zadanie nie wisi już po cichu w kolejce Windows).</li>
+          <li>Druk zbiorczy ma przycisk <b>„Przerwij drukowanie"</b> i raportuje, ile poszło; zamknięcie okna nie ucina już partii bez słowa.</li>
+        </ul>
+        <h4>Konta i stabilność</h4>
+        <ul>
+          <li>Administrator może <b>dezaktywować konto</b> i <b>zresetować hasło</b> (Użytkownicy).</li>
+          <li>Po utracie i powrocie sieci program <b>sam odświeża dane</b>; awaria ekranu pokazuje komunikat z przyciskiem przeładowania zamiast białego okna.</li>
+          <li>Program może wymagać minimalnej wersji — przy zbyt starej poprosi o aktualizację po zalogowaniu.</li>
+        </ul>
+      </>
+    ),
+  },
   // ── 1. Start ────────────────────────────────────────────────────────
   {
     id: 'start',

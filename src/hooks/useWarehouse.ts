@@ -817,53 +817,9 @@ export function useWarehouse({
     [activeTab, fetchWarehouseStock, fetchAlertsBadgeCount, pushToast, setOrders],
   )
 
-  const consumeStockForOrderWithToasts = useCallback(
-    async (insertedOrderId: number | null | undefined) => {
-      if (!insertedOrderId) return
-      try {
-        const { data: consumeResult, error: consumeError } = await supabase.rpc('consume_stock_for_order', {
-          p_order_id: insertedOrderId,
-        })
-
-        if (consumeError) {
-          pushToast(`Ostrzeżenie: błąd pobrania z magazynu: ${consumeError.message}`, 'error')
-        } else if (consumeResult && Array.isArray(consumeResult) && consumeResult.length > 0) {
-          const noRecipe = consumeResult.some((r: { r_status?: string }) => r.r_status === 'no_recipe')
-          const insufficient = consumeResult.filter((r: { r_status?: string }) => r.r_status === 'insufficient')
-          const ok = consumeResult.filter((r: { r_status?: string }) => r.r_status === 'ok')
-
-          if (noRecipe) {
-            pushToast('Brak receptur dla tego zamówienia — nic nie pobrano z magazynu', 'info')
-          } else if (insufficient.length > 0) {
-            pushToast(
-              `Pobrano z magazynu (${ok.length} pozycji OK, ${insufficient.length} na minus)`,
-              'info',
-            )
-          } else {
-            pushToast(`Pobrano z magazynu ${ok.length} pozycji`, 'success')
-          }
-        }
-
-        if (!consumeError) {
-          const orderId = insertedOrderId
-          const { data: updatedOrder } = await supabase.from('orders').select('*').eq('id', orderId).single()
-          if (updatedOrder) {
-            setOrders((prev) =>
-              prev.map((o) => (o.id === orderId ? { ...o, ...(updatedOrder as Order) } : o)),
-            )
-          }
-        }
-      } catch (err) {
-        console.error('consume_stock_for_order error:', err)
-        pushToast('Ostrzeżenie: nie udało się pobrać z magazynu', 'error')
-      }
-      if (activeTab === 'Magazyn') {
-        await fetchWarehouseStock()
-      }
-      void fetchAlertsBadgeCount()
-    },
-    [activeTab, fetchWarehouseStock, fetchAlertsBadgeCount, pushToast, setOrders],
-  )
+  // consumeStockForOrderWithToasts USUNIĘTE (porządki 2026-10-20): wrapper na
+  // consume_stock_for_order nie był nigdzie wywoływany — model pobrań to
+  // rezerwacja → WZ (reserve_stock_for_order + release_stock_for_stage).
 
   const syncWarehouseStockAfterOrderEdit = useCallback(
     async (orderId: number, baseline: Order | null, newData: Partial<Order>) => {
@@ -1824,7 +1780,6 @@ export function useWarehouse({
     handleSetComponentWarehouses,
     handleCleanupOrphanStock,
     // Stock operations
-    consumeStockForOrderWithToasts,
     reserveStockForOrderWithToasts,
     cancelOrderReservations,
     incomingStock,

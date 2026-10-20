@@ -58,7 +58,9 @@ export type Order = {
   airtable_id: string
   label: string
   category: string
-  source?: 'manual' | 'bot' | 'api' | null
+  // Realne wartości w bazie: manual, bot (konfigurator), excel (arkusz),
+  // migracja (import historyczny). 'api' zostaje dla ewentualnych integracji.
+  source?: 'manual' | 'bot' | 'excel' | 'migracja' | 'api' | null
   source_metadata?:
     | {
         received_at?: string
