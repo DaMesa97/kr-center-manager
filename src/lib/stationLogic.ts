@@ -28,6 +28,37 @@ export type MyTask = {
 
 export type DetailField = { label: string; value: string }
 
+// ── Kto robił etap? ───────────────────────────────────────────────────
+// Stanowisko to często JEDEN komputer i KILKA osób (np. 3 na okuwaniu).
+// Przy oznaczaniu etapu pokazujemy kafelki osób przypisanych do tego etapu
+// w worker_stages — klik w kafelek = potwierdzenie z inicjałami tej osoby.
+export type StationWorker = { id: string; initials: string; fullName: string }
+
+export function workersForTask(
+  task: MyTask,
+  allStages: WorkerStage[],
+  profiles: Array<{ id: string; initials?: string | null; full_name?: string | null }>,
+): StationWorker[] {
+  const ids = new Set(
+    allStages
+      .filter(
+        (ws) =>
+          ws.category === task.category &&
+          (ws.stage_key === task.stageKey || ws.stage_key === task.actualStageKey),
+      )
+      .map((ws) => ws.worker_id),
+  )
+  const out: StationWorker[] = []
+  for (const p of profiles) {
+    if (!ids.has(p.id)) continue
+    const initials = String(p.initials ?? '').trim()
+    if (!initials) continue
+    out.push({ id: p.id, initials, fullName: String(p.full_name ?? '').trim() })
+  }
+  out.sort((a, b) => a.initials.localeCompare(b.initials, 'pl'))
+  return out
+}
+
 // Graf zależności etapów — które etapy muszą być ukończone, by dany etap był "gotowy".
 // Produkcja ma RÓWNOLEGŁE tory (skrzydło niezależne od ościeżnicy), więc nie jest liniowa.
 const STAGE_DEPS: Record<string, Record<string, string[]>> = {

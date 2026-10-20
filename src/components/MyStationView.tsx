@@ -1,9 +1,17 @@
 import { useMemo, useState } from 'react'
 import type { Complaint, Order, WorkerStage } from '../types'
 import { isRushOrderSequence } from '../utils'
-import { buildComplaintTasks, buildTasks, fieldsForStage, sortTasks, type MyTask } from '../lib/stationLogic'
+import {
+  buildComplaintTasks,
+  buildTasks,
+  fieldsForStage,
+  sortTasks,
+  workersForTask,
+  type MyTask,
+  type StationWorker,
+} from '../lib/stationLogic'
 import type { StageCompleteResult, StockReleaseRow } from '../hooks/useMyStation'
-import DeleteConfirmDialog from './DeleteConfirmDialog'
+import StageWorkerConfirmDialog from './StageWorkerConfirmDialog'
 import StockShortageDialog from './StockShortageDialog'
 import DamageReportModal from './DamageReportModal'
 import Spinner from './Spinner'
@@ -15,13 +23,16 @@ type Props = {
   orders: Order[]
   complaints: Complaint[]
   workerStages: WorkerStage[]
+  /** Przypisania WSZYSTKICH pracowników + profile — kafelki "kto zrobił" */
+  allWorkerStages: WorkerStage[]
+  stationProfiles: Array<{ id: string; initials: string | null; full_name: string | null }>
   onStageComplete: (
     order: Order,
     stageKey: string,
     category: string,
-    opts?: { force?: boolean },
+    opts?: { force?: boolean; markInitials?: string },
   ) => Promise<StageCompleteResult>
-  onComplaintStageComplete: (task: MyTask) => Promise<StageCompleteResult>
+  onComplaintStageComplete: (task: MyTask, markInitials?: string) => Promise<StageCompleteResult>
   loading: boolean
   pushToast: (msg: string, variant: ToastVariant) => void
   /** zgłaszanie zniszczeń tylko dla kierownika (wyprowadza towar ze stanu) */
@@ -33,6 +44,8 @@ export default function MyStationView({
   orders,
   complaints,
   workerStages,
+  allWorkerStages,
+  stationProfiles,
   onStageComplete,
   onComplaintStageComplete,
   loading,
@@ -45,7 +58,25 @@ export default function MyStationView({
   const [shortageDialog, setShortageDialog] = useState<{
     task: MyTask
     shortages: StockReleaseRow[]
+    markInitials?: string
   } | null>(null)
+  // Ostatnio wybrana osoba na tym komputerze — podświetlona podpowiedź
+  const [lastWorkerId, setLastWorkerId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('stationLastWorkerId')
+    } catch {
+      return null
+    }
+  })
+  const rememberWorker = (w: StationWorker | null) => {
+    if (!w) return
+    setLastWorkerId(w.id)
+    try {
+      localStorage.setItem('stationLastWorkerId', w.id)
+    } catch {
+      /* prywatny tryb — trudno */
+    }
+  }
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const tasks = useMemo(
     () => sortTasks([...buildTasks(orders, workerStages), ...buildComplaintTasks(complaints, workerStages)]),
@@ -204,26 +235,27 @@ export default function MyStationView({
       />
 
       {confirmTask && (
-        <DeleteConfirmDialog
+        <StageWorkerConfirmDialog
           title="Oznaczyć etap jako zrobiony?"
           message={
             confirmTask.isComplaint
               ? `REKLAMACJA ${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number}), etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
               : `Zamówienie nr ${confirmTask.order.order_number}, etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
           }
-          confirmLabel="Tak, oznacz jako zrobione"
-          cancelLabel="Anuluj"
-          tone="success"
-          onConfirm={() => {
+          workers={workersForTask(confirmTask, allWorkerStages, stationProfiles)}
+          lastWorkerId={lastWorkerId}
+          onConfirm={(worker) => {
             const run = async () => {
               if (!confirmTask) return
               const task = confirmTask
+              rememberWorker(worker)
+              const markInitials = worker?.initials
               const result = task.isComplaint
-                ? await onComplaintStageComplete(task)
-                : await onStageComplete(task.order, task.stageKey, task.category)
+                ? await onComplaintStageComplete(task, markInitials)
+                : await onStageComplete(task.order, task.stageKey, task.category, { markInitials })
               setConfirmTask(null)
               if (result.status === 'shortage') {
-                setShortageDialog({ task, shortages: result.shortages })
+                setShortageDialog({ task, shortages: result.shortages, markInitials })
               }
             }
             void run()
@@ -251,8 +283,8 @@ export default function MyStationView({
           onForce={() => {
             const run = async () => {
               if (!shortageDialog) return
-              const { task } = shortageDialog
-              await onStageComplete(task.order, task.stageKey, task.category, { force: true })
+              const { task, markInitials } = shortageDialog
+              await onStageComplete(task.order, task.stageKey, task.category, { force: true, markInitials })
               setShortageDialog(null)
             }
             void run()

@@ -32,6 +32,12 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
   const [myStationComplaints, setMyStationComplaints] = useState<Complaint[]>([])
   const [myStationLoading, setMyStationLoading] = useState(false)
   const [workerStagesForCurrent, setWorkerStagesForCurrent] = useState<WorkerStage[]>([])
+  // Kafelki "kto zrobił": wszystkie przypisania etapów + profile (stanowisko
+  // to często jeden komputer i kilka osób — patrz workersForTask)
+  const [allWorkerStages, setAllWorkerStages] = useState<WorkerStage[]>([])
+  const [stationProfiles, setStationProfiles] = useState<
+    Array<{ id: string; initials: string | null; full_name: string | null }>
+  >([])
   const [workerStagesModal, setWorkerStagesModal] = useState<{
     open: boolean
     worker: Profile | null
@@ -87,10 +93,18 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     setMyStationOrders(filtered)
 
     // Reklamacje jako zadania stanowisk — otwarte (nieanulowane, niezrealizowane)
-    const { data: complaintsData, error: complaintsErr } = await supabase
-      .from('complaints')
-      .select('*')
-      .is('release_date', null)
+    // + przypisania etapów wszystkich pracowników i profile (kafelki "kto zrobił")
+    const [{ data: complaintsData, error: complaintsErr }, allWsRes, profilesRes] = await Promise.all([
+      supabase.from('complaints').select('*').is('release_date', null),
+      supabase.from('worker_stages').select('*'),
+      supabase.from('profiles').select('id, initials, full_name'),
+    ])
+    if (!allWsRes.error) setAllWorkerStages((allWsRes.data ?? []) as WorkerStage[])
+    if (!profilesRes.error) {
+      setStationProfiles(
+        (profilesRes.data ?? []) as Array<{ id: string; initials: string | null; full_name: string | null }>,
+      )
+    }
     if (complaintsErr) {
       console.error('station complaints fetch:', complaintsErr)
     } else {
@@ -107,7 +121,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       order: Order,
       stageKey: string,
       category: string,
-      opts?: { force?: boolean },
+      opts?: { force?: boolean; markInitials?: string },
     ): Promise<StageCompleteResult> => {
       const actualKey = stageKey.startsWith('titan_') ? stageKey.replace('titan_', '') : stageKey
 
@@ -140,10 +154,10 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       }
 
       // Zapisujemy INICJAŁY pracownika (spójnie z resztą apki), nie 'T'.
-      // RPC dokleja JEDEN klucz po stronie bazy (jsonb ||) — zapis całego
-      // obiektu z lokalnej kopii kasował etapy oznaczone w międzyczasie
-      // przez inne stanowiska.
-      const mark = (currentUser?.initials ?? '').trim() || 'T'
+      // markInitials = osoba wybrana kafelkiem (wspólny komputer stanowiska);
+      // bez wyboru — inicjały zalogowanego. RPC dokleja JEDEN klucz po
+      // stronie bazy (jsonb ||) — zapis całego obiektu kasował etapy innych.
+      const mark = (opts?.markInitials ?? currentUser?.initials ?? '').trim() || 'T'
       markLocalStageWrite(order.id, actualKey)
       const { error } = await supabase.rpc('update_order_stage', {
         p_order_id: order.id!,
@@ -201,10 +215,10 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
   // klucz) + mirror pary Disting Plus. Bez magazynu — komponenty napraw
   // rozlicza kierownik (Zniszczenia / ręczne WZ).
   const handleComplaintStageComplete = useCallback(
-    async (task: MyTask): Promise<StageCompleteResult> => {
+    async (task: MyTask, markInitials?: string): Promise<StageCompleteResult> => {
       const complaintId = task.complaintId
       if (complaintId == null) return { status: 'error' }
-      const mark = (currentUser?.initials ?? '').trim() || 'T'
+      const mark = (markInitials ?? currentUser?.initials ?? '').trim() || 'T'
 
       const { error } = await supabase.rpc('update_complaint_stage', {
         p_complaint_id: complaintId,
@@ -251,6 +265,8 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     myStationComplaints,
     setMyStationComplaints,
     handleComplaintStageComplete,
+    allWorkerStages,
+    stationProfiles,
     myStationLoading,
     setMyStationLoading,
     workerStagesForCurrent,

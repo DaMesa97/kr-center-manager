@@ -3,7 +3,15 @@ import { ChevronDown, ChevronRight, Check, RefreshCw, Zap } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { mirrorStageKey } from '../../lib/stageMirror'
 import { isReleaseDateEmpty, isRushOrderSequence, parseProductionStages } from '../../utils'
-import { buildComplaintTasks, buildTasks, fieldsForStage, sortTasks, type MyTask } from '../../lib/stationLogic'
+import {
+  buildComplaintTasks,
+  buildTasks,
+  fieldsForStage,
+  sortTasks,
+  workersForTask,
+  type MyTask,
+  type StationWorker,
+} from '../../lib/stationLogic'
 import type { Complaint, Order, WorkerStage } from '../../types'
 
 type ShortageRow = {
@@ -29,7 +37,23 @@ export default function MobileStationView({ userId }: Props) {
   const [loading, setLoading] = useState(true)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [confirmTask, setConfirmTask] = useState<MyTask | null>(null)
-  const [shortageConfirm, setShortageConfirm] = useState<{ task: MyTask; shortages: ShortageRow[] } | null>(null)
+  const [shortageConfirm, setShortageConfirm] = useState<{
+    task: MyTask
+    shortages: ShortageRow[]
+    markInitials?: string
+  } | null>(null)
+  // Kafelki "kto zrobił" — wspólny telefon stanowiska, kilka osób
+  const [allWorkerStages, setAllWorkerStages] = useState<WorkerStage[]>([])
+  const [stationProfiles, setStationProfiles] = useState<
+    Array<{ id: string; initials: string | null; full_name: string | null }>
+  >([])
+  const [lastWorkerId, setLastWorkerId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('stationLastWorkerId')
+    } catch {
+      return null
+    }
+  })
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [myInitials, setMyInitials] = useState('')
@@ -43,13 +67,15 @@ export default function MobileStationView({ userId }: Props) {
   const load = useCallback(async () => {
     if (!userId) return
     setLoading(true)
-    const [stagesRes, ordersRes, profileRes, complaintsRes] = await Promise.all([
+    const [stagesRes, ordersRes, profileRes, complaintsRes, allWsRes, profilesRes] = await Promise.all([
       supabase.from('worker_stages').select('*').eq('worker_id', userId),
       // Sort po id (numerycznie, stabilnie) — order_number to tekst i po
       // przekroczeniu limitu ucinał ŚWIEŻE zlecenia (desktop: ten sam fix)
       supabase.from('orders').select('*').order('id', { ascending: false }).limit(2000),
       supabase.from('profiles').select('initials').eq('id', userId).single(),
       supabase.from('complaints').select('*').is('release_date', null),
+      supabase.from('worker_stages').select('*'),
+      supabase.from('profiles').select('id, initials, full_name'),
     ])
     if (!mountedRef.current) return
     setLoading(false)
@@ -61,6 +87,12 @@ export default function MobileStationView({ userId }: Props) {
       setMyInitials(String((profileRes.data as { initials?: string } | null)?.initials ?? '').trim())
     }
     setWorkerStages((stagesRes.data ?? []) as WorkerStage[])
+    if (!allWsRes.error) setAllWorkerStages((allWsRes.data ?? []) as WorkerStage[])
+    if (!profilesRes.error) {
+      setStationProfiles(
+        (profilesRes.data ?? []) as Array<{ id: string; initials: string | null; full_name: string | null }>,
+      )
+    }
     const filtered = (ordersRes.data ?? []).filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
       if (extra?.cancelled === true) return false
@@ -104,7 +136,17 @@ export default function MobileStationView({ userId }: Props) {
   )
   const readyCount = tasks.filter((t) => t.readyToWork).length
 
-  const completeStage = async (task: MyTask, opts?: { force?: boolean }) => {
+  const rememberWorker = (w: StationWorker | null) => {
+    if (!w) return
+    setLastWorkerId(w.id)
+    try {
+      localStorage.setItem('stationLastWorkerId', w.id)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const completeStage = async (task: MyTask, opts?: { force?: boolean; markInitials?: string }) => {
     const actualKey = task.actualStageKey
     const current = parseProductionStages(task.order.production_stages, task.category)
     // Guard: ktoś inny mógł już oznaczyć ten etap (realtime/odświeżenie) —
@@ -121,7 +163,7 @@ export default function MobileStationView({ userId }: Props) {
       if (task.complaintId == null) return
       setSaving(true)
       try {
-        const mark = myInitials || 'T'
+        const mark = (opts?.markInitials ?? myInitials).trim() || 'T'
         const { error } = await supabase.rpc('update_complaint_stage', {
           p_complaint_id: task.complaintId,
           p_stage_key: actualKey,
@@ -179,7 +221,7 @@ export default function MobileStationView({ userId }: Props) {
           const rows = (relData ?? []) as ShortageRow[]
           const shortages = rows.filter((r) => r.r_status === 'insufficient')
           if (shortages.length > 0) {
-            setShortageConfirm({ task, shortages })
+            setShortageConfirm({ task, shortages, markInitials: opts?.markInitials })
             setConfirmTask(null)
             return
           }
@@ -189,8 +231,9 @@ export default function MobileStationView({ userId }: Props) {
       }
 
       // 2) Oznaczenie etapu: RPC dokleja JEDEN klucz po stronie bazy —
-      // zapis całego obiektu kasował etapy innych stanowisk. Inicjały jak desktop.
-      const mark = myInitials || 'T'
+      // zapis całego obiektu kasował etapy innych stanowisk. Inicjały: osoba
+      // z kafelka (wspólny telefon stanowiska) albo zalogowany.
+      const mark = (opts?.markInitials ?? myInitials).trim() || 'T'
       const { error } = await supabase.rpc('update_order_stage', {
         p_order_id: task.order.id!,
         p_stage_key: actualKey,
@@ -317,28 +360,55 @@ export default function MobileStationView({ userId }: Props) {
         </div>
       )}
 
-      {confirmTask && (
-        <div className="mstation-confirm-overlay" onClick={() => !saving && setConfirmTask(null)}>
-          <div className="mstation-confirm" onClick={(e) => e.stopPropagation()}>
-            <div className="mstation-confirm-title">Oznaczyć etap jako zrobiony?</div>
-            <div className="mstation-confirm-body">
-              {confirmTask.isComplaint
-                ? `REKLAMACJA ${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number})`
-                : `Zlecenie ${confirmTask.order.order_number}`}
-              <br />
-              {confirmTask.stageHeader} — {confirmTask.stageTitle}
-            </div>
-            <div className="mstation-confirm-actions">
-              <button type="button" className="mstation-confirm-cancel" onClick={() => setConfirmTask(null)} disabled={saving}>
-                Anuluj
-              </button>
-              <button type="button" className="mstation-confirm-ok" onClick={() => void completeStage(confirmTask)} disabled={saving}>
-                {saving ? 'Zapisywanie…' : 'Tak, zrobione'}
-              </button>
+      {confirmTask && (() => {
+        const workers = workersForTask(confirmTask, allWorkerStages, stationProfiles)
+        return (
+          <div className="mstation-confirm-overlay" onClick={() => !saving && setConfirmTask(null)}>
+            <div className="mstation-confirm" onClick={(e) => e.stopPropagation()}>
+              <div className="mstation-confirm-title">Oznaczyć etap jako zrobiony?</div>
+              <div className="mstation-confirm-body">
+                {confirmTask.isComplaint
+                  ? `REKLAMACJA ${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number})`
+                  : `Zlecenie ${confirmTask.order.order_number}`}
+                <br />
+                {confirmTask.stageHeader} — {confirmTask.stageTitle}
+              </div>
+              {workers.length > 0 && (
+                <>
+                  <div className="mstation-worker-hint">Kto zrobił? Kliknij swój kafelek:</div>
+                  <div className="mstation-worker-tiles">
+                    {workers.map((w) => (
+                      <button
+                        key={w.id}
+                        type="button"
+                        className={`mstation-worker-tile ${w.id === lastWorkerId ? 'mstation-worker-tile--last' : ''}`}
+                        disabled={saving}
+                        onClick={() => {
+                          rememberWorker(w)
+                          void completeStage(confirmTask, { markInitials: w.initials })
+                        }}
+                      >
+                        <span className="mstation-worker-tile-initials">{w.initials}</span>
+                        {w.fullName && <span className="mstation-worker-tile-name">{w.fullName}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              <div className="mstation-confirm-actions">
+                <button type="button" className="mstation-confirm-cancel" onClick={() => setConfirmTask(null)} disabled={saving}>
+                  Anuluj
+                </button>
+                {workers.length === 0 && (
+                  <button type="button" className="mstation-confirm-ok" onClick={() => void completeStage(confirmTask)} disabled={saving}>
+                    {saving ? 'Zapisywanie…' : 'Tak, zrobione'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {shortageConfirm && (
         <div className="mstation-confirm-overlay" onClick={() => !saving && setShortageConfirm(null)}>
@@ -368,7 +438,7 @@ export default function MobileStationView({ userId }: Props) {
               <button
                 type="button"
                 className="mstation-confirm-ok"
-                onClick={() => void completeStage(shortageConfirm.task, { force: true })}
+                onClick={() => void completeStage(shortageConfirm.task, { force: true, markInitials: shortageConfirm.markInitials })}
                 disabled={saving}
               >
                 {saving ? 'Zapisywanie…' : 'Wydaj mimo braku'}

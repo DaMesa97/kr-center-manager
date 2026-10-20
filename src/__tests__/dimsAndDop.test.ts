@@ -10,7 +10,8 @@ import {
 } from '../utils'
 import { docSpecificity, matchedDocsForOrder, orderGlazingType, type DopDocument } from '../lib/dopMatch'
 import { mirrorStageKey } from '../lib/stageMirror'
-import type { DimensionMap, Order, StaOrderFormData } from '../types'
+import { workersForTask, type MyTask } from '../lib/stationLogic'
+import type { DimensionMap, Order, StaOrderFormData, WorkerStage } from '../types'
 
 const dimMap: DimensionMap[] = [
   { id: 1, category: 'STA', dimension_code: '90', width_mm: 1000, height_mm: 2080 },
@@ -103,6 +104,35 @@ describe('dobór DoP: determinizm i specyficzność', () => {
     expect(matchedDocsForOrder(order({}), [steel])).toHaveLength(0)
     // ST = drzwi stalowe → ościeżnica stalowa pasuje
     expect(matchedDocsForOrder(order({ category: 'ST' }), [doc({ id: 4, name: 'ST stal', category: 'ST', frame_kind: 'stalowa' })])).toHaveLength(1)
+  })
+})
+
+describe('workersForTask — kafelki "kto zrobił" na wspólnym komputerze', () => {
+  const ws = (worker_id: string, category: string, stage_key: string): WorkerStage =>
+    ({ id: 0, worker_id, category, stage_key, created_at: '', created_by: null }) as WorkerStage
+  const task = { category: 'STA', stageKey: 'e4', actualStageKey: 'e4' } as MyTask
+  const profiles = [
+    { id: 'u1', initials: 'AB', full_name: 'Adam B' },
+    { id: 'u2', initials: 'CD', full_name: 'Celina D' },
+    { id: 'u3', initials: 'EF', full_name: 'Edward F' },
+    { id: 'u4', initials: '', full_name: 'Bez Inicjałów' },
+  ]
+
+  it('zwraca osoby przypisane do etapu+kategorii, posortowane po inicjałach', () => {
+    const stages = [ws('u2', 'STA', 'e4'), ws('u1', 'STA', 'e4'), ws('u3', 'STA', 'e3'), ws('u1', 'ST', 'e4')]
+    const out = workersForTask(task, stages, profiles)
+    expect(out.map((w) => w.initials)).toEqual(['AB', 'CD'])
+  })
+
+  it('łapie też wariant titan_ przez actualStageKey i pomija puste inicjały', () => {
+    const titanTask = { category: 'STA', stageKey: 'titan_e3', actualStageKey: 'e3' } as MyTask
+    const stages = [ws('u3', 'STA', 'e3'), ws('u4', 'STA', 'e3')]
+    const out = workersForTask(titanTask, stages, profiles)
+    expect(out.map((w) => w.initials)).toEqual(['EF'])
+  })
+
+  it('brak przypisanych → pusta lista (dialog pokaże zwykły przycisk)', () => {
+    expect(workersForTask(task, [], profiles)).toEqual([])
   })
 })
 

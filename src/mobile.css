@@ -589,3 +589,43 @@ html, body, #root {
 /* Nav — zwężenie tekstu przy 4 zakładkach */
 .mshell-nav-btn { font-size: 0.68rem; padding: 0.55rem 0.3rem; }
 .mshell-nav-btn span { white-space: nowrap; }
+
+/* ── Kafelki "kto zrobił" (wspólny telefon stanowiska) ────────────── */
+.mstation-worker-hint {
+  font-size: 0.8rem;
+  color: #475569;
+  margin: 0.5rem 0 0.4rem;
+  text-align: center;
+}
+.mstation-worker-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.mstation-worker-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.6rem 0.4rem;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.mstation-worker-tile--last {
+  border-color: #16a34a;
+}
+.mstation-worker-tile-initials {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.mstation-worker-tile-name {
+  font-size: 0.68rem;
+  color: #64748b;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

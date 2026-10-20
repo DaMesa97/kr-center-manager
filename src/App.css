@@ -7878,3 +7878,51 @@ html, body, #root {
   margin-bottom: 1.25rem;
   word-break: break-word;
 }
+
+/* ── Kafelki "kto zrobił" w potwierdzeniu etapu ───────────────────── */
+.stage-worker-hint {
+  font-size: 0.85rem;
+  color: #475569;
+  margin: 0.25rem 0 0.5rem;
+  text-align: center;
+}
+.stage-worker-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+.stage-worker-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 92px;
+  padding: 0.6rem 0.9rem;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.stage-worker-tile:hover {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+.stage-worker-tile--last {
+  border-color: #16a34a;
+}
+.stage-worker-tile-initials {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.stage-worker-tile-name {
+  font-size: 0.72rem;
+  color: #64748b;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -502,6 +502,8 @@ function App() {
   const {
     myStationOrders,
     myStationComplaints,
+    allWorkerStages,
+    stationProfiles,
     myStationLoading,
     workerStagesForCurrent,
     workerStagesModal,
@@ -2941,6 +2943,8 @@ function App() {
             orders={myStationOrders}
             complaints={myStationComplaints}
             workerStages={workerStagesForCurrent}
+            allWorkerStages={allWorkerStages}
+            stationProfiles={stationProfiles}
             onStageComplete={handleStageComplete}
             onComplaintStageComplete={handleComplaintStageComplete}
             loading={myStationLoading}
