@@ -1,19 +1,24 @@
 // Resize kolumn tabel DataTable (zgłoszenie #33: "na każdej tabeli").
 //
 // UX: złap prawą krawędź nagłówka (kursor ↔) i ciągnij; podwójny klik na
-// krawędzi = reset szerokości tej tabeli. Szerokości w localStorage,
-// per "sygnatura" tabeli (lista nagłówków), więc każda tabela pamięta swoje.
-// Klucz i sygnatura jak w dawnej globalnej wersji — zapisane szerokości zostają.
+// krawędzi = reset szerokości tej tabeli. Szerokości w localStorage.
+//
+// v2: szerokość przypisana do KLUCZA kolumny (th[data-col-key]), a tabela
+// rozpoznawana po liście kluczy wszystkich kolumn (tableKey z DataTable).
+// Dzięki temu piętrowanie (część kolumn chowa się pod inne) nie przesuwa
+// szerokości na złe kolumny i nie gubi zapisu. Stary zapis v1 (po napisach
+// nagłówków i indeksach) jest przenoszony przy pierwszym wyświetleniu tabeli.
 
-const LS_KEY = 'tableColWidths.v1'
+const LS_KEY = 'tableColWidths.v2'
+const LS_KEY_V1 = 'tableColWidths.v1'
 const EDGE_PX = 7
 const MIN_W = 40
 
-type WidthMap = Record<string, Record<number, number>>
+type WidthMap = Record<string, Record<string, number>>
 
-function loadWidths(): WidthMap {
+function load(key: string): WidthMap {
   try {
-    return JSON.parse(localStorage.getItem(LS_KEY) ?? '{}') as WidthMap
+    return JSON.parse(localStorage.getItem(key) ?? '{}') as WidthMap
   } catch {
     return {}
   }
@@ -27,13 +32,6 @@ function saveWidths(w: WidthMap) {
   }
 }
 
-/** Sygnatura tabeli = nagłówki kolumn (stabilna między renderami). */
-function tableSignature(table: HTMLTableElement): string {
-  const ths = headerCells(table)
-  if (ths.length === 0) return ''
-  return ths.map((th) => (th.textContent ?? '').trim().slice(0, 24)).join('|')
-}
-
 /** Komórki OSTATNIEGO wiersza nagłówka (nad nim mogą być wiersze grup z headerTop). */
 function headerCells(table: HTMLTableElement): HTMLTableCellElement[] {
   const rows = table.tHead?.rows
@@ -41,22 +39,44 @@ function headerCells(table: HTMLTableElement): HTMLTableCellElement[] {
   return Array.from(rows[rows.length - 1].cells)
 }
 
-/** Przywraca zapisane szerokości (wołane po każdym renderze tabeli). */
-export function applySavedColumnWidths(table: HTMLTableElement) {
-  const sig = tableSignature(table)
-  if (!sig) return
-  const saved = loadWidths()[sig]
-  if (!saved) return
+const colKey = (th: HTMLTableCellElement) => th.dataset.colKey ?? ''
+
+/** Stary zapis v1 dla tej tabeli (sygnatura z napisów nagłówków) → mapa klucz → px. */
+function migrateV1(table: HTMLTableElement): Record<string, number> | null {
   const ths = headerCells(table)
+  if (ths.length === 0) return null
+  const sig = ths.map((th) => (th.textContent ?? '').trim().slice(0, 24)).join('|')
+  const old = load(LS_KEY_V1)[sig]
+  if (!old) return null
+  const m: Record<string, number> = {}
+  for (const [idx, px] of Object.entries(old)) {
+    const k = ths[Number(idx)] && colKey(ths[Number(idx)])
+    if (k) m[k] = px
+  }
+  return Object.keys(m).length > 0 ? m : null
+}
+
+/** Przywraca zapisane szerokości (wołane po każdym renderze tabeli). */
+export function applySavedColumnWidths(table: HTMLTableElement, tableKey: string) {
+  if (!tableKey) return
+  const all = load(LS_KEY)
+  let saved = all[tableKey]
+  if (!saved) {
+    const migrated = migrateV1(table)
+    if (!migrated) return
+    all[tableKey] = migrated
+    saveWidths(all)
+    saved = migrated
+  }
   table.style.tableLayout = 'fixed'
-  for (const [idxStr, px] of Object.entries(saved)) {
-    const th = ths[Number(idxStr)]
-    if (th) th.style.width = `${px}px`
+  for (const th of headerCells(table)) {
+    const px = saved[colKey(th)]
+    if (px) th.style.width = `${px}px`
   }
 }
 
 /** Podpina resize do jednej tabeli. Zwraca cleanup. */
-export function attachColumnResize(table: HTMLTableElement): () => void {
+export function attachColumnResize(table: HTMLTableElement, getTableKey: () => string): () => void {
   let drag: { th: HTMLTableCellElement; startX: number; startW: number } | null = null
   let dragged = false
   let hovered: HTMLTableCellElement | null = null
@@ -87,14 +107,16 @@ export function attachColumnResize(table: HTMLTableElement): () => void {
 
   const onUp = () => {
     if (!drag) return
-    const sig = tableSignature(table)
-    if (sig) {
-      const m: Record<number, number> = {}
-      headerCells(table).forEach((cell, i) => {
-        m[i] = Math.round(cell.getBoundingClientRect().width)
+    const tableKey = getTableKey()
+    if (tableKey) {
+      // scalanie z poprzednim zapisem: kolumny chwilowo schowane (piętrowanie) zachowują swoje szerokości
+      const widths = load(LS_KEY)
+      const m: Record<string, number> = { ...(widths[tableKey] ?? {}) }
+      headerCells(table).forEach((cell) => {
+        const k = colKey(cell)
+        if (k) m[k] = Math.round(cell.getBoundingClientRect().width)
       })
-      const widths = loadWidths()
-      widths[sig] = m
+      widths[tableKey] = m
       saveWidths(widths)
     }
     drag = null
@@ -134,10 +156,10 @@ export function attachColumnResize(table: HTMLTableElement): () => void {
   // podwójny klik na krawędzi = reset zapisanych szerokości tej tabeli
   const onDblClick = (e: MouseEvent) => {
     if (!thEdge(e)) return
-    const sig = tableSignature(table)
-    const widths = loadWidths()
-    if (sig && widths[sig]) {
-      delete widths[sig]
+    const tableKey = getTableKey()
+    const widths = load(LS_KEY)
+    if (tableKey && widths[tableKey]) {
+      delete widths[tableKey]
       saveWidths(widths)
     }
     table.style.tableLayout = ''

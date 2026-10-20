@@ -124,10 +124,17 @@ export default function DataTable<T>({
   onSortChange,
 }: Props<T>) {
   const tableRef = useRef<HTMLTableElement>(null)
-  // resize kolumn: przeciąganie krawędzi nagłówka, szerokości pamiętane per tabela
-  useEffect(() => (tableRef.current ? attachColumnResize(tableRef.current) : undefined), [])
+  // resize kolumn: przeciąganie krawędzi nagłówka; szerokości per KLUCZ kolumny,
+  // tabela rozpoznawana po kluczach WSZYSTKICH kolumn (stałe mimo piętrowania)
+  const tableKey = useMemo(() => columns.map((c) => c.key).join('|'), [columns])
+  const tableKeyRef = useRef(tableKey)
+  tableKeyRef.current = tableKey
+  useEffect(
+    () => (tableRef.current ? attachColumnResize(tableRef.current, () => tableKeyRef.current) : undefined),
+    [],
+  )
   useLayoutEffect(() => {
-    if (tableRef.current) applySavedColumnWidths(tableRef.current)
+    if (tableRef.current) applySavedColumnWidths(tableRef.current, tableKey)
   })
 
   // Piętrowanie „na miarę ekranu”: najpierw rysujemy szeroko i mierzymy; jak tabela
@@ -223,7 +230,7 @@ export default function DataTable<T>({
           const cls = [c.className, c.thClassName].filter(Boolean).join(' ') || undefined
           if (!c.sortValue) {
             return (
-              <th key={c.key} className={cls} style={style} title={c.title}>
+              <th key={c.key} data-col-key={c.key} className={cls} style={style} title={c.title}>
                 {c.label}
                 {subLabels}
               </th>
@@ -234,6 +241,7 @@ export default function DataTable<T>({
           return (
             <th
               key={c.key}
+              data-col-key={c.key}
               className={`th-sortable ${active ? 'th-sortable--active' : ''} ${cls ?? ''}`}
               style={style}
               onClick={() => handleSort(c.key)}
