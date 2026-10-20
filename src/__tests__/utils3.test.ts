@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   countCompletedStages,
   getOrderAgeStatus,
+  isAppVersionOlder,
   isStaTitanLinked,
   normalizeProfileDepartment,
   stStageCellKind,
@@ -44,6 +45,24 @@ describe('isStaTitanLinked — STA połączone z partnerem ST', () => {
     expect(isStaTitanLinked(sta, asMap([sta, stPartner]))).toBe(true)
     expect(isStaTitanLinked(sta, asMap([sta, distingPartner]))).toBe(false)
     expect(isStaTitanLinked(sta, asMap([sta]))).toBe(false)
+  })
+})
+
+describe('isAppVersionOlder — bramka minimalnej wersji', () => {
+  it('porównuje bety numerycznie, wydanie bez -beta jest nowsze', () => {
+    expect(isAppVersionOlder('1.0.0-beta.50', '1.0.0-beta.51')).toBe(true)
+    expect(isAppVersionOlder('1.0.0-beta.51', '1.0.0-beta.51')).toBe(false)
+    expect(isAppVersionOlder('1.0.0-beta.52', '1.0.0-beta.51')).toBe(false)
+    expect(isAppVersionOlder('1.0.0-beta.9', '1.0.0-beta.10')).toBe(true) // numerycznie, nie leksykalnie
+    expect(isAppVersionOlder('1.0.0-beta.51', '1.0.0')).toBe(true) // release > beta
+    expect(isAppVersionOlder('1.0.0', '1.0.0-beta.51')).toBe(false)
+    expect(isAppVersionOlder('1.0.1', '1.0.0')).toBe(false)
+    expect(isAppVersionOlder('1.0.0', '1.0.1')).toBe(true)
+  })
+
+  it('nieparsowalne wersje nie blokują (fail-open)', () => {
+    expect(isAppVersionOlder('abc', '1.0.0')).toBe(false)
+    expect(isAppVersionOlder('1.0.0', '')).toBe(false)
   })
 })
 

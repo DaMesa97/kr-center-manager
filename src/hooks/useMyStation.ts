@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { mirrorStageKey } from '../lib/stageMirror'
+import { markLocalStageWrite } from '../lib/stageWrites'
 import { isReleaseDateEmpty, parseProductionStages } from '../utils'
 import type { Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
 import type { ToastVariant } from '../types'
@@ -143,6 +144,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       // obiektu z lokalnej kopii kasował etapy oznaczone w międzyczasie
       // przez inne stanowiska.
       const mark = (currentUser?.initials ?? '').trim() || 'T'
+      markLocalStageWrite(order.id, actualKey)
       const { error } = await supabase.rpc('update_order_stage', {
         p_order_id: order.id!,
         p_stage_key: actualKey,
@@ -157,6 +159,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       // Mirror u partnera (Disting Plus / Titan) — tabela zamówień robi to samo
       const mirrorKey = mirrorStageKey(order.category, actualKey)
       if (mirrorKey && order.linked_order_id != null) {
+        markLocalStageWrite(order.linked_order_id, mirrorKey)
         const { error: mErr } = await supabase.rpc('update_order_stage', {
           p_order_id: order.linked_order_id,
           p_stage_key: mirrorKey,

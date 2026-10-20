@@ -2,6 +2,8 @@ import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent
 import { supabase } from '../supabaseClient'
 import { buildPartnerSyncPayload } from '../lib/linkedSync'
 import { appConfirm } from '../lib/appDialogs'
+import { mirrorStageKey } from '../lib/stageMirror'
+import { markLocalStageWrite } from '../lib/stageWrites'
 import {
   EDITABLE_CATEGORIES,
   INITIAL_BASTION_ORDER_FORM,
@@ -242,6 +244,7 @@ export function useOrders({
   const applyProductionStagesUpdate = useCallback(
     async (orderId: number, stageKey: string, stageValue: string) => {
       setProductionStageUpdating(String(orderId))
+      markLocalStageWrite(orderId, stageKey)
       const { error } = await supabase.rpc('update_order_stage', {
         p_order_id: orderId,
         p_stage_key: stageKey,
@@ -269,38 +272,12 @@ export function useOrders({
       const linkedId = sourceOrder.linked_order_id
       if (linkedId == null) return
 
-      if (sourceOrder.category === 'STA' && stageKey === 'e5') {
-        const { error: upErr } = await supabase.rpc('update_order_stage', {
-          p_order_id: linkedId,
-          p_stage_key: 'sta_e5',
-          p_stage_value: value,
-        })
-        if (upErr) {
-          pushToast(`Błąd synchronizacji etapu: ${upErr.message}`, 'error')
-          return
-        }
-        const applySta = (o: Order) => {
-          if (o.id !== linkedId) return o
-          const current = parseProductionStages(o.production_stages, o.category)
-          return { ...o, production_stages: { ...current, sta_e5: value } }
-        }
-        setOrders((prev) => prev.map(applySta))
-        setLinkedOrders((prev) => prev.map(applySta))
-        return
-      }
-
-      let mirrorKey: string | null = null
-      if (sourceOrder.category === 'STA') {
-        if (stageKey === 'e3') mirrorKey = 'sta_e3'
-        else if (stageKey === 'e4') mirrorKey = 'sta_e4'
-      } else if (sourceOrder.category === 'Disting') {
-        if (stageKey === 'e1') mirrorKey = 'dist_e1'
-        else if (stageKey === 'e2_1') mirrorKey = 'dist_e2_1'
-        else if (stageKey === 'e2_2') mirrorKey = 'dist_e2_2'
-        else if (stageKey === 'e5') mirrorKey = 'dist_e5'
-      }
+      // Jedno źródło prawdy mapowania mirrorów — lib/stageMirror (ta sama mapa
+      // co Moje stanowisko i mobile; wcześniej wisiała tu własna kopia).
+      const mirrorKey = mirrorStageKey(sourceOrder.category, stageKey)
       if (!mirrorKey) return
 
+      markLocalStageWrite(linkedId, mirrorKey)
       const { error: upErr } = await supabase.rpc('update_order_stage', {
         p_order_id: linkedId,
         p_stage_key: mirrorKey,

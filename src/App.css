@@ -7847,3 +7847,34 @@ html, body, #root {
 .recipe-crit-custom input { flex: 1; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; }
 .recipe-crit-empty { color: #94a3b8; font-size: 0.82rem; }
 .recipe-crit-warn { color: #b45309; font-size: 0.78rem; }
+
+/* ── Ekran awaryjny (ErrorBoundary) ───────────────────────────────── */
+.app-crash {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  padding: 2rem;
+}
+.app-crash-box {
+  max-width: 480px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+.app-crash-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.75rem; }
+.app-crash-msg { color: #475569; margin-bottom: 1rem; line-height: 1.5; }
+.app-crash-detail {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #b3261e;
+  background: #fef2f2;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1.25rem;
+  word-break: break-word;
+}

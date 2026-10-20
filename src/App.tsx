@@ -45,6 +45,7 @@ import {
   getOrderStageDefinitions,
   getTableStageDefinitions,
   isExtSideActive,
+  isAppVersionOlder,
   isFieldValueExcluded,
   isReleaseDateEmpty,
   bastionFrameOptionForOrder,
@@ -99,6 +100,7 @@ import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
 import { can, isManagerRole } from './lib/permissions'
+import { hasRecentLocalStageWrite } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
 import InternalDoorOrderDetailsModal from './components/InternalDoorOrderDetailsModal'
 import OrdersNeedingReviewView from './components/OrdersNeedingReviewView'
@@ -934,6 +936,24 @@ function App() {
     }
   }, [setActiveTab, setActiveSubTab, setSearchTerm, setShowCancelledOrders, setHideCompletedOrders, setSelectedProductionDay, setSourceFilter, setWykonawcaFilter])
 
+  // Bramka minimalnej wersji: migracje bazy wyprzedzają klientów — klient
+  // starszy niż app_config.min_app_version dostaje blokadę zamiast pracować
+  // na nieaktualnym formacie danych. Brak wiersza w configu = brak bramki.
+  const [minVersionRequired, setMinVersionRequired] = useState<string | null>(null)
+  useEffect(() => {
+    if (!authSession) return
+    void (async () => {
+      const { data, error } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'min_app_version')
+        .maybeSingle()
+      if (error || !data) return
+      const min = String((data as { value?: string }).value ?? '').trim()
+      if (min && isAppVersionOlder(__APP_VERSION__, min)) setMinVersionRequired(min)
+    })()
+  }, [authSession])
+
   useEffect(() => {
     if (!authSession) return
     setActiveSubTab('Zamówienia') // reset podzakładki przy zmianie kategorii
@@ -1041,13 +1061,17 @@ function App() {
             setOrders((prev) =>
               prev.map((o) => {
                 if (o.id !== incoming.id) return o
-                // Merge production_stages: nigdy nie nadpisuj lokalnie wypełnionego etapu
-                // pustą wartością z realtime (race condition z optimistic update)
+                // Merge production_stages: lokalnie wypełniony etap wygrywa z pustą
+                // wartością z realtime TYLKO przez chwilę po własnym kliknięciu
+                // (okno race'a z optimistic update). Bezwarunkowa ochrona blokowała
+                // propagację celowego COFNIĘCIA etapu na inne stanowiska.
                 const localStages = (o.production_stages ?? {}) as Record<string, string>
                 const remoteStages = (incoming.production_stages ?? {}) as Record<string, string>
                 const merged: Record<string, string> = { ...remoteStages }
                 for (const [k, v] of Object.entries(localStages)) {
-                  if (v?.trim() && !merged[k]?.trim()) merged[k] = v
+                  if (v?.trim() && !merged[k]?.trim() && hasRecentLocalStageWrite(incoming.id, k)) {
+                    merged[k] = v
+                  }
                 }
                 return { ...incoming, production_stages: merged }
               }),
@@ -1060,7 +1084,6 @@ function App() {
           }
         },
       )
-      .subscribe()
 
     // Subskrypcja na zmiany w complaints
     const complaintsChannel = supabase
@@ -1096,9 +1119,34 @@ function App() {
           }
         },
       )
-      .subscribe()
+
+    // Odporność na pad sieci: po zerwaniu kanału (błąd/timeout) supabase-js
+    // sam wznawia subskrypcję, ale zdarzenia z okresu przerwy PRZEPADAJĄ —
+    // po ponownym SUBSCRIBED robimy pełny refetch, żeby stanowiska nie
+    // pracowały na nieświeżych danych. CLOSED pomijamy (to zwykłe sprzątanie
+    // przy zmianie zakładki).
+    let channelDropped = false
+    const watchStatus = (status: string) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        channelDropped = true
+      } else if (status === 'SUBSCRIBED' && channelDropped) {
+        channelDropped = false
+        fetchOrders()
+        void fetchComplaints()
+      }
+    }
+    ordersChannel.subscribe(watchStatus)
+    complaintsChannel.subscribe(watchStatus)
+
+    // Powrót systemowego online (usypianie, WiFi) — też odśwież
+    const onOnline = () => {
+      fetchOrders()
+      void fetchComplaints()
+    }
+    window.addEventListener('online', onOnline)
 
     return () => {
+      window.removeEventListener('online', onOnline)
       void supabase.removeChannel(ordersChannel)
       void supabase.removeChannel(complaintsChannel)
     }
@@ -2114,6 +2162,39 @@ function App() {
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <div className="auth-boot-screen" role="status">
           <Spinner center label="Ładowanie profilu…" />
+        </div>
+      </>
+    )
+  }
+
+  if (minVersionRequired) {
+    return (
+      <>
+        <UpdateBlocker />
+        <UpdateBanner />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <div className="app-crash">
+          <div className="app-crash-box">
+            <div className="app-crash-title">Wymagana aktualizacja</div>
+            <div className="app-crash-msg">
+              Masz wersję v{__APP_VERSION__}, a minimalna wymagana to v{minVersionRequired}.
+              Starsza wersja mogłaby zapisywać dane w nieaktualnym formacie — pobierz
+              aktualizację i uruchom aplikację ponownie.
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() =>
+                void (
+                  window as Window & {
+                    ipcRenderer?: { invoke: (ch: string) => Promise<unknown> }
+                  }
+                ).ipcRenderer?.invoke('updater:check')
+              }
+            >
+              Sprawdź aktualizację
+            </button>
+          </div>
         </div>
       </>
     )

@@ -1078,6 +1078,24 @@ export function getOrderAgeStatus(
   return 'ok'
 }
 
+// Porównanie wersji apki "1.0.0-beta.51" (bramka minimalnej wersji).
+// Wydanie bez -beta jest NOWSZE niż każda beta tej samej bazy (semver).
+// Nieparsowalna wersja → false (nie blokujemy przy śmieciach w configu).
+export function isAppVersionOlder(current: string, min: string): boolean {
+  const parse = (v: string): [number, number, number, number] | null => {
+    const m = String(v ?? '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:-beta\.(\d+))?$/)
+    if (!m) return null
+    return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] != null ? Number(m[4]) : Infinity]
+  }
+  const a = parse(current)
+  const b = parse(min)
+  if (!a || !b) return false
+  for (let i = 0; i < 4; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i]
+  }
+  return false
+}
+
 export function supabaseNumericFromForm(value: unknown): number | null {
   if (value === '' || value == null) return null
   const n = Number(value)
