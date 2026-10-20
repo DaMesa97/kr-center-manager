@@ -3,6 +3,7 @@ import type { IncomingStockRow, Supplier, ToastVariant, Warehouse, WarehouseComp
 import DamageReportModal from '../DamageReportModal'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
+import StockAtDateExport from './StockAtDateExport'
 import type { SortState } from '../../lib/tableSort'
 
 // ranga statusu do sortowania: minus (najgorszy) → niski → OK
@@ -485,6 +486,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
           />
           <span>Tylko problemowe</span>
         </label>
+        <StockAtDateExport warehouses={warehouses} warehouseId={selectedWarehouseId} pushToast={pushToast} />
         {isManager && onAddPz ? (
           <button
             type="button"
