@@ -59,19 +59,42 @@ export default function MobileStationView({ userId }: Props) {
   const [myInitials, setMyInitials] = useState('')
   const mountedRef = useRef(true)
 
-  const flash = (msg: string) => {
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flash = (msg: string, sticky = false) => {
+    // kasuj POPRZEDNI timer — stary timeout gasił nowy toast po ułamku
+    // sekundy, a ostrzeżenia znikały pod toastem sukcesu
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
     setToast(msg)
-    setTimeout(() => setToast(null), 2500)
+    flashTimerRef.current = sticky ? null : setTimeout(() => setToast(null), 2500)
   }
 
   const load = useCallback(async () => {
     if (!userId) return
     setLoading(true)
+    // Tylko OTWARTE + paginacja — PostgREST ucina do 1000 wierszy, a stary
+    // limit liczył też wydane: starsze otwarte zlecenia wypadały z listy zadań
+    const fetchAllOpenOrders = async (): Promise<{ data: Order[]; error: { message: string } | null }> => {
+      const all: Order[] = []
+      let from = 0
+      const PAGE = 1000
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .is('release_date', null)
+          .order('id', { ascending: false })
+          .range(from, from + PAGE - 1)
+        if (error) return { data: all, error }
+        if (!data || data.length === 0) break
+        all.push(...(data as Order[]))
+        if (data.length < PAGE) break
+        from += PAGE
+      }
+      return { data: all, error: null }
+    }
     const [stagesRes, ordersRes, profileRes, complaintsRes, allWsRes, profilesRes] = await Promise.all([
       supabase.from('worker_stages').select('*').eq('worker_id', userId),
-      // Sort po id (numerycznie, stabilnie) — order_number to tekst i po
-      // przekroczeniu limitu ucinał ŚWIEŻE zlecenia (desktop: ten sam fix)
-      supabase.from('orders').select('*').order('id', { ascending: false }).limit(2000),
+      fetchAllOpenOrders(),
       supabase.from('profiles').select('initials').eq('id', userId).single(),
       supabase.from('complaints').select('*').is('release_date', null),
       supabase.from('worker_stages').select('*'),
@@ -112,20 +135,55 @@ export default function MobileStationView({ userId }: Props) {
   useEffect(() => {
     mountedRef.current = true
     void load()
-    // Realtime — gdy inny pracownik zmieni etap, odśwież lokalnie (świeżość na hali)
+    // Realtime — gdy inny pracownik zmieni etap, odśwież lokalnie (świeżość na hali).
+    // INSERT/DELETE i reklamacje → pełny przeładunek z debounce (nowe zlecenia
+    // i anulowania wcześniej nie docierały wcale).
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleReload = () => {
+      if (reloadTimer) clearTimeout(reloadTimer)
+      reloadTimer = setTimeout(() => void load(), 1500)
+    }
+    let dropped = false
     const channel = supabase
       .channel(`mobile-station:${userId}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
-          const updated = payload.new as Order
-          setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+          if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as Order
+            const extra = updated.extra_fields as Record<string, unknown> | null
+            if (extra?.cancelled === true || (updated.release_date && !isReleaseDateEmpty(updated.release_date))) {
+              // anulowane/wydane w międzyczasie — zdejmij z listy zadań
+              setOrders((prev) => prev.filter((o) => o.id !== updated.id))
+            } else {
+              setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+            }
+          } else {
+            scheduleReload()
+          }
         },
       )
-      .subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'complaints' }, () => scheduleReload())
+      .subscribe((status) => {
+        // telefon usypia → websocket pada → zdarzenia z przerwy przepadają;
+        // po ponownym SUBSCRIBED przeładuj
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') dropped = true
+        else if (status === 'SUBSCRIBED' && dropped) {
+          dropped = false
+          void load()
+        }
+      })
+    const onWake = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    window.addEventListener('online', onWake)
+    document.addEventListener('visibilitychange', onWake)
     return () => {
       mountedRef.current = false
+      if (reloadTimer) clearTimeout(reloadTimer)
+      window.removeEventListener('online', onWake)
+      document.removeEventListener('visibilitychange', onWake)
       void supabase.removeChannel(channel)
     }
   }, [load, userId])
@@ -250,7 +308,7 @@ export default function MobileStationView({ userId }: Props) {
           p_stage_key: mirrorKey,
           p_stage_value: mark,
         })
-        if (mErr) console.error('mirror stage error:', mErr)
+        if (mErr) flash(`UWAGA: etap partnera NIE zsynchronizowany (${mErr.message})`, true)
       }
 
       setOrders((prev) =>

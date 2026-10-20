@@ -140,7 +140,9 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
       const elapsed = Date.now() - sessionLastActivityRef.current
       if (elapsed >= SESSION_TIMEOUT_MS) {
         void (async () => {
-          await supabase.auth.signOut()
+          // scope:'local' — stanowiska WSPÓŁDZIELĄ konta; globalny signOut
+          // unieważniał refresh tokeny i wylogowywał wszystkie komputery
+          await supabase.auth.signOut({ scope: 'local' })
           setSessionWarningOpen(false)
           pushToast('Zostałeś automatycznie wylogowany z powodu braku aktywności', 'error')
         })()
@@ -185,13 +187,22 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
           password: loginPassword,
         })
 
+        // Błąd SIECI (brak neta, 5xx) to NIE nieudane logowanie — 5 prób na
+        // słabym WiFi blokowało konto na 15 min mimo dobrego hasła
+        const isCredentialError = !!error && error.status === 400
         const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null
-        await supabase.rpc('log_login_attempt', {
-          p_email: email,
-          p_success: !error,
-          p_user_agent: userAgent,
-        })
+        if (!error || isCredentialError) {
+          await supabase.rpc('log_login_attempt', {
+            p_email: email,
+            p_success: !error,
+            p_user_agent: userAgent ? userAgent.slice(0, 300) : null,
+          })
+        }
 
+        if (error && !isCredentialError) {
+          pushToast('Błąd połączenia z serwerem — sprawdź sieć i spróbuj ponownie.', 'error')
+          return
+        }
         if (error) {
           const { data: postCheck } = await supabase.rpc('check_login_rate_limit', {
             p_email: email,
@@ -227,7 +238,8 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
 
   const handleSignOut = useCallback(async () => {
     touchSession()
-    await supabase.auth.signOut()
+    // scope:'local' — wyloguj TEN komputer, nie wszystkie stanowiska konta
+    await supabase.auth.signOut({ scope: 'local' })
   }, [touchSession])
 
   const handleExtendSession = useCallback(() => {
@@ -236,7 +248,7 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
   }, [touchSession])
 
   const handleAutoLogout = useCallback(async () => {
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: 'local' })
     setSessionWarningOpen(false)
     pushToast('Zostałeś automatycznie wylogowany z powodu braku aktywności', 'error')
   }, [pushToast])

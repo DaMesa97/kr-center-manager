@@ -92,27 +92,45 @@ export default function MobileOrdersView() {
   const [selected, setSelected] = useState<Order | null>(null)
   const mountedRef = useRef(true)
 
+  // wersja zapytania — szybkie przełączanie chipów kategorii nie może
+  // podmienić listy spóźnioną odpowiedzią poprzedniej kategorii
+  const loadVersionRef = useRef(0)
   const load = useCallback(async (cat: string) => {
+    const version = ++loadVersionRef.current
     setLoading(true)
-    // Tylko OTWARTE (release_date null) — stary limit 500 liczył też wydane,
-    // więc stare otwarte zlecenie potrafiło wypaść z listy na telefonie
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('category', cat)
-      .is('release_date', null)
-      .order('order_date', { ascending: false })
-      .order('id', { ascending: false })
-      .limit(2000)
-    if (!mountedRef.current) return
+    // Tylko OTWARTE + paginacja (PostgREST ucina do 1000, Bastion ma więcej
+    // otwartych) — stary limit gubił najstarsze otwarte zlecenia
+    const all: Order[] = []
+    let from = 0
+    const PAGE = 1000
+    let fetchError: { message: string } | null = null
+    while (true) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('category', cat)
+        .is('release_date', null)
+        .order('order_date', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, from + PAGE - 1)
+      if (error) { fetchError = error; break }
+      if (!data || data.length === 0) break
+      all.push(...(data as Order[]))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+    if (!mountedRef.current || version !== loadVersionRef.current) return
     setLoading(false)
-    if (error) return
-    const active = (data ?? []).filter((o: Order) => {
+    if (fetchError) {
+      setOrders([])
+      return
+    }
+    const active = all.filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
       if (extra?.cancelled === true) return false
       if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
       return true
-    }) as Order[]
+    })
     setOrders(active)
   }, [])
 

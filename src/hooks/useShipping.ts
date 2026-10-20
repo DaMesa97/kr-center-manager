@@ -51,14 +51,32 @@ export function useShipping({
     setShippingOrdersLoading(true)
 
     const releasedCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    // Paginacja — PostgREST ucina każde zapytanie do 1000 wierszy, a otwartych
+    // zamówień jest kilka tysięcy: stary .limit(2000) pokazywał ~1000 i przez
+    // sortowanie alfabetyczne po kategorii znikały Techniczne i ogon STA.
+    // Anulowane odfiltrowane po stronie serwera (nie zjadają stron).
+    const fetchAllOpen = async (): Promise<{ data: Order[]; error: { message: string } | null }> => {
+      const all: Order[] = []
+      let from = 0
+      const PAGE = 1000
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .is('release_date', null)
+          .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.eq.false')
+          .order('id', { ascending: false })
+          .range(from, from + PAGE - 1)
+        if (error) return { data: all, error }
+        if (!data || data.length === 0) break
+        all.push(...(data as Order[]))
+        if (data.length < PAGE) break
+        from += PAGE
+      }
+      return { data: all, error: null }
+    }
     const [ordersRes, releasedRes, companiesRes] = await Promise.all([
-      supabase
-        .from('orders')
-        .select('*')
-        .is('release_date', null)
-        .order('category', { ascending: true })
-        .order('order_number', { ascending: false })
-        .limit(2000),
+      fetchAllOpen(),
       supabase
         .from('orders')
         .select('*')

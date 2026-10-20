@@ -212,7 +212,9 @@ export default function ShippingView({
   }, [groupByRoute, displayedOrders, getRouteDay])
 
   const openCount = orders.length
-  const readyCount = displayedOrders.filter((o) => isOrderReadyToInvoice(o)).length
+  // z OTWARTYCH — po włączeniu "Pokaż wydane" licznik nie może rosnąć o wydane,
+  // gdy pozostałe liczniki belki liczą się z otwartych
+  const readyCount = orders.filter((o) => isOrderReadyToInvoice(o)).length
   const withIssuesCount = useMemo(
     () => orders.filter((o) => o.stock_status && o.stock_status !== 'ok').length,
     [orders],

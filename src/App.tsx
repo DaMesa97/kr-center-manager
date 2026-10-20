@@ -313,6 +313,11 @@ function App() {
     reloadProfile,
   } = useAuth({ pushToast, onLogout: () => resetAppStateAfterLogoutRef.current() })
 
+  // Stabilny klucz sesji do zależności efektów: obiekt authSession zmienia się
+  // przy KAŻDYM odświeżeniu tokenu (~co godzinę), przez co efekty z [authSession]
+  // resetowały podzakładki, zwijały tabele spinnerem i przepinały kanały
+  // realtime w trakcie pracy. user.id zmienia się tylko przy login/logout.
+  const authUserId = authSession?.user?.id ?? null
 
   // Ładowanie konfiguracji przy starcie sesji
   useEffect(() => {
@@ -325,7 +330,7 @@ function App() {
     void fetchBastionFrameOptions()
     void fetchLeadTimeRules()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authSession])
+  }, [authUserId])
 
   const isManager = isManagerRole(currentUser?.role)
   // Ceny: legacy role bez zmian (manager/worker/sprzedawca widzą), nowe role wg uprawnień
@@ -875,7 +880,7 @@ function App() {
   useEffect(() => {
     if (!authSession) return
     void fetchProfiles()
-  }, [authSession, fetchProfiles])
+  }, [authUserId,fetchProfiles])
 
   // Globalna wyszukiwarka — skrót Ctrl/Cmd + K
   useEffect(() => {
@@ -888,7 +893,7 @@ function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [authSession])
+  }, [authUserId])
 
   // Utwórz nowego kontrahenta z nazwy z zamówienia (np. BOT bez dopasowania)
   const handleCreateCompanyFromName = useCallback(async (name: string) => {
@@ -960,7 +965,7 @@ function App() {
       const min = String((data as { value?: string }).value ?? '').trim()
       if (min && isAppVersionOlder(__APP_VERSION__, min)) setMinVersionRequired(min)
     })()
-  }, [authSession])
+  }, [authUserId])
 
   useEffect(() => {
     if (!authSession) return
@@ -1020,7 +1025,7 @@ function App() {
     void fetchExclusions()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    authSession,
+    authUserId,
     activeTab,
     fetchOrders,
     fetchComplaints,
@@ -1046,6 +1051,24 @@ function App() {
     )
       return
 
+    // "Moje stanowisko" nie jest kategorią — filtr category=eq.'Moje stanowisko'
+    // nie łapał ŻADNYCH zdarzeń i zakładka żyła tylko z fetchu przy wejściu.
+    // Dla niej subskrybujemy bez filtra i cicho odświeżamy listę zadań.
+    const isStationTab = activeTab === 'Moje stanowisko'
+    const refetchForTab = () => {
+      if (isStationTab) {
+        void fetchMyStationOrders({ silent: true })
+      } else {
+        fetchOrders()
+        void fetchComplaints()
+      }
+    }
+    let stationDebounce: ReturnType<typeof setTimeout> | null = null
+    const stationRefetchDebounced = () => {
+      if (stationDebounce) clearTimeout(stationDebounce)
+      stationDebounce = setTimeout(() => void fetchMyStationOrders({ silent: true }), 1000)
+    }
+
     // Subskrypcja na zmiany w orders
     const ordersChannel = supabase
       .channel(`orders:${activeTab}`)
@@ -1055,9 +1078,13 @@ function App() {
           event: '*',
           schema: 'public',
           table: 'orders',
-          filter: `category=eq.${activeTab}`,
+          ...(isStationTab ? {} : { filter: `category=eq.${activeTab}` }),
         },
         (payload) => {
+          if (isStationTab) {
+            stationRefetchDebounced()
+            return
+          }
           if (payload.eventType === 'INSERT') {
             setOrders((prev) => {
               if (prev.some((o) => o.id === (payload.new as Order).id)) return prev
@@ -1102,9 +1129,13 @@ function App() {
           event: '*',
           schema: 'public',
           table: 'complaints',
-          filter: `category=eq.${activeTab}`,
+          ...(isStationTab ? {} : { filter: `category=eq.${activeTab}` }),
         },
         (payload) => {
+          if (isStationTab) {
+            stationRefetchDebounced()
+            return
+          }
           if (payload.eventType === 'INSERT') {
             setComplaints((prev) => {
               if (prev.some((c) => c.id === (payload.new as Complaint).id)) return prev
@@ -1133,33 +1164,35 @@ function App() {
     // po ponownym SUBSCRIBED robimy pełny refetch, żeby stanowiska nie
     // pracowały na nieświeżych danych. CLOSED pomijamy (to zwykłe sprzątanie
     // przy zmianie zakładki).
-    let channelDropped = false
-    const watchStatus = (status: string) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        channelDropped = true
-      } else if (status === 'SUBSCRIBED' && channelDropped) {
-        channelDropped = false
-        fetchOrders()
-        void fetchComplaints()
+    // Osobna flaga per kanał — wspólna sprawiała, że pierwszy kanał, który
+    // wrócił (np. complaints), zerował flagę i refetch po powrocie orders
+    // już nie leciał (zdarzenia orders z przerwy przepadały).
+    const makeWatcher = () => {
+      let dropped = false
+      return (status: string) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          dropped = true
+        } else if (status === 'SUBSCRIBED' && dropped) {
+          dropped = false
+          refetchForTab()
+        }
       }
     }
-    ordersChannel.subscribe(watchStatus)
-    complaintsChannel.subscribe(watchStatus)
+    ordersChannel.subscribe(makeWatcher())
+    complaintsChannel.subscribe(makeWatcher())
 
     // Powrót systemowego online (usypianie, WiFi) — też odśwież
-    const onOnline = () => {
-      fetchOrders()
-      void fetchComplaints()
-    }
+    const onOnline = () => refetchForTab()
     window.addEventListener('online', onOnline)
 
     return () => {
+      if (stationDebounce) clearTimeout(stationDebounce)
       window.removeEventListener('online', onOnline)
       void supabase.removeChannel(ordersChannel)
       void supabase.removeChannel(complaintsChannel)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authSession, activeTab])
+  }, [authUserId,activeTab])
 
   useEffect(() => {
     if (!authSession || activeTab !== 'Konfiguracja') return
@@ -1167,27 +1200,27 @@ function App() {
     void fetchExclusions()
     void fetchConfigOptionsForExclusions()
     void fetchLeadTimeRules()
-  }, [authSession, activeTab, fetchConfigOptionsList, fetchExclusions, fetchConfigOptionsForExclusions, fetchLeadTimeRules])
+  }, [authUserId,activeTab, fetchConfigOptionsList, fetchExclusions, fetchConfigOptionsForExclusions, fetchLeadTimeRules])
 
   useEffect(() => {
     if (!authSession) return
     void fetchSuppliers()
-  }, [authSession, fetchSuppliers])
+  }, [authUserId,fetchSuppliers])
 
   useEffect(() => {
     if (!authSession) return
     void fetchCompanySettings()
-  }, [authSession, fetchCompanySettings])
+  }, [authUserId,fetchCompanySettings])
 
   useEffect(() => {
     if (!authSession || activeTab !== 'Konfiguracja' || activeConfigSubTab !== 'Dostawcy') return
     void fetchSuppliers()
-  }, [authSession, activeTab, activeConfigSubTab, fetchSuppliers])
+  }, [authUserId,activeTab, activeConfigSubTab, fetchSuppliers])
 
   useEffect(() => {
     if (!authSession) return
     void fetchInternalDoorConfigOptions()
-  }, [authSession, fetchInternalDoorConfigOptions])
+  }, [authUserId,fetchInternalDoorConfigOptions])
 
   useEffect(() => {
     setActiveExclusionCategory(exclusionForm.category)
@@ -1197,7 +1230,7 @@ function App() {
   useEffect(() => {
     if (!authSession) return
     fetchCompanies()
-  }, [authSession, fetchCompanies])
+  }, [authUserId,fetchCompanies])
 
   useEffect(() => {
     if (
@@ -1231,7 +1264,7 @@ function App() {
       cancelled = true
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authSession, isModalOpen, activeTab])
+  }, [authUserId,isModalOpen, activeTab])
 
   const orderModalOptionsByType = useMemo(() => {
     const m: Record<string, string[]> = {}
@@ -1250,14 +1283,14 @@ function App() {
   useEffect(() => {
     if (!authSession || !recipeEditorOpen) return
     void fetchConfigOptionsForExclusions()
-  }, [authSession, recipeEditorOpen, fetchConfigOptionsForExclusions])
+  }, [authUserId,recipeEditorOpen, fetchConfigOptionsForExclusions])
 
   // Prefetch słownika konfiguracji po zalogowaniu — żeby receptury/wykluczenia
   // miały dane od razu (bez pustych dropdownów przy pierwszym otwarciu modala).
   useEffect(() => {
     if (!authSession) return
     void fetchConfigOptionsForExclusions()
-  }, [authSession, fetchConfigOptionsForExclusions])
+  }, [authUserId,fetchConfigOptionsForExclusions])
 
   // Tabela kontrahentów
   const contractorsTableRows = useMemo(() => {
@@ -1623,6 +1656,21 @@ function App() {
         )
         return
       }
+      // Fizyczny stan na półce ≠ 0 też blokuje — delete kasował towar bez
+      // ruchu i bez korekty (towar znikał ze stanu bez śladu)
+      const { data: nonZero } = await supabase
+        .from('warehouse_stock')
+        .select('id')
+        .eq('component_id', id)
+        .neq('quantity', 0)
+        .limit(1)
+      if (nonZero && nonZero.length > 0) {
+        pushToast(
+          'Komponent ma niezerowy stan na półkach — wyzeruj go najpierw (inwentaryzacja/korekta), potem usuń.',
+          'error',
+        )
+        return
+      }
       const { error } = await supabase
         .from('warehouse_components')
         .update({ is_active: false })
@@ -1632,9 +1680,14 @@ function App() {
         return
       }
 
-      // Usuń stany magazynowe dla tego komponentu
+      // Usuń stany magazynowe dla tego komponentu — tylko ZEROWE półki
       // (ruchy zostają — audyt historii)
-      const { error: stockError } = await supabase.from('warehouse_stock').delete().eq('component_id', id)
+      const { error: stockError } = await supabase
+        .from('warehouse_stock')
+        .delete()
+        .eq('component_id', id)
+        .eq('quantity', 0)
+        .eq('reserved_quantity', 0)
 
       if (stockError) {
         pushToast(`Komponent usunięty, ale nie udało się wyczyścić stanów: ${stockError.message}`, 'error')
@@ -1895,7 +1948,7 @@ function App() {
     }, 60_000)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authSession, isManager, fetchOrdersNeedingReview])
+  }, [authUserId,isManager, fetchOrdersNeedingReview])
 
   useEffect(() => {
     if (activeTab === 'Wysyłka' && isManager) {

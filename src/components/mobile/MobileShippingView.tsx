@@ -22,12 +22,38 @@ export default function MobileShippingView() {
   const [toast, setToast] = useState<string | null>(null)
   const mountedRef = useRef(true)
 
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2500) }
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flash = (m: string, sticky = false) => {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    setToast(m)
+    flashTimerRef.current = sticky ? null : setTimeout(() => setToast(null), 2500)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
+    // Paginacja — PostgREST ucina do 1000 wierszy, a otwartych jest kilka
+    // tysięcy; sort tekstowy po order_number ucinał losowo (w tym świeże)
+    const fetchAllOpen = async (): Promise<{ data: Order[]; error: { message: string } | null }> => {
+      const all: Order[] = []
+      let from = 0
+      const PAGE = 1000
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .is('release_date', null)
+          .order('id', { ascending: false })
+          .range(from, from + PAGE - 1)
+        if (error) return { data: all, error }
+        if (!data || data.length === 0) break
+        all.push(...(data as Order[]))
+        if (data.length < PAGE) break
+        from += PAGE
+      }
+      return { data: all, error: null }
+    }
     const [ordersRes, companiesRes] = await Promise.all([
-      supabase.from('orders').select('*').is('release_date', null).order('order_number', { ascending: false }).limit(2000),
+      fetchAllOpen(),
       supabase.from('companies').select('name, route_day'),
     ])
     if (!mountedRef.current) return
@@ -71,11 +97,26 @@ export default function MobileShippingView() {
   const markReleased = async (order: Order) => {
     setSaving(true)
     try {
-      // NAJPIERW fizyczne wydanie pozostałych rezerwacji z magazynu (WZ) —
-      // jak desktop. Drzwi wewnętrzne nie mają rezerwacji (stan schodzi przy
-      // utworzeniu przez issue_internal_door_stock) — dla nich to no-op.
-      // Braki wydajemy z force=true (zamówienie fizycznie wyjeżdża z produkcji
-      // — stan może zejść na minus), a błąd RPC nie blokuje oznaczenia.
+      // NAJPIERW data wydania, z twardym sprawdzeniem (guard .is null +
+      // select): stara kolejność robiła WZ przed datą — gdy zapis daty padał
+      // (RLS/już wydane), magazyn schodził, a zamówienie wracało jako otwarte
+      // i drugie kliknięcie nie miało już czego wydać (rozjazd inwentaryzacji).
+      const today = new Date().toISOString().split('T')[0]
+      const { data: updated, error } = await supabase
+        .from('orders')
+        .update({ release_date: today })
+        .eq('id', order.id!)
+        .is('release_date', null)
+        .select('id')
+      if (!mountedRef.current) return
+      if (error) { flash(`Błąd: NIE wydano (${error.message})`, true); return }
+      if (!updated || updated.length === 0) {
+        flash('NIE wydano — zamówienie jest już wydane albo nie masz uprawnień do wydania', true)
+        return
+      }
+      // DOPIERO teraz fizyczne wydanie pozostałych rezerwacji (WZ) — jak desktop.
+      // Drzwi wewnętrzne nie mają rezerwacji — no-op. Braki z force=true
+      // (zamówienie fizycznie wyjeżdża), błąd RPC nie cofa daty, ale krzyczy.
       try {
         const { error: relErr } = await supabase.rpc('release_remaining_for_order', {
           p_order_id: order.id!,
@@ -83,16 +124,12 @@ export default function MobileShippingView() {
         })
         if (relErr) {
           console.error('release_remaining_for_order error:', relErr)
-          flash('Ostrzeżenie: wydanie z magazynu nie powiodło się')
+          flash('Wydane, ale WZ z magazynu NIE zeszła — zgłoś kierownikowi', true)
         }
       } catch (err) {
         console.error('release_remaining_for_order error:', err)
       }
       if (!mountedRef.current) return
-      const today = new Date().toISOString().split('T')[0]
-      const { error } = await supabase.from('orders').update({ release_date: today }).eq('id', order.id!)
-      if (!mountedRef.current) return
-      if (error) { flash(`Błąd: ${error.message}`); return }
       setOrders((prev) => prev.filter((o) => o.id !== order.id))
       flash('Oznaczono jako wydane ✓')
       setConfirm(null)
@@ -173,7 +210,19 @@ export default function MobileShippingView() {
             <div className="mstation-confirm-title">Oznaczyć jako wydane?</div>
             <div className="mstation-confirm-body">
               Zlecenie {confirm.order_number} — {confirm.company}<br />
-              Zostanie ustawiona data wydania (dziś) i zniknie z listy.
+              Zostanie ustawiona data wydania (dziś), z magazynu zejdą wszystkie
+              pozostałe rezerwacje i zlecenie zniknie z listy.
+              {(() => {
+                const { completed, total } = countCompletedStages(confirm)
+                return total > 0 && completed < total ? (
+                  <>
+                    <br />
+                    <span style={{ color: '#b91c1c', fontWeight: 700 }}>
+                      ⚠️ Zlecenie ma niezakończone etapy ({completed}/{total}). Na pewno wydać?
+                    </span>
+                  </>
+                ) : null
+              })()}
             </div>
             <div className="mstation-confirm-actions">
               <button type="button" className="mstation-confirm-cancel" onClick={() => setConfirm(null)} disabled={saving}>

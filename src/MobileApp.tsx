@@ -73,7 +73,8 @@ export default function MobileApp() {
   }
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    // scope:'local' — wyloguj ten telefon, nie wszystkie stanowiska konta
+    await supabase.auth.signOut({ scope: 'local' })
     setUser(null)
     setUsername('')
     setPassword('')

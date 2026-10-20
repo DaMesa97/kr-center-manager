@@ -1122,7 +1122,15 @@ export function useOrders({
         // UPDATE wysyła TYLKO pola formularza — bez snapshotu całego zamówienia
         // (orderMetaForUpdate nadpisywało m.in. etapy, wydanie i anulowanie
         // ustawione w międzyczasie przez inne stanowiska starą kopią).
-        const { production_stages: mergedStages, extra_fields: _efIgnored, ...formFields } = mapped
+        // sequence/order_date to snapshot z chwili otwarcia okna (nie pola
+        // formularza) — wysyłane nadpisywały PILNE ustawione w międzyczasie
+        const {
+          production_stages: mergedStages,
+          extra_fields: _efIgnored,
+          sequence: _seqIgnored,
+          order_date: _odIgnored,
+          ...formFields
+        } = mapped
         const payload = sanitizeOrderPayloadForDb(formFields)
         // Etapy: merge po stronie bazy TYLKO kluczy zmienionych w formularzu
         const baselineStages = parseProductionStages(
@@ -1467,6 +1475,8 @@ export function useOrders({
           linked_order_id: _loIgnored,
           sta_ref: _srIgnored,
           st_sheet: _ssIgnored,
+          sequence: _seqIgnored,
+          order_date: _odIgnored,
           ...formFields
         } = mapped
         const payload = sanitizeOrderPayloadForDb(formFields)
@@ -1712,7 +1722,7 @@ export function useOrders({
       if (isEditing) {
         // UPDATE wysyła TYLKO pola formularza — bez etapów (stary kod wysyłał
         // tu PUSTE etapy createEmptyProductionStages i zerował oznaczone!).
-        const { production_stages: _psIgnored, ...formFields } = mapped
+        const { production_stages: _psIgnored, sequence: _seqIgnored, order_date: _odIgnored, ...formFields } = mapped
         const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {
@@ -1845,7 +1855,7 @@ export function useOrders({
       if (isEditing) {
         // UPDATE wysyła TYLKO pola formularza — bez snapshotu etapów z chwili
         // otwarcia okna (kasował etapy oznaczone w międzyczasie przez halę).
-        const { production_stages: _psIgnored, ...formFields } = mapped
+        const { production_stages: _psIgnored, sequence: _seqIgnored, order_date: _odIgnored, ...formFields } = mapped
         const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {

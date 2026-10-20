@@ -52,9 +52,12 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
     }
   }, [])
 
-  const flash = (msg: string) => {
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flash = (msg: string, sticky = false) => {
+    // kasuj poprzedni timer — stary timeout gasił nowy toast po ułamku sekundy
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
     setToast(msg)
-    setTimeout(() => setToast(null), 2500)
+    flashTimerRef.current = sticky ? null : setTimeout(() => setToast(null), 2500)
   }
 
   const runSearch = useCallback(async (q: string) => {
@@ -62,8 +65,10 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
     const version = ++searchVersionRef.current
     if (trimmed.length < 1) { setResults([]); setSearching(false); return }
     setSearching(true)
-    const escaped = trimmed.replace(/[%_,]/g, '\\$&')
-    const pattern = `%${escaped}%`
+    // wartości w cudzysłowach — składnia .or() PostgREST nie zna escapu
+    // backslashem, a przecinek/nawias w nazwie firmy wywalał zapytanie
+    const escaped = trimmed.replace(/["\\]/g, '')
+    const pattern = `"%${escaped}%"`
     const { data, error } = await supabase
       .from('orders')
       .select('id, order_number, category, company, model, release_date')
@@ -113,6 +118,7 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
     try {
       let uploaded = 0
       let skipped = 0
+      let failed = 0
       for (const file of fileArr) {
         // Akceptuj obrazy; HEIC z iPhone bywa z pustym type — odrzuć tylko jawnie nie-obrazy
         const isImage =
@@ -124,7 +130,7 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
         const stamp = new Date().toISOString().replace(/[:.]/g, '-')
         const path = `${selected.id}/${stamp}_${Math.round(performance.now())}.${ext}`
         const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { cacheControl: '3600', upsert: false })
-        if (upErr) { flash(`Błąd wysyłania: ${upErr.message}`); continue }
+        if (upErr) { failed++; continue }
         const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path)
         const { data: inserted, error: insErr } = await supabase
           .from('order_photos')
@@ -137,12 +143,24 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
           })
           .select('id, public_url, storage_path')
           .single()
-        if (insErr) { flash(`Błąd zapisu: ${insErr.message}`); continue }
+        if (insErr) {
+          // plik poszedł do storage, wiersz nie — sprzątnij sierotę
+          void supabase.storage.from(BUCKET).remove([path])
+          failed++
+          continue
+        }
         if (mountedRef.current) setPhotos((prev) => [inserted as Photo, ...prev])
         uploaded++
       }
-      if (uploaded > 0) flash(`Dodano ${uploaded} ${uploaded === 1 ? 'zdjęcie' : 'zdjęć'} ✓`)
-      else if (skipped > 0) flash('Nie rozpoznano pliku jako zdjęcia')
+      // Częściowa porażka NIE może wyglądać jak sukces — toast z liczbą
+      // nieudanych wisi do zamknięcia (słabe WiFi gubiło zdjęcia po cichu)
+      if (failed > 0) {
+        flash(`Dodano ${uploaded}, ${failed} NIE wysłano — zrób te zdjęcia jeszcze raz`, true)
+      } else if (uploaded > 0) {
+        flash(`Dodano ${uploaded} ${uploaded === 1 ? 'zdjęcie' : 'zdjęć'} ✓`)
+      } else if (skipped > 0) {
+        flash('Nie rozpoznano pliku jako zdjęcia')
+      }
     } finally {
       if (mountedRef.current) setUploading(false)
     }

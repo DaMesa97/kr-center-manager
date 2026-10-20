@@ -642,10 +642,14 @@ export function useWarehouse({
         }
       }
       if (removable.length > 0) {
+        // warunek zerowości powtórzony w DELETE — między odczytem a usunięciem
+        // mogła zdążyć wejść rezerwacja/przyjęcie na tej półce
         const { error } = await supabase
           .from('warehouse_stock')
           .delete()
           .in('id', removable.map((r) => r.id))
+          .eq('quantity', 0)
+          .eq('reserved_quantity', 0)
         if (error) {
           pushToast(`Błąd usuwania półek: ${error.message}`, 'error')
           return
@@ -700,10 +704,16 @@ export function useWarehouse({
       pushToast('Brak błędnych półek do usunięcia', 'success')
       return
     }
-    // usuwamy partiami po 200 id
+    // usuwamy partiami po 200 id; warunek zerowości POWTÓRZONY w samym DELETE —
+    // między odczytem a usunięciem ktoś mógł zdążyć zarezerwować na tej półce
     for (let i = 0; i < toDelete.length; i += 200) {
       const batch = toDelete.slice(i, i + 200)
-      const { error } = await supabase.from('warehouse_stock').delete().in('id', batch)
+      const { error } = await supabase
+        .from('warehouse_stock')
+        .delete()
+        .in('id', batch)
+        .eq('quantity', 0)
+        .eq('reserved_quantity', 0)
       if (error) {
         pushToast(`Błąd usuwania: ${error.message}`, 'error')
         return

@@ -12,6 +12,8 @@ type Props = {
   workers: StationWorker[]
   /** Ostatnio wybrana osoba na tym komputerze — podświetlona podpowiedź */
   lastWorkerId?: string | null
+  /** Zapis w toku — kafelki i przyciski zablokowane (drugi klik = drugi zapis) */
+  saving?: boolean
   /** worker=null → oznacz inicjałami zalogowanego (jak dotychczas) */
   onConfirm: (worker: StationWorker | null) => void
   onCancel: () => void
@@ -22,6 +24,7 @@ export default function StageWorkerConfirmDialog({
   message,
   workers,
   lastWorkerId,
+  saving = false,
   onConfirm,
   onCancel,
 }: Props) {
@@ -30,14 +33,14 @@ export default function StageWorkerConfirmDialog({
       if (e.key === 'Escape') onCancel()
       // Enter potwierdza tylko, gdy nie ma wyboru osoby — przy kafelkach
       // wymuś świadome kliknięcie we własny kafelek
-      if (e.key === 'Enter' && workers.length === 0) {
+      if (e.key === 'Enter' && workers.length === 0 && !saving) {
         e.preventDefault()
         onConfirm(null)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel, onConfirm, workers.length])
+  }, [onCancel, onConfirm, workers.length, saving])
 
   return createPortal(
     <div className="confirm-dialog-overlay" role="presentation" onClick={onCancel}>
@@ -62,7 +65,7 @@ export default function StageWorkerConfirmDialog({
 
         {workers.length > 0 ? (
           <>
-            <p className="stage-worker-hint">Kto zrobił? Kliknij swój kafelek:</p>
+            <p className="stage-worker-hint">{saving ? 'Zapisuję…' : 'Kto zrobił? Kliknij swój kafelek:'}</p>
             <div className="stage-worker-tiles">
               {workers.map((w) => (
                 <button
@@ -70,6 +73,7 @@ export default function StageWorkerConfirmDialog({
                   type="button"
                   className={`stage-worker-tile ${w.id === lastWorkerId ? 'stage-worker-tile--last' : ''}`}
                   title={w.fullName || w.initials}
+                  disabled={saving}
                   onClick={() => onConfirm(w)}
                 >
                   <span className="stage-worker-tile-initials">{w.initials}</span>
@@ -78,18 +82,18 @@ export default function StageWorkerConfirmDialog({
               ))}
             </div>
             <div className="confirm-dialog-actions">
-              <button type="button" className="btn btn-secondary" onClick={onCancel}>
+              <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={saving}>
                 Anuluj
               </button>
             </div>
           </>
         ) : (
           <div className="confirm-dialog-actions">
-            <button type="button" className="btn btn-secondary" onClick={onCancel}>
+            <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={saving}>
               Anuluj
             </button>
-            <button type="button" className="btn btn-success" onClick={() => onConfirm(null)}>
-              Tak, oznacz jako zrobione
+            <button type="button" className="btn btn-success" onClick={() => onConfirm(null)} disabled={saving}>
+              {saving ? 'Zapisuję…' : 'Tak, oznacz jako zrobione'}
             </button>
           </div>
         )}

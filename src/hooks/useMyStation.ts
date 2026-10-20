@@ -57,8 +57,9 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     setWorkerStagesForCurrent((data ?? []) as WorkerStage[])
   }, [currentUser?.id])
 
-  const fetchMyStationOrders = useCallback(async () => {
-    setMyStationLoading(true)
+  const fetchMyStationOrders = useCallback(async (opts?: { silent?: boolean }) => {
+    // silent = ciche odświeżenie (realtime/online) — bez zwijania tabeli spinnerem
+    if (!opts?.silent) setMyStationLoading(true)
     // Paginacja — przy >2000 zamówień stary limit ucinał część i etapy "znikały".
     // Pobieramy partiami po id (numerycznie, stabilnie).
     const all: Order[] = []
@@ -69,6 +70,8 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
+        // tylko OTWARTE — wydane nie są zadaniami, a ciągnęliśmy całą tabelę
+        .is('release_date', null)
         .order('id', { ascending: false })
         .range(from, from + PAGE - 1)
       if (error) { fetchError = error; break }
@@ -77,8 +80,8 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       if (data.length < PAGE) break
       from += PAGE
     }
-    setMyStationLoading(false)
     if (fetchError) {
+      setMyStationLoading(false)
       pushToast(`Błąd: ${fetchError.message}`, 'error')
       return
     }
@@ -114,6 +117,9 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       })
       setMyStationComplaints(openComplaints)
     }
+    // Spinner schodzi dopiero po KOMPLECIE (zamówienia + reklamacje + kafelki) —
+    // wcześniej klik "Zrobione" w oknie race'a widział pustą listę osób
+    setMyStationLoading(false)
   }, [pushToast])
 
   const handleStageComplete = useCallback(

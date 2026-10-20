@@ -110,6 +110,10 @@ export default function InventoryView({ pushToast, currentUser }: Props) {
   const scheduleLineSave = useCallback((lineId: number, value: string) => {
     if (saveTimers.current[lineId]) clearTimeout(saveTimers.current[lineId])
     saveTimers.current[lineId] = setTimeout(async () => {
+      // Usuń SWÓJ wpis z rejestru timerów — bez tego flush przy zamykaniu
+      // sesji wysyłał ponownie KAŻDĄ kiedykolwiek edytowaną pozycję i
+      // stemplował jej system_qty stanem z chwili zamknięcia (fałszywe korekty)
+      delete saveTimers.current[lineId]
       setSaving((prev) => new Set(prev).add(lineId))
       const parsed = value.trim() === '' ? null : Number(value.replace(',', '.'))
       // RPC stempluje system_qty stanem z CHWILI liczenia tej pozycji —

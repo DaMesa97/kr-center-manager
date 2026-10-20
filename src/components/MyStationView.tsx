@@ -54,6 +54,7 @@ export default function MyStationView({
 }: Props) {
   void currentUserId
   const [confirmTask, setConfirmTask] = useState<MyTask | null>(null)
+  const [confirmSaving, setConfirmSaving] = useState(false)
   const [damageTask, setDamageTask] = useState<MyTask | null>(null)
   const [shortageDialog, setShortageDialog] = useState<{
     task: MyTask
@@ -244,23 +245,32 @@ export default function MyStationView({
           }
           workers={workersForTask(confirmTask, allWorkerStages, stationProfiles)}
           lastWorkerId={lastWorkerId}
+          saving={confirmSaving}
           onConfirm={(worker) => {
+            if (confirmSaving) return
             const run = async () => {
               if (!confirmTask) return
               const task = confirmTask
-              rememberWorker(worker)
-              const markInitials = worker?.initials
-              const result = task.isComplaint
-                ? await onComplaintStageComplete(task, markInitials)
-                : await onStageComplete(task.order, task.stageKey, task.category, { markInitials })
-              setConfirmTask(null)
-              if (result.status === 'shortage') {
-                setShortageDialog({ task, shortages: result.shortages, markInitials })
+              setConfirmSaving(true)
+              try {
+                rememberWorker(worker)
+                const markInitials = worker?.initials
+                const result = task.isComplaint
+                  ? await onComplaintStageComplete(task, markInitials)
+                  : await onStageComplete(task.order, task.stageKey, task.category, { markInitials })
+                setConfirmTask(null)
+                if (result.status === 'shortage') {
+                  setShortageDialog({ task, shortages: result.shortages, markInitials })
+                }
+              } finally {
+                setConfirmSaving(false)
               }
             }
             void run()
           }}
-          onCancel={() => setConfirmTask(null)}
+          onCancel={() => {
+            if (!confirmSaving) setConfirmTask(null)
+          }}
         />
       )}
 

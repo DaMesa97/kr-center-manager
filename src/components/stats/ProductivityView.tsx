@@ -48,6 +48,9 @@ function countNewCompletions(
 ): number {
   let count = 0
   for (const key of Object.keys(newStages)) {
+    // Mirrory par (dist_*/sta_*) to KOPIA pracy zrobionej u partnera — ich
+    // zapis to osobny wpis audytu i każdy etap zlecenia łączonego liczył się 2×
+    if (key.startsWith('dist_') || key.startsWith('sta_')) continue
     const wasEmpty = !oldStages[key] || oldStages[key].trim() === ''
     const isNowFilled = newStages[key] && newStages[key].trim() !== ''
     if (wasEmpty && isNowFilled) count++

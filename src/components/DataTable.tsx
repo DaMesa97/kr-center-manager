@@ -205,11 +205,15 @@ export default function DataTable<T>({
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
+    // root = najbliższy przewijany przodek — z root:null (viewport) rootMargin
+    // nie działał dla tabel przewijanych wewnątrz .table-wrapper i porcje
+    // doładowywały się dopiero, gdy sentinel był fizycznie widoczny
+    const scrollRoot = el.closest('.table-wrapper, .orders-table-wrapper')
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) setVisibleCount((c) => c + CHUNK)
       },
-      { rootMargin: '600px' },
+      { root: scrollRoot instanceof Element ? scrollRoot : null, rootMargin: '600px' },
     )
     io.observe(el)
     return () => io.disconnect()
