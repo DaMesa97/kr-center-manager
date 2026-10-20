@@ -76,7 +76,11 @@ export function isStageReady(
 
 // Etapy, których NIE robi się w danej kategorii dla zleceń łączonych
 // (robione po stronie partnera / innej stacji) — nie są zadaniami w „Moje stanowisko".
-function blockedStationKeys(order: Order, category: string, allOrders: Order[]): Set<string> {
+function blockedStationKeys(
+  order: Order,
+  category: string,
+  allOrders: Order[] | Map<number, Order>,
+): Set<string> {
   const ef = order.extra_fields as Record<string, unknown> | null
   const hasTitanGroup = ef?.titan_group != null
   if (category === 'STA') {
@@ -108,17 +112,26 @@ function defsForCategory(order: Order, category: string): StageDef[] {
 
 export function buildTasks(orders: Order[], workerStages: WorkerStage[]): MyTask[] {
   const tasks: MyTask[] = []
+  // Przygotowane raz — przy tysiącach zamówień find()/filter() w pętli robiły O(n²)
+  const ordersById = new Map<number, Order>()
+  for (const o of orders) if (o.id != null) ordersById.set(o.id, o)
+  const stagesByCategory = new Map<string, WorkerStage[]>()
+  for (const ws of workerStages) {
+    const list = stagesByCategory.get(ws.category) ?? []
+    list.push(ws)
+    stagesByCategory.set(ws.category, list)
+  }
 
   for (const order of orders) {
     const category = order.category ?? ''
     if (!category) continue
 
-    const stagesForCategory = workerStages.filter((ws) => ws.category === category)
+    const stagesForCategory = stagesByCategory.get(category) ?? []
     if (stagesForCategory.length === 0) continue
 
     const defs = defsForCategory(order, category)
     const parsed = parseProductionStages(order.production_stages, category)
-    const blocked = blockedStationKeys(order, category, orders)
+    const blocked = blockedStationKeys(order, category, ordersById)
 
     for (const ws of stagesForCategory) {
       const hasTitanPrefix = ws.stage_key.startsWith('titan_')

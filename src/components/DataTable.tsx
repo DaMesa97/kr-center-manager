@@ -192,6 +192,29 @@ export default function DataTable<T>({
 
   const sortedRows = useMemo(() => sortRows(rows, sort, getters), [rows, sort, getters])
 
+  // Renderowanie porcjami: duże zakładki (tysiące wierszy) nie budują całego
+  // DOM od razu — rysujemy pierwsze CHUNK, a wiersz-sentinel na dole dogrywa
+  // kolejne porcje gdy zbliża się do ekranu. Sortowanie/filtr działają na
+  // pełnych danych; licznik NIE resetuje się przy aktualizacjach realtime,
+  // żeby nie zwijać tabeli komuś, kto doscrollował głębiej.
+  const CHUNK = 300
+  const [visibleCount, setVisibleCount] = useState(CHUNK)
+  const hasMore = !loading && sortedRows.length > visibleCount
+  const shownRows = hasMore ? sortedRows.slice(0, visibleCount) : sortedRows
+  const sentinelRef = useRef<HTMLTableRowElement | null>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setVisibleCount((c) => c + CHUNK)
+      },
+      { rootMargin: '600px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasMore, visibleCount])
+
   const alignStyle = (a?: DataTableColumn<T>['align']): CSSProperties | undefined =>
     a && a !== 'left' ? { textAlign: a } : undefined
 
@@ -312,7 +335,7 @@ export default function DataTable<T>({
         })}
       </tr>
     )
-    body = sortedRows.map((row, i) => (
+    body = shownRows.map((row, i) => (
       <Fragment key={rowKey(row, i)}>
         {renderRow?.(row, i) ?? defaultRow(row, i)}
         {renderAfterRow?.(row, i)}
@@ -320,11 +343,22 @@ export default function DataTable<T>({
     ))
   }
 
+  const sentinel = hasMore && (
+    <tr ref={sentinelRef}>
+      <td colSpan={visible.length} className="data-table-empty">
+        Ładowanie kolejnych… ({shownRows.length} z {sortedRows.length})
+      </td>
+    </tr>
+  )
+
   const table = (
     <table ref={tableRef} className={`orders-table ${className ?? ''}`.trim()} style={tableStyle}>
       {colgroup}
       {header}
-      <tbody>{body}</tbody>
+      <tbody>
+        {body}
+        {sentinel}
+      </tbody>
       {footer && <tfoot>{footer}</tfoot>}
     </table>
   )

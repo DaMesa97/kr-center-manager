@@ -1141,12 +1141,6 @@ export function useOrders({
         // ustawione w międzyczasie przez inne stanowiska starą kopią).
         const { production_stages: mergedStages, extra_fields: _efIgnored, ...formFields } = mapped
         const payload = sanitizeOrderPayloadForDb(formFields)
-        const { error } = await supabase.from('orders').update(payload).eq('id', editId)
-        if (error) {
-          pushToast(`Wystąpił błąd: ${error.message}`, 'error')
-          setIsSaving(false)
-          return
-        }
         // Etapy: merge po stronie bazy TYLKO kluczy zmienionych w formularzu
         const baselineStages = parseProductionStages(
           editingOrderBaseline.production_stages,
@@ -1156,25 +1150,21 @@ export function useOrders({
         for (const [k, v] of Object.entries(mergedStages as Record<string, string>)) {
           if ((baselineStages[k] ?? '') !== v) stagePatch[k] = v
         }
-        if (Object.keys(stagePatch).length > 0) {
-          const { error: stErr } = await supabase.rpc('merge_order_stages', {
-            p_order_id: editId,
-            p_patch: stagePatch,
-          })
-          if (stErr) pushToast(`Błąd zapisu etapów: ${stErr.message}`, 'error')
-        }
-        // extra_fields: merge po stronie bazy (formularz edytuje tylko wykonawcę)
-        const { data: newExtra, error: efErr } = await supabase.rpc('merge_order_extra_fields', {
+        // JEDEN UPDATE (RPC): pola formularza + patch etapów + wykonawca —
+        // atomowo i z jednym broadcastem realtime (było 3 osobne zapisy).
+        const { data: updatedRow, error } = await supabase.rpc('update_order_form', {
           p_order_id: editId,
-          p_patch: { wykonawca: staFormData.wykonawca || '' },
+          p_fields: payload,
+          p_stage_patch: stagePatch,
+          p_extra_patch: { wykonawca: staFormData.wykonawca || '' },
         })
-        if (efErr) pushToast(`Błąd zapisu wykonawcy: ${efErr.message}`, 'error')
-        const merged = {
-          ...editingOrderBaseline,
-          ...payload,
-          production_stages: { ...baselineStages, ...stagePatch },
-          extra_fields: (newExtra as Order['extra_fields']) ?? editingOrderBaseline.extra_fields,
-        } as Order
+        if (error) {
+          pushToast(`Wystąpił błąd: ${error.message}`, 'error')
+          setIsSaving(false)
+          return
+        }
+        // RPC zwraca świeży wiersz z bazy (po merge'ach) — używamy go wprost
+        const merged = { ...editingOrderBaseline, ...(updatedRow as Partial<Order>) } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
         await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)

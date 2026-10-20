@@ -35,6 +35,16 @@ describe('isStaTitanLinked — STA połączone z partnerem ST', () => {
     expect(isStaTitanLinked(sta, [sta, distingPartner])).toBe(false)
     expect(isStaTitanLinked(order({ id: 3, category: 'STA' }), [])).toBe(false)
   })
+
+  it('wariant z Map id→Order (gorąca pętla buildTasks) daje te same wyniki', () => {
+    const sta = order({ id: 1, category: 'STA', linked_order_id: 2 })
+    const stPartner = order({ id: 2, category: 'ST' })
+    const distingPartner = order({ id: 2, category: 'Disting' })
+    const asMap = (list: Order[]) => new Map(list.map((o) => [o.id as number, o]))
+    expect(isStaTitanLinked(sta, asMap([sta, stPartner]))).toBe(true)
+    expect(isStaTitanLinked(sta, asMap([sta, distingPartner]))).toBe(false)
+    expect(isStaTitanLinked(sta, asMap([sta]))).toBe(false)
+  })
 })
 
 describe('countCompletedStages — Bastion standard vs Titan (bug „0/7 vs /9")', () => {

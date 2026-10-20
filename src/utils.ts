@@ -297,10 +297,15 @@ export function isStTitanComplaint(c: Complaint): boolean {
   return isTitanSystem(c.system)
 }
 
-export function isStaTitanLinked(order: Order, allOrders: Order[]): boolean {
+// Przyjmuje tablicę lub Map id→Order — gorące pętle (buildTasks po wszystkich
+// zamówieniach) budują mapę raz zamiast robić find() per zamówienie (O(n²)).
+export function isStaTitanLinked(order: Order, allOrders: Order[] | Map<number, Order>): boolean {
   if (order.category !== 'STA') return false
   if (order.linked_order_id == null) return false
-  const partner = allOrders.find((o) => o.id === order.linked_order_id)
+  const partner =
+    allOrders instanceof Map
+      ? allOrders.get(order.linked_order_id)
+      : allOrders.find((o) => o.id === order.linked_order_id)
   if (!partner) return false
   return partner.category === 'ST'
 }
@@ -1093,7 +1098,8 @@ export function sanitizeOrderPayloadForDb<T extends Record<string, unknown>>(pay
 // orderMetaForUpdate USUNIĘTE: wysyłało przy edycji snapshot całego zamówienia
 // z chwili otwarcia okna (etapy, wydanie, linki), nadpisując zmiany zrobione
 // w międzyczasie przez inne stanowiska. Edycja wysyła teraz tylko pola
-// formularza; etapy i extra_fields scalają RPC merge_order_stages /
+// formularza; ścieżka STA idzie jednym RPC update_order_form (pola + patch
+// etapów + extra_fields atomowo), pozostałe merge'ują RPC merge_order_stages /
 // merge_order_extra_fields po stronie bazy.
 
 export function orderToStaForm(order: Order): StaOrderFormData {
