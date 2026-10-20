@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ArchivedOrderDetailsModal from './ArchivedOrderDetailsModal'
 import type { ArchivedOrder, ArchiveRunLog } from '../types'
 import Spinner from './Spinner'
@@ -10,6 +10,8 @@ type ArchiveViewProps = {
   runLogs: ArchiveRunLog[]
   onRefresh: () => void
   onCreateComplaint: (archivedOrder: ArchivedOrder) => void
+  /** Fraza z globalnej lupki (wynik z archiwum) — prefiluje pole Szukaj */
+  searchSeed?: string
 }
 
 type ArchiveFilters = {
@@ -40,14 +42,18 @@ const runLogColumns: DataTableColumn<ArchiveRunLog>[] = [
   { key: 'duration_ms', label: 'CZAS (ms)', sortValue: (l) => l.duration_ms, render: (l) => l.duration_ms ?? '—' },
 ]
 
-export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCreateComplaint }: ArchiveViewProps) {
+export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCreateComplaint, searchSeed }: ArchiveViewProps) {
   const [filters, setFilters] = useState<ArchiveFilters>({
     category: '',
     company: '',
     dateFrom: '',
     dateTo: '',
-    query: '',
+    query: searchSeed ?? '',
   })
+  useEffect(() => {
+    // globalna lupka → wynik z archiwum: wyczyść filtry i wyszukaj numer
+    if (searchSeed) setFilters({ category: '', company: '', dateFrom: '', dateTo: '', query: searchSeed })
+  }, [searchSeed])
   const [selectedOrder, setSelectedOrder] = useState<ArchivedOrder | null>(null)
 
   const companyOptions = useMemo(

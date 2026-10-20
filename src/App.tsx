@@ -919,7 +919,14 @@ function App() {
     }
   }, [currentUser?.id])
 
+  const [archiveSearchSeed, setArchiveSearchSeed] = useState('')
   const handleGlobalSearchNavigate = useCallback((order: SearchResult) => {
+    if (order.archived) {
+      // Wynik z orders_archive — prowadzi do zakładki Archiwum z prefiltrem
+      setActiveTab('Archiwum')
+      setArchiveSearchSeed(String(order.order_number ?? ''))
+      return
+    }
     const cat = order.category
     if ((TABS as readonly string[]).includes(cat)) {
       setActiveTab(cat as (typeof TABS)[number])
@@ -2926,6 +2933,7 @@ function App() {
             runLogs={archiveRunLogs}
             onRefresh={() => void fetchArchivedOrders()}
             onCreateComplaint={handleCreateComplaintFromArchive}
+            searchSeed={archiveSearchSeed}
           />
         ) : isMyStationTab ? (
           <MyStationView

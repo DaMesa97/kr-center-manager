@@ -14,6 +14,8 @@ type SearchResult = {
   client_order_number: string | null
   release_date: string | null
   extra_fields: unknown
+  /** Wynik z orders_archive — nawigacja prowadzi do zakładki Archiwum */
+  archived?: boolean
 }
 
 type Props = {
@@ -67,23 +69,36 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
     // Escape wildcardów SQL (% _) i przecinka (separator w .or)
     const escaped = trimmed.replace(/[%_,]/g, '\\$&')
     const pattern = `%${escaped}%`
-    const { data, error } = await supabase
-      .from('orders')
-      .select('id, order_number, category, company, model, system, client_order_number, release_date, extra_fields')
-      .or(
-        `order_number.ilike.${pattern},company.ilike.${pattern},client_order_number.ilike.${pattern},model.ilike.${pattern}`,
-      )
-      .order('order_date', { ascending: false })
-      .limit(25)
+    const searchCols =
+      'id, order_number, category, company, model, system, client_order_number, release_date, extra_fields'
+    const orFilter = `order_number.ilike.${pattern},company.ilike.${pattern},client_order_number.ilike.${pattern},model.ilike.${pattern}`
+    // Aktywne + ARCHIWUM równolegle — zarchiwizowane zamówienia też muszą być
+    // znajdowalne z lupki (wcześniej „znikały" z wyszukiwania po archiwizacji)
+    const [activeRes, archiveRes] = await Promise.all([
+      supabase
+        .from('orders')
+        .select(searchCols)
+        .or(orFilter)
+        .order('order_date', { ascending: false })
+        .limit(25),
+      supabase
+        .from('orders_archive')
+        .select(searchCols)
+        .or(orFilter)
+        .order('order_date', { ascending: false })
+        .limit(10),
+    ])
     // Ignoruj jeśli poleciało nowsze wyszukiwanie
     if (version !== searchVersionRef.current) return
     setLoading(false)
-    if (error) {
-      console.error('[GlobalSearch]', error)
+    if (activeRes.error) {
+      console.error('[GlobalSearch]', activeRes.error)
       setResults([])
       return
     }
-    setResults((data ?? []) as SearchResult[])
+    if (archiveRes.error) console.error('[GlobalSearch archive]', archiveRes.error)
+    const archived = ((archiveRes.data ?? []) as SearchResult[]).map((r) => ({ ...r, archived: true }))
+    setResults([...((activeRes.data ?? []) as SearchResult[]), ...archived])
     setActiveIndex(0)
   }, [])
 
@@ -160,7 +175,7 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
             const released = r.release_date && r.release_date.trim() !== ''
             return (
               <button
-                key={r.id}
+                key={`${r.archived ? 'a' : 'o'}-${r.id}`}
                 type="button"
                 className={`global-search-result ${i === activeIndex ? 'global-search-result--active' : ''}`}
                 onMouseEnter={() => setActiveIndex(i)}
@@ -178,7 +193,8 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
                 <span className="global-search-result-model">{r.model ?? ''}</span>
                 <span className="global-search-result-flags">
                   {cancelled && <span className="global-search-flag global-search-flag--cancel">anul.</span>}
-                  {released && <span className="global-search-flag global-search-flag--done">wydane</span>}
+                  {released && !r.archived && <span className="global-search-flag global-search-flag--done">wydane</span>}
+                  {r.archived && <span className="global-search-flag global-search-flag--done">ARCHIWUM</span>}
                 </span>
               </button>
             )
