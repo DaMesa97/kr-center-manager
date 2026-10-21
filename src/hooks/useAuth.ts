@@ -187,6 +187,17 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
           password: loginPassword,
         })
 
+        // Konto wyłączone przez admina (ban) / limit Supabase na IP — to nie
+        // "złe hasło", więc bez liczenia próby i z własnym komunikatem
+        if (error?.code === 'user_banned') {
+          pushToast('Konto jest zablokowane — skontaktuj się z administratorem.', 'error')
+          return
+        }
+        if (error?.status === 429) {
+          pushToast('Za dużo prób logowania z tego komputera — odczekaj kilka minut.', 'error')
+          return
+        }
+
         // Błąd SIECI (brak neta, 5xx) to NIE nieudane logowanie — 5 prób na
         // słabym WiFi blokowało konto na 15 min mimo dobrego hasła
         const isCredentialError = !!error && error.status === 400
