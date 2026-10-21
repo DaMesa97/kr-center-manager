@@ -934,6 +934,87 @@ export function isRushOrderSequence(sequence: string | undefined | null): boolea
   return String(sequence ?? '').trim().toUpperCase() === 'X'
 }
 
+// ── Kompletność KOMPLETU drzwi (Wysyłka) ─────────────────────────────
+// Para Disting Plus / trójka Titan: wysyłamy komplet, nie połówkę — wiersz
+// musi mówić, czy WSZYSTKIE nogi są gotowe. null = zamówienie pojedyncze.
+// Nogi nieobecnej na liście otwartych (wydanej/archiwalnej) nie blokujemy.
+export type SetCompleteness = { complete: boolean; missing: string[] }
+
+export function orderSetCompleteness(order: Order, allOrders: Order[]): SetCompleteness | null {
+  const done = (v: unknown) => String(v ?? '').trim() !== ''
+  const stagesOf = (o: Order) => parseProductionStages(o.production_stages, o.category)
+  const byId = (id: number | null | undefined) =>
+    id == null ? undefined : allOrders.find((o) => o.id === id)
+
+  const ef = order.extra_fields as Record<string, unknown> | null
+  const titanGroup = ef?.titan_group != null ? String(ef.titan_group) : null
+  const titan =
+    titanGroup != null ||
+    isStaTitanLinked(order, allOrders) ||
+    (order.category === 'ST' && isStTitanOrder(order) && order.linked_order_id != null)
+
+  if (titan) {
+    // ustal id skrzydła STA (środek trójki)
+    const staId =
+      order.category === 'STA'
+        ? order.id
+        : order.category === 'ST'
+          ? order.linked_order_id
+          : titanGroup != null
+            ? Number(titanGroup)
+            : null
+    const sta = order.category === 'STA' ? order : byId(staId ?? null)
+    const st =
+      order.category === 'ST'
+        ? order
+        : allOrders.find((o) => o.category === 'ST' && o.linked_order_id != null && o.linked_order_id === staId)
+    const bastion =
+      order.category === 'Bastion'
+        ? order
+        : allOrders.find((o) => {
+            const e = o.extra_fields as Record<string, unknown> | null
+            return o.category === 'Bastion' && staId != null && String(e?.titan_group ?? '') === String(staId)
+          })
+
+    const missing: string[] = []
+    if (sta) {
+      const s = stagesOf(sta)
+      if (!done(s.e3)) missing.push('frez skrzydła (E3)')
+      if (!done(s.e5)) missing.push('skrzydło na Bukową (E5)')
+    }
+    if (st) {
+      const s = stagesOf(st)
+      if (!done(s.e1)) missing.push('ościeżnica (ST E1)')
+    }
+    if (bastion) {
+      const s = stagesOf(bastion)
+      if (!done(s.tit_oku)) missing.push('okuwanie (OKU)')
+      if (!done(s.tit_mon)) missing.push('montaż (MONT)')
+      if (!done(s.tit_pak)) missing.push('pakowanie (PAK)')
+    }
+    return { complete: missing.length === 0, missing }
+  }
+
+  if (order.linked_order_id != null && (order.category === 'STA' || order.category === 'Disting')) {
+    // para Disting Plus: każdy wymagany etap spełnia klucz WŁASNY albo mirror
+    const stages = stagesOf(order)
+    const glassExtra = hasGlassExtra(order)
+    const req: Array<{ k: string; label: string }> = [
+      { k: 'e1', label: 'ościeżnica (E1)' },
+      { k: 'e2_1', label: 'okucie ościeżnicy (E2.1)' },
+      ...(glassExtra ? [{ k: 'e2_2', label: 'szklenie dostawki (E2.2)' }] : []),
+      { k: 'e3', label: 'frez skrzydła (E3)' },
+      { k: 'e4', label: 'okucie skrzydła (E4)' },
+      { k: 'e5', label: 'pakowanie (E5)' },
+    ]
+    const sat = (k: string) => done(stages[k]) || done(stages[`dist_${k}`]) || done(stages[`sta_${k}`])
+    const missing = req.filter((r) => !sat(r.k)).map((r) => r.label)
+    return { complete: missing.length === 0, missing }
+  }
+
+  return null
+}
+
 // Plan wydań (zastępuje Airtable brygadzisty): XX = towar na magazyn DZIŚ,
 // X = na JUTRO — konwencja 1:1 z arkuszem. Trzymane w extra_fields.route_mark.
 export function orderRouteMark(order: Order): '' | 'X' | 'XX' {

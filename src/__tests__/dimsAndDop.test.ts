@@ -6,6 +6,7 @@ import {
   calcGlassDim,
   calcSidePanelHeight,
   calcTopLightWidth,
+  orderSetCompleteness,
   parseGlassDim,
 } from '../utils'
 import { docSpecificity, matchedDocsForOrder, orderGlazingType, type DopDocument } from '../lib/dopMatch'
@@ -133,6 +134,49 @@ describe('workersForTask — kafelki "kto zrobił" na wspólnym komputerze', () 
 
   it('brak przypisanych → pusta lista (dialog pokaże zwykły przycisk)', () => {
     expect(workersForTask(task, [], profiles)).toEqual([])
+  })
+})
+
+describe('orderSetCompleteness — komplet pary/trójki w Wysyłce', () => {
+  const ord = (over: Record<string, unknown>) => over as unknown as import('../types').Order
+
+  it('pojedyncze zamówienie → null (nie dotyczy)', () => {
+    expect(orderSetCompleteness(ord({ id: 1, category: 'STA' }), [])).toBeNull()
+  })
+
+  it('para Disting Plus: mirrory zaspokajają etapy partnera', () => {
+    const sta = ord({
+      id: 1, category: 'STA', linked_order_id: 2,
+      production_stages: { e3: 'A', e4: 'A', e5: 'A', dist_e1: 'B', dist_e2_1: 'B' },
+    })
+    const res = orderSetCompleteness(sta, [sta])!
+    expect(res.complete).toBe(true)
+  })
+
+  it('para: brak ościeżnicy → missing E1', () => {
+    const sta = ord({
+      id: 1, category: 'STA', linked_order_id: 2,
+      production_stages: { e3: 'A', e4: 'A', e5: 'A' },
+    })
+    const res = orderSetCompleteness(sta, [sta])!
+    expect(res.complete).toBe(false)
+    expect(res.missing.some((m) => m.includes('E1'))).toBe(true)
+  })
+
+  it('trójka Titan: komplet gdy STA e3+e5, ST e1, Bastion OKU/MONT/PAK', () => {
+    const sta = ord({ id: 10, category: 'STA', linked_order_id: 11, system: 'CORE',
+      extra_fields: { titan_group: 10 }, production_stages: { e3: 'A', e5: 'A' } })
+    const st = ord({ id: 11, category: 'ST', linked_order_id: 10, system: 'CORE',
+      production_stages: { e1: 'B' } })
+    const bastion = ord({ id: 12, category: 'Bastion',
+      extra_fields: { titan_group: 10 }, production_stages: { tit_oku: 'C', tit_mon: 'C', tit_pak: 'C' } })
+    const all = [sta, st, bastion]
+    expect(orderSetCompleteness(sta, all)!.complete).toBe(true)
+    // brak montażu → niekompletny, widoczny też od strony nogi ST
+    const bastion2 = ord({ ...bastion, production_stages: { tit_oku: 'C' } })
+    const res = orderSetCompleteness(st, [sta, st, bastion2])!
+    expect(res.complete).toBe(false)
+    expect(res.missing.some((m) => m.includes('MONT'))).toBe(true)
   })
 })
 

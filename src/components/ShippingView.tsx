@@ -6,9 +6,11 @@ import {
   countCompletedStages,
   getDaysElapsed,
   getOrderAgeStatus,
+  hasGlassExtra,
   isRushOrderSequence,
   isOrderReadyToInvoice,
   orderRouteMark,
+  orderSetCompleteness,
 } from '../utils'
 import ShippingProgressBar from './ShippingProgressBar'
 import Spinner from './Spinner'
@@ -73,6 +75,9 @@ export type ShippingViewProps = {
   orders: Order[]
   /** Wydane w ostatnich 14 dniach — do dokończenia oznaczania fakturowania */
   releasedOrders?: Order[]
+  /** PEŁNA (niezawężona) lista otwartych — kompletność kompletu musi widzieć
+   *  nogi z innych kategorii, nawet gdy user ma zawężone kategorie */
+  fullOrders?: Order[]
   companiesMap: Map<string, { production_day: string; route_day: string }>
   loading: boolean
   onRefresh: () => void
@@ -92,6 +97,7 @@ export type ShippingViewProps = {
 export default function ShippingView({
   orders,
   releasedOrders = [],
+  fullOrders,
   companiesMap,
   loading,
   onRefresh,
@@ -206,18 +212,38 @@ export default function ShippingView({
   ])
 
   const displayedOrders = useMemo(() => {
+    // Domyślna kolejka wysyłki (decyzja Tymka): XX → X → reszta,
+    // w obrębie grupy pilne na górze, potem NAJSTARSZE pierwsze
+    const markRank = (o: Order) => (orderRouteMark(o) === 'XX' ? 2 : orderRouteMark(o) === 'X' ? 1 : 0)
     const rows = [...filteredOrders]
     rows.sort((a, b) => {
+      const mr = markRank(b) - markRank(a)
+      if (mr !== 0) return mr
       const aUrgent = isRushOrderSequence(a.sequence)
       const bUrgent = isRushOrderSequence(b.sequence)
       if (aUrgent !== bUrgent) return aUrgent ? -1 : 1
-      const ca = categorySortIndex(a.category ?? '')
-      const cb = categorySortIndex(b.category ?? '')
-      if (ca !== cb) return ca - cb
+      const da = String(a.order_date ?? '9999')
+      const db = String(b.order_date ?? '9999')
+      if (da !== db) return da.localeCompare(db)
       return compareOrderNumberDesc(String(a.order_number ?? ''), String(b.order_number ?? ''))
     })
     return rows
   }, [filteredOrders])
+
+  // Kompletność kompletu liczona na PEŁNEJ liście (nogi z innych kategorii)
+  const completenessOf = useMemo(() => {
+    const base = fullOrders ?? orders
+    const cache = new Map<number, ReturnType<typeof orderSetCompleteness>>()
+    return (o: Order) => {
+      if (o.id == null) return null
+      let v = cache.get(o.id)
+      if (v === undefined) {
+        v = orderSetCompleteness(o, base)
+        cache.set(o.id, v)
+      }
+      return v
+    }
+  }, [fullOrders, orders])
 
   // Grupowanie po trasie — zachowuje istniejące sortowanie wewnątrz grupy
   const routeGroups = useMemo(() => {
@@ -285,7 +311,7 @@ export default function ShippingView({
     const icon = row.route === PERSONAL_PICKUP_ROUTE ? '🙋' : '🚛'
     return (
       <tr className="shipping-route-group-header">
-        <td colSpan={11}>
+        <td colSpan={15}>
           <div>
             <span className="shipping-route-label">{icon} {label}</span>
             <span className="shipping-route-stats">
@@ -380,6 +406,25 @@ export default function ShippingView({
       sortValue: sv((o) => o.company),
     }),
     col({
+      key: 'ordered',
+      label: 'ZŁOŻONE',
+      title: 'Data złożenia zamówienia i ile dni czeka (kolor wg reguł terminów)',
+      className: 'col-ordered',
+      render: (order) => {
+        const d = String(order.order_date ?? '').slice(0, 10)
+        if (!d) return '—'
+        const days = getDaysElapsed(order)
+        const age = getOrderAgeStatus(order, leadTimeRules)
+        return (
+          <span className={`shipping-age shipping-age--${age}`} title={`Złożone ${d}`}>
+            {d.slice(8, 10)}.{d.slice(5, 7)}
+            <span className="shipping-age-days">{days} dni</span>
+          </span>
+        )
+      },
+      sortValue: sv((o) => String(o.order_date ?? '9999')),
+    }),
+    col({
       key: 'day',
       label: 'DZIEŃ PROD.',
       className: 'col-day',
@@ -399,6 +444,27 @@ export default function ShippingView({
       className: 'col-prog',
       render: (order) => <ShippingProgressBar order={order} />,
       sortValue: sv((o) => countCompletedStages(o).percent),
+    }),
+    col({
+      key: 'komplet',
+      label: 'KOMPLET',
+      title: 'Para Disting Plus / trójka Titan: czy WSZYSTKIE nogi kompletu są gotowe do wysyłki',
+      className: 'col-komplet',
+      render: (order) => {
+        const c = completenessOf(order)
+        if (!c) return <span className="shipping-komplet-na">—</span>
+        if (c.complete) return <span className="shipping-komplet shipping-komplet--ok">KOMPLET</span>
+        return (
+          <span className="shipping-komplet shipping-komplet--missing" title={`Czeka na: ${c.missing.join(', ')}`}>
+            czeka: {c.missing[0]}
+            {c.missing.length > 1 ? ` +${c.missing.length - 1}` : ''}
+          </span>
+        )
+      },
+      sortValue: sv((o) => {
+        const c = completenessOf(o)
+        return c == null ? 1 : c.complete ? 0 : 2
+      }),
     }),
     col({
       key: 'status',
@@ -421,6 +487,21 @@ export default function ShippingView({
           category={order.category}
           glassAllowances={glassAllowances}
         />
+      ),
+    }),
+    col({
+      key: 'glass',
+      label: 'SZYBA',
+      title: 'Szyba dostawki/naświetla: BRAK → zamówiona → ✓ jest (bez szyby nie ma co wysyłać)',
+      className: 'col-glass',
+      render: (order) => {
+        if (!hasGlassExtra(order)) return <span className="shipping-komplet-na">—</span>
+        if (order.glass_received) return <span className="shipping-glass shipping-glass--ok">✓ jest</span>
+        if (order.glass_order_date) return <span className="shipping-glass shipping-glass--ordered">zamówiona</span>
+        return <span className="shipping-glass shipping-glass--missing">BRAK</span>
+      },
+      sortValue: sv((o) =>
+        !hasGlassExtra(o) ? 0 : o.glass_received ? 1 : o.glass_order_date ? 2 : 3,
       ),
     }),
     col({
@@ -476,6 +557,17 @@ export default function ShippingView({
         />
       ),
       sortValue: sv((o) => (isOrderReadyToInvoice(o) ? 1 : 0)),
+    }),
+    col({
+      key: 'notes',
+      label: 'UWAGI',
+      className: 'col-ship-notes',
+      tdTitle: (r) => (r.kind === 'order' ? String(r.order.notes ?? '') || undefined : undefined),
+      render: (order) => {
+        const n = String(order.notes ?? '').trim()
+        if (!n) return '—'
+        return <span className="shipping-notes-cell">{n}</span>
+      },
     }),
     col({
       key: 'act',

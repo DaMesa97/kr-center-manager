@@ -3043,6 +3043,7 @@ function App() {
           <ShippingView
             orders={shippingOrdersScoped}
             releasedOrders={shippingReleasedScoped}
+            fullOrders={shippingOrders}
             companiesMap={shippingCompaniesMap}
             loading={shippingOrdersLoading}
             onRefresh={() => void fetchShippingOrders()}

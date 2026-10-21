@@ -8070,3 +8070,26 @@ html, body, #root {
 @media (max-width: 800px) {
   .role-legend-row { grid-template-columns: 1fr; gap: 0.1rem; }
 }
+
+/* ── Wysylka: zlozone/wiek, komplet, szyba, uwagi ─────────────────── */
+.shipping-age { display: inline-flex; flex-direction: column; line-height: 1.2; font-weight: 600; }
+.shipping-age-days { font-size: 0.72rem; font-weight: 700; }
+.shipping-age--ok .shipping-age-days { color: #15803d; }
+.shipping-age--warning .shipping-age-days { color: #b45309; }
+.shipping-age--overdue .shipping-age-days { color: #b91c1c; }
+.shipping-komplet {
+  display: inline-block; padding: 0.15rem 0.45rem; border-radius: 4px;
+  font-size: 0.72rem; font-weight: 800; white-space: nowrap;
+}
+.shipping-komplet--ok { background: #dcfce7; color: #166534; border: 1px solid #a3dfb8; }
+.shipping-komplet--missing { background: #fef2f2; color: #b91c1c; border: 1px solid #f3b6b2; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.shipping-komplet-na { color: #94a3b8; }
+.shipping-glass { font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.shipping-glass--ok { color: #15803d; }
+.shipping-glass--ordered { color: #b45309; }
+.shipping-glass--missing { color: #b91c1c; }
+.col-ship-notes { max-width: 180px; }
+.shipping-notes-cell {
+  display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.8rem; color: #475569;
+}
