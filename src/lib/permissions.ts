@@ -73,7 +73,9 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
   ],
 
-  // KP = KF (bez różnicy) — pełna firma poza panelem admina
+  // KP = pełna firma poza panelem admina. KF scalony z KP (2026-10-21):
+  // nie do przydzielania (usunięty z UserModal), macierz zostaje dla
+  // zgodności wstecznej, gdyby gdzieś ostało się stare konto.
   [R.KIER_PRODUKCJI]: [
     'orders.view', 'orders.create', 'orders.edit', 'orders.release', 'stages.markAny',
     'comments.write', 'shipping.view', 'shipping.invoice', 'prices.view',

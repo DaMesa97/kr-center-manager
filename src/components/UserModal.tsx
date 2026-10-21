@@ -2,9 +2,11 @@ import { createPortal } from 'react-dom'
 import type { UserFormState } from '../types'
 import { ROLE_LABELS, isCategoryScoped } from '../lib/permissions'
 
+// 'kierownik_firmowy' scalony z 'kierownik_produkcji' (identyczne uprawnienia)
+// — nie przydzielamy go już; w kodzie zostaje dla zgodności wstecznej
 const ROLE_OPTIONS = [
   'obsluga_klienta', 'pracownik_produkcji', 'magazynier',
-  'kierownik_dzialu', 'kierownik_magazynu', 'kierownik_produkcji', 'kierownik_firmowy', 'admin',
+  'kierownik_dzialu', 'kierownik_magazynu', 'kierownik_produkcji', 'admin',
 ]
 const USER_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
 
