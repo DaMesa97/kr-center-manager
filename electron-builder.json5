@@ -10,12 +10,16 @@
   },
   // GitHub Releases — ustaw owner/repo przed pierwszym `npm run release`
   // GH_TOKEN musi być w .env (token z prawem write:packages + repo)
+  // releaseType "draft": updater NIE widzi release'u w trakcie wgrywania plików
+  // (Setup.exe idzie minuty, latest.yml na końcu — klient trafiający w to okno
+  // dostawał 404). Krok weryfikacji po buildzie upublicznia release (draft:false)
+  // dopiero gdy wszystkie assets są na miejscu.
   "publish": [
     {
       "provider": "github",
       "owner": "DaMesa97",
       "repo": "kr-center-manager",
-      "releaseType": "release"
+      "releaseType": "draft"
     }
   ],
   "files": [
