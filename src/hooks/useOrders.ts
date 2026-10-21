@@ -2796,26 +2796,36 @@ export function useOrders({
       setStageRevertTarget(null)
       return
     }
-    await applyProductionStagesUpdate(order.id, stageRevertTarget.stageKey, '')
-    await syncMirrorStagesToLinkedOrder(order, stageRevertTarget.stageKey, '')
-    // Zwrot wydanych pozycji etapu na magazyn (ZWR) — wcześniej cofnięcie
-    // tylko czyściło pole, a towar zostawał zdjęty ze stanu
-    try {
-      const { data: zwr, error: zwrErr } = await supabase.rpc('return_stock_for_stage', {
-        p_order_id: order.id,
-        p_stage_key: stageRevertTarget.stageKey,
-      })
-      if (zwrErr) {
-        pushToast(`Ostrzeżenie: zwrot na magazyn nie powiódł się: ${zwrErr.message}`, 'error')
-      } else if ((zwr ?? []).length > 0) {
-        pushToast(`Zwrócono na magazyn ${(zwr as unknown[]).length} pozycji (ZWR)`, 'success')
-        await fetchWarehouseStock()
-      }
-    } catch (err) {
-      console.error('return_stock_for_stage error:', err)
+    // Zwrot wydanych pozycji etapu (ZWR) + wyczyszczenie etapu w JEDNEJ transakcji
+    // (revert_order_stage) — pomyłkowe oznaczenie nie mogło zostawić towaru zdjętego
+    // ze stanu; wcześniej pracownik czyścił etap, a zwrot odrzucało „Tylko kierownik”
+    const stageKey = stageRevertTarget.stageKey
+    setProductionStageUpdating(String(order.id))
+    markLocalStageWrite(order.id, stageKey)
+    const { data: zwr, error: revertErr } = await supabase.rpc('revert_order_stage', {
+      p_order_id: order.id,
+      p_stage_key: stageKey,
+    })
+    setProductionStageUpdating(null)
+    if (revertErr) {
+      pushToast(`Nie cofnięto etapu: ${revertErr.message}`, 'error')
+      setStageRevertTarget(null)
+      return
+    }
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== order.id) return o
+        const current = parseProductionStages(o.production_stages, o.category)
+        return { ...o, production_stages: { ...current, [stageKey]: '' } }
+      }),
+    )
+    await syncMirrorStagesToLinkedOrder(order, stageKey, '')
+    if ((zwr ?? []).length > 0) {
+      pushToast(`Etap cofnięty — zwrócono na magazyn ${(zwr as unknown[]).length} pozycji (ZWR)`, 'success')
+      await fetchWarehouseStock()
     }
     setStageRevertTarget(null)
-  }, [stageRevertTarget, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast, fetchWarehouseStock])
+  }, [stageRevertTarget, orders, syncMirrorStagesToLinkedOrder, pushToast, fetchWarehouseStock])
 
   const confirmReleaseClear = useCallback(async () => {
     if (!releaseClearTarget) return
