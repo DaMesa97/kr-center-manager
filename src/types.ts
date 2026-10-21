@@ -260,7 +260,8 @@ export type WorkerStage = {
 export type OrderComment = {
   id: number
   order_id: number
-  author_id: string
+  /** null po usunięciu konta autora (FK SET NULL) — UI pokazuje „Nieznany" */
+  author_id: string | null
   author_name?: string
   author_role?: string
   content: string

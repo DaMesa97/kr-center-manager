@@ -8,3 +8,8 @@
 --  order_photos.uploaded_by, purchase_orders.created_by/sent_by,
 --  seasonal_factors.updated_by, worker_stages.created_by,
 --  warehouse_movements.created_by)
+
+-- DOKONCZENIE (migracja order_comments_author_nullable): order_comments.author_id
+-- mialo FK SET NULL ale kolumne NOT NULL -> delete usera wybuchal na 23502.
+-- alter table public.order_comments alter column author_id drop not null;
+-- Po tej zmianie dry-run usuniecia przeszedl dla WSZYSTKICH 7 kont.
