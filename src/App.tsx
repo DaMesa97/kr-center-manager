@@ -797,6 +797,7 @@ function App() {
     setShippingDetailsModal,
     fetchShippingOrders,
     handleToggleReadyToInvoice,
+    handleToggleRouteMark,
     handleShippingRushToggle,
     handleOpenShippingOrder,
   } = useShipping({
@@ -3028,6 +3029,7 @@ function App() {
             onRefresh={() => void fetchShippingOrders()}
             onShowDetails={handleOpenShippingOrder}
             onToggleReadyToInvoice={handleToggleReadyToInvoice}
+            onToggleRouteMark={handleToggleRouteMark}
             onRushToggle={handleShippingRushToggle}
             rushUpdatingOrderId={rushUpdatingOrderId}
             isManager={isManager}

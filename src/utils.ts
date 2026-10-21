@@ -934,6 +934,14 @@ export function isRushOrderSequence(sequence: string | undefined | null): boolea
   return String(sequence ?? '').trim().toUpperCase() === 'X'
 }
 
+// Plan wydań (zastępuje Airtable brygadzisty): XX = towar na magazyn DZIŚ,
+// X = na JUTRO — konwencja 1:1 z arkuszem. Trzymane w extra_fields.route_mark.
+export function orderRouteMark(order: Order): '' | 'X' | 'XX' {
+  const ef = order.extra_fields as Record<string, unknown> | null
+  const v = String(ef?.route_mark ?? '').trim().toUpperCase()
+  return v === 'X' || v === 'XX' ? v : ''
+}
+
 // ---------------------------------------------------------------------------
 // Przeterminowane zamówienia
 // ---------------------------------------------------------------------------

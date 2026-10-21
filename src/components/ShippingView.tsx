@@ -8,6 +8,7 @@ import {
   getOrderAgeStatus,
   isRushOrderSequence,
   isOrderReadyToInvoice,
+  orderRouteMark,
 } from '../utils'
 import ShippingProgressBar from './ShippingProgressBar'
 import Spinner from './Spinner'
@@ -77,6 +78,8 @@ export type ShippingViewProps = {
   onRefresh: () => void
   onShowDetails: (order: Order) => void
   onToggleReadyToInvoice: (order: Order, ready: boolean) => Promise<void>
+  /** Plan wydań: klik przełącza puste → X (jutro) → XX (dziś) → puste */
+  onToggleRouteMark: (order: Order) => Promise<void>
   onRushToggle: (order: Order, checked: boolean) => Promise<void>
   rushUpdatingOrderId: number | null
   isManager: boolean
@@ -94,6 +97,7 @@ export default function ShippingView({
   onRefresh,
   onShowDetails,
   onToggleReadyToInvoice,
+  onToggleRouteMark,
   onRushToggle,
   rushUpdatingOrderId,
   isManager,
@@ -126,6 +130,8 @@ export default function ShippingView({
   const [productionDayFilter, setProductionDayFilter] = useState<string>('')
   const [routeDayFilter, setRouteDayFilter] = useState<string>('')
   const [onlyWithStockIssues, setOnlyWithStockIssues] = useState(false)
+  // Plan wydań: '' = wszystkie, 'XX' = na dziś, 'X' = na jutro
+  const [routeMarkFilter, setRouteMarkFilter] = useState<string>('')
   const [onlyUrgent, setOnlyUrgent] = useState(false)
   const [onlyOverdue, setOnlyOverdue] = useState(false)
   const [groupByRoute, setGroupByRoute] = useState(false)
@@ -161,6 +167,7 @@ export default function ShippingView({
       if (categoryFilter && (o.category ?? '') !== categoryFilter) return false
       if (companyQ && !String(o.company ?? '').toLowerCase().includes(companyQ)) return false
       if (onlyReadyToInvoice && !isOrderReadyToInvoice(o)) return false
+      if (routeMarkFilter && orderRouteMark(o) !== routeMarkFilter) return false
       if (onlyWithStockIssues && (!o.stock_status || o.stock_status === 'ok')) return false
       if (onlyUrgent && !isRushOrderSequence(o.sequence)) return false
       if (productionDayFilter) {
@@ -187,6 +194,7 @@ export default function ShippingView({
     categoryFilter,
     companyFilter,
     onlyReadyToInvoice,
+    routeMarkFilter,
     onlyWithStockIssues,
     onlyUrgent,
     onlyOverdue,
@@ -234,6 +242,8 @@ export default function ShippingView({
   // z OTWARTYCH — po włączeniu "Pokaż wydane" licznik nie może rosnąć o wydane,
   // gdy pozostałe liczniki belki liczą się z otwartych
   const readyCount = orders.filter((o) => isOrderReadyToInvoice(o)).length
+  const routeTodayCount = orders.filter((o) => orderRouteMark(o) === 'XX').length
+  const routeTomorrowCount = orders.filter((o) => orderRouteMark(o) === 'X').length
   const withIssuesCount = useMemo(
     () => orders.filter((o) => o.stock_status && o.stock_status !== 'ok').length,
     [orders],
@@ -414,6 +424,34 @@ export default function ShippingView({
       ),
     }),
     col({
+      key: 'route_mark',
+      label: 'X/XX',
+      title: 'Plan wydań: X = towar na magazyn JUTRO, XX = DZIŚ. Klik przełącza: puste → X → XX → puste.',
+      className: 'col-route-mark',
+      render: (order) => {
+        const mark = orderRouteMark(order)
+        return (
+          <button
+            type="button"
+            className={`route-mark-btn ${mark ? `route-mark-btn--${mark.toLowerCase()}` : ''}`}
+            disabled={!isManager || loading || order.id === undefined}
+            title={
+              isManager
+                ? 'X = na jutro, XX = na dziś — klik przełącza'
+                : 'Plan wydań oznacza brygadzista/kierownik'
+            }
+            onClick={(e) => {
+              e.stopPropagation()
+              void onToggleRouteMark(order)
+            }}
+          >
+            {mark || '—'}
+          </button>
+        )
+      },
+      sortValue: sv((o) => (orderRouteMark(o) === 'XX' ? 2 : orderRouteMark(o) === 'X' ? 1 : 0)),
+    }),
+    col({
       key: 'inv',
       label: 'FAKTURA',
       className: 'col-inv',
@@ -473,6 +511,9 @@ export default function ShippingView({
         </span>
         <span>
           <strong>Gotowych do fakturowania:</strong> {readyCount}
+        </span>
+        <span title="Plan wydań: XX = towar na magazyn dziś, X = na jutro">
+          <strong>Na dziś (XX):</strong> {routeTodayCount} · <strong>Na jutro (X):</strong> {routeTomorrowCount}
         </span>
         <span>
           <strong>Z brakami magazynowymi:</strong>{' '}
@@ -546,6 +587,16 @@ export default function ShippingView({
             {availableRouteDays.map((route) => (
               <option key={route} value={route}>{route}</option>
             ))}
+          </select>
+        </label>
+
+        {/* Plan wydań */}
+        <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span>Plan wydań</span>
+          <select value={routeMarkFilter} onChange={(e) => setRouteMarkFilter(e.target.value)} className="day-filter">
+            <option value="">wszystkie</option>
+            <option value="XX">XX — na dziś</option>
+            <option value="X">X — na jutro</option>
           </select>
         </label>
 

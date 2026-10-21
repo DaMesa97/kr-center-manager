@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { isReleaseDateEmpty } from '../utils'
+import { isReleaseDateEmpty, orderRouteMark } from '../utils'
 import { cleanCompanyValue } from '../lib/companyMatch'
 import type { Order } from '../types'
 import type { ToastVariant } from '../types'
@@ -179,6 +179,32 @@ export function useShipping({
     [pushToast],
   )
 
+  // Plan wydań: klik przełącza puste → X (na jutro) → XX (na dziś) → puste.
+  // Merge po stronie bazy — jak fakturowanie.
+  const handleToggleRouteMark = useCallback(
+    async (order: Order) => {
+      const id = order.id
+      if (id === undefined) return
+      const cur = orderRouteMark(order)
+      const next = cur === '' ? 'X' : cur === 'X' ? 'XX' : ''
+      const { data: newExtra, error } = await supabase.rpc('merge_order_extra_fields', {
+        p_order_id: id,
+        p_patch: { route_mark: next },
+      })
+      if (error) {
+        pushToast(`Błąd: ${error.message}`, 'error')
+        return
+      }
+      const applyExtra = (prev: Order[]) =>
+        prev.map((o) =>
+          o.id === id ? { ...o, extra_fields: (newExtra as Order['extra_fields']) ?? o.extra_fields } : o,
+        )
+      setShippingOrders(applyExtra)
+      setShippingReleasedOrders(applyExtra)
+    },
+    [pushToast],
+  )
+
   const handleShippingRushToggle = useCallback(
     async (order: Order, checked: boolean) => {
       await handleRushToggle(order, checked)
@@ -281,6 +307,7 @@ export function useShipping({
     setShippingDetailsModal,
     fetchShippingOrders,
     handleToggleReadyToInvoice,
+    handleToggleRouteMark,
     handleShippingRushToggle,
     handleOpenShippingOrder,
   }
