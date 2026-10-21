@@ -8093,3 +8093,23 @@ html, body, #root {
   display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 0.8rem; color: #475569;
 }
+
+/* szerokosci nowych kolumn Wysylki (colgroup) + containment */
+.shipping-view .orders-table colgroup col.col-ordered    { width: 88px; }
+.shipping-view .orders-table colgroup col.col-komplet    { width: 140px; }
+.shipping-view .orders-table colgroup col.col-glass      { width: 86px; }
+.shipping-view .orders-table colgroup col.col-route-mark { width: 64px; }
+.shipping-view .orders-table colgroup col.col-ship-notes { width: 180px; }
+.shipping-view .orders-table td.col-komplet,
+.shipping-view .orders-table td.col-ship-notes,
+.shipping-view .orders-table td.col-ordered {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.shipping-view .orders-table td.col-komplet .shipping-komplet--missing {
+  display: inline-block;
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}

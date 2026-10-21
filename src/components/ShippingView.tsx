@@ -311,7 +311,7 @@ export default function ShippingView({
     const icon = row.route === PERSONAL_PICKUP_ROUTE ? '🙋' : '🚛'
     return (
       <tr className="shipping-route-group-header">
-        <td colSpan={15}>
+        <td colSpan={16}>
           <div>
             <span className="shipping-route-label">{icon} {label}</span>
             <span className="shipping-route-stats">
@@ -408,7 +408,7 @@ export default function ShippingView({
     col({
       key: 'ordered',
       label: 'ZŁOŻONE',
-      title: 'Data złożenia zamówienia i ile dni czeka (kolor wg reguł terminów)',
+      title: 'Data złożenia zamówienia i ile DNI ROBOCZYCH czeka (kolor wg reguł terminów; weekendy nie liczą się)',
       className: 'col-ordered',
       render: (order) => {
         const d = String(order.order_date ?? '').slice(0, 10)
@@ -418,7 +418,7 @@ export default function ShippingView({
         return (
           <span className={`shipping-age shipping-age--${age}`} title={`Złożone ${d}`}>
             {d.slice(8, 10)}.{d.slice(5, 7)}
-            <span className="shipping-age-days">{days} dni</span>
+            <span className="shipping-age-days">{days} dn. rob.</span>
           </span>
         )
       },
@@ -753,17 +753,24 @@ export default function ShippingView({
         columns={columns}
         wrapperClassName="orders-table-wrapper"
         colgroup={
+          // KOLEJNOŚĆ MUSI zgadzać się 1:1 z listą kolumn — brakujący <col>
+          // przesuwa szerokości na złe kolumny i rozjeżdża cały układ
           <colgroup>
             <col className="col-rush" />
             <col className="col-nr" />
             <col className="col-cat" />
             <col className="col-firm" />
+            <col className="col-ordered" />
             <col className="col-day" />
             <col className="col-qty" />
             <col className="col-prog" />
+            <col className="col-komplet" />
             <col className="col-status" />
             <col className="col-stock" />
+            <col className="col-glass" />
+            <col className="col-route-mark" />
             <col className="col-inv" />
+            <col className="col-ship-notes" />
             <col className="col-act" />
           </colgroup>
         }

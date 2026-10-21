@@ -1094,6 +1094,27 @@ export function isOrderOverdue(order: {
 /**
  * Liczba dni, które upłynęły od daty złożenia zamówienia (order_date).
  */
+/** Dni ROBOCZE (pn–pt) w przedziale (start, end] — bez sobót i niedziel.
+ *  Świąt nie znamy (brak kalendarza) — przy progach terminów to margines
+ *  na korzyść produkcji. */
+export function workingDaysBetween(start: Date, end: Date): number {
+  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+  const days = Math.floor((e.getTime() - s.getTime()) / 86_400_000)
+  if (days <= 0) return 0
+  const fullWeeks = Math.floor(days / 7)
+  let count = fullWeeks * 5
+  const rem = days % 7
+  const dow = s.getDay()
+  for (let i = 1; i <= rem; i++) {
+    const d = (dow + i) % 7
+    if (d !== 0 && d !== 6) count++
+  }
+  return count
+}
+
+/** Ile DNI ROBOCZYCH czeka zamówienie (decyzja Tymka 2026-10-21: weekendy
+ *  nie liczą się do wieku — progi reguł terminów też są w dniach roboczych). */
 export function getDaysElapsed(order: {
   order_date?: string | null
 }): number {
@@ -1104,10 +1125,7 @@ export function getDaysElapsed(order: {
     ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
     : new Date(order.order_date)
   if (isNaN(base.getTime())) return 0
-  base.setHours(0, 0, 0, 0)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return Math.max(0, Math.floor((today.getTime() - base.getTime()) / 86_400_000))
+  return workingDaysBetween(base, new Date())
 }
 
 export function hasGlassExtra(order: Order): boolean {

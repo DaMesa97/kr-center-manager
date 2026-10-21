@@ -96,10 +96,12 @@ describe('countCompletedStages — Bastion standard vs Titan (bug „0/7 vs /9")
 
 describe('getOrderAgeStatus — zaległości (Wysyłka)', () => {
   const rules: LeadTimeRule[] = []
-  it('domyślnie: 7 dni = warning, 14 dni = overdue', () => {
-    expect(getOrderAgeStatus(order({ order_date: daysAgo(2) }), rules)).toBe('ok')
-    expect(getOrderAgeStatus(order({ order_date: daysAgo(8) }), rules)).toBe('warning')
-    expect(getOrderAgeStatus(order({ order_date: daysAgo(20) }), rules)).toBe('overdue')
+  it('domyślnie: 7 dni ROBOCZYCH = warning, 14 = overdue (weekendy nie liczą się)', () => {
+    // granice odporne na dzień tygodnia: w N dniach kalendarzowych jest
+    // min. N-4 (dwa weekendy) i max N dni roboczych
+    expect(getOrderAgeStatus(order({ order_date: daysAgo(2) }), rules)).toBe('ok') // max 2 rob.
+    expect(getOrderAgeStatus(order({ order_date: daysAgo(12) }), rules)).toBe('warning') // 8–10 rob.
+    expect(getOrderAgeStatus(order({ order_date: daysAgo(21) }), rules)).toBe('overdue') // min 15 rob.
   })
   it('wydane i anulowane nigdy nie są zaległe', () => {
     expect(getOrderAgeStatus(order({ order_date: daysAgo(30), release_date: '2026-07-01' }), rules)).toBe('ok')
@@ -107,10 +109,11 @@ describe('getOrderAgeStatus — zaległości (Wysyłka)', () => {
   })
   it('reguła per kategoria nadpisuje progi', () => {
     const custom = [
-      { id: 1, is_active: true, priority: 10, match_category: 'Bastion', match_has_glass_extra: null, match_bastion_frame_type: null, warning_days: 3, overdue_days: 5 },
+      { id: 1, is_active: true, priority: 10, match_category: 'Bastion', match_has_glass_extra: null, match_bastion_frame_type: null, warning_days: 3, overdue_days: 10 },
     ] as unknown as LeadTimeRule[]
-    expect(getOrderAgeStatus(order({ category: 'Bastion', order_date: daysAgo(4) }), custom)).toBe('warning')
-    expect(getOrderAgeStatus(order({ category: 'STA', order_date: daysAgo(4) }), custom)).toBe('ok')
+    // 7 dni kalendarzowych wstecz = ZAWSZE dokładnie 5 dni roboczych
+    expect(getOrderAgeStatus(order({ category: 'Bastion', order_date: daysAgo(7) }), custom)).toBe('warning')
+    expect(getOrderAgeStatus(order({ category: 'STA', order_date: daysAgo(7) }), custom)).toBe('ok')
   })
 })
 

@@ -8,6 +8,7 @@ import {
   calcTopLightWidth,
   orderSetCompleteness,
   parseGlassDim,
+  workingDaysBetween,
 } from '../utils'
 import { docSpecificity, matchedDocsForOrder, orderGlazingType, type DopDocument } from '../lib/dopMatch'
 import { mirrorStageKey } from '../lib/stageMirror'
@@ -134,6 +135,23 @@ describe('workersForTask — kafelki "kto zrobił" na wspólnym komputerze', () 
 
   it('brak przypisanych → pusta lista (dialog pokaże zwykły przycisk)', () => {
     expect(workersForTask(task, [], profiles)).toEqual([])
+  })
+})
+
+describe('workingDaysBetween — wiek zamówienia w dniach roboczych', () => {
+  const d = (s: string) => new Date(`${s}T12:00:00`)
+  it('weekendy nie liczą się', () => {
+    // pt 2026-10-16 → wt 2026-10-20: pon + wt = 2 dni robocze
+    expect(workingDaysBetween(d('2026-10-16'), d('2026-10-20'))).toBe(2)
+    // pełny tydzień pn→pn = 5
+    expect(workingDaysBetween(d('2026-10-12'), d('2026-10-19'))).toBe(5)
+    // sobota → niedziela = 0
+    expect(workingDaysBetween(d('2026-10-17'), d('2026-10-18'))).toBe(0)
+    // ten sam dzień i daty wstecz = 0
+    expect(workingDaysBetween(d('2026-10-20'), d('2026-10-20'))).toBe(0)
+    expect(workingDaysBetween(d('2026-10-21'), d('2026-10-20'))).toBe(0)
+    // dwa pełne tygodnie + 1 dzień roboczy
+    expect(workingDaysBetween(d('2026-10-05'), d('2026-10-20'))).toBe(11)
   })
 })
 
