@@ -56,7 +56,9 @@ export default function UsersView({
         label: 'Akcje',
         render: (row) => (
           <div className="contractor-actions">
-            {(row.role === 'pracownik_produkcji' || row.role === 'worker') && (
+            {/* Kierownik działu też pracuje na stanowisku (brygadzista) —
+                bez przypisań jego „Moje stanowisko" było puste */}
+            {(row.role === 'pracownik_produkcji' || row.role === 'worker' || row.role === 'kierownik_dzialu') && (
               <button type="button" className="btn btn-sm btn-primary" onClick={() => onManageWorkerStages(row)}>
                 Etapy produkcji
               </button>
