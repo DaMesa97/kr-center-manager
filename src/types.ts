@@ -160,6 +160,8 @@ export type OrderNeedingReview = {
   warnings: string[]
   api_key_id: number | null
   raw_payload: Record<string, unknown> | null
+  /** bot / excel — skąd przyszło zamówienie do weryfikacji */
+  source: string | null
 }
 
 export type ComplaintFormData = {

@@ -52,7 +52,7 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
         sortValue: (o) => `${o.category} ${o.order_number}`,
         render: (o) => (
           <>
-            {o.category} #{o.order_number}
+            {sourceBadge(o.source)} {o.category} #{o.order_number}
           </>
         ),
       },
@@ -164,7 +164,7 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
       <div className="orders-review-header">
         <h2>⚠️ Zamówienia wymagające weryfikacji</h2>
         <p>
-          Zamówienia z konfiguratora online, które wymagają ręcznej weryfikacji przed wysłaniem do produkcji.
+          Zamówienia z konfiguratora (BOT) i z arkuszy Excel, które wymagają ręcznej weryfikacji przed wysłaniem do produkcji.
           Sortowane FIFO — najstarsze na górze.
         </p>
         <div className="orders-review-count">{orders.length} zamówień do sprawdzenia</div>

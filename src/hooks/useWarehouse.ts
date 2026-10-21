@@ -555,6 +555,7 @@ export function useWarehouse({
         row.raw_payload && typeof row.raw_payload === 'object'
           ? (row.raw_payload as Record<string, unknown>)
           : null,
+      source: row.source == null ? null : String(row.source),
     }))
     setOrdersNeedingReview(mapped)
   }, [pushToast])
