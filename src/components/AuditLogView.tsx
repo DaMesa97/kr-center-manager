@@ -1,6 +1,8 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import type { AuditFilters, AuditLogRow } from '../types'
+import type { AuditLogRow } from '../types'
+import { supabase } from '../supabaseClient'
+import { AUDIT_PAGE_SIZE, type AuditQueryFilters } from '../hooks/useAudit'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 
@@ -8,13 +10,29 @@ type AuditLogViewProps = {
   rows: AuditLogRow[]
   loading: boolean
   onRefresh: () => void
-  onFilterChange: (filters: AuditFilters) => void
+  onFilterChange: (filters: AuditQueryFilters) => void
 }
 
 type DetailsModalProps = {
   row: AuditLogRow
+  userLabel: string
   onClose: () => void
 }
+
+// Tabele objęte triggerem audytu (stan bazy 10.2026). Lista stała, bo PostgREST
+// nie zrobi DISTINCT — do tego dokładamy nazwy z wczytanych wierszy.
+const AUDITED_TABLES = [
+  'orders',
+  'config_options',
+  'profiles',
+  'stock_reservations',
+  'warehouse_components',
+  'warehouse_movements',
+  'warehouse_recipes',
+  'warehouse_stock',
+]
+
+const SEARCH_DEBOUNCE_MS = 300
 
 function formatDateTime(value: string): string {
   const d = new Date(value)
@@ -57,7 +75,7 @@ function renderValue(value: unknown): ReactNode {
   return String(value)
 }
 
-function AuditDetailsModal({ row, onClose }: DetailsModalProps) {
+function AuditDetailsModal({ row, userLabel, onClose }: DetailsModalProps) {
   const changedSet = useMemo(() => new Set(row.changed_fields ?? []), [row.changed_fields])
   const oldData = useMemo(() => row.old_data ?? {}, [row.old_data])
   const newData = useMemo(() => row.new_data ?? {}, [row.new_data])
@@ -84,7 +102,7 @@ function AuditDetailsModal({ row, onClose }: DetailsModalProps) {
         </div>
         <p className="audit-details-meta">
           <strong>{row.table_name}</strong> • {row.operation} • {formatDateTime(row.created_at)} •{' '}
-          {row.user_email || row.user_id || '(brak)'}
+          {userLabel}
         </p>
 
         {row.operation === 'UPDATE' ? (
@@ -136,31 +154,58 @@ function previewChangedFields(fields: string[] | null): string {
   return `${fields.slice(0, 3).join(', ')} i ${fields.length - 3} więcej`
 }
 
+type ProfileOption = { id: string; label: string }
+
 export default function AuditLogView({ rows, loading, onRefresh, onFilterChange }: AuditLogViewProps) {
   const [detailsRow, setDetailsRow] = useState<AuditLogRow | null>(null)
-  const [filters, setFilters] = useState<AuditFilters>({})
+  const [filters, setFilters] = useState<AuditQueryFilters>({})
+  const [searchInput, setSearchInput] = useState('')
+  const [profiles, setProfiles] = useState<ProfileOption[]>([])
+
+  // Imiona zamiast UUID + lista „Użytkownik" ze WSZYSTKICH profili (nie z 1000 wierszy)
+  useEffect(() => {
+    let cancelled = false
+    void supabase
+      .from('profiles')
+      .select('id, full_name, initials')
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        const list = (data as Array<{ id: string; full_name: string | null; initials: string | null }>)
+          .map((p) => ({
+            id: p.id,
+            label: p.full_name ? (p.initials ? `${p.full_name} (${p.initials})` : p.full_name) : p.initials || p.id,
+          }))
+          .sort((a, b) => a.label.localeCompare(b.label, 'pl'))
+        setProfiles(list)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const profileLabel = useMemo(() => new Map(profiles.map((p) => [p.id, p.label])), [profiles])
+  const userLabel = (r: AuditLogRow) =>
+    (r.user_id && profileLabel.get(r.user_id)) || r.user_email || r.user_id || '(system)'
 
   const tableOptions = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.table_name).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [rows],
-  )
-  const userOptions = useMemo(
     () =>
-      Array.from(new Set(rows.map((r) => r.user_id).filter((u): u is string => Boolean(u)))).sort((a, b) =>
+      Array.from(new Set([...AUDITED_TABLES, ...rows.map((r) => r.table_name).filter(Boolean)])).sort((a, b) =>
         a.localeCompare(b),
       ),
     [rows],
   )
 
-  const columns = useMemo<DataTableColumn<AuditLogRow>[]>(
-    () => [
+  const columns = useMemo<DataTableColumn<AuditLogRow>[]>(() => {
+    const label = (r: AuditLogRow) =>
+      (r.user_id && profileLabel.get(r.user_id)) || r.user_email || r.user_id || '(system)'
+    return [
       { key: 'created_at', label: 'DATA', sortValue: (r) => r.created_at, render: (r) => formatDateTime(r.created_at) },
       {
         key: 'user',
         label: 'UŻYTKOWNIK',
         stackUnder: 'created_at',
-        sortValue: (r) => r.user_email || r.user_id || null,
-        render: (r) => r.user_email || r.user_id || '(brak)',
+        sortValue: (r) => label(r),
+        render: (r) => <span title={r.user_email || r.user_id || undefined}>{label(r)}</span>,
       },
       { key: 'table_name', label: 'TABELA', sortValue: (r) => r.table_name, render: (r) => r.table_name },
       {
@@ -170,7 +215,15 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
         sortValue: (r) => r.operation,
         render: (r) => <span className={`audit-op-badge audit-op-badge--${r.operation.toLowerCase()}`}>{r.operation}</span>,
       },
-      { key: 'record_id', label: 'ID REKORDU', sortValue: (r) => r.record_id || null, render: (r) => r.record_id || '—' },
+      {
+        key: 'record_id',
+        label: 'ID REKORDU',
+        sortValue: (r) => r.record_id || null,
+        render: (r) => {
+          const nr = r.new_data?.order_number ?? r.old_data?.order_number
+          return nr ? `${r.record_id ?? '—'} · ${String(nr)}` : r.record_id || '—'
+        },
+      },
       { key: 'changed_fields', label: 'ZMIENIONE POLA', render: (r) => previewChangedFields(r.changed_fields) },
       {
         key: 'actions',
@@ -181,15 +234,34 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
           </button>
         ),
       },
-    ],
-    [],
-  )
+    ]
+  }, [profileLabel])
 
-  const updateFilters = (patch: Partial<AuditFilters>) => {
-    const next = { ...filters, ...patch }
+  // Każda zmiana filtra wraca do pierwszej porcji
+  const updateFilters = (patch: Partial<AuditQueryFilters>) => {
+    const next = { ...filters, limit: undefined, ...patch }
     setFilters(next)
     onFilterChange(next)
   }
+
+  // Szukajka z opóźnieniem — zapytanie leci do serwera dopiero po przerwie w pisaniu
+  const filtersRef = useRef(filters)
+  useEffect(() => {
+    filtersRef.current = filters
+  }, [filters])
+  useEffect(() => {
+    const q = searchInput.trim() || undefined
+    if (q === (filtersRef.current.searchQuery ?? undefined)) return
+    const t = window.setTimeout(() => {
+      const next = { ...filtersRef.current, limit: undefined, searchQuery: q }
+      setFilters(next)
+      onFilterChange(next)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(t)
+  }, [searchInput, onFilterChange])
+
+  const limit = filters.limit ?? AUDIT_PAGE_SIZE
+  const canLoadMore = !loading && rows.length >= limit
 
   return (
     <>
@@ -216,9 +288,9 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
 
         <select className="day-filter" value={filters.userId ?? ''} onChange={(e) => updateFilters({ userId: e.target.value || undefined })}>
           <option value="">Wszyscy użytkownicy</option>
-          {userOptions.map((userId) => (
-            <option key={userId} value={userId}>
-              {userId}
+          {profiles.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
             </option>
           ))}
         </select>
@@ -226,9 +298,9 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
         <input
           type="text"
           className="search-input"
-          placeholder="Szukaj po record_id, email, polach..."
-          value={filters.searchQuery ?? ''}
-          onChange={(e) => updateFilters({ searchQuery: e.target.value || undefined })}
+          placeholder="Szukaj po nr zlecenia, record_id, email, nazwie pola..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
         />
 
         <input
@@ -245,24 +317,60 @@ export default function AuditLogView({ rows, loading, onRefresh, onFilterChange 
           onChange={(e) => updateFilters({ dateTo: e.target.value || undefined })}
         />
 
+        <label
+          className="audit-system-toggle"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}
+          title="Wpisy systemowe (bez użytkownika): triggery, synchronizacja par, importy i Edge Functions"
+        >
+          <input
+            type="checkbox"
+            checked={!filters.showSystem}
+            onChange={(e) => updateFilters({ showSystem: e.target.checked ? undefined : true })}
+          />{' '}
+          Ukryj systemowe
+        </label>
+
         <button type="button" className="btn btn-primary" onClick={onRefresh}>
           Odśwież
         </button>
       </div>
 
-      {loading ? (
+      {loading && rows.length === 0 ? (
         <Spinner center label="Ładowanie historii zmian…" />
       ) : (
-        <DataTable
-          rows={rows}
-          rowKey={(r) => r.id}
-          columns={columns}
-          className="audit-table"
-          emptyText="Brak wpisów audytu dla wybranych filtrów."
-        />
+        <>
+          <DataTable
+            rows={rows}
+            rowKey={(r) => r.id}
+            columns={columns}
+            className="audit-table"
+            emptyText="Brak wpisów audytu dla wybranych filtrów."
+          />
+          <div className="audit-load-more" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', margin: '0.75rem 0' }}>
+            {loading ? (
+              <Spinner inline label="Ładowanie…" />
+            ) : (
+              <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Wczytano {rows.length} najnowszych wpisów</span>
+            )}
+            {canLoadMore && (
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={() => {
+                  // bez updateFilters — ono zeruje limit
+                  const next = { ...filters, limit: limit + AUDIT_PAGE_SIZE }
+                  setFilters(next)
+                  onFilterChange(next)
+                }}
+              >
+                Załaduj więcej (+{AUDIT_PAGE_SIZE})
+              </button>
+            )}
+          </div>
+        </>
       )}
 
-      {detailsRow && <AuditDetailsModal row={detailsRow} onClose={() => setDetailsRow(null)} />}
+      {detailsRow && <AuditDetailsModal row={detailsRow} userLabel={userLabel(detailsRow)} onClose={() => setDetailsRow(null)} />}
     </>
   )
 }

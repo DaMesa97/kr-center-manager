@@ -5,6 +5,8 @@ import {
 import { supabase } from '../../supabaseClient'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
+import { fetchAllPages } from '../../lib/fetchPaged'
+import { localDateStr } from '../../lib/localDates'
 
 const PROD_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
 
@@ -48,7 +50,7 @@ function presetFromDate(preset: Preset): string {
   else if (preset === 'quarter') d.setMonth(d.getMonth() - 3)
   else if (preset === 'halfyear') d.setMonth(d.getMonth() - 6)
   else d.setFullYear(d.getFullYear() - 1)
-  return d.toISOString().slice(0, 10)
+  return localDateStr(d)
 }
 
 export default function LeadTimeStatsView() {
@@ -63,13 +65,19 @@ export default function LeadTimeStatsView() {
     try {
       const fromDate = presetFromDate(p)
       // Pobierz wydane zamówienia (release_date ustawiona) z zakresu
-      const { data, error } = await supabase
-        .from('orders')
-        .select('category, order_date, release_date, extra_fields')
-        .not('release_date', 'is', null)
-        .gte('release_date', fromDate)
-        .order('release_date', { ascending: false })
-        .limit(10000)
+      // (porcjami po 1000 — .limit(10000) i tak dawało max 1000 wierszy)
+      type Row = { category: string; order_date: string | null; release_date: string | null; cancelled: unknown }
+      const { data, error } = await fetchAllPages<Row>((rFrom, rTo) =>
+        supabase
+          .from('orders')
+          .select('id, category, order_date, release_date, cancelled:extra_fields->cancelled')
+          .not('release_date', 'is', null)
+          .gte('release_date', fromDate)
+          .order('release_date', { ascending: false })
+          .order('id', { ascending: false })
+          .range(rFrom, rTo)
+          .overrideTypes<Row[], { merge: false }>(),
+      )
 
       if (error) {
         console.error('[LeadTime]', error)
@@ -80,13 +88,8 @@ export default function LeadTimeStatsView() {
       const byCategory = new Map<string, number[]>()
       const allDays: number[] = []
 
-      for (const row of (data ?? []) as Array<{
-        category: string
-        order_date: string | null
-        release_date: string | null
-        extra_fields: Record<string, unknown> | null
-      }>) {
-        if (row.extra_fields?.cancelled === true) continue
+      for (const row of data) {
+        if (row.cancelled === true) continue
         if (!row.order_date || !row.release_date) continue
         const d = daysBetween(row.order_date, row.release_date)
         if (d == null) continue

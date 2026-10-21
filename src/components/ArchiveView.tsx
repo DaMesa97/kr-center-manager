@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import ArchivedOrderDetailsModal from './ArchivedOrderDetailsModal'
 import type { ArchivedOrder, ArchiveRunLog } from '../types'
+import { supabase } from '../supabaseClient'
+import { localDayEndExclusiveIso, localDayStartIso } from '../lib/localDates'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 
@@ -21,6 +23,24 @@ type ArchiveFilters = {
   dateTo: string
   query: string
 }
+
+const EMPTY_FILTERS: ArchiveFilters = { category: '', company: '', dateFrom: '', dateTo: '', query: '' }
+
+// cron.job 'archive-old-orders-daily' = '0 3 * * *', a pg_cron liczy w GMT →
+// lokalnie 5:00 latem (CEST), 4:00 zimą (CET)
+const ARCHIVE_CRON_UTC_HOUR = 3
+
+function archiveLocalTime(): string {
+  const d = new Date()
+  d.setUTCHours(ARCHIVE_CRON_UTC_HOUR, 0, 0, 0)
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// App nigdy nie czyści archiveSearchSeed — bez tego każde ponowne wejście
+// w Archiwum wracało z tą samą frazą. Seed konsumujemy raz (na wartość).
+let consumedSearchSeed = ''
+
+const lc = (v: unknown) => String(v ?? '').toLowerCase()
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return '—'
@@ -43,41 +63,96 @@ const runLogColumns: DataTableColumn<ArchiveRunLog>[] = [
 ]
 
 export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCreateComplaint, searchSeed }: ArchiveViewProps) {
-  const [filters, setFilters] = useState<ArchiveFilters>({
-    category: '',
-    company: '',
-    dateFrom: '',
-    dateTo: '',
-    query: searchSeed ?? '',
-  })
+  const [filters, setFilters] = useState<ArchiveFilters>(() => ({
+    ...EMPTY_FILTERS,
+    query: searchSeed && searchSeed !== consumedSearchSeed ? searchSeed : '',
+  }))
   useEffect(() => {
-    // globalna lupka → wynik z archiwum: wyczyść filtry i wyszukaj numer
-    if (searchSeed) setFilters({ category: '', company: '', dateFrom: '', dateTo: '', query: searchSeed })
+    // globalna lupka → wynik z archiwum: wyczyść filtry i wyszukaj numer (raz)
+    if (!searchSeed || searchSeed === consumedSearchSeed) return
+    consumedSearchSeed = searchSeed
+    setFilters({ ...EMPTY_FILTERS, query: searchSeed })
   }, [searchSeed])
   const [selectedOrder, setSelectedOrder] = useState<ArchivedOrder | null>(null)
 
+  // Prawdziwa liczba w archiwum (count z serwera), niezależnie od tego, ile wczytano
+  const [totalCount, setTotalCount] = useState<number | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void supabase
+      .from('orders_archive')
+      .select('id', { count: 'exact', head: true })
+      .then(({ count, error }) => {
+        if (!cancelled && !error) setTotalCount(count ?? 0)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [orders])
+
+  const isPartial = totalCount != null && totalCount > orders.length
+
+  // Gdy wczytana jest tylko część archiwum — szukajka pyta też serwer (z opóźnieniem)
+  const [remoteHits, setRemoteHits] = useState<ArchivedOrder[]>([])
+  useEffect(() => {
+    const q = filters.query.trim().replace(/["\\*,()]/g, '')
+    if (!isPartial || q.length < 2) {
+      setRemoteHits((p) => (p.length ? [] : p))
+      return
+    }
+    let cancelled = false
+    const t = window.setTimeout(() => {
+      const v = `"*${q}*"`
+      void supabase
+        .from('orders_archive')
+        .select('*')
+        .or(`order_number.ilike.${v},client_order_number.ilike.${v},company.ilike.${v}`)
+        .order('created_at', { ascending: false })
+        .limit(500)
+        .then(({ data }) => {
+          if (!cancelled) setRemoteHits((data ?? []) as ArchivedOrder[])
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      window.clearTimeout(t)
+    }
+  }, [filters.query, isPartial])
+
+  const sourceOrders = useMemo(() => {
+    if (remoteHits.length === 0) return orders
+    const seen = new Set(orders.map((o) => o.id))
+    return [...orders, ...remoteHits.filter((o) => !seen.has(o.id))]
+  }, [orders, remoteHits])
+
   const companyOptions = useMemo(
-    () => Array.from(new Set(orders.map((o) => o.company).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    () =>
+      Array.from(new Set(orders.map((o) => (o.company ?? '').trim()).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
     [orders],
   )
 
   const filteredOrders = useMemo(() => {
     const q = filters.query.trim().toLowerCase()
-    return orders.filter((o) => {
+    const company = filters.company.toLowerCase()
+    // created_at to timestamptz — granice dnia wg czasu lokalnego
+    const fromTs = filters.dateFrom ? new Date(localDayStartIso(filters.dateFrom)).getTime() : null
+    const toTs = filters.dateTo ? new Date(localDayEndExclusiveIso(filters.dateTo)).getTime() : null
+    return sourceOrders.filter((o) => {
       if (filters.category && o.category !== filters.category) return false
-      if (filters.company && !o.company.toLowerCase().includes(filters.company.toLowerCase())) return false
-      if (filters.dateFrom && o.created_at && o.created_at < filters.dateFrom) return false
-      if (filters.dateTo && o.created_at && o.created_at > `${filters.dateTo}T23:59:59.999`) return false
+      if (company && !lc(o.company).includes(company)) return false
+      const created = o.created_at ? new Date(o.created_at).getTime() : null
+      if (fromTs != null && created != null && created < fromTs) return false
+      if (toTs != null && created != null && created >= toTs) return false
       if (q) {
-        const hit =
-          o.order_number.toLowerCase().includes(q) ||
-          o.client_order_number.toLowerCase().includes(q) ||
-          o.company.toLowerCase().includes(q)
+        // client_order_number bywa NULL — bez ?? szukajka wywalała cały widok
+        const hit = lc(o.order_number).includes(q) || lc(o.client_order_number).includes(q) || lc(o.company).includes(q)
         if (!hit) return false
       }
       return true
     })
-  }, [orders, filters])
+  }, [sourceOrders, filters])
 
   const latestRun = runLogs[0]
 
@@ -119,11 +194,17 @@ export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCre
             {latestRun ? `${formatDate(latestRun.run_at)} (${latestRun.archived_count} zarchiwizowanych)` : '—'}
           </strong>
         </span>
-        <span>
-          Następna archiwizacja: <strong>codziennie o 4:00 (rano)</strong>
+        <span title="Zadanie pg_cron o 3:00 UTC — latem 5:00, zimą 4:00 czasu polskiego">
+          Następna archiwizacja: <strong>codziennie o {archiveLocalTime()} (rano)</strong>
         </span>
         <span>
-          W archiwum łącznie: <strong>{orders.length} zamówień</strong>
+          W archiwum łącznie: <strong>{totalCount ?? orders.length} zamówień</strong>
+          {isPartial && (
+            <span title="Szukajka sprawdza też starsze zamówienia na serwerze">
+              {' '}
+              (wczytano {orders.length} najnowszych)
+            </span>
+          )}
         </span>
         <button type="button" className="btn btn-primary" onClick={onRefresh}>
           Odśwież

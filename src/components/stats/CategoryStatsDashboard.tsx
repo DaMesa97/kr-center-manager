@@ -14,6 +14,8 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type LabelProps,
+  type PieLabelRenderProps,
 } from 'recharts'
 import type { Order } from '../../types'
 import { isReleaseDateEmpty } from '../../utils'
@@ -60,15 +62,10 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
       map.set(key, 0)
     }
 
-    const cutoff = new Date(now.getFullYear(), now.getMonth() - rangeMonths + 1, 1)
-
     for (const o of completedCategoryOrders) {
-      // data zamówienia, nie importu: created_at to dzień wejścia do systemu
-      // (cała historia z migracji ma 4.06.2026)
-      const orderDate = o.order_date || (o as { created_at?: string }).created_at
-      const created = orderDate ? new Date(orderDate) : null
-      if (!created || created < cutoff) continue
-      const key = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}`
+      // Produkcja = miesiąc WYDANIA (release_date to kolumna date 'YYYY-MM-DD'),
+      // nie zamówienia — po order_date wykres pokazywał napływ, nie produkcję
+      const key = String(o.release_date ?? '').slice(0, 7)
       if (map.has(key)) {
         map.set(key, (map.get(key) ?? 0) + (Number(o.quantity) || 0))
       }
@@ -294,7 +291,7 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
       <div className="stats-grid">
         <div className="stats-card">
           <div className="stats-card-header">
-            <h3>Produkcja w czasie {category}</h3>
+            <h3 title="Suma drzwi z wydanych zleceń wg miesiąca daty wydania">Produkcja w czasie {category}</h3>
             <select
               className="day-filter"
               value={rangeMonths}
@@ -350,13 +347,15 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
                 paddingAngle={2}
                 minAngle={3}
                 labelLine={false}
-                label={(p: any) => {
+                label={(p: PieLabelRenderProps) => {
                   // procent w środku tylko dla wystarczająco dużych wycinków
                   if (!p.value || !p.percent || p.percent < 0.08) return null
                   const RAD = Math.PI / 180
-                  const r = p.innerRadius + (p.outerRadius - p.innerRadius) * 0.5
-                  const x = p.cx + r * Math.cos(-p.midAngle * RAD)
-                  const y = p.cy + r * Math.sin(-p.midAngle * RAD)
+                  const inner = Number(p.innerRadius) || 0
+                  const outer = Number(p.outerRadius) || 0
+                  const r = inner + (outer - inner) * 0.5
+                  const x = Number(p.cx) + r * Math.cos(-Number(p.midAngle) * RAD)
+                  const y = Number(p.cy) + r * Math.sin(-Number(p.midAngle) * RAD)
                   return (
                     <text x={x} y={y} fill="#fff" fontSize={13} fontWeight={700} textAnchor="middle" dominantBaseline="central">
                       {Math.round(p.percent * 100)}%
@@ -369,8 +368,11 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
                 ))}
                 <Label
                   position="center"
-                  content={(props: any) => {
-                    const { cx, cy } = props.viewBox
+                  content={(props: LabelProps) => {
+                    // Pie podaje polarny viewBox (cx/cy środka)
+                    const vb = (props.viewBox ?? {}) as { cx?: number; cy?: number }
+                    const cx = vb.cx ?? 0
+                    const cy = vb.cy ?? 0
                     return (
                       <g>
                         <text x={cx} y={cy - 8} textAnchor="middle" fontSize={26} fontWeight={800} fill="#1e293b">{total}</text>

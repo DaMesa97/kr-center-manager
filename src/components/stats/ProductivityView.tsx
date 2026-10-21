@@ -12,6 +12,8 @@ import {
 import { supabase } from '../../supabaseClient'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
+import { fetchAllPages } from '../../lib/fetchPaged'
+import { localDateStr, localDayEndExclusiveIso, localDayStartIso, localMonday } from '../../lib/localDates'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,34 +44,24 @@ function parseStages(raw: unknown): Record<string, string> {
   return {}
 }
 
-function countNewCompletions(
+/** Wartości (inicjały) etapów, które w tym zapisie zmieniły się z pustych na wypełnione */
+function newCompletions(
   oldStages: Record<string, string>,
   newStages: Record<string, string>,
-): number {
-  let count = 0
+): string[] {
+  const out: string[] = []
   for (const key of Object.keys(newStages)) {
     // Mirrory par (dist_*/sta_*) to KOPIA pracy zrobionej u partnera — ich
     // zapis to osobny wpis audytu i każdy etap zlecenia łączonego liczył się 2×
     if (key.startsWith('dist_') || key.startsWith('sta_')) continue
-    const wasEmpty = !oldStages[key] || oldStages[key].trim() === ''
-    const isNowFilled = newStages[key] && newStages[key].trim() !== ''
-    if (wasEmpty && isNowFilled) count++
+    const wasEmpty = !oldStages[key] || String(oldStages[key]).trim() === ''
+    const value = newStages[key] ? String(newStages[key]).trim() : ''
+    if (wasEmpty && value !== '') out.push(value)
   }
-  return count
+  return out
 }
 
-function getMonday(d: Date): Date {
-  const copy = new Date(d)
-  const day = copy.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  copy.setDate(copy.getDate() + diff)
-  copy.setHours(0, 0, 0, 0)
-  return copy
-}
-
-function toDateStr(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
+const normInitials = (s: string) => s.trim().toUpperCase()
 
 // ---------------------------------------------------------------------------
 // Preset helpers
@@ -80,18 +72,18 @@ type Preset = 'week' | 'month' | 'lastMonth' | 'custom'
 function presetDates(preset: Preset): { from: string; to: string } {
   const now = new Date()
   if (preset === 'week') {
-    return { from: toDateStr(getMonday(now)), to: toDateStr(now) }
+    return { from: localDateStr(localMonday(now)), to: localDateStr(now) }
   }
   if (preset === 'month') {
     const from = new Date(now.getFullYear(), now.getMonth(), 1)
-    return { from: toDateStr(from), to: toDateStr(now) }
+    return { from: localDateStr(from), to: localDateStr(now) }
   }
   if (preset === 'lastMonth') {
     const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     const to = new Date(now.getFullYear(), now.getMonth(), 0)
-    return { from: toDateStr(from), to: toDateStr(to) }
+    return { from: localDateStr(from), to: localDateStr(to) }
   }
-  return { from: toDateStr(getMonday(now)), to: toDateStr(now) }
+  return { from: localDateStr(localMonday(now)), to: localDateStr(now) }
 }
 
 // ---------------------------------------------------------------------------
@@ -131,17 +123,33 @@ export default function ProductivityView() {
   const load = useCallback(async (from: string, to: string) => {
     setLoading(true)
     try {
-      // 1. Pobierz wpisy audit_log dotyczące zmian production_stages
-      const { data: auditData, error: auditError } = await supabase
-        .from('audit_log')
-        .select('user_id, user_email, created_at, old_data, new_data')
-        .eq('table_name', 'orders')
-        .eq('operation', 'UPDATE')
-        .contains('changed_fields', ['production_stages'])
-        .gte('created_at', `${from}T00:00:00`)
-        .lte('created_at', `${to}T23:59:59`)
-        .order('created_at', { ascending: false })
-        .limit(10000)
+      // 1. Wpisy audit_log ze zmianą production_stages — tylko zapisy ludzi
+      // (user_id NULL = triggery/mirrory/Edge Functions; 1000 najnowszych to
+      // były niemal same systemowe i ranking wychodził pusty). Porcjami po 1000,
+      // tylko potrzebne fragmenty JSON-a zamiast całych wierszy zamówień.
+      // Granice dnia liczone lokalnie (Europe/Warsaw) → ISO UTC.
+      type AuditEntry = {
+        user_id: string | null
+        user_email: string | null
+        old_stages: unknown
+        new_stages: unknown
+        category: string | null
+      }
+      const { data: auditData, error: auditError } = await fetchAllPages<AuditEntry>((rFrom, rTo) =>
+        supabase
+          .from('audit_log')
+          .select('id, user_id, user_email, old_stages:old_data->production_stages, new_stages:new_data->production_stages, category:new_data->>category')
+          .eq('table_name', 'orders')
+          .eq('operation', 'UPDATE')
+          .not('user_id', 'is', null)
+          .contains('changed_fields', ['production_stages'])
+          .gte('created_at', localDayStartIso(from))
+          .lt('created_at', localDayEndExclusiveIso(to))
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(rFrom, rTo)
+          .overrideTypes<AuditEntry[], { merge: false }>(),
+      )
 
       if (auditError) {
         console.error('[Productivity] audit_log error:', auditError)
@@ -154,50 +162,52 @@ export default function ProductivityView() {
         .from('profiles')
         .select('id, full_name, initials, role')
 
-      const profilesMap = new Map<string, { name: string; initials: string; role: string }>()
+      type Profile = { id: string; name: string; initials: string }
+      const profilesMap = new Map<string, Profile>()
+      const byInitials = new Map<string, Profile | null>() // null = inicjały niejednoznaczne
       for (const p of (profilesData ?? []) as Array<{
-        id: string; full_name?: string; initials?: string; role?: string
+        id: string; full_name?: string | null; initials?: string | null; role?: string | null
       }>) {
-        profilesMap.set(p.id, {
-          name: p.full_name ?? '',
-          initials: p.initials ?? '',
-          role: p.role ?? '',
-        })
+        const prof: Profile = { id: p.id, name: p.full_name ?? '', initials: p.initials ?? '' }
+        profilesMap.set(p.id, prof)
+        const ini = normInitials(prof.initials)
+        if (ini) byInitials.set(ini, byInitials.has(ini) ? null : prof)
       }
 
-      // 3. Agregacja
+      // 3. Agregacja — pracę przypisujemy po INICJAŁACH wpisanych w etap
+      // (jeden wspólny komputer na stanowisku, kilka osób), a dopiero gdy
+      // wartość nie pasuje do żadnego profilu — po koncie, które zapisało.
       const aggregated = new Map<string, Omit<WorkerRow, 'total'>>()
-
-      for (const entry of (auditData ?? []) as Array<{
-        user_id: string | null
-        user_email: string | null
-        old_data: Record<string, unknown> | null
-        new_data: Record<string, unknown> | null
-      }>) {
-        if (!entry.user_id) continue
-
-        const oldStages = parseStages(entry.old_data?.production_stages)
-        const newStages = parseStages(entry.new_data?.production_stages)
-        const completions = countNewCompletions(oldStages, newStages)
-        if (completions === 0) continue
-
-        const category = String(entry.new_data?.category ?? '')
-        if (!PROD_CATEGORIES.includes(category as ProdCategory)) continue
-
-        let workerRow = aggregated.get(entry.user_id)
-        if (!workerRow) {
-          const profile = profilesMap.get(entry.user_id)
-          workerRow = {
-            userId: entry.user_id,
-            email: entry.user_email ?? '',
-            name: profile?.name || entry.user_email || entry.user_id,
-            initials: profile?.initials ?? '??',
+      const workerFor = (id: string, email: string): Omit<WorkerRow, 'total'> => {
+        let row = aggregated.get(id)
+        if (!row) {
+          const profile = profilesMap.get(id)
+          row = {
+            userId: id,
+            email,
+            name: profile?.name || email || id,
+            initials: profile?.initials || '??',
             byCategory: { STA: 0, Disting: 0, ST: 0, Techniczne: 0, Bastion: 0, DrzwiWewnetrzne: 0 },
           }
-          aggregated.set(entry.user_id, workerRow)
+          aggregated.set(id, row)
         }
+        return row
+      }
 
-        workerRow.byCategory[category as ProdCategory] = (workerRow.byCategory[category as ProdCategory] ?? 0) + completions
+      for (const entry of auditData) {
+        if (!entry.user_id) continue
+
+        const category = String(entry.category ?? '')
+        if (!PROD_CATEGORIES.includes(category as ProdCategory)) continue
+
+        const values = newCompletions(parseStages(entry.old_stages), parseStages(entry.new_stages))
+        for (const value of values) {
+          const byIni = byInitials.get(normInitials(value))
+          const worker = byIni
+            ? workerFor(byIni.id, '')
+            : workerFor(entry.user_id, entry.user_email ?? '')
+          worker.byCategory[category as ProdCategory] += 1
+        }
       }
 
       const result: WorkerRow[] = Array.from(aggregated.values())
@@ -340,7 +350,10 @@ export default function ProductivityView() {
 
       {/* Info o zakresie */}
       {loadedRange && !loading && (
-        <div className="productivity-range-info">
+        <div
+          className="productivity-range-info"
+          title="Etap liczony osobie, której inicjały wpisano w etap; gdy inicjały nie pasują do żadnego profilu — kontu, z którego zapisano. Zapisy systemowe i lustrzane etapy par pominięte."
+        >
           Dane za okres: <strong>{loadedRange.from}</strong> — <strong>{loadedRange.to}</strong>
           {rows.length > 0 && (
             <> · <strong>{totalCompletions}</strong> ukończonych etapów · <strong>{rows.length}</strong> pracowników</>
