@@ -63,12 +63,10 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
     const cutoff = new Date(now.getFullYear(), now.getMonth() - rangeMonths + 1, 1)
 
     for (const o of completedCategoryOrders) {
-      const createdAt = (o as { created_at?: string }).created_at
-      const created = createdAt
-        ? new Date(createdAt)
-        : o.order_date
-          ? new Date(o.order_date)
-          : null
+      // data zamówienia, nie importu: created_at to dzień wejścia do systemu
+      // (cała historia z migracji ma 4.06.2026)
+      const orderDate = o.order_date || (o as { created_at?: string }).created_at
+      const created = orderDate ? new Date(orderDate) : null
       if (!created || created < cutoff) continue
       const key = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}`
       if (map.has(key)) {
@@ -131,7 +129,7 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
     for (const o of filteredOrdersNonCancelled) {
       if (!o.release_date || isReleaseDateEmpty(o.release_date)) continue
 
-      const createdStr = (o as { created_at?: string }).created_at ?? o.order_date
+      const createdStr = o.order_date || (o as { created_at?: string }).created_at
       if (!createdStr) continue
 
       const created = new Date(createdStr)
@@ -193,7 +191,7 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
     const counts = [0, 0, 0, 0, 0, 0, 0]
 
     for (const o of filteredOrdersNonCancelled) {
-      const createdStr = (o as { created_at?: string }).created_at ?? o.order_date
+      const createdStr = o.order_date || (o as { created_at?: string }).created_at
       if (!createdStr) continue
       const d = new Date(createdStr)
       const dayOfWeek = d.getDay()

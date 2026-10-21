@@ -128,7 +128,7 @@ export default function InternalDoorStatsDashboard({ orders, internalDoorItems, 
   const avgRealization = useMemo(() => {
     const values = doorOrders
       .filter((o) => !isCancelled(o) && isReleased(o))
-      .map((o) => daysBetween((o as { created_at?: string }).created_at ?? o.order_date, o.release_date ?? null))
+      .map((o) => daysBetween(o.order_date || (o as { created_at?: string }).created_at, o.release_date ?? null))
       .filter((v): v is number => v !== null)
     if (values.length === 0) return null
     return values.reduce((s, v) => s + v, 0) / values.length
@@ -255,7 +255,7 @@ export default function InternalDoorStatsDashboard({ orders, internalDoorItems, 
     const counts = [0, 0, 0, 0, 0, 0, 0]
     for (const o of doorOrders) {
       if (isCancelled(o)) continue
-      const raw = (o as { created_at?: string }).created_at ?? o.order_date
+      const raw = o.order_date || (o as { created_at?: string }).created_at
       if (!raw) continue
       const d = new Date(raw)
       if (Number.isNaN(d.getTime())) continue
