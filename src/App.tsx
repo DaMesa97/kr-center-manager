@@ -644,6 +644,7 @@ function App() {
     handleTechniczneCompanySelect,
     handleCompanyAutocompleteKeyDown,
     sendGlassOrderWebhook,
+    stampGlassOrdered,
     handleSaveOrder,
     openNewOrderModal,
     openCreateInternalDoorOrder,
@@ -3475,6 +3476,7 @@ function App() {
                       activeTab={activeTab}
                       glassAllowances={glassAllowances}
                       onSendGlassOrder={(order) => sendGlassOrderWebhook(order)}
+                      onStampGlassOrdered={stampGlassOrdered}
                       onGlassReceived={(orderId) => void handleGlassReceived(orderId)}
                       tableWrapperRef={glassTableWrapperRef}
                     />

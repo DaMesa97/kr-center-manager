@@ -53,6 +53,8 @@ type GlassViewProps = {
   activeTab: string
   glassAllowances: GlassAllowance[]
   onSendGlassOrder: (order: Order) => void | Promise<void>
+  /** Stempel daty zamówienia szyby bez wysyłki do Make (po zbiorczym PDF) */
+  onStampGlassOrdered: (orders: Order[]) => Promise<boolean>
   onGlassReceived: (orderId: number) => void | Promise<void>
   tableWrapperRef: RefObject<HTMLDivElement>
 }
@@ -62,6 +64,7 @@ export default function GlassView({
   activeTab,
   glassAllowances,
   onSendGlassOrder,
+  onStampGlassOrdered,
   onGlassReceived,
   tableWrapperRef,
 }: GlassViewProps) {
@@ -109,11 +112,9 @@ export default function GlassView({
         `PDF wygenerowany (${lines.length} pozycji z ${pendingOrders.length} zamówień). Oznaczyć te zamówienia jako "szyba zamówiona" z dzisiejszą datą?`,
         { title: 'Zamówienie szyb', confirmLabel: 'Tak, oznacz jako zamówione' },
       )
-      if (ok) {
-        for (const o of pendingOrders) {
-          await onSendGlassOrder(o)
-        }
-      }
+      // PDF to już zamówienie u szklarza — tylko stempel daty, bez webhooka
+      // (wysyłka per zamówienie zamawiała te same szyby drugi raz)
+      if (ok) await onStampGlassOrdered(pendingOrders)
     } finally {
       setGenerating(false)
     }

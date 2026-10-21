@@ -929,6 +929,36 @@ export function useOrders({
     [pushToast, glassAllowances],
   )
 
+  // Stempel „szyba zamówiona” BEZ webhooka — po zbiorczym PDF dla szklarza
+  // (PDF jest zamówieniem; webhook per zamówienie zamawiałby drugi raz).
+  // Jeden UPDATE na wszystkie zamówienia + partnerów Disting Plus.
+  const stampGlassOrdered = useCallback(
+    async (toStamp: Order[]): Promise<boolean> => {
+      const ids = new Set<number>()
+      for (const o of toStamp) {
+        if (o.id !== undefined) ids.add(o.id)
+        if (o.linked_order_id != null) ids.add(o.linked_order_id)
+      }
+      if (ids.size === 0) return true
+      const today = new Date().toLocaleDateString('sv-SE') // lokalna data (UTC dawało wczoraj po północy)
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ glass_order_date: today })
+        .in('id', Array.from(ids))
+        .is('glass_order_date', null)
+        .select('id')
+      if (error) {
+        pushToast(`Nie zapisano daty zamówienia szyb: ${error.message}. PDF jest wygenerowany — nie zamawiaj ponownie, uzupełnij daty.`, 'error')
+        return false
+      }
+      const stamped = new Set((data ?? []).map((r: { id: number }) => r.id))
+      setOrders((prev) => prev.map((o) => (o.id !== undefined && stamped.has(o.id) ? { ...o, glass_order_date: today } : o)))
+      pushToast(`Oznaczono ${toStamp.length} zamówień jako „szyba zamówiona” (${today})`, 'success')
+      return true
+    },
+    [pushToast],
+  )
+
   // #23 — Disting Plus (STA↔Disting) oraz Titan (STA↔ST): edycja jednego rekordu
   // przenosi wspólne pola produktowe na powiązany rekord (kolor, wymiar, model itd.).
   // Lista pól + budowa payloadu: src/lib/linkedSync.ts (testowane).
@@ -2897,6 +2927,7 @@ export function useOrders({
     handleTechniczneCompanySelect,
     handleCompanyAutocompleteKeyDown,
     sendGlassOrderWebhook,
+    stampGlassOrdered,
     handleSaveOrder,
     openNewOrderModal,
     openCreateInternalDoorOrder,
