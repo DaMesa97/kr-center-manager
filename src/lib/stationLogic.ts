@@ -6,6 +6,7 @@ import {
   hasGlassExtra,
   isReleaseDateEmpty,
   isRushOrderSequence,
+  orderRouteMark,
   isStaTitanLinked,
   isStTitanOrder,
   isTitanBastionOrder,
@@ -210,7 +211,16 @@ export function buildTasks(orders: Order[], workerStages: WorkerStage[]): MyTask
 
 /** Wspólne sortowanie zadań (zamówienia + reklamacje): gotowe → pilne → data. */
 export function sortTasks(tasks: MyTask[]): MyTask[] {
+  // Plan wydań nad wszystkim: XX (towar na magazyn DZIŚ) → X (jutro) → reszta.
+  // To, co brygadzista oznaczył do wydania, hala robi w pierwszej kolejności.
+  const markRank = (t: MyTask) => {
+    const m = orderRouteMark(t.order)
+    return m === 'XX' ? 2 : m === 'X' ? 1 : 0
+  }
   tasks.sort((a, b) => {
+    const aMark = markRank(a)
+    const bMark = markRank(b)
+    if (aMark !== bMark) return bMark - aMark
     if (a.readyToWork !== b.readyToWork) return a.readyToWork ? -1 : 1
     const aUrgent = a.isComplaint ? (a.order as unknown as Complaint).is_rush === true : isRushOrderSequence(a.order.sequence)
     const bUrgent = b.isComplaint ? (b.order as unknown as Complaint).is_rush === true : isRushOrderSequence(b.order.sequence)

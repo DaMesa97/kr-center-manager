@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Complaint, Order, WorkerStage } from '../types'
-import { isRushOrderSequence } from '../utils'
+import { isRushOrderSequence, orderRouteMark } from '../utils'
 import {
   buildComplaintTasks,
   buildTasks,
@@ -167,6 +167,14 @@ export default function MyStationView({
             <div className="my-station-cell-main">
               <span className="my-station-expand-icon">{expandedKey === taskKey(task) ? '▾' : '▸'}</span>{' '}
               {task.order.order_number}
+              {orderRouteMark(task.order) && (
+                <span
+                  className={`route-mark-chip route-mark-chip--${orderRouteMark(task.order).toLowerCase()}`}
+                  title={orderRouteMark(task.order) === 'XX' ? 'Plan wydań: na magazyn DZIŚ' : 'Plan wydań: na magazyn JUTRO'}
+                >
+                  {orderRouteMark(task.order)}
+                </span>
+              )}
               {task.isComplaint && (
                 <span
                   className="bot-badge bot-badge--review bot-badge--table"

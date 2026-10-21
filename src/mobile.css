@@ -670,3 +670,14 @@ html, body, #root {
   color: #475569;
   font-size: 0.75rem;
 }
+
+/* chip X/XX na karcie zadania */
+.route-mark-chip {
+  display: inline-block;
+  padding: 0.02rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.route-mark-chip--x { background: #fef3c7; color: #92400e; border: 1px solid #f3cf84; }
+.route-mark-chip--xx { background: #dcfce7; color: #166534; border: 1px solid #a3dfb8; }

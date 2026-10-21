@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Check, RefreshCw, Zap } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { mirrorStageKey } from '../../lib/stageMirror'
-import { isReleaseDateEmpty, isRushOrderSequence, parseProductionStages } from '../../utils'
+import { isReleaseDateEmpty, isRushOrderSequence, orderRouteMark, parseProductionStages } from '../../utils'
 import {
   buildComplaintTasks,
   buildTasks,
@@ -448,6 +448,11 @@ export default function MobileStationView({ userId }: Props) {
                   <span className="mstation-card-main">
                     <span className="mstation-card-nr">
                       {urgent && <Zap size={13} className="mstation-urgent" />}
+                      {orderRouteMark(task.order) && (
+                        <span className={`route-mark-chip route-mark-chip--${orderRouteMark(task.order).toLowerCase()}`}>
+                          {orderRouteMark(task.order)}
+                        </span>
+                      )}
                       {task.order.order_number} · {task.order.company}
                       {task.isComplaint && (
                         <span className="mstation-rekl-badge" title={`Zadanie z reklamacji ${task.complaintNumber ?? ''}`}>

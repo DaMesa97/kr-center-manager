@@ -10,7 +10,7 @@ import {
 } from '../utils'
 import { docSpecificity, matchedDocsForOrder, orderGlazingType, type DopDocument } from '../lib/dopMatch'
 import { mirrorStageKey } from '../lib/stageMirror'
-import { workersForTask, type MyTask } from '../lib/stationLogic'
+import { sortTasks, workersForTask, type MyTask } from '../lib/stationLogic'
 import type { DimensionMap, Order, StaOrderFormData, WorkerStage } from '../types'
 
 const dimMap: DimensionMap[] = [
@@ -133,6 +133,33 @@ describe('workersForTask — kafelki "kto zrobił" na wspólnym komputerze', () 
 
   it('brak przypisanych → pusta lista (dialog pokaże zwykły przycisk)', () => {
     expect(workersForTask(task, [], profiles)).toEqual([])
+  })
+})
+
+describe('sortTasks — plan wydań XX/X nad wszystkim', () => {
+  const t = (over: Record<string, unknown>): MyTask =>
+    ({ readyToWork: true, category: 'STA', stageKey: 'e3', actualStageKey: 'e3', ...over }) as unknown as MyTask
+  const withMark = (mark: string | null, extra: Record<string, unknown> = {}): MyTask['order'] =>
+    ({ order_number: 'n', order_date: '2026-10-01', extra_fields: mark ? { route_mark: mark } : {}, ...extra }) as unknown as MyTask['order']
+
+  it('XX przed X, X przed resztą — nawet przed pilnymi i gotowymi', () => {
+    const plain = t({ order: withMark(null, { sequence: 'X' }) }) // pilne, bez planu
+    const x = t({ order: withMark('X'), readyToWork: false }) // na jutro, nawet niegotowe
+    const xx = t({ order: withMark('XX') })
+    const out = sortTasks([plain, x, xx])
+    expect(out[0]).toBe(xx)
+    expect(out[1]).toBe(x)
+    expect(out[2]).toBe(plain)
+  })
+
+  it('w obrębie tej samej flagi: gotowe przed czekającymi, pilne przed zwykłymi', () => {
+    const xxWaiting = t({ order: withMark('XX'), readyToWork: false })
+    const xxReadyRush = t({ order: withMark('XX', { sequence: 'X' }) })
+    const xxReady = t({ order: withMark('XX') })
+    const out = sortTasks([xxWaiting, xxReady, xxReadyRush])
+    expect(out[0]).toBe(xxReadyRush)
+    expect(out[1]).toBe(xxReady)
+    expect(out[2]).toBe(xxWaiting)
   })
 })
 
