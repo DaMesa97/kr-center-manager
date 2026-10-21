@@ -7,7 +7,7 @@ import MobileOrdersView from './components/mobile/MobileOrdersView'
 import MobileShippingView from './components/mobile/MobileShippingView'
 import { can } from './lib/permissions'
 
-type SessionUser = { id: string; initials: string; role: string }
+type SessionUser = { id: string; initials: string; role: string; categories: string[] }
 
 export default function MobileApp() {
   const [ready, setReady] = useState(false)
@@ -22,7 +22,7 @@ export default function MobileApp() {
   const loadProfile = async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, initials, full_name, role')
+      .select('id, initials, full_name, role, categories')
       .eq('id', userId)
       .maybeSingle()
     if (!mountedRef.current) return
@@ -30,6 +30,9 @@ export default function MobileApp() {
       id: userId,
       initials: (data?.initials as string) || (data?.full_name as string)?.slice(0, 2)?.toUpperCase() || '??',
       role: String(data?.role ?? ''),
+      categories: Array.isArray((data as { categories?: string[] } | null)?.categories)
+        ? ((data as { categories?: string[] }).categories as string[])
+        : [],
     })
   }
 
@@ -155,7 +158,7 @@ export default function MobileApp() {
         ) : activeView === 'orders' ? (
           <MobileOrdersView />
         ) : (
-          <MobileShippingView role={user.role} />
+          <MobileShippingView role={user.role} categories={user.categories} />
         )}
       </main>
 

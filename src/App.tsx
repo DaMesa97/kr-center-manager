@@ -99,7 +99,7 @@ import FeedbackView from './components/FeedbackView'
 import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
-import { can, isManagerRole } from './lib/permissions'
+import { can, isCategoryScoped, isManagerRole } from './lib/permissions'
 import { findCompanyInfo } from './lib/companyMatch'
 import { mergeIncomingStages } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
@@ -809,6 +809,25 @@ function App() {
     handleRushToggle,
     isActive: activeTab === 'Wysyłka' && can(currentUser?.role, 'shipping.view'),
   })
+
+  // Wysyłka respektuje zawężenie kategorii (kierownik działu widzi TYLKO
+  // przypisane — brygadzista STA nie ogląda zaległych Bastionów)
+  const scopeShippingOrders = useCallback(
+    (list: Order[]) => {
+      if (!isCategoryScoped(currentUser?.role)) return list
+      const allowed = new Set(currentUser?.categories ?? [])
+      return list.filter((o) => allowed.has(o.category ?? ''))
+    },
+    [currentUser?.role, currentUser?.categories],
+  )
+  const shippingOrdersScoped = useMemo(
+    () => scopeShippingOrders(shippingOrders),
+    [scopeShippingOrders, shippingOrders],
+  )
+  const shippingReleasedScoped = useMemo(
+    () => scopeShippingOrders(shippingReleasedOrders),
+    [scopeShippingOrders, shippingReleasedOrders],
+  )
 
   const {
     filteredApiKeys,
@@ -3022,8 +3041,8 @@ function App() {
           />
         ) : isShippingTab && can(currentUser?.role, 'shipping.view') ? (
           <ShippingView
-            orders={shippingOrders}
-            releasedOrders={shippingReleasedOrders}
+            orders={shippingOrdersScoped}
+            releasedOrders={shippingReleasedScoped}
             companiesMap={shippingCompaniesMap}
             loading={shippingOrdersLoading}
             onRefresh={() => void fetchShippingOrders()}

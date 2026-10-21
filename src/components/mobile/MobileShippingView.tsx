@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, RefreshCw, Truck } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { countCompletedStages, isRushOrderSequence } from '../../utils'
-import { can } from '../../lib/permissions'
+import { can, isCategoryScoped } from '../../lib/permissions'
 import {
   cleanCompanyValue,
   createCompanyResolver,
@@ -38,10 +38,13 @@ type Row = {
 
 type Props = {
   role: string
+  /** Kategorie przypisane userowi — role zawężone (KD/PP) widzą tylko swoje */
+  categories?: string[]
 }
 
-export default function MobileShippingView({ role }: Props) {
+export default function MobileShippingView({ role, categories = [] }: Props) {
   const canRelease = can(role, 'orders.release')
+  const scoped = isCategoryScoped(role)
   const [orders, setOrders] = useState<Order[]>([])
   const [companiesMap, setCompaniesMap] = useState<Map<string, CompanyShippingInfo>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -89,9 +92,13 @@ export default function MobileShippingView({ role }: Props) {
     if (!mountedRef.current) return
     setLoading(false)
     if (ordersRes.error) { flash('Błąd ładowania'); return }
+    const allowed = new Set(categories)
     const active = (ordersRes.data ?? []).filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
-      return extra?.cancelled !== true
+      if (extra?.cancelled === true) return false
+      // role zawężone (kierownik działu) widzą tylko przypisane kategorie
+      if (scoped && !allowed.has(o.category ?? '')) return false
+      return true
     }) as Order[]
     setOrders(active)
     const m = new Map<string, CompanyShippingInfo>()
@@ -102,7 +109,8 @@ export default function MobileShippingView({ role }: Props) {
       })
     }
     setCompaniesMap(m)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scoped, categories.join('|')])
 
   useEffect(() => {
     mountedRef.current = true
