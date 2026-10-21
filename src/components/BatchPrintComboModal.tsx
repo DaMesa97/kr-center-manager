@@ -28,6 +28,12 @@ const PRINTER_LS_KEY = 'labelPrinterName'
 const hasRealDim = (v: unknown) => /[1-9]/.test(String(v ?? ''))
 // wirtualny wpis na liście drukarek: jeden zbiorczy plik PDF zamiast druku
 const PDF_EXPORT = '::pdf-export'
+// Wirtualne drukarki PDF — ta sama lista co w electron/main.ts (label:printHtml).
+// Druk partii na nie = okno zapisu PER ZAMÓWIENIE, więc kierujemy na zbiorczy PDF.
+const VIRTUAL_PDF_RE = /print to pdf|adobe pdf|pdfcreator|pdf24|dopdf|foxit|nitro pdf|cutepdf|bullzip|primopdf|novapdf|tinypdf|pdf995/i
+const PDF_SAVE_CANCELLED = 'Zapis PDF anulowany'
+
+type PrintRes = { success: boolean; failureReason?: string; error?: string; printerDown?: boolean }
 
 export default function BatchPrintComboModal({ orders, onClose, onDone, initialMode = 'all', pushToast }: Props) {
   const [templates, setTemplates] = useState<LabelTemplate[]>([])
@@ -91,9 +97,13 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
   const copiesFor = (order: Order): number => {
     const id = order.id
     if (id === undefined) return 1
-    // domyślnie bastion_label_qty (Bastion: mnożnik etykiet) — kolumna
-    // nazywa się bastion_label_qty, nie label_qty (ta nie istnieje)
-    const fallback = Math.max(1, Number((order as { bastion_label_qty?: unknown }).bastion_label_qty) || 1)
+    // domyślnie max(ilość, bastion_label_qty) — etykieta na każde skrzydło;
+    // bastion_label_qty (Bastion: mnożnik etykiet), nie label_qty (nie istnieje)
+    const fallback = Math.max(
+      1,
+      Number(order.quantity) || 1,
+      Number((order as { bastion_label_qty?: unknown }).bastion_label_qty) || 1,
+    )
     return Math.max(1, copiesByOrder[id] ?? fallback)
   }
   const setCopiesForOrder = (order: Order, value: number) => {
@@ -197,20 +207,34 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
     if (!printerName) { pushToast('Wybierz drukarkę', 'error'); return }
     if (!doLabels && !doDocs) { pushToast('Zaznacz co drukować (etykieta / DoP)', 'error'); return }
     if (printerName === PDF_EXPORT) { await handleExportPdf(); return }
+    if (VIRTUAL_PDF_RE.test(printerName)) {
+      // drukarka PDF: jeden plik zamiast okna zapisu na każde zamówienie
+      localStorage.setItem(PRINTER_LS_KEY, printerName)
+      await handleExportPdf()
+      return
+    }
     setPrinting(true)
     setProgress(0)
     cancelRef.current = false
     localStorage.setItem(PRINTER_LS_KEY, printerName)
     let labelsOk = 0, labelsFail = 0, labelsSkip = 0
     let docsOk = 0, docsFail = 0, docsSkip = 0
+    let lastLabelError = ''
     let lastDocError = ''
+    // drukarka offline / nie odpowiada → stop CAŁEJ partii (wcześniej każde
+    // zamówienie czekało na sprawdzenie i kończyło się "0/bł.30" bez powodu)
+    let stopReason = ''
+    let stopOrderNr = ''
+    let zplNotSent = 0
     let processed = 0 // licznik lokalny — stan `progress` w closure byłby nieświeży
+    const failMsg = (res: PrintRes | undefined, fallback: string) => res?.failureReason || res?.error || fallback
+    const isFatal = (res: PrintRes | undefined) => !!res?.printerDown || res?.failureReason === PDF_SAVE_CANCELLED
     try {
       // ZPL zbieramy do JEDNEJ paczki — każde wywołanie printRaw to osobny
       // PowerShell z kompilacją C# (sekundy!), więc paczka = jeden strzał
       const zplParts: string[] = []
       for (let i = 0; i < orders.length; i++) {
-        if (cancelRef.current) break
+        if (cancelRef.current || stopReason) break
         const order = orders[i]
         // 1) etykieta QR (HTML -> Windows)
         if (doLabels) {
@@ -225,13 +249,18 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
                 copies: copiesFor(order),
                 widthMm: Number(tpl.width_mm) || 100,
                 heightMm: Number(tpl.height_mm) || 50,
-              })) as { success: boolean }
-              if (res?.success) labelsOk++; else labelsFail++
-            } catch { labelsFail++ }
+              })) as PrintRes
+              if (res?.success) labelsOk++
+              else {
+                labelsFail++
+                lastLabelError = failMsg(res, 'druk HTML odrzucony')
+                if (isFatal(res)) { stopReason = lastLabelError; stopOrderNr = String(order.order_number ?? '') }
+              }
+            } catch (e) { labelsFail++; lastLabelError = (e as Error).message }
           }
         }
         // 2) DoP — JEDNA najlepiej dopasowana deklaracja per zamówienie
-        if (doDocs) {
+        if (doDocs && !stopReason) {
           const doc = bestDocForOrder(order)
           if (!doc) docsSkip++
           else if (doc.doc_type === 'pdf' && doc.pdf_base64) {
@@ -240,9 +269,13 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
               const { html, widthMm, heightMm } = await renderPdfForPrint(doc.pdf_base64, doc.name)
               const res = (await ipc.invoke('label:printHtml', {
                 html, deviceName: printerName, copies: 1, widthMm, heightMm,
-              })) as { success: boolean; failureReason?: string }
+              })) as PrintRes
               if (res?.success) docsOk++
-              else { docsFail++; lastDocError = res?.failureReason || 'druk HTML odrzucony' }
+              else {
+                docsFail++
+                lastDocError = failMsg(res, 'druk HTML odrzucony')
+                if (isFatal(res)) { stopReason = lastDocError; stopOrderNr = String(order.order_number ?? '') }
+              }
             } catch (e) { docsFail++; lastDocError = (e as Error).message }
           } else if (doc.zpl_content) {
             zplParts.push(doc.zpl_content)
@@ -251,25 +284,56 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
           }
         }
         if (!mountedRef.current) return
+        if (stopReason) break
         processed = i + 1
         setProgress(i + 1)
       }
       if (doDocs && zplParts.length > 0) {
-        try {
-          const res = (await ipc.invoke('label:printRaw', {
-            deviceName: printerName, zpl: zplParts.join('\n'), copies: 1,
-          })) as { success: boolean; error?: string }
-          if (res?.success) docsOk += zplParts.length
-          else { docsFail += zplParts.length; lastDocError = res?.error || 'RAW odrzucony' }
-        } catch (e) { docsFail += zplParts.length; lastDocError = (e as Error).message }
+        if (cancelRef.current || stopReason) {
+          // przerwane / drukarka padła — zebranej paczki ZPL już nie wysyłamy
+          zplNotSent = zplParts.length
+        } else {
+          try {
+            const res = (await ipc.invoke('label:printRaw', {
+              deviceName: printerName, zpl: zplParts.join('\n'), copies: 1,
+            })) as PrintRes
+            if (res?.success) docsOk += zplParts.length
+            else {
+              docsFail += zplParts.length
+              lastDocError = failMsg(res, 'RAW odrzucony')
+              if (res?.printerDown) stopReason = lastDocError
+            }
+          } catch (e) { docsFail += zplParts.length; lastDocError = (e as Error).message }
+        }
       }
       const parts: string[] = []
       if (doLabels) parts.push(`etykiety ${labelsOk}${labelsFail ? `/bł.${labelsFail}` : ''}${labelsSkip ? `/brak szablonu ${labelsSkip}` : ''}`)
-      if (doDocs) parts.push(`DoP ${docsOk}${docsFail ? `/bł.${docsFail}` : ''}${docsSkip ? `/bez dok. ${docsSkip}` : ''}`)
+      if (doDocs) parts.push(`DoP ${docsOk}${docsFail ? `/bł.${docsFail}` : ''}${docsSkip ? `/bez dok. ${docsSkip}` : ''}${zplNotSent ? `/ZPL niewysłane ${zplNotSent}` : ''}`)
       const anyFail = labelsFail + docsFail > 0
       const cancelled = cancelRef.current
+
+      if (stopReason) {
+        pushToast(
+          `Druk zatrzymany${stopOrderNr ? ` na zam. ${stopOrderNr}` : ''} (${processed}/${orders.length} gotowe) — ${stopReason.slice(0, 200)} | ${parts.join(', ')}`,
+          stopReason === PDF_SAVE_CANCELLED ? 'info' : 'error',
+        )
+        return
+      }
+      // wszystko pominięte (brak szablonu / DoP) — to NIE jest sukces: modal
+      // zostaje otwarty, zaznaczenie nietknięte
+      if (!cancelled && labelsOk + docsOk === 0 && !anyFail) {
+        const why: string[] = []
+        if (labelsSkip) why.push(`${labelsSkip} bez szablonu etykiety`)
+        if (docsSkip) why.push(`${docsSkip} bez deklaracji DoP`)
+        pushToast(`Nic nie wydrukowano${why.length ? ` — ${why.join(', ')}` : ''}`, 'error')
+        return
+      }
+      const errDetail = [
+        labelsFail && lastLabelError ? `etykieta: ${lastLabelError}` : '',
+        docsFail && lastDocError ? `DoP: ${lastDocError}` : '',
+      ].filter(Boolean).join('; ')
       pushToast(
-        `${cancelled ? `PRZERWANO po ${processed}/${orders.length} — ` : ''}Wydruk: ${parts.join(', ')}${docsFail && lastDocError ? ` — ${lastDocError.slice(0, 160)}` : ''}`,
+        `${cancelled ? `PRZERWANO po ${processed}/${orders.length} — ` : ''}Wydruk: ${parts.join(', ')}${errDetail ? ` — ${errDetail.slice(0, 200)}` : ''}`,
         anyFail ? 'error' : cancelled ? 'info' : 'success',
       )
       if (!anyFail && !cancelled) { onDone?.(); onClose() }
@@ -301,6 +365,11 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
                   ))}
                 </select>
               </label>
+              {VIRTUAL_PDF_RE.test(printerName) ? (
+                <p style={{ margin: 0, fontSize: 13, opacity: 0.8 }}>
+                  To drukarka PDF — zamiast okna zapisu dla każdego zamówienia powstanie jeden zbiorczy plik PDF.
+                </p>
+              ) : null}
 
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -318,6 +387,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
                 <div className="batch-label-list">
                   {orders.map((o) => {
                     const bestDoc = bestDocForOrder(o)
+                    const hasTpl = !!templateForCategory(String(o.category))
                     return (
                       <div key={o.id ?? o.order_number} className="batch-label-row">
                         <span className="batch-label-row-nr">{o.order_number}</span>
@@ -328,6 +398,15 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
                               <span className="batch-chip batch-chip--panel">dostawka</span>
                             ) : null}
                             {hasRealDim(o.top_light) ? <span className="batch-chip batch-chip--light">naświetle</span> : null}
+                            {doLabels && !hasTpl ? (
+                              <span
+                                className="batch-chip"
+                                style={{ color: '#b91c1c', cursor: 'help' }}
+                                title={`Brak szablonu etykiety dla kategorii ${String(o.category)} — etykieta zostanie pominięta`}
+                              >
+                                brak szablonu ⓘ
+                              </span>
+                            ) : null}
                             {doDocs ? (
                               bestDoc ? (
                                 <span className="batch-chip" title={`Deklaracja: ${bestDoc.name}`}>
@@ -345,7 +424,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
                             ) : null}
                           </span>
                         </div>
-                        {doLabels ? (
+                        {doLabels && hasTpl ? (
                           <input
                             type="number"
                             min={1}

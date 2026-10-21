@@ -22,9 +22,45 @@ describe('renderLabelHtml', () => {
   })
 
   it('nieznane placeholdery → "-" (literówki nie trafiają na druk)', async () => {
-    const html = await renderLabelHtml(tpl('[{{dostawka_szkl}}]'), order({ id: 1 }))
+    const html = await renderLabelHtml(tpl('[{{dostawka_szklo}}]'), order({ id: 1 }))
     expect(html).toContain('[-]')
-    expect(html).not.toContain('{{dostawka_szkl}}')
+    expect(html).not.toContain('{{dostawka_szklo}}')
+  })
+
+  it('pola dostawek A/B ze szkleniem (szablon STA używa {{dostawka_szkl}})', async () => {
+    const t = tpl('{{dostawka}}|{{dostawka_szkl}}|{{dostawka_b}}|{{dostawka_b_szkl}}')
+    const ab = await renderLabelHtml(t, order({
+      id: 1, side_panel_a: '300', side_panel_a_glazing: 'MAT', side_panel_b: '400', side_panel_b_glazing: 'CLEAR',
+    }))
+    expect(ab).toContain('300|MAT|400|CLEAR')
+    // stary układ: jedna dostawka bez A/B
+    const legacy = await renderLabelHtml(t, order({ id: 1, side_panel: '350', side_panel_glazing: 'SATYNA' }))
+    expect(legacy).toContain('350|SATYNA|-|-')
+  })
+
+  it('intarsja i nr z arkusza (extra_fields.sheet_number_conflict)', async () => {
+    const html = await renderLabelHtml(
+      tpl('{{intarsja}}|{{nr_arkusza}}'),
+      order({ id: 1, intarsja: 'DWUSTRONNA', extra_fields: { sheet_number_conflict: '4145' } }),
+    )
+    expect(html).toContain('DWUSTRONNA|4145')
+    const none = await renderLabelHtml(tpl('[{{nr_arkusza}}]'), order({ id: 1, extra_fields: null }))
+    expect(none).toContain('[-]')
+  })
+
+  it('nr_partnera zależy od kategorii', async () => {
+    const t = tpl('[{{nr_partnera}}]')
+    const r = (o: Record<string, unknown>) => renderLabelHtml(t, order({ id: 1, ...o }))
+    expect(await r({ category: 'Disting', sta_sheet: '111', disting_sheet: 'x' })).toContain('[111]')
+    expect(await r({ category: 'STA', disting_sheet: '222' })).toContain('[222]')
+    expect(await r({ category: 'STA', st_sheet: '333', disting_sheet: '' })).toContain('[333]')
+    expect(await r({ category: 'ST', sta_ref: '444' })).toContain('[444]')
+    expect(await r({ category: 'STA' })).toContain('[-]')
+  })
+
+  it('escapuje <title> etykiety', async () => {
+    const html = await renderLabelHtml(tpl('x'), order({ id: 1, company: '</title><script>x</script>', order_number: '1' }))
+    expect(html).not.toContain('<script>')
   })
 
   it('escapuje HTML w danych zamówienia (ochrona przed XSS)', async () => {

@@ -201,23 +201,26 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
 async function checkPrinterOffline(deviceName: string | undefined): Promise<string | null> {
   if (process.platform !== 'win32') return null
   const filter = deviceName
-    ? `Name='${deviceName.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`
+    ? `Name='${deviceName.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'` // WQL: \' (nie '')
     : "Default=TRUE"
-  const ps = `$p = Get-CimInstance Win32_Printer -Filter "${filter}" | Select-Object -First 1; if ($p) { @{ off = [bool]$p.WorkOffline; status = [int]$p.PrinterStatus } | ConvertTo-Json -Compress }`
+  // Filtr (z nazwą drukarki) idzie przez zmienną środowiskową, nie w treści
+  // skryptu — w stringu "..." PowerShell rozwinąłby $(...) z nazwy drukarki
+  const ps = `$p = Get-CimInstance Win32_Printer -Filter $env:KR_PRINTER_FILTER | Select-Object -First 1; if ($p) { @{ off = [bool]$p.WorkOffline; status = [int]$p.PrinterStatus } | ConvertTo-Json -Compress }`
   return new Promise((resolve) => {
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps],
-      { timeout: 5000 },
+      { timeout: 5000, env: { ...process.env, KR_PRINTER_FILTER: filter } },
       (err, stdout) => {
         if (err) return resolve(null)
         try {
           const o = JSON.parse(String(stdout).trim() || 'null') as { off?: boolean; status?: number } | null
           if (!o) return resolve(null)
+          const who = deviceName ? `Drukarka „${deviceName}”` : 'Drukarka domyślna'
           if (o.off) {
-            return resolve('Drukarka jest OFFLINE — wydruk czekałby w kolejce. Sprawdź połączenie/zasilanie drukarki.')
+            return resolve(`${who} jest OFFLINE — wydruk czekałby w kolejce. Sprawdź połączenie/zasilanie drukarki.`)
           }
-          if (o.status === 7) return resolve('Drukarka zgłasza status offline — sprawdź połączenie.')
+          if (o.status === 7) return resolve(`${who} zgłasza status offline — sprawdź połączenie.`)
           return resolve(null)
         } catch {
           resolve(null)
@@ -267,7 +270,10 @@ function setupPrinting(mainWin: BrowserWindow) {
         // i pokazujemy normalne okno zapisu (nazwa z <title> etykiety).
         if (/print to pdf|adobe pdf|pdfcreator|pdf24|dopdf|foxit|nitro pdf|cutepdf|bullzip|primopdf|novapdf|tinypdf|pdf995/i.test(deviceName || '')) {
           const titleMatch = /<title>([^<]*)<\/title>/i.exec(html)
-          const baseName = (titleMatch?.[1] || 'wydruk').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'wydruk'
+          // tytuł jest escapowany (&amp; itd.) — odkoduj, żeby nie trafił do nazwy pliku
+          const rawTitle = (titleMatch?.[1] || 'wydruk')
+            .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+          const baseName = rawTitle.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'wydruk'
           const pdfData = await printWin.webContents.printToPDF({
             printBackground: true,
             margins: { top: 0, bottom: 0, left: 0, right: 0 },
@@ -288,7 +294,8 @@ function setupPrinting(mainWin: BrowserWindow) {
         // Offline = czytelny błąd zamiast fałszywego sukcesu (spooler przyjmuje
         // zadania do martwej drukarki bez mrugnięcia)
         const offlineMsg = await checkPrinterOffline(deviceName)
-        if (offlineMsg) return { success: false, failureReason: offlineMsg }
+        // printerDown = renderer przerywa całą partię zamiast mielić kolejne zamówienia
+        if (offlineMsg) return { success: false, failureReason: offlineMsg, printerDown: true }
 
         const pageSize =
           widthMm && heightMm
@@ -296,7 +303,7 @@ function setupPrinting(mainWin: BrowserWindow) {
             : undefined
         // bezpiecznik: druk nie może wisieć w nieskończoność (przycisk "Drukuję…")
         const result = await Promise.race([
-          new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
+          new Promise<{ success: boolean; failureReason?: string; printerDown?: boolean }>((resolve) => {
             printWin.webContents.print(
               {
                 silent: true,
@@ -309,8 +316,8 @@ function setupPrinting(mainWin: BrowserWindow) {
               (success, failureReason) => resolve({ success, failureReason }),
             )
           }),
-          new Promise<{ success: boolean; failureReason?: string }>((resolve) =>
-            setTimeout(() => resolve({ success: false, failureReason: 'Drukarka nie odpowiedziała (timeout 90 s)' }), 90000),
+          new Promise<{ success: boolean; failureReason?: string; printerDown?: boolean }>((resolve) =>
+            setTimeout(() => resolve({ success: false, failureReason: 'Drukarka nie odpowiedziała (timeout 90 s)', printerDown: true }), 90000),
           ),
         ])
         return result
@@ -372,7 +379,7 @@ function setupPrinting(mainWin: BrowserWindow) {
       const body = zpl.repeat(Math.max(1, copies))
       // RAW spool też "udaje się" do drukarki offline — zadanie wisi w kolejce
       const offlineMsg = await checkPrinterOffline(deviceName)
-      if (offlineMsg) return { success: false, error: offlineMsg }
+      if (offlineMsg) return { success: false, error: offlineMsg, printerDown: true }
       const tmp = path.join(os.tmpdir(), `krzpl_${Date.now()}_${Math.floor(Math.random() * 1e6)}.bin`)
       try {
         // UTF-8, nie latin1! latin1 gubiło polskie znaki ("ł" → "B") —
@@ -394,14 +401,15 @@ function setupPrinting(mainWin: BrowserWindow) {
           'public static void Send(string printer,byte[] bytes){IntPtr h;if(!OpenPrinter(printer,out h,IntPtr.Zero))throw new Exception("OpenPrinter failed");DOCINFO di=new DOCINFO();di.pDocName="KR ZPL";di.pDataType="RAW";if(!StartDocPrinter(h,1,ref di)){ClosePrinter(h);throw new Exception("StartDocPrinter failed");}if(!StartPagePrinter(h)){EndDocPrinter(h);ClosePrinter(h);throw new Exception("StartPagePrinter failed");}int w;bool ok=WritePrinter(h,bytes,bytes.Length,out w);EndPagePrinter(h);EndDocPrinter(h);ClosePrinter(h);if(!ok||w!=bytes.Length)throw new Exception("WritePrinter failed ("+w+"/"+bytes.Length+" B)");}',
           '}',
           '"@',
-          `$bytes=[System.IO.File]::ReadAllBytes(${JSON.stringify(tmp)})`,
-          `[KRRawPrint]::Send(${JSON.stringify(deviceName)},$bytes)`,
+          // ścieżka i nazwa drukarki przez env — "..." w PS rozwijałoby $(...)
+          '$bytes=[System.IO.File]::ReadAllBytes($env:KR_ZPL_FILE)',
+          '[KRRawPrint]::Send($env:KR_PRINTER,$bytes)',
         ].join('\n')
         const result = await new Promise<{ success: boolean; error?: string }>((resolve) => {
           execFile(
             'powershell.exe',
             ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', psScript],
-            { timeout: 20000 },
+            { timeout: 20000, env: { ...process.env, KR_PRINTER: deviceName, KR_ZPL_FILE: tmp } },
             (err, _stdout, stderr) => {
               if (err) resolve({ success: false, error: (stderr || err.message || '').toString().trim() })
               else resolve({ success: true })

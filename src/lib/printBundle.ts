@@ -3,6 +3,8 @@
 // page: nazwa), więc każda sekcja może mieć inny rozmiar strony — printToPDF
 // z preferCSSPageSize skleja to w jeden dokument.
 
+import { escapeHtml } from './labelRender'
+
 export type PdfSection = {
   widthMm: number
   heightMm: number
@@ -34,7 +36,7 @@ export function buildCombinedPdfHtml(sections: PdfSection[], title: string): str
     }
   })
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
     html, body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
     ${pageRules.join('\n    ')}
   </style></head><body>${bodies.join('')}</body></html>`

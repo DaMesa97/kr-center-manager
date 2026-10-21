@@ -2591,7 +2591,11 @@ function App() {
                 ? [printComboOrder]
                 : dopOrder
                   ? [dopOrder]
-                  : orders.filter((o) => o.id !== undefined && labelSelection.has(o.id))
+                  : [
+                      // kolejność jak na liście (filtr widoku), potem zaznaczone spoza widoku
+                      ...filteredOrders.filter((o) => o.id !== undefined && labelSelection.has(o.id)),
+                      ...orders.filter((o) => o.id !== undefined && labelSelection.has(o.id) && !filteredOrders.includes(o)),
+                    ]
             }
             initialMode={dopOrder ? 'docs' : 'all'}
             onClose={() => { setBatchComboOpen(false); setDopOrder(null); setPrintComboOrder(null) }}

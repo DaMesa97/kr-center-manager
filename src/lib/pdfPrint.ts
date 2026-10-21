@@ -7,6 +7,7 @@ import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 // ?worker = Vite tworzy prawdziwego workera modułowego (workerSrc przez ?url
 // potrafił nigdy nie wystartować → getDocument wisiał bez błędu)
 import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
+import { escapeHtml } from './labelRender'
 
 GlobalWorkerOptions.workerPort = new PdfJsWorker()
 
@@ -95,7 +96,7 @@ export async function renderPdfForPrint(
     )
     .join('')
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
     @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
     html, body { margin: 0; padding: 0; }
   </style></head><body>${body}</body></html>`

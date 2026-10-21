@@ -15,13 +15,27 @@ const str = (v: unknown): string => (v == null ? '' : String(v)).trim()
 
 // Escape danych zamówienia wstawianych w HTML etykiety (firma/uwagi mogą zawierać
 // znaki HTML) — zapobiega wykonaniu np. <img onerror=...> w podglądzie iframe.
-const escapeHtml = (v: string): string =>
+export const escapeHtml = (v: string): string =>
   v
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+
+const extraField = (o: Order, key: string): unknown => {
+  const ef = o.extra_fields
+  return ef && typeof ef === 'object' ? (ef as Record<string, unknown>)[key] : undefined
+}
+
+// Numer zamówienia partnera (jak w potwierdzeniu anulowania w useOrders):
+// Disting → STA, STA → ST (Titan) albo Disting, ST → STA
+const partnerNumber = (o: Order): string => {
+  if (o.category === 'Disting') return str(o.sta_sheet)
+  if (o.category === 'STA') return str(o.st_sheet) || str(o.disting_sheet)
+  if (o.category === 'ST') return str(o.sta_ref)
+  return str(o.disting_sheet) || str(o.sta_sheet) || str(o.st_sheet)
+}
 
 // Wszystkie dostępne pola do wstawienia na etykiecie ({{key}}) + opis dla edytora.
 // 'qr' obsługiwane osobno (generuje kod QR z ID zlecenia).
@@ -47,15 +61,21 @@ export const LABEL_FIELDS: { key: string; label: string; value: (o: Order) => st
   { key: 'naswietle',       label: 'Naświetle górne',        value: (o) => str(o.top_light) },
   { key: 'naswietle_szkl',  label: 'Szklenie naświetla',     value: (o) => str(o.top_light_glazing) },
   { key: 'dostawka',        label: 'Dostawka boczna',        value: (o) => str(o.side_panel_a) || str(o.side_panel) },
+  { key: 'dostawka_szkl',   label: 'Szklenie dostawki',      value: (o) => str(o.side_panel_a_glazing) || str(o.side_panel_glazing) },
+  { key: 'dostawka_b',      label: 'Dostawka boczna B',      value: (o) => str(o.side_panel_b) },
+  { key: 'dostawka_b_szkl', label: 'Szklenie dostawki B',    value: (o) => str(o.side_panel_b_glazing) },
   { key: 'panel_boczny_k',  label: 'Panel boczny klamkowy',  value: (o) => str((o as Record<string, unknown>).bastion_side_panel_k) },
   { key: 'panel_boczny_p',  label: 'Panel boczny przeciwkl.',value: (o) => str((o as Record<string, unknown>).bastion_side_panel_p) },
   { key: 'panel_gorny',     label: 'Panel górny',            value: (o) => str((o as Record<string, unknown>).bastion_top_panel) },
   { key: 'poszerzenie',     label: 'Poszerzenie',            value: (o) => str(o.extension) },
   { key: 'oslonki',         label: 'Osłonki',                value: (o) => str((o as Record<string, unknown>).oslonki) },
+  { key: 'intarsja',        label: 'Intarsja',               value: (o) => str(o.intarsja) },
   { key: 'ilosc',           label: 'Ilość',                  value: (o) => str(o.quantity) },
   { key: 'produkcja',       label: 'Dzień produkcji',        value: (o) => str(o.production_day) },
   { key: 'data',            label: 'Data zlecenia',          value: (o) => str(o.order_date) },
   { key: 'nr_klienta',      label: 'Nr zamówienia klienta',  value: (o) => str(o.client_order_number) },
+  { key: 'nr_partnera',     label: 'Nr zam. powiązanego',    value: (o) => partnerNumber(o) },
+  { key: 'nr_arkusza',      label: 'Nr z arkusza (konflikt)',value: (o) => str(extraField(o, 'sheet_number_conflict')) },
   { key: 'uwagi',           label: 'Uwagi',                  value: (o) => str(o.notes) },
   { key: 'kategoria',       label: 'Kategoria',              value: (o) => str(o.category) },
   { key: 'qr',              label: 'Kod QR (ID zlecenia)',   value: () => '' },
