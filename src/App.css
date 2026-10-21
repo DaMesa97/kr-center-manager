@@ -8113,3 +8113,12 @@ html, body, #root {
   text-overflow: ellipsis;
   vertical-align: middle;
 }
+
+/* Wysylka: FIRMA stala szerokosc (polykala pol ekranu jako jedyna elastyczna),
+   MODEL z systemem pod spodem, elastyczne sa UWAGI na koncu */
+.shipping-view .orders-table colgroup col.col-firm { width: 230px; min-width: 0; }
+.shipping-view .orders-table colgroup col.col-ship-model { width: 150px; }
+.shipping-view .orders-table colgroup col.col-ship-notes { width: auto; min-width: 140px; }
+.shipping-view .orders-table td.col-ship-model { overflow: hidden; white-space: nowrap; }
+.ship-cell-main { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.ship-cell-sub { font-size: 0.72rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; }

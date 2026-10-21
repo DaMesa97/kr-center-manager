@@ -393,6 +393,7 @@ export function orderRowClassName(
  * (klucz kolumny → klucz kolumny-matki). Brak matki w danej tabeli = bez zmian.
  */
 const ORDER_STACK: Record<string, string> = {
+  system: 'model',
   production_day: 'order_date',
   height: 'width',
   opening: 'direction',

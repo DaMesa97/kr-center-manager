@@ -311,7 +311,7 @@ export default function ShippingView({
     const icon = row.route === PERSONAL_PICKUP_ROUTE ? '🙋' : '🚛'
     return (
       <tr className="shipping-route-group-header">
-        <td colSpan={16}>
+        <td colSpan={17}>
           <div>
             <span className="shipping-route-label">{icon} {label}</span>
             <span className="shipping-route-stats">
@@ -404,6 +404,18 @@ export default function ShippingView({
       tdStyle: { overflow: 'hidden', textOverflow: 'ellipsis' },
       render: (order) => order.company,
       sortValue: sv((o) => o.company),
+    }),
+    col({
+      key: 'model',
+      label: 'MODEL',
+      className: 'col-ship-model',
+      render: (order) => (
+        <>
+          <div className="ship-cell-main">{order.model || '—'}</div>
+          <div className="ship-cell-sub">{order.system || ''}</div>
+        </>
+      ),
+      sortValue: sv((o) => `${o.model ?? ''} ${o.system ?? ''}`),
     }),
     col({
       key: 'ordered',
@@ -760,6 +772,7 @@ export default function ShippingView({
             <col className="col-nr" />
             <col className="col-cat" />
             <col className="col-firm" />
+            <col className="col-ship-model" />
             <col className="col-ordered" />
             <col className="col-day" />
             <col className="col-qty" />

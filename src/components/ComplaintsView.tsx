@@ -618,6 +618,7 @@ export default function ComplaintsView({
  * (klucz kolumny → klucz kolumny-matki) — jak ORDER_STACK w tabelach zamówień.
  */
 const COMPLAINT_STACK: Record<string, string> = {
+  system: 'model',
   production_day: 'order_date',
   height: 'width',
   opening: 'direction',

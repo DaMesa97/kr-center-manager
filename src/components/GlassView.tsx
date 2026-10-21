@@ -200,7 +200,7 @@ export default function GlassView({
     },
     textCol('order_date', 'DATA', (r) => r.order.order_date, 'col-order-date'),
     textCol('quantity', 'ILOŚĆ', (r) => r.order.quantity),
-    textCol('system', 'SYSTEM', (r) => r.order.system),
+    { ...textCol('system', 'SYSTEM', (r) => r.order.system), stackUnder: 'model' },
     textCol('model', 'MODEL', (r) => r.order.model),
     textCol('wing_color', 'KOLOR SKRZYDŁA', (r) => r.order.wing_color, 'col-wing-color'),
     { ...textCol('frame_color', 'KOLOR OŚCIEŻNICY', (r) => r.order.frame_color, 'col-frame-color'), stackUnder: 'wing_color' },
