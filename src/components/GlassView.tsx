@@ -95,8 +95,10 @@ export default function GlassView({
   // "Zamów szyby (PDF)": wszystkie pozycje BEZ daty zamówienia → jeden PDF
   // dla szklarza (pogrupowany po rodzaju szkła), potem opcjonalny stempel daty
   const [generating, setGenerating] = useState(false)
+  const isCancelled = (o: Order) =>
+    typeof o.extra_fields === 'object' && o.extra_fields !== null && (o.extra_fields as Record<string, unknown>).cancelled === true
   const pendingOrders = orders.filter(
-    (o) => !o.glass_order_date && glassLinesFor(o, activeTab, glassAllowances).length > 0,
+    (o) => !o.glass_order_date && !isCancelled(o) && glassLinesFor(o, activeTab, glassAllowances).length > 0,
   )
 
   const handleGenerateGlassOrder = async () => {
@@ -104,17 +106,18 @@ export default function GlassView({
       void appAlert('Wszystkie szyby z tej listy są już zamówione — nie ma nic do wygenerowania.')
       return
     }
+    const lines = pendingOrders.flatMap((o) => glassLinesFor(o, activeTab, glassAllowances))
+    // Najpierw potwierdzenie i stempel, dopiero potem PDF: wcześniej PDF pobierał się
+    // przed pytaniem, a Anuluj zostawiał zamówienia bez daty → następny PDF dublował szyby
+    const ok = await appConfirm(
+      `Wygenerować PDF dla szklarza (${lines.length} pozycji z ${pendingOrders.length} zamówień widocznych na liście) i oznaczyć je jako „szyba zamówiona” z dzisiejszą datą?`,
+      { title: 'Zamówienie szyb', confirmLabel: 'Generuj PDF i oznacz' },
+    )
+    if (!ok) return
     setGenerating(true)
     try {
-      const lines = pendingOrders.flatMap((o) => glassLinesFor(o, activeTab, glassAllowances))
-      generateGlassOrderPdf(lines)
-      const ok = await appConfirm(
-        `PDF wygenerowany (${lines.length} pozycji z ${pendingOrders.length} zamówień). Oznaczyć te zamówienia jako "szyba zamówiona" z dzisiejszą datą?`,
-        { title: 'Zamówienie szyb', confirmLabel: 'Tak, oznacz jako zamówione' },
-      )
       // PDF to już zamówienie u szklarza — tylko stempel daty, bez webhooka
-      // (wysyłka per zamówienie zamawiała te same szyby drugi raz)
-      if (ok) await onStampGlassOrdered(pendingOrders)
+      if (await onStampGlassOrdered(pendingOrders)) generateGlassOrderPdf(lines)
     } finally {
       setGenerating(false)
     }
@@ -247,11 +250,16 @@ export default function GlassView({
           <button
             type="button"
             className="release-checkbox-btn"
-            onClick={(e) => {
+            disabled={!order.glass_order_date}
+            onClick={async (e) => {
               e.stopPropagation()
-              void onGlassReceived(order.id!)
+              const ok = await appConfirm(
+                `Oznaczyć szyby zlecenia ${order.order_number} (${order.company ?? ''}) jako odebrane od szklarza?`,
+                { title: 'Odbiór szyb', confirmLabel: 'Odebrane' },
+              )
+              if (ok) void onGlassReceived(order.id!)
             }}
-            title="Oznacz jako odebrane"
+            title={order.glass_order_date ? 'Oznacz jako odebrane' : 'Najpierw zamów szybę'}
           >
             □
           </button>

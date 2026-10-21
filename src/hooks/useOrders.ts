@@ -887,11 +887,12 @@ export function useOrders({
           throw Object.assign(new Error('timeout'), { name: 'AbortError' })
         }
         if (response.ok) {
-          const today = new Date().toISOString().split('T')[0]
+          const today = new Date().toLocaleDateString('sv-SE') // lokalna data
           const { error: stampErr } = await supabase
             .from('orders')
             .update({ glass_order_date: today })
             .eq('id', order.id)
+            .is('glass_order_date', null)
           if (stampErr) {
             // Webhook POSZEDŁ — bez daty w bazie zamówienie wróci jako
             // "niezamówione" i grozi podwójnym zamówieniem u szklarza
@@ -907,6 +908,7 @@ export function useOrders({
               .from('orders')
               .update({ glass_order_date: today })
               .eq('id', order.linked_order_id)
+              .is('glass_order_date', null)
             if (linkStampErr) console.error('glass_order_date (partner):', linkStampErr)
           }
           setOrders((prev) =>
@@ -923,7 +925,14 @@ export function useOrders({
       } catch (error) {
         console.error(error)
         const isTimeout = error instanceof Error && error.name === 'AbortError'
-        pushToast(isTimeout ? 'Przekroczono czas połączenia z Make.com (10s)' : 'Błąd połączenia z Make.com', 'error')
+        // Po timeoucie NIE wiadomo, czy Make przyjął zamówienie (serwer mógł wysłać po
+        // porzuceniu czekania) — ponowna wysyłka groziłaby drugą szybą u szklarza
+        pushToast(
+          isTimeout
+            ? 'Brak odpowiedzi z Make.com w 15 s — NIE wiadomo, czy zamówienie doszło. Sprawdź u szklarza / w Make, zanim wyślesz ponownie.'
+            : 'Błąd połączenia z Make.com — zamówienie szyby NIE zostało wysłane',
+          'error',
+        )
       }
     },
     [pushToast, glassAllowances],
@@ -948,12 +957,21 @@ export function useOrders({
         .is('glass_order_date', null)
         .select('id')
       if (error) {
-        pushToast(`Nie zapisano daty zamówienia szyb: ${error.message}. PDF jest wygenerowany — nie zamawiaj ponownie, uzupełnij daty.`, 'error')
+        pushToast(`Nie zapisano daty zamówienia szyb: ${error.message}. PDF NIE został wygenerowany — spróbuj ponownie.`, 'error')
         return false
       }
       const stamped = new Set((data ?? []).map((r: { id: number }) => r.id))
+      if (stamped.size === 0) {
+        // RLS (brak uprawnień do zmiany zamówień) albo ktoś właśnie ostemplował — nie udawaj sukcesu
+        pushToast('Nie oznaczono żadnego zamówienia (brak uprawnień albo już oznaczone przez kogoś innego). PDF NIE został wygenerowany.', 'error')
+        return false
+      }
       setOrders((prev) => prev.map((o) => (o.id !== undefined && stamped.has(o.id) ? { ...o, glass_order_date: today } : o)))
-      pushToast(`Oznaczono ${toStamp.length} zamówień jako „szyba zamówiona” (${today})`, 'success')
+      const skipped = ids.size - stamped.size
+      pushToast(
+        `Oznaczono ${stamped.size} rekordów jako „szyba zamówiona” (${today})${skipped > 0 ? ` — ${skipped} pominięto (już oznaczone)` : ''}`,
+        'success',
+      )
       return true
     },
     [pushToast],
@@ -2740,23 +2758,34 @@ export function useOrders({
 
   const handleGlassReceived = useCallback(
     async (orderId: number) => {
-      const today = new Date().toISOString().split('T')[0]
-      const { error } = await supabase
+      const today = new Date().toLocaleDateString('sv-SE') // lokalna data
+      // Disting Plus: para dzieli te same szyby — odbiór także u partnera,
+      // inaczej druga strona dalej świeci „Brak szkła”
+      const partnerId = orders.find((o) => o.id === orderId)?.linked_order_id ?? null
+      const ids = partnerId != null ? [orderId, partnerId] : [orderId]
+      const { data, error } = await supabase
         .from('orders')
         .update({ glass_received: true, glass_received_date: today })
-        .eq('id', orderId)
+        .in('id', ids)
+        .is('glass_received_date', null)
+        .select('id')
       if (error) {
-        pushToast(`Błąd: ${error.message}`, 'error')
+        pushToast(`Nie zapisano odbioru szyby: ${error.message}`, 'error')
         return
       }
+      if (!data || data.length === 0) {
+        pushToast('Nie zapisano odbioru (brak uprawnień albo już oznaczone)', 'error')
+        return
+      }
+      const done = new Set(data.map((r: { id: number }) => r.id))
       setOrders((prev) =>
         prev.map((o) =>
-          o.id === orderId ? { ...o, glass_received: true, glass_received_date: today } : o,
+          o.id !== undefined && done.has(o.id) ? { ...o, glass_received: true, glass_received_date: today } : o,
         ),
       )
       pushToast('Szyba oznaczona jako odebrana', 'success')
     },
-    [pushToast],
+    [pushToast, orders],
   )
 
   const confirmProductionStageRevert = useCallback(async () => {
