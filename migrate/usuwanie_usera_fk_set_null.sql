@@ -1,0 +1,10 @@
+﻿-- Usuwanie uzytkownika rzucalo bledem bazy: kolumny "kto to zrobil" mialy
+-- FK do auth.users/profiles BEZ reguly ON DELETE (= RESTRICT). Kazdy, kto
+-- kiedykolwiek dodal zdjecie, ZD, inwentaryzacje czy przypisanie etapu,
+-- byl nieusuwalny. Historia zostaje, autor znika -> ON DELETE SET NULL.
+-- (wdrozone przez MCP jako migracja usuwanie_usera_fk_set_null, 2026-10-21;
+--  pelna lista przepietych FK: alert_thresholds.updated_by,
+--  company_aliases.created_by, inventory_sessions.created_by/closed_by,
+--  order_photos.uploaded_by, purchase_orders.created_by/sent_by,
+--  seasonal_factors.updated_by, worker_stages.created_by,
+--  warehouse_movements.created_by)
