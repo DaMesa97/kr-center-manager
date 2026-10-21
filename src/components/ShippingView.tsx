@@ -13,6 +13,12 @@ import ShippingProgressBar from './ShippingProgressBar'
 import Spinner from './Spinner'
 import StockStatusBadge from './StockStatusBadge'
 import DataTable, { type DataTableColumn } from './DataTable'
+import {
+  PERSONAL_PICKUP_ROUTE,
+  createCompanyResolver,
+  getOrderProductionDay,
+  getOrderRouteDay,
+} from '../lib/companyMatch'
 
 // Forge Control — kolory kategorii (navy tonal)
 const CATEGORY_COLORS: Record<string, string> = {
@@ -74,6 +80,8 @@ export type ShippingViewProps = {
   onRushToggle: (order: Order, checked: boolean) => Promise<void>
   rushUpdatingOrderId: number | null
   isManager: boolean
+  /** shipping.invoice — bez tego checkbox FAKTURA tylko do odczytu */
+  canInvoice: boolean
   glassAllowances: GlassAllowance[]
   leadTimeRules?: LeadTimeRule[]
 }
@@ -89,18 +97,28 @@ export default function ShippingView({
   onRushToggle,
   rushUpdatingOrderId,
   isManager,
+  canInvoice,
   glassAllowances,
   leadTimeRules = [],
 }: ShippingViewProps) {
-  const getProductionDay = useCallback((company: string | null | undefined) => {
-    if (!company) return ''
-    return companiesMap.get(company.trim().toLowerCase())?.production_day ?? ''
+  // Dzień prod. z zamówienia (firma jako fallback), trasa z firmy dopasowanej
+  // tolerancyjnie — liczone raz na zamówienie, filtry/sort wołają to wielokrotnie
+  const getLogistics = useMemo(() => {
+    const resolve = createCompanyResolver(companiesMap)
+    const cache = new WeakMap<Order, { productionDay: string; routeDay: string }>()
+    return (order: Order) => {
+      let v = cache.get(order)
+      if (!v) {
+        const info = resolve(order.company)
+        v = { productionDay: getOrderProductionDay(order, info), routeDay: getOrderRouteDay(order, info) }
+        cache.set(order, v)
+      }
+      return v
+    }
   }, [companiesMap])
 
-  const getRouteDay = useCallback((company: string | null | undefined) => {
-    if (!company) return ''
-    return companiesMap.get(company.trim().toLowerCase())?.route_day ?? ''
-  }, [companiesMap])
+  const getProductionDay = useCallback((order: Order) => getLogistics(order).productionDay, [getLogistics])
+  const getRouteDay = useCallback((order: Order) => getLogistics(order).routeDay, [getLogistics])
 
   const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [companyFilter, setCompanyFilter] = useState('')
@@ -122,7 +140,7 @@ export default function ShippingView({
   const availableProductionDays = useMemo(() => {
     const set = new Set<string>()
     for (const o of orders) {
-      const day = getProductionDay(o.company)
+      const day = getProductionDay(o)
       if (day) set.add(day)
     }
     return Array.from(set).sort()
@@ -131,7 +149,7 @@ export default function ShippingView({
   const availableRouteDays = useMemo(() => {
     const set = new Set<string>()
     for (const o of orders) {
-      const route = getRouteDay(o.company)
+      const route = getRouteDay(o)
       if (route) set.add(route)
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'pl'))
@@ -146,7 +164,7 @@ export default function ShippingView({
       if (onlyWithStockIssues && (!o.stock_status || o.stock_status === 'ok')) return false
       if (onlyUrgent && !isRushOrderSequence(o.sequence)) return false
       if (productionDayFilter) {
-        const day = getProductionDay(o.company)
+        const day = getProductionDay(o)
         if (productionDayFilter === '__EMPTY__') {
           if (day) return false
         } else if (day !== productionDayFilter) {
@@ -154,7 +172,7 @@ export default function ShippingView({
         }
       }
       if (routeDayFilter) {
-        const route = getRouteDay(o.company)
+        const route = getRouteDay(o)
         if (routeDayFilter === '__EMPTY__') {
           if (route) return false
         } else if (route !== routeDayFilter) {
@@ -198,15 +216,16 @@ export default function ShippingView({
     if (!groupByRoute) return null
     const map = new Map<string, Order[]>()
     for (const order of displayedOrders) {
-      const route = getRouteDay(order.company) || NO_ROUTE_KEY
+      const route = getRouteDay(order) || NO_ROUTE_KEY
       if (!map.has(route)) map.set(route, [])
       map.get(route)!.push(order)
     }
     return Array.from(map.entries())
       .map(([route, routeOrders]) => ({ route, orders: routeOrders }))
       .sort((a, b) => {
-        if (a.route === NO_ROUTE_KEY) return 1
-        if (b.route === NO_ROUTE_KEY) return -1
+        // kolejność: trasy, odbiór osobisty, bez trasy
+        const rank = (r: string) => (r === NO_ROUTE_KEY ? 2 : r === PERSONAL_PICKUP_ROUTE ? 1 : 0)
+        if (rank(a.route) !== rank(b.route)) return rank(a.route) - rank(b.route)
         return a.route.localeCompare(b.route, 'pl')
       })
   }, [groupByRoute, displayedOrders, getRouteDay])
@@ -253,11 +272,12 @@ export default function ShippingView({
 
   const renderRouteRow = (row: RouteRow) => {
     const label = row.route === NO_ROUTE_KEY ? 'Bez przypisanej trasy' : row.route
+    const icon = row.route === PERSONAL_PICKUP_ROUTE ? '🙋' : '🚛'
     return (
       <tr className="shipping-route-group-header">
         <td colSpan={11}>
           <div>
-            <span className="shipping-route-label">🚛 {label}</span>
+            <span className="shipping-route-label">{icon} {label}</span>
             <span className="shipping-route-stats">
               <span className="shipping-route-stat">{row.count} zam.</span>
               {row.readyCount > 0 && (
@@ -353,8 +373,8 @@ export default function ShippingView({
       key: 'day',
       label: 'DZIEŃ PROD.',
       className: 'col-day',
-      render: (order) => getProductionDay(order.company),
-      sortValue: sv((o) => getProductionDay(o.company)),
+      render: (order) => getProductionDay(order),
+      sortValue: sv((o) => getProductionDay(o)),
     }),
     col({
       key: 'qty',
@@ -406,9 +426,11 @@ export default function ShippingView({
         <input
           type="checkbox"
           checked={isOrderReadyToInvoice(order)}
-          disabled={loading || order.id === undefined}
+          disabled={!canInvoice || loading || order.id === undefined}
+          title={canInvoice ? undefined : 'Brak uprawnień do oznaczania fakturowania'}
           onChange={(e) => {
             e.stopPropagation()
+            if (!canInvoice) return
             void onToggleReadyToInvoice(order, e.target.checked)
           }}
           onClick={(e) => e.stopPropagation()}

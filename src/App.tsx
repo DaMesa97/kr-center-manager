@@ -100,6 +100,7 @@ import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
 import { can, isManagerRole } from './lib/permissions'
+import { findCompanyInfo } from './lib/companyMatch'
 import { hasRecentLocalStageWrite } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
 import InternalDoorOrderDetailsModal from './components/InternalDoorOrderDetailsModal'
@@ -803,7 +804,7 @@ function App() {
     setOrders,
     setInternalDoorDetailsModal,
     handleRushToggle,
-    isActive: activeTab === 'Wysyłka' && isManager,
+    isActive: activeTab === 'Wysyłka' && can(currentUser?.role, 'shipping.view'),
   })
 
   const {
@@ -1952,10 +1953,10 @@ function App() {
   }, [authUserId,isManager, fetchOrdersNeedingReview])
 
   useEffect(() => {
-    if (activeTab === 'Wysyłka' && isManager) {
+    if (activeTab === 'Wysyłka' && can(currentUser?.role, 'shipping.view')) {
       void fetchShippingOrders()
     }
-  }, [activeTab, isManager, fetchShippingOrders])
+  }, [activeTab, currentUser?.role, fetchShippingOrders])
 
   useEffect(() => {
     if (!showComplaintForm) return
@@ -2359,7 +2360,7 @@ function App() {
         order={shippingDetailsModal.order}
         companyInfo={
           shippingDetailsModal.order
-            ? shippingCompaniesMap.get((shippingDetailsModal.order.company ?? '').trim().toLowerCase()) ?? null
+            ? findCompanyInfo(shippingCompaniesMap, shippingDetailsModal.order.company)
             : null
         }
         glassAllowances={glassAllowances}
@@ -3005,7 +3006,7 @@ function App() {
             pushToast={pushToast}
             isManager={isManager}
           />
-        ) : isShippingTab && isManager ? (
+        ) : isShippingTab && can(currentUser?.role, 'shipping.view') ? (
           <ShippingView
             orders={shippingOrders}
             releasedOrders={shippingReleasedOrders}
@@ -3017,6 +3018,7 @@ function App() {
             onRushToggle={handleShippingRushToggle}
             rushUpdatingOrderId={rushUpdatingOrderId}
             isManager={isManager}
+            canInvoice={can(currentUser?.role, 'shipping.invoice')}
             glassAllowances={glassAllowances}
             leadTimeRules={leadTimeRules}
           />

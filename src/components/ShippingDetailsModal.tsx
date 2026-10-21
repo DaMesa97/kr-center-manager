@@ -10,6 +10,7 @@ import {
   isOrderReadyToInvoice,
   isReleaseDateEmpty,
 } from '../utils'
+import { getOrderProductionDay, getOrderRouteDay } from '../lib/companyMatch'
 
 const PART_LABELS: Record<string, string> = {
   wing: 'Skrzydło',
@@ -107,10 +108,10 @@ function ShippingDetailsModal({ open, order, companyInfo, glassAllowances, curre
             <div className="shipping-details-grid">
               <div>
                 <strong>Dzień produkcji:</strong>{' '}
-                {order.production_day || companyInfo?.production_day || '—'}
+                {getOrderProductionDay(order, companyInfo) || '—'}
               </div>
               <div>
-                <strong>Dzień trasy:</strong> {companyInfo?.route_day || '—'}
+                <strong>Dzień trasy:</strong> {getOrderRouteDay(order, companyInfo) || '—'}
               </div>
             </div>
           </section>

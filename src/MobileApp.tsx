@@ -155,7 +155,7 @@ export default function MobileApp() {
         ) : activeView === 'orders' ? (
           <MobileOrdersView />
         ) : (
-          <MobileShippingView />
+          <MobileShippingView role={user.role} />
         )}
       </main>
 

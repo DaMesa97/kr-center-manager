@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, RefreshCw, Truck } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { countCompletedStages, isRushOrderSequence } from '../../utils'
+import { can } from '../../lib/permissions'
+import {
+  cleanCompanyValue,
+  createCompanyResolver,
+  getOrderRouteDay,
+  type CompanyShippingInfo,
+} from '../../lib/companyMatch'
 import type { Order } from '../../types'
 
 const CAT_COLORS: Record<string, string> = {
@@ -12,11 +19,34 @@ const CAT_LABEL: Record<string, string> = {
   STA: 'STA', Disting: 'Disting', ST: 'ST', Techniczne: 'Techn.', Bastion: 'Bastion', DrzwiWewnetrzne: 'Wewn.',
 }
 
-export default function MobileShippingView() {
+// Tylko kolumny potrzebne do karty, postępu etapów (countCompletedStages) i trasy —
+// select('*') ciągnął kilka tysięcy pełnych wierszy na telefon
+const SHIP_COLUMNS =
+  'id, order_number, company, category, sequence, production_stages, extra_fields, system, ' +
+  'linked_order_id, top_light, side_panel, side_panel_a, side_panel_b, notes, production_day, release_date'
+
+const PAGE_SIZE = 100
+
+type Row = {
+  order: Order
+  completed: number
+  total: number
+  percent: number
+  urgent: boolean
+  routeDay: string
+}
+
+type Props = {
+  role: string
+}
+
+export default function MobileShippingView({ role }: Props) {
+  const canRelease = can(role, 'orders.release')
   const [orders, setOrders] = useState<Order[]>([])
-  const [companiesMap, setCompaniesMap] = useState<Map<string, string>>(new Map())
+  const [companiesMap, setCompaniesMap] = useState<Map<string, CompanyShippingInfo>>(new Map())
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [confirm, setConfirm] = useState<Order | null>(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -37,16 +67,16 @@ export default function MobileShippingView() {
       const all: Order[] = []
       let from = 0
       const PAGE = 1000
-      while (true) {
+      for (;;) {
         const { data, error } = await supabase
           .from('orders')
-          .select('*')
+          .select(SHIP_COLUMNS)
           .is('release_date', null)
           .order('id', { ascending: false })
           .range(from, from + PAGE - 1)
         if (error) return { data: all, error }
         if (!data || data.length === 0) break
-        all.push(...(data as Order[]))
+        all.push(...(data as unknown as Order[]))
         if (data.length < PAGE) break
         from += PAGE
       }
@@ -54,7 +84,7 @@ export default function MobileShippingView() {
     }
     const [ordersRes, companiesRes] = await Promise.all([
       fetchAllOpen(),
-      supabase.from('companies').select('name, route_day'),
+      supabase.from('companies').select('name, production_day, route_day'),
     ])
     if (!mountedRef.current) return
     setLoading(false)
@@ -64,9 +94,12 @@ export default function MobileShippingView() {
       return extra?.cancelled !== true
     }) as Order[]
     setOrders(active)
-    const m = new Map<string, string>()
-    for (const c of (companiesRes.data ?? []) as Array<{ name?: string; route_day?: string }>) {
-      m.set((c.name ?? '').trim().toLowerCase(), String(c.route_day ?? ''))
+    const m = new Map<string, CompanyShippingInfo>()
+    for (const c of (companiesRes.data ?? []) as Array<{ name?: string; production_day?: string; route_day?: string }>) {
+      m.set((c.name ?? '').trim().toLowerCase(), {
+        production_day: cleanCompanyValue(c.production_day),
+        route_day: cleanCompanyValue(c.route_day),
+      })
     }
     setCompaniesMap(m)
   }, [])
@@ -77,31 +110,48 @@ export default function MobileShippingView() {
     return () => { mountedRef.current = false }
   }, [load])
 
+  // Postęp i trasa liczone raz na zamówienie (wcześniej countCompletedStages w komparatorze)
+  const rows = useMemo<Row[]>(() => {
+    const resolve = createCompanyResolver(companiesMap)
+    return orders.map((o) => {
+      const { completed, total, percent } = countCompletedStages(o)
+      return {
+        order: o,
+        completed,
+        total,
+        percent,
+        urgent: isRushOrderSequence(o.sequence),
+        routeDay: getOrderRouteDay(o, resolve(o.company)),
+      }
+    })
+  }, [orders, companiesMap])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     const base = q
-      ? orders.filter(
-          (o) =>
-            String(o.order_number ?? '').toLowerCase().includes(q) ||
-            String(o.company ?? '').toLowerCase().includes(q),
+      ? rows.filter(
+          (r) =>
+            String(r.order.order_number ?? '').toLowerCase().includes(q) ||
+            String(r.order.company ?? '').toLowerCase().includes(q),
         )
-      : orders
+      : rows
     return [...base].sort((a, b) => {
-      const au = isRushOrderSequence(a.sequence), bu = isRushOrderSequence(b.sequence)
-      if (au !== bu) return au ? -1 : 1
-      const ap = countCompletedStages(a).percent, bp = countCompletedStages(b).percent
-      return bp - ap // najbardziej gotowe na górze
+      if (a.urgent !== b.urgent) return a.urgent ? -1 : 1
+      return b.percent - a.percent // najbardziej gotowe na górze
     })
-  }, [orders, query])
+  }, [rows, query])
+
+  const visible = filtered.slice(0, visibleCount)
 
   const markReleased = async (order: Order) => {
+    if (!canRelease) { flash('Brak uprawnień do wydania'); return }
     setSaving(true)
     try {
       // NAJPIERW data wydania, z twardym sprawdzeniem (guard .is null +
       // select): stara kolejność robiła WZ przed datą — gdy zapis daty padał
       // (RLS/już wydane), magazyn schodził, a zamówienie wracało jako otwarte
       // i drugie kliknięcie nie miało już czego wydać (rozjazd inwentaryzacji).
-      const today = new Date().toISOString().split('T')[0]
+      const today = new Date().toLocaleDateString('sv-SE')
       const { data: updated, error } = await supabase
         .from('orders')
         .update({ release_date: today })
@@ -117,6 +167,7 @@ export default function MobileShippingView() {
       // DOPIERO teraz fizyczne wydanie pozostałych rezerwacji (WZ) — jak desktop.
       // Drzwi wewnętrzne nie mają rezerwacji — no-op. Braki z force=true
       // (zamówienie fizycznie wyjeżdża), błąd RPC nie cofa daty, ale krzyczy.
+      let warned = false
       try {
         const { error: relErr } = await supabase.rpc('release_remaining_for_order', {
           p_order_id: order.id!,
@@ -124,14 +175,17 @@ export default function MobileShippingView() {
         })
         if (relErr) {
           console.error('release_remaining_for_order error:', relErr)
-          flash('Wydane, ale WZ z magazynu NIE zeszła — zgłoś kierownikowi', true)
+          warned = true
         }
       } catch (err) {
         console.error('release_remaining_for_order error:', err)
+        warned = true
       }
       if (!mountedRef.current) return
       setOrders((prev) => prev.filter((o) => o.id !== order.id))
-      flash('Oznaczono jako wydane ✓')
+      // ostrzeżenie zostaje na ekranie — sukces by je nadpisał
+      if (warned) flash('Wydane, ale WZ z magazynu NIE zeszła — zgłoś kierownikowi', true)
+      else flash('Oznaczono jako wydane ✓')
       setConfirm(null)
     } finally {
       if (mountedRef.current) setSaving(false)
@@ -152,7 +206,10 @@ export default function MobileShippingView() {
             inputMode="search"
             placeholder="Nr lub firma…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setVisibleCount(PAGE_SIZE)
+            }}
           />
         </div>
         <button type="button" className="mstation-refresh" onClick={() => void load()}>
@@ -164,10 +221,7 @@ export default function MobileShippingView() {
       </div>
 
       <div className="morders-list" style={{ padding: '0 0.75rem 0.75rem' }}>
-        {filtered.map((o) => {
-          const { completed, total, percent } = countCompletedStages(o)
-          const routeDay = companiesMap.get((o.company ?? '').trim().toLowerCase()) || ''
-          const urgent = isRushOrderSequence(o.sequence)
+        {visible.map(({ order: o, completed, total, percent, urgent, routeDay }) => {
           const ready = percent === 100 || total === 0
           return (
             <div key={o.id} className="mship-card">
@@ -195,12 +249,25 @@ export default function MobileShippingView() {
                 type="button"
                 className="mship-release-btn"
                 onClick={() => setConfirm(o)}
+                disabled={!canRelease}
+                title={canRelease ? undefined : 'Brak uprawnień do wydania'}
+                style={canRelease ? undefined : { opacity: 0.45, cursor: 'not-allowed' }}
               >
                 <Truck size={16} /> Wydane
               </button>
             </div>
           )
         })}
+        {filtered.length > visibleCount && (
+          <button
+            type="button"
+            className="mship-release-btn"
+            style={{ justifyContent: 'center', width: '100%', marginTop: '0.5rem' }}
+            onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+          >
+            Pokaż więcej ({filtered.length - visibleCount})
+          </button>
+        )}
         {filtered.length === 0 && <div className="mpack-info">Brak zamówień do wydania</div>}
       </div>
 
@@ -228,7 +295,7 @@ export default function MobileShippingView() {
               <button type="button" className="mstation-confirm-cancel" onClick={() => setConfirm(null)} disabled={saving}>
                 Anuluj
               </button>
-              <button type="button" className="mstation-confirm-ok" onClick={() => void markReleased(confirm)} disabled={saving}>
+              <button type="button" className="mstation-confirm-ok" onClick={() => void markReleased(confirm)} disabled={saving || !canRelease}>
                 {saving ? 'Zapisywanie…' : 'Tak, wydane'}
               </button>
             </div>

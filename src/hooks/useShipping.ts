@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { isReleaseDateEmpty } from '../utils'
+import { cleanCompanyValue } from '../lib/companyMatch'
 import type { Order } from '../types'
 import type { ToastVariant } from '../types'
 import type React from 'react'
@@ -23,6 +24,21 @@ function passesShippingFilter(o: Order): boolean {
   if (extra?.cancelled === true) return false
   if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
   return true
+}
+
+const RELEASED_WINDOW_DAYS = 14
+
+// Granica „wydane w ost. 14 dniach" — data lokalna (toISOString dawał UTC)
+function releasedCutoffDate(): string {
+  return new Date(Date.now() - RELEASED_WINDOW_DAYS * 24 * 60 * 60 * 1000).toLocaleDateString('sv-SE')
+}
+
+/** Wydane niedawno (lista „Pokaż wydane") — nie anulowane, release_date >= granica */
+function passesReleasedFilter(o: Order, cutoff: string): boolean {
+  const extra = o.extra_fields as Record<string, unknown> | null
+  if (extra?.cancelled === true) return false
+  if (!o.release_date || isReleaseDateEmpty(o.release_date)) return false
+  return String(o.release_date).slice(0, 10) >= cutoff
 }
 
 export function useShipping({
@@ -50,7 +66,7 @@ export function useShipping({
     touchSession()
     setShippingOrdersLoading(true)
 
-    const releasedCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const releasedCutoff = releasedCutoffDate()
     // Paginacja — PostgREST ucina każde zapytanie do 1000 wierszy, a otwartych
     // zamówień jest kilka tysięcy: stary .limit(2000) pokazywał ~1000 i przez
     // sortowanie alfabetyczne po kategorii znikały Techniczne i ogon STA.
@@ -59,7 +75,7 @@ export function useShipping({
       const all: Order[] = []
       let from = 0
       const PAGE = 1000
-      while (true) {
+      for (;;) {
         const { data, error } = await supabase
           .from('orders')
           .select('*')
@@ -104,9 +120,10 @@ export function useShipping({
         production_day?: string
         route_day?: string
       }>) {
+        // '#N/A' / '-' z importu = puste (nie trafia do filtrów)
         companiesMap.set((c.name ?? '').trim().toLowerCase(), {
-          production_day: String(c.production_day ?? ''),
-          route_day: String(c.route_day ?? ''),
+          production_day: cleanCompanyValue(c.production_day),
+          route_day: cleanCompanyValue(c.route_day),
         })
       }
       setShippingCompaniesMap(companiesMap)
@@ -167,9 +184,10 @@ export function useShipping({
       await handleRushToggle(order, checked)
 
       const nextSeq = checked ? 'X' : ''
-      setShippingOrders((prev) =>
-        prev.map((o) => (o.id === order.id ? { ...o, sequence: nextSeq } : o)),
-      )
+      const applySeq = (prev: Order[]) =>
+        prev.map((o) => (o.id === order.id ? { ...o, sequence: nextSeq } : o))
+      setShippingOrders(applySeq)
+      setShippingReleasedOrders(applySeq)
     },
     [handleRushToggle],
   )
@@ -203,10 +221,20 @@ export function useShipping({
             const deletedId = (payload.old as { id?: number }).id
             if (deletedId === undefined) return
             setShippingOrders((prev) => prev.filter((o) => o.id !== deletedId))
+            setShippingReleasedOrders((prev) => prev.filter((o) => o.id !== deletedId))
             return
           }
 
           const updated = payload.new as Order
+          // Lista „Pokaż wydane": wydanie przenosi zamówienie z otwartych do wydanych
+          // (wcześniej znikało z obu do ręcznego odświeżenia)
+          const releasedNow = passesReleasedFilter(updated, releasedCutoffDate())
+          setShippingReleasedOrders((prev) => {
+            const exists = prev.some((o) => o.id === updated.id)
+            if (!releasedNow) return exists ? prev.filter((o) => o.id !== updated.id) : prev
+            if (exists) return prev.map((o) => (o.id === updated.id ? updated : o))
+            return [updated, ...prev]
+          })
 
           if (payload.eventType === 'INSERT') {
             if (!passesShippingFilter(updated)) return
