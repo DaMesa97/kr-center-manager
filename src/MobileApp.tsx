@@ -5,8 +5,9 @@ import MobilePackingView from './components/mobile/MobilePackingView'
 import MobileStationView from './components/mobile/MobileStationView'
 import MobileOrdersView from './components/mobile/MobileOrdersView'
 import MobileShippingView from './components/mobile/MobileShippingView'
+import { can } from './lib/permissions'
 
-type SessionUser = { id: string; initials: string }
+type SessionUser = { id: string; initials: string; role: string }
 
 export default function MobileApp() {
   const [ready, setReady] = useState(false)
@@ -21,13 +22,14 @@ export default function MobileApp() {
   const loadProfile = async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, initials, full_name')
+      .select('id, initials, full_name, role')
       .eq('id', userId)
       .maybeSingle()
     if (!mountedRef.current) return
     setUser({
       id: userId,
       initials: (data?.initials as string) || (data?.full_name as string)?.slice(0, 2)?.toUpperCase() || '??',
+      role: String(data?.role ?? ''),
     })
   }
 
@@ -125,13 +127,18 @@ export default function MobileApp() {
     )
   }
 
+  // Wysyłka (wydawanie zamówień) tylko dla ról z shipping.view — jak na desktopie.
+  // Pusta rola (profil się nie wczytał) = brak dostępu.
+  const canShip = can(user.role, 'shipping.view')
+  const activeView = view === 'shipping' && !canShip ? 'packing' : view
+
   return (
     <div className="mshell">
       <header className="mshell-header">
         <span className="mshell-title">
-          {view === 'packing' ? '📦 Pakowanie'
-            : view === 'station' ? '✓ Moje zadania'
-            : view === 'orders' ? '🚪 Zlecenia'
+          {activeView === 'packing' ? '📦 Pakowanie'
+            : activeView === 'station' ? '✓ Moje zadania'
+            : activeView === 'orders' ? '🚪 Zlecenia'
             : '🚛 Wysyłka'}
         </span>
         <span className="mpack-user">{user.initials}</span>
@@ -141,11 +148,11 @@ export default function MobileApp() {
       </header>
 
       <main className="mshell-content">
-        {view === 'packing' ? (
+        {activeView === 'packing' ? (
           <MobilePackingView userInitials={user.initials} userId={user.id} />
-        ) : view === 'station' ? (
+        ) : activeView === 'station' ? (
           <MobileStationView userId={user.id} />
-        ) : view === 'orders' ? (
+        ) : activeView === 'orders' ? (
           <MobileOrdersView />
         ) : (
           <MobileShippingView />
@@ -155,7 +162,7 @@ export default function MobileApp() {
       <nav className="mshell-nav">
         <button
           type="button"
-          className={`mshell-nav-btn ${view === 'packing' ? 'mshell-nav-btn--active' : ''}`}
+          className={`mshell-nav-btn ${activeView === 'packing' ? 'mshell-nav-btn--active' : ''}`}
           onClick={() => setView('packing')}
         >
           <Package size={22} />
@@ -163,7 +170,7 @@ export default function MobileApp() {
         </button>
         <button
           type="button"
-          className={`mshell-nav-btn ${view === 'station' ? 'mshell-nav-btn--active' : ''}`}
+          className={`mshell-nav-btn ${activeView === 'station' ? 'mshell-nav-btn--active' : ''}`}
           onClick={() => setView('station')}
         >
           <CheckSquare size={22} />
@@ -171,20 +178,22 @@ export default function MobileApp() {
         </button>
         <button
           type="button"
-          className={`mshell-nav-btn ${view === 'orders' ? 'mshell-nav-btn--active' : ''}`}
+          className={`mshell-nav-btn ${activeView === 'orders' ? 'mshell-nav-btn--active' : ''}`}
           onClick={() => setView('orders')}
         >
           <DoorOpen size={22} />
           <span>Zlecenia</span>
         </button>
-        <button
-          type="button"
-          className={`mshell-nav-btn ${view === 'shipping' ? 'mshell-nav-btn--active' : ''}`}
-          onClick={() => setView('shipping')}
-        >
-          <Truck size={22} />
-          <span>Wysyłka</span>
-        </button>
+        {canShip && (
+          <button
+            type="button"
+            className={`mshell-nav-btn ${view === 'shipping' ? 'mshell-nav-btn--active' : ''}`}
+            onClick={() => setView('shipping')}
+          >
+            <Truck size={22} />
+            <span>Wysyłka</span>
+          </button>
+        )}
       </nav>
     </div>
   )
