@@ -395,6 +395,14 @@ const alertColumns: DataTableColumn<StockAlert>[] = [
     render: (a) => (
       <>
         <strong style={a.available < 0 ? { color: '#c62828' } : undefined}>{a.available}</strong>
+        {a.available < 0 && (
+          <div
+            style={{ fontSize: '0.72rem', color: '#c62828', fontWeight: 600 }}
+            title="Rezerwacje pod zlecenia przekraczają stan — brakuje towaru już teraz"
+          >
+            nadrezerwacja
+          </div>
+        )}
         {a.reserved_quantity > 0 && <div style={muted('0.72rem')}>rez. {a.reserved_quantity}</div>}
       </>
     ),

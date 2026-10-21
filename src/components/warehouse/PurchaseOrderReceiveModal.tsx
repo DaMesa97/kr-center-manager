@@ -4,7 +4,9 @@ import { supabase } from '../../supabaseClient'
 import type { PurchaseOrder, PurchaseOrderItem, ToastVariant, Warehouse, WarehouseComponent } from '../../types'
 import DataTable from '../DataTable'
 
-const leftOf = (item: PurchaseOrderItem) => Math.max(item.quantity_ordered - item.quantity_received, 0)
+// ilości ułamkowe (mb, m2) — zaokrąglenie do 0.001, żeby 5.5 − 2.4 nie dawało 3.0999999
+const round3 = (n: number) => Math.round(n * 1000) / 1000
+const leftOf = (item: PurchaseOrderItem) => Math.max(round3(Number(item.quantity_ordered) - Number(item.quantity_received)), 0)
 
 type Props = {
   open: boolean
@@ -151,6 +153,7 @@ export default function PurchaseOrderReceiveModal({
                 <input
                   type="number"
                   min={0}
+                  step="any"
                   className="extension-qty-input"
                   value={receivedQty[item.id] ?? 0}
                   onChange={(e) =>
@@ -171,8 +174,8 @@ export default function PurchaseOrderReceiveModal({
                   : entered === left
                     ? '🟢 Komplet'
                     : entered < left
-                      ? `🟡 Częściowa, ${left - entered} szt zostanie wisząca`
-                      : `⚠️ Nadwyżka ${entered - left} szt — sprawdź`
+                      ? `🟡 Częściowa, ${round3(left - entered)} szt zostanie wisząca`
+                      : `⚠️ Nadwyżka ${round3(entered - left)} szt — sprawdź`
               },
             },
           ]}

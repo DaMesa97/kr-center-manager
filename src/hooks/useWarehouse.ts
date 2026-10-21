@@ -892,12 +892,16 @@ export function useWarehouse({
       // NOWY FLOW: edycja przerezerwowuje (cancel + reserve). Jeśli COKOLWIEK
       // zostało już fizycznie wydane, nie ruszamy automatem — kierownik dostaje
       // ostrzeżenie i koryguje ręcznie (wydane komponenty nie wracają same).
-      const { data: released } = await supabase
+      const { data: released, error: releasedErr } = await supabase
         .from('stock_reservations')
         .select('id')
         .eq('order_id', orderId)
         .in('status', ['released', 'partially_released'])
         .limit(1)
+      if (releasedErr) {
+        pushToast(`Nie sprawdzono rezerwacji zamówienia — nie przeliczono: ${releasedErr.message}`, 'error')
+        return
+      }
       if (released && released.length > 0) {
         pushToast(
           'Zamówienie ma już wydane komponenty — rezerwacje NIE zostały przeliczone. Zweryfikuj recepturowo ręcznie.',
@@ -905,7 +909,12 @@ export function useWarehouse({
         )
         return
       }
-      await supabase.rpc('cancel_order_reservations', { p_order_id: orderId })
+      const { error: cancelErr } = await supabase.rpc('cancel_order_reservations', { p_order_id: orderId })
+      if (cancelErr) {
+        // bez anulowania nowa rezerwacja trafiłaby na "already_reserved" i po cichu nic nie zrobiła
+        pushToast(`Nie przeliczono rezerwacji po edycji: ${cancelErr.message}`, 'error')
+        return
+      }
       await reserveStockForOrderWithToasts(orderId)
     },
     [reserveStockForOrderWithToasts, pushToast],

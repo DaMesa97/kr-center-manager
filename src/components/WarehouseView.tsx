@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { WAREHOUSE_SUB_TABS } from '../constants'
+import { can } from '../lib/permissions'
 import type {
   CompanySettings,
   CurrentUser,
@@ -184,6 +185,8 @@ function WarehouseView({
   onShowPurchaseOrderDetails,
   pushToast,
 }: WarehouseViewProps) {
+  // PZ / MM wg permissions.ts (warehouse.movements) — magazynier też, nie tylko kierownik
+  const canMovements = isManager || can(currentUser?.role, 'warehouse.movements')
   const warehouseTabs = useMemo(
     () =>
       WAREHOUSE_SUB_TABS.filter(
@@ -246,6 +249,7 @@ function WarehouseView({
           incoming={incomingStock}
           loading={stockLoading}
           isManager={isManager}
+          canAddPz={canMovements}
           onAddPz={onAddPzFromStock}
           onShowHistory={onShowHistory}
           pushToast={pushToast}
@@ -284,7 +288,7 @@ function WarehouseView({
         <PzView
           pzGroups={pzGroups}
           loading={pzGroupsLoading}
-          isManager={isManager}
+          isManager={canMovements}
           warehouses={warehouses}
           onCreate={onPzCreate}
           onPreview={onPzPreview}
@@ -293,7 +297,7 @@ function WarehouseView({
         <MmView
           mmGroups={mmGroups}
           loading={mmGroupsLoading}
-          isManager={isManager}
+          isManager={canMovements}
           warehouses={warehouses}
           onCreate={onMmCreate}
           onPreview={onMmPreview}
@@ -344,7 +348,7 @@ function WarehouseView({
           onRefreshIncoming={onRefreshIncoming}
         />
       ) : activeSubTab === 'Inwentaryzacja' ? (
-        <InventoryView pushToast={pushToast} currentUser={currentUser} />
+        <InventoryView pushToast={pushToast} currentUser={currentUser} components={components} />
       ) : (
         <p className="no-results">Widok w przygotowaniu</p>
       )}

@@ -5,31 +5,20 @@ import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import StockAtDateExport from './StockAtDateExport'
 import type { SortState } from '../../lib/tableSort'
-
-// ranga statusu do sortowania: minus (najgorszy) → niski → OK
-const statusRank = (s: StockStatus): number => (s === 'minus' ? 0 : s === 'low' ? 1 : 2)
-
-type StockStatus = 'ok' | 'low' | 'minus'
+import {
+  computeStockStatus,
+  stockStatusColor,
+  stockStatusLabel as statusLabel,
+  stockStatusRank as statusRank,
+  type StockStatus,
+} from '../../lib/stockStatus'
 
 function stockStatus(row: WarehouseStockRow): StockStatus {
-  if (row.quantity < 0) return 'minus'
-  const min = row.component_min_stock_level
-  if (min == null) return 'ok'
-  if (row.quantity >= min) return 'ok'
-  return 'low'
+  return computeStockStatus(row.quantity, row.reserved_quantity, row.component_min_stock_level)
 }
 
-function stockStatusAggregated(quantityTotal: number, min: number | null | undefined): StockStatus {
-  if (quantityTotal < 0) return 'minus'
-  if (min == null) return 'ok'
-  if (quantityTotal >= min) return 'ok'
-  return 'low'
-}
-
-function statusLabel(s: StockStatus): string {
-  if (s === 'ok') return 'OK'
-  if (s === 'low') return 'Niski'
-  return 'Minus'
+function stockStatusAggregated(row: AggregatedRow): StockStatus {
+  return computeStockStatus(row.total, row.reserved, row.component_min_stock_level, row.minAvailable)
 }
 
 type AggregatedRow = {
@@ -42,6 +31,8 @@ type AggregatedRow = {
   quantities: Record<number, number>
   total: number
   reserved: number
+  /** najniższe dostępne (stan − rezerwacje) wśród magazynów — < 0 = nadrezerwacja gdzieś */
+  minAvailable: number
 }
 
 // 'YYYY-MM-DD' → 'DD.MM.RRRR'
@@ -77,9 +68,13 @@ const renderIncomingCell = (inc: IncomingStockRow | undefined) => {
 }
 
 const renderStatusCell = (s: StockStatus) => {
-  const dotColor = s === 'ok' ? '#2e7d32' : s === 'low' ? '#f9a825' : '#c62828'
+  const dotColor = stockStatusColor(s)
   return (
-    <span className="stock-status-cell" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <span
+      className="stock-status-cell"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...(s === 'overreserved' ? { color: '#c62828', fontWeight: 600 } : {}) }}
+      title={s === 'overreserved' ? 'Rezerwacje pod zlecenia przekraczają stan — brakuje towaru' : undefined}
+    >
       <span
         className="stock-status-dot"
         style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, flexShrink: 0 }}
@@ -98,13 +93,15 @@ type StockViewProps = {
   incoming?: IncomingStockRow[]
   loading: boolean
   isManager?: boolean
+  /** PZ z widoku stanów (warehouse.movements); domyślnie = isManager */
+  canAddPz?: boolean
   onAddPz?: (warehouseId?: number) => void
   onShowHistory: (component: WarehouseComponent) => void
   pushToast?: (msg: string, variant: ToastVariant) => void
   onStockChanged?: () => void
 }
 
-function StockView({ warehouses, components, stock, suppliers = [], incoming = [], loading, isManager, onAddPz, onShowHistory, pushToast, onStockChanged }: StockViewProps) {
+function StockView({ warehouses, components, stock, suppliers = [], incoming = [], loading, isManager, canAddPz, onAddPz, onShowHistory, pushToast, onStockChanged }: StockViewProps) {
   const [damageTarget, setDamageTarget] = useState<{ componentId: number; warehouseId: number | null } | null>(null)
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | ''>('')
   const [search, setSearch] = useState('')
@@ -203,6 +200,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
         component_min_stock_level: number | null
         quantities: Record<number, number>
         reserved: number
+        minAvailable: number
       }
     >()
 
@@ -217,6 +215,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
           component_min_stock_level: row.component_min_stock_level ?? null,
           quantities: {},
           reserved: 0,
+          minAvailable: Number.POSITIVE_INFINITY,
         } as {
           component_code: string
           component_name: string
@@ -225,10 +224,13 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
           component_min_stock_level: number | null
           quantities: Record<number, number>
           reserved: number
+          minAvailable: number
         })
       const prev = existing.quantities[row.warehouse_id] ?? 0
       existing.quantities[row.warehouse_id] = prev + row.quantity
       existing.reserved += row.reserved_quantity ?? 0
+      // wiersz = jedna półka (magazyn × komponent) — nadrezerwacja liczona per magazyn
+      existing.minAvailable = Math.min(existing.minAvailable, row.quantity - Number(row.reserved_quantity ?? 0))
       byComponent.set(row.component_id, existing)
     }
 
@@ -251,7 +253,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
       if (!matchCategory(row.component_category)) return false
       if (supplierFilter !== '' && componentById.get(row.component_id)?.supplier_id !== supplierFilter) return false
       if (problemsOnly) {
-        const s = stockStatusAggregated(row.total, row.component_min_stock_level)
+        const s = stockStatusAggregated(row)
         if (s === 'ok') return false
       }
       if (!q) return true
@@ -341,8 +343,8 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
     {
       key: 'status',
       label: 'STATUS',
-      sortValue: (r) => statusRank(stockStatusAggregated(r.total, r.component_min_stock_level)),
-      render: (r) => renderStatusCell(stockStatusAggregated(r.total, r.component_min_stock_level)),
+      sortValue: (r) => statusRank(stockStatusAggregated(r)),
+      render: (r) => renderStatusCell(stockStatusAggregated(r)),
     },
     { key: 'actions', label: 'AKCJE', render: (r) => renderActions(r.component_id, null) },
   ], [warehousesSorted, incomingByComponent, incQtyOf, renderActions])
@@ -487,7 +489,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
           <span>Tylko problemowe</span>
         </label>
         <StockAtDateExport warehouses={warehouses} warehouseId={selectedWarehouseId} pushToast={pushToast} />
-        {isManager && onAddPz ? (
+        {(canAddPz ?? isManager) && onAddPz ? (
           <button
             type="button"
             className="btn btn-success"
