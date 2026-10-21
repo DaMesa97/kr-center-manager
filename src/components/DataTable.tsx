@@ -208,16 +208,29 @@ export default function DataTable<T>({
     // root = najbliższy przewijany przodek — z root:null (viewport) rootMargin
     // nie działał dla tabel przewijanych wewnątrz .table-wrapper i porcje
     // doładowywały się dopiero, gdy sentinel był fizycznie widoczny
-    const scrollRoot = el.closest('.table-wrapper, .orders-table-wrapper')
+    // Ale tylko gdy wrapper NAPRAWDĘ przewija w pionie: .table-wrapper bez max-height
+    // rośnie z treścią, sentinel zawsze się w nim „przecina” i porcje dogrywały się
+    // lawinowo (kilkanaście renderów zamiast jednego) — wtedy obserwujemy viewport.
+    const wrapper = el.closest('.table-wrapper, .orders-table-wrapper')
+    const scrollsVertically =
+      wrapper instanceof HTMLElement &&
+      /(auto|scroll)/.test(getComputedStyle(wrapper).overflowY) &&
+      wrapper.scrollHeight > wrapper.clientHeight + 1
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) setVisibleCount((c) => c + CHUNK)
       },
-      { root: scrollRoot instanceof Element ? scrollRoot : null, rootMargin: '600px' },
+      { root: scrollsVertically ? wrapper : null, rootMargin: '600px' },
     )
     io.observe(el)
     return () => io.disconnect()
   }, [hasMore, visibleCount])
+
+  // Zmiana sortowania = nowa kolejność od góry: wracamy do pierwszej porcji,
+  // zamiast od razu renderować tysiące wierszy po głębokim przewinięciu
+  useEffect(() => {
+    setVisibleCount(CHUNK)
+  }, [sort])
 
   const alignStyle = (a?: DataTableColumn<T>['align']): CSSProperties | undefined =>
     a && a !== 'left' ? { textAlign: a } : undefined
