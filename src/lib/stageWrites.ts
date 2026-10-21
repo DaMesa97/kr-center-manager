@@ -33,3 +33,20 @@ export function hasRecentLocalStageWrite(orderId: number | null | undefined, sta
   const t = recent.get(`${orderId}:${stageKey}`)
   return t != null && Date.now() - t < TTL_MS
 }
+
+/**
+ * Etapy z realtime scalone z lokalnymi: lokalnie wypełniony etap wygrywa
+ * z pustą wartością z serwera TYLKO w oknie TTL po własnym kliknięciu.
+ */
+export function mergeIncomingStages(
+  orderId: number | null | undefined,
+  local: unknown,
+  remote: unknown,
+): Record<string, string> {
+  const localStages = (local ?? {}) as Record<string, string>
+  const merged: Record<string, string> = { ...((remote ?? {}) as Record<string, string>) }
+  for (const [k, v] of Object.entries(localStages)) {
+    if (v?.trim() && !merged[k]?.trim() && hasRecentLocalStageWrite(orderId, k)) merged[k] = v
+  }
+  return merged
+}

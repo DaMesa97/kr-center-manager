@@ -101,7 +101,7 @@ import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
 import { can, isManagerRole } from './lib/permissions'
 import { findCompanyInfo } from './lib/companyMatch'
-import { hasRecentLocalStageWrite } from './lib/stageWrites'
+import { mergeIncomingStages } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
 import InternalDoorOrderDetailsModal from './components/InternalDoorOrderDetailsModal'
 import OrdersNeedingReviewView from './components/OrdersNeedingReviewView'
@@ -516,6 +516,8 @@ function App() {
     setWorkerStagesModal,
     fetchMyWorkerStages,
     fetchMyStationOrders,
+    fetchStationComplaints,
+    applyStationOrderEvent,
     handleStageComplete,
     handleComplaintStageComplete,
   } = useMyStation({ pushToast, currentUser })
@@ -1055,7 +1057,8 @@ function App() {
 
     // "Moje stanowisko" nie jest kategorią — filtr category=eq.'Moje stanowisko'
     // nie łapał ŻADNYCH zdarzeń i zakładka żyła tylko z fetchu przy wejściu.
-    // Dla niej subskrybujemy bez filtra i cicho odświeżamy listę zadań.
+    // Dla niej subskrybujemy bez filtra i scalamy zmiany lokalnie (pełny
+    // refetch tylko po zerwaniu kanału / nowym zleceniu łączonym).
     const isStationTab = activeTab === 'Moje stanowisko'
     const refetchForTab = () => {
       if (isStationTab) {
@@ -1068,7 +1071,12 @@ function App() {
     let stationDebounce: ReturnType<typeof setTimeout> | null = null
     const stationRefetchDebounced = () => {
       if (stationDebounce) clearTimeout(stationDebounce)
-      stationDebounce = setTimeout(() => void fetchMyStationOrders({ silent: true }), 1000)
+      stationDebounce = setTimeout(() => void fetchMyStationOrders({ silent: true }), 1500)
+    }
+    let complaintsDebounce: ReturnType<typeof setTimeout> | null = null
+    const stationComplaintsDebounced = () => {
+      if (complaintsDebounce) clearTimeout(complaintsDebounce)
+      complaintsDebounce = setTimeout(() => void fetchStationComplaints(), 1000)
     }
 
     // Subskrypcja na zmiany w orders
@@ -1084,7 +1092,12 @@ function App() {
         },
         (payload) => {
           if (isStationTab) {
-            stationRefetchDebounced()
+            const needsFull = applyStationOrderEvent(
+              payload.eventType,
+              payload.new as Partial<Order> | null,
+              payload.old as { id?: number } | null,
+            )
+            if (needsFull) stationRefetchDebounced()
             return
           }
           if (payload.eventType === 'INSERT') {
@@ -1102,15 +1115,10 @@ function App() {
                 // wartością z realtime TYLKO przez chwilę po własnym kliknięciu
                 // (okno race'a z optimistic update). Bezwarunkowa ochrona blokowała
                 // propagację celowego COFNIĘCIA etapu na inne stanowiska.
-                const localStages = (o.production_stages ?? {}) as Record<string, string>
-                const remoteStages = (incoming.production_stages ?? {}) as Record<string, string>
-                const merged: Record<string, string> = { ...remoteStages }
-                for (const [k, v] of Object.entries(localStages)) {
-                  if (v?.trim() && !merged[k]?.trim() && hasRecentLocalStageWrite(incoming.id, k)) {
-                    merged[k] = v
-                  }
+                return {
+                  ...incoming,
+                  production_stages: mergeIncomingStages(incoming.id, o.production_stages, incoming.production_stages),
                 }
-                return { ...incoming, production_stages: merged }
               }),
             )
           }
@@ -1135,7 +1143,7 @@ function App() {
         },
         (payload) => {
           if (isStationTab) {
-            stationRefetchDebounced()
+            stationComplaintsDebounced()
             return
           }
           if (payload.eventType === 'INSERT') {
@@ -1189,6 +1197,7 @@ function App() {
 
     return () => {
       if (stationDebounce) clearTimeout(stationDebounce)
+      if (complaintsDebounce) clearTimeout(complaintsDebounce)
       window.removeEventListener('online', onOnline)
       void supabase.removeChannel(ordersChannel)
       void supabase.removeChannel(complaintsChannel)

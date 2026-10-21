@@ -1,11 +1,15 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { mirrorStageKey } from '../lib/stageMirror'
 import { markLocalStageWrite } from '../lib/stageWrites'
 import { isReleaseDateEmpty, parseProductionStages } from '../utils'
 import type { Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
 import type { ToastVariant } from '../types'
-import type { MyTask } from '../lib/stationLogic'
+import {
+  mergeStationOrderEvent,
+  stationEventNeedsRefetch,
+  type MyTask,
+} from '../lib/stationLogic'
 
 type UseMyStationParams = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -57,28 +61,92 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     setWorkerStagesForCurrent((data ?? []) as WorkerStage[])
   }, [currentUser?.id])
 
+  // Kategorie, z których zalogowany ma zadania — realtime decyduje po nich,
+  // czy zmienione zlecenie dotyczy tego stanowiska
+  const scopeRef = useRef<Set<string>>(new Set())
+  const ordersRef = useRef<Order[]>([])
+  useEffect(() => {
+    ordersRef.current = myStationOrders
+  }, [myStationOrders])
+  const userIdRef = useRef(currentUser?.id)
+  userIdRef.current = currentUser?.id
+
+  const fetchStationComplaints = useCallback(async () => {
+    // Reklamacje jako zadania stanowisk — otwarte (nieanulowane, niezrealizowane)
+    const { data, error } = await supabase.from('complaints').select('*').is('release_date', null)
+    if (error) {
+      console.error('station complaints fetch:', error)
+      return
+    }
+    setMyStationComplaints(
+      ((data ?? []) as Complaint[]).filter((c) => {
+        const extra = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
+        return extra?.cancelled !== true
+      }),
+    )
+  }, [])
+
   const fetchMyStationOrders = useCallback(async (opts?: { silent?: boolean }) => {
     // silent = ciche odświeżenie (realtime/online) — bez zwijania tabeli spinnerem
     if (!opts?.silent) setMyStationLoading(true)
-    // Paginacja — przy >2000 zamówień stary limit ucinał część i etapy "znikały".
-    // Pobieramy partiami po id (numerycznie, stabilnie).
+    const userId = userIdRef.current
+
+    // Przypisania etapów wszystkich pracowników i profile (kafelki "kto zrobił")
+    const [allWsRes, profilesRes] = await Promise.all([
+      supabase.from('worker_stages').select('*'),
+      supabase.from('profiles').select('id, initials, full_name'),
+    ])
+    if (!profilesRes.error) {
+      setStationProfiles(
+        (profilesRes.data ?? []) as Array<{ id: string; initials: string | null; full_name: string | null }>,
+      )
+    }
+    // Tylko kategorie, w których zalogowany ma etapy — wcześniej każde
+    // stanowisko ciągnęło WSZYSTKIE otwarte zlecenia (~5,8 tys. wierszy)
+    // przy każdej zmianie dowolnego zlecenia. null = nie wiadomo (błąd) → wszystko.
+    let categories: string[] | null = null
+    if (!allWsRes.error) {
+      const allWs = (allWsRes.data ?? []) as WorkerStage[]
+      setAllWorkerStages(allWs)
+      if (userId) {
+        const mine = allWs.filter((ws) => ws.worker_id === userId)
+        setWorkerStagesForCurrent(mine)
+        categories = [...new Set(mine.map((ws) => ws.category))]
+      }
+    }
+    if (!userId) categories = []
+    scopeRef.current = new Set(categories ?? ['STA', 'Disting', 'ST', 'Bastion', 'Techniczne'])
+
     const all: Order[] = []
-    let from = 0
-    const PAGE = 1000
     let fetchError: { message: string } | null = null
-    while (true) {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        // tylko OTWARTE — wydane nie są zadaniami, a ciągnęliśmy całą tabelę
-        .is('release_date', null)
-        .order('id', { ascending: false })
-        .range(from, from + PAGE - 1)
-      if (error) { fetchError = error; break }
-      if (!data || data.length === 0) break
-      all.push(...(data as Order[]))
-      if (data.length < PAGE) break
-      from += PAGE
+    if (categories === null || categories.length > 0) {
+      // Paginacja — PostgREST oddaje max 1000 wierszy na zapytanie
+      const PAGE = 1000
+      for (let from = 0; ; from += PAGE) {
+        let q = supabase
+          .from('orders')
+          .select('*')
+          // tylko OTWARTE — wydane nie są zadaniami
+          .is('release_date', null)
+        if (categories) q = q.in('category', categories)
+        const { data, error } = await q.order('id', { ascending: false }).range(from, from + PAGE - 1)
+        if (error) { fetchError = error; break }
+        all.push(...((data ?? []) as Order[]))
+        if (!data || data.length < PAGE) break
+      }
+      // Partnerzy zleceń łączonych z innych kategorii (Titan STA↔ST, Disting Plus) —
+      // od nich zależy, które etapy są blokowane (robi je druga strona)
+      if (!fetchError && categories) {
+        const have = new Set(all.map((o) => o.id))
+        const missing = [
+          ...new Set(all.map((o) => o.linked_order_id).filter((id): id is number => id != null && !have.has(id))),
+        ]
+        for (let i = 0; i < missing.length; i += 200) {
+          const { data, error } = await supabase.from('orders').select('*').in('id', missing.slice(i, i + 200))
+          if (error) { fetchError = error; break }
+          all.push(...((data ?? []) as Order[]))
+        }
+      }
     }
     if (fetchError) {
       setMyStationLoading(false)
@@ -86,41 +154,37 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       return
     }
 
-    const filtered = all.filter((o: Order) => {
-      const extra = o.extra_fields as Record<string, unknown> | null
-      if (extra?.cancelled === true) return false
-      if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
-      return true
-    })
-
-    setMyStationOrders(filtered)
-
-    // Reklamacje jako zadania stanowisk — otwarte (nieanulowane, niezrealizowane)
-    // + przypisania etapów wszystkich pracowników i profile (kafelki "kto zrobił")
-    const [{ data: complaintsData, error: complaintsErr }, allWsRes, profilesRes] = await Promise.all([
-      supabase.from('complaints').select('*').is('release_date', null),
-      supabase.from('worker_stages').select('*'),
-      supabase.from('profiles').select('id, initials, full_name'),
-    ])
-    if (!allWsRes.error) setAllWorkerStages((allWsRes.data ?? []) as WorkerStage[])
-    if (!profilesRes.error) {
-      setStationProfiles(
-        (profilesRes.data ?? []) as Array<{ id: string; initials: string | null; full_name: string | null }>,
-      )
-    }
-    if (complaintsErr) {
-      console.error('station complaints fetch:', complaintsErr)
-    } else {
-      const openComplaints = ((complaintsData ?? []) as Complaint[]).filter((c) => {
-        const extra = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
-        return extra?.cancelled !== true
-      })
-      setMyStationComplaints(openComplaints)
-    }
+    setMyStationOrders(
+      all.filter((o: Order) => {
+        const extra = o.extra_fields as Record<string, unknown> | null
+        if (extra?.cancelled === true) return false
+        // partner spoza naszych kategorii zostaje także po wydaniu (blokady etapów)
+        if (scopeRef.current.has(o.category ?? '') && !isReleaseDateEmpty(o.release_date)) return false
+        return true
+      }),
+    )
+    await fetchStationComplaints()
     // Spinner schodzi dopiero po KOMPLECIE (zamówienia + reklamacje + kafelki) —
     // wcześniej klik "Zrobione" w oknie race'a widział pustą listę osób
     setMyStationLoading(false)
-  }, [pushToast])
+    // currentUser?.id w deps: po wczytaniu profilu zakładka pobiera się od nowa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pushToast, fetchStationComplaints, currentUser?.id])
+
+  /**
+   * Zdarzenie realtime z tabeli orders — scalane lokalnie zamiast pełnego
+   * refetchu. Zwraca true, gdy potrzebny jest pełny refetch (nowe zlecenie
+   * łączone, którego partnera nie mamy).
+   */
+  const applyStationOrderEvent = useCallback(
+    (eventType: string, row: Partial<Order> | null, oldRow: { id?: number } | null): boolean => {
+      const ev = { eventType, row, oldRow }
+      const needsFull = stationEventNeedsRefetch(ordersRef.current, ev, scopeRef.current)
+      setMyStationOrders((prev) => mergeStationOrderEvent(prev, ev, scopeRef.current))
+      return needsFull
+    },
+    [],
+  )
 
   const handleStageComplete = useCallback(
     async (
@@ -281,6 +345,8 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     setWorkerStagesModal,
     fetchMyWorkerStages,
     fetchMyStationOrders,
+    fetchStationComplaints,
+    applyStationOrderEvent,
     handleStageComplete,
   }
 }

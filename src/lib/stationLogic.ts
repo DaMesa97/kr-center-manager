@@ -1,5 +1,6 @@
 import { BASTION_STAGE_DEFS, BASTION_TITAN_STAGE_DEFS, STA_DISTING_STAGE_DEFS, ST_STAGE_DEFS, ST_TITAN_STAGE_DEFS } from '../constants'
 import type { Complaint, Order, StageDef, WhatComplained, WorkerStage } from '../types'
+import { mergeIncomingStages } from './stageWrites'
 import {
   getComplaintBlockedStages,
   hasGlassExtra,
@@ -393,4 +394,51 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
   }
 
   return [...NOTES, ...group].filter((f) => f.value !== '')
+}
+
+export type StationOrderEvent = {
+  eventType: string
+  row: Partial<Order> | null
+  oldRow: { id?: number } | null
+}
+
+/**
+ * Zdarzenie realtime z tabeli orders scalone z listą stanowiska (bez pełnego
+ * refetchu). scope = kategorie, w których zalogowany ma etapy. Partnerzy
+ * zleceń łączonych spoza scope zostają na liście także po wydaniu — od nich
+ * zależą blokady etapów (blockedStationKeys).
+ */
+export function mergeStationOrderEvent(prev: Order[], ev: StationOrderEvent, scope: Set<string>): Order[] {
+  if (ev.eventType === 'DELETE') {
+    const id = ev.oldRow?.id
+    return id == null ? prev : prev.filter((o) => o.id !== id)
+  }
+  const incoming = ev.row as Order | null
+  if (incoming?.id == null) return prev
+  const extra = incoming.extra_fields as Record<string, unknown> | null
+  const open = isReleaseDateEmpty(incoming.release_date) && extra?.cancelled !== true
+  const inScope = scope.has(incoming.category ?? '')
+  const idx = prev.findIndex((o) => o.id === incoming.id)
+  if (idx < 0) return open && inScope ? [incoming, ...prev] : prev
+  if (!open && (inScope || extra?.cancelled === true)) return prev.filter((o) => o.id !== incoming.id)
+  const cur = prev[idx]
+  const next = prev.slice()
+  // spread cur: kolumny pominięte w zdarzeniu (TOAST) zostają z poprzedniej wersji
+  next[idx] = {
+    ...cur,
+    ...incoming,
+    production_stages: mergeIncomingStages(incoming.id, cur.production_stages, incoming.production_stages),
+  }
+  return next
+}
+
+/** Nowe/otwarte zlecenie łączone, którego partnera nie ma na liście → potrzebny pełny refetch. */
+export function stationEventNeedsRefetch(prev: Order[], ev: StationOrderEvent, scope: Set<string>): boolean {
+  if (ev.eventType === 'DELETE') return false
+  const incoming = ev.row as Order | null
+  const partnerId = incoming?.linked_order_id
+  if (incoming?.id == null || partnerId == null) return false
+  const extra = incoming.extra_fields as Record<string, unknown> | null
+  const open = isReleaseDateEmpty(incoming.release_date) && extra?.cancelled !== true
+  return open && scope.has(incoming.category ?? '') && !prev.some((o) => o.id === partnerId)
 }
