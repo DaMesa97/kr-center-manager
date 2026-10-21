@@ -3,8 +3,8 @@
 -- Stan na koniec dnia p_date (czas polski) = dzisiejszy stan fizyczny MINUS wszystkie
 -- ruchy (warehouse_movements) od początku następnego dnia. Każda zmiana stanu
 -- fizycznego (WZ, PZ, MM, inwentaryzacja, zwroty) loguje ruch, więc bilans otwarcia
--- nie jest potrzebny. Wiarygodne od 2026-06-12 (ostatnia inwentaryzacja z korektami
--- sprzed logowania ruchów). Rezerwacji nie da się odtworzyć wstecz — tylko stan fizyczny.
+-- nie jest potrzebny. Wiarygodne od 2026-09-30 (stany wyzerowano ok. 29.09 bez ruchu korygującego;
+-- testowe WZ z września). Rezerwacji nie da się odtworzyć wstecz — tylko stan fizyczny.
 -- SECURITY INVOKER: RLS tabel magazynowych obowiązuje jak przy zwykłym odczycie.
 
 CREATE OR REPLACE FUNCTION public.get_stock_at_date(p_date date, p_warehouse_id bigint DEFAULT NULL)

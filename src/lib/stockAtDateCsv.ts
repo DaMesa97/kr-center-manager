@@ -11,8 +11,8 @@ export type StockAtDateRow = {
   quantity: number | string | null
 }
 
-/** Najwcześniejszy dzień, od którego wszystkie zmiany stanu są zapisane jako ruchy. */
-export const STOCK_HISTORY_RELIABLE_FROM = '2026-06-12'
+/** Najwcześniejszy dzień, od którego stan = suma ruchów (stany wyzerowano bez ruchu korygującego ok. 29.09; testowe WZ z września). */
+export const STOCK_HISTORY_RELIABLE_FROM = '2026-09-30'
 
 const cell = (v: unknown): string => {
   const s = v == null ? '' : String(v)
