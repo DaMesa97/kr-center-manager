@@ -138,7 +138,8 @@ const createTitanLegs = async (supabase: any, orderId: number): Promise<void> =>
     sta_ref: String(base.order_number ?? ''), st_sheet: '', release_date: null,
     production_stages: emptyStagesFor('ST'), extra_fields: { ...ef, titan_group: group, titan_role: 'ST' },
   }
-  const { data: stRow } = await supabase.from('orders').insert([stPayload]).select('id, order_number').single()
+  const { row: stRow, error: stErr } = await insertOrderWithNumberRetry(supabase, stPayload, 'ST')
+  if (stErr) console.error('titan ST leg failed:', stErr)
   if (stRow) await reserveStock(supabase, Number(stRow.id))
 
   // Bastion (skrzydło do okuwania)
@@ -147,7 +148,8 @@ const createTitanLegs = async (supabase: any, orderId: number): Promise<void> =>
     ...rest, order_number: bNr, category: 'Bastion', airtable_id: '', linked_order_id: null, release_date: null,
     production_stages: emptyStagesFor('Bastion'), extra_fields: { ...ef, titan_group: group, titan_role: 'Bastion' },
   }
-  const { data: bRow } = await supabase.from('orders').insert([bPayload]).select('id').single()
+  const { row: bRow, error: bErr } = await insertOrderWithNumberRetry(supabase, bPayload, 'Bastion')
+  if (bErr) console.error('titan Bastion leg failed:', bErr)
   if (bRow) await reserveStock(supabase, Number(bRow.id))
 
   // dopnij linki na STA
@@ -328,6 +330,35 @@ const nextOrderNumber = async (supabase: any, category: string): Promise<string>
   return String(data)
 }
 
+// Kolizja unikalnego numeru (kategoria, numer) — get_next_order_number to MAX+1
+// bez rezerwacji, więc równoległe wiersze z Make dostają ten sam numer.
+export const isOrderNumberCollision = (err: { code?: string; message?: string } | null | undefined): boolean =>
+  !!err && (err.code === '23505' || /orders_unique_number_per_category/i.test(err.message ?? ''))
+
+const NUMBER_RETRIES = 5
+
+// INSERT z ponowieniem przy kolizji numeru: nowy numer z RPC + krótka losowa
+// pauza (rozjeżdża równoległe wywołania). onRenumber pozwala dopisać flagę
+// weryfikacji, gdy numer z arkusza musiał zostać zmieniony.
+const insertOrderWithNumberRetry = async (
+  supabase: any,
+  payload: Record<string, unknown>,
+  category: string,
+  onRenumber?: (oldNumber: string, newNumber: string) => void,
+): Promise<{ row: Record<string, unknown> | null; error: string | null }> => {
+  for (let attempt = 0; attempt < NUMBER_RETRIES; attempt++) {
+    const { data, error } = await supabase.from('orders').insert([payload]).select('id, order_number, category').single()
+    if (!error && data) return { row: data, error: null }
+    if (!isOrderNumberCollision(error)) return { row: null, error: error?.message ?? 'insert failed' }
+    await new Promise((r) => setTimeout(r, 50 + Math.floor(Math.random() * 250)))
+    const oldNumber = String(payload.order_number ?? '')
+    const newNumber = await nextOrderNumber(supabase, category)
+    payload.order_number = newNumber
+    onRenumber?.(oldNumber, newNumber)
+  }
+  return { row: null, error: `kolizja numeru zlecenia (${category}) — ${NUMBER_RETRIES} prób bez powodzenia` }
+}
+
 const createDistingPlusPartner = async (supabase: any, orderId: number): Promise<void> => {
   const { data: base, error } = await supabase.from('orders').select('*').eq('id', orderId).single()
   if (error || !base) return
@@ -352,9 +383,8 @@ const createDistingPlusPartner = async (supabase: any, orderId: number): Promise
     disting_sheet: partnerCat === 'STA' ? String(base.order_number ?? '') : '',
     sta_sheet: partnerCat === 'Disting' ? String(base.order_number ?? '') : '',
   }
-  const { data: partnerRow, error: pErr } = await supabase
-    .from('orders').insert([partnerPayload]).select('id, order_number').single()
-  if (pErr || !partnerRow) { console.error('partner create failed:', pErr?.message); return }
+  const { row: partnerRow, error: pErr } = await insertOrderWithNumberRetry(supabase, partnerPayload, partnerCat)
+  if (pErr || !partnerRow) { console.error('partner create failed:', pErr); return }
 
   const baseUpdate: Record<string, unknown> = { linked_order_id: partnerRow.id }
   if (baseCat === 'Disting') baseUpdate.sta_sheet = partnerRow.order_number
@@ -470,10 +500,21 @@ serve(async (req) => {
         continue
       }
 
-      const { data: inserted, error: insErr } = await supabase
-        .from('orders').insert([payload]).select('id, order_number, category').single()
+      // Kolizja w chwili zapisu (równoległy wiersz zajął numer) — nowy numer
+      // + flaga weryfikacji, tak jak przy konflikcie wykrytym wyżej
+      const sheetNumber = orderNumber
+      const { row: inserted, error: insErr } = await insertOrderWithNumberRetry(supabase, payload, category, (_old, newNumber) => {
+        const ef = (payload.extra_fields as Record<string, unknown>) ?? {}
+        const prevWarnings = Array.isArray(ef.warnings) ? (ef.warnings as string[]).filter((w) => !w.startsWith(`Numer ${sheetNumber} z arkusza`)) : []
+        payload.extra_fields = {
+          ...ef,
+          needs_review: true,
+          warnings: [...prevWarnings, `Numer ${sheetNumber} z arkusza był już zajęty — nadano numer ${newNumber}`],
+          sheet_number_conflict: sheetNumber,
+        }
+      })
       if (insErr || !inserted) {
-        results.push({ index: i, status: 'error', reason: insErr?.message ?? 'insert failed' })
+        results.push({ index: i, status: 'error', reason: insErr ?? 'insert failed' })
         continue
       }
 
@@ -489,16 +530,20 @@ serve(async (req) => {
       results.push({ index: i, status: 'created', order_id: inserted.id, order_number: inserted.order_number, category: inserted.category })
     }
 
-    statusCode = 200
     const created = results.filter((r) => r.status === 'created').length
     const duplicates = results.filter((r) => r.status === 'duplicate').length
     const botDuplicates = results.filter((r) => r.status === 'duplicate_bot').length
     const errors = results.filter((r) => r.status === 'error').length
+    // Błąd zapisu = NIE sukces: Make przy kodzie 5xx ponawia wysyłkę, a wiersze
+    // już zapisane wrócą jako 'duplicate' (dedup po treści) — nic się nie zdubluje.
+    // Wcześniej 200 + success:true chowało odrzucone wiersze (19.10: 18 zamówień).
+    statusCode = errors > 0 ? 500 : 200
     responseBody = {
-      success: true,
+      success: errors === 0,
       summary: { received: rows.length, created, duplicates, bot_duplicates: botDuplicates, errors },
       results,
     }
+    if (errors > 0) errorMessage = `${errors} wiersz(y) nie zapisane`
     return jsonResponse(responseBody, statusCode)
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : String(err)

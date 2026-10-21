@@ -184,6 +184,51 @@ describe('orders-excel-intake — handler HTTP', () => {
     expect(ef.sheet_number_conflict).toBe('4145')
   })
 
+  it('kolizja numeru W CHWILI ZAPISU (równoległy wiersz) → ponowienie z nowym numerem + flaga (19.10 gubiło)', async () => {
+    const base = { id: 31, order_number: '7001', category: 'Bastion', system: 'BASIC LOCK PLUS', extra_fields: {}, linked_order_id: null }
+    const collision = { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "orders_unique_number_per_category_new"' } }
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: [], error: null }, // dedup: numer wolny przy sprawdzeniu…
+        collision, // …ale równoległy wiersz zajął go przed zapisem
+        { data: base, error: null }, // ponowiony insert z nowym numerem
+        { data: base, error: null }, // partner check (stop)
+        { data: base, error: null }, // titan check (stop)
+      ],
+      { ...VALID_KEY_RPCS, get_next_order_number: { data: '7001', error: null } },
+    )
+    __setSupabaseClient(supabase)
+
+    const res = await handler()(post([BASTION_ROW]))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { success: boolean; results: Array<{ status: string }> }
+    expect(body.success).toBe(true)
+    expect(body.results[0].status).toBe('created')
+    expect(calls.inserted).toHaveLength(2)
+    const payload = calls.inserted[1][0] as Record<string, unknown>
+    expect(payload.order_number).toBe('7001')
+    const ef = payload.extra_fields as Record<string, unknown>
+    expect(ef.needs_review).toBe(true)
+    expect(ef.sheet_number_conflict).toBe('4145')
+  })
+
+  it('błąd zapisu (nie kolizja) → 500 + success:false, żeby Make ponowił zamiast uznać za sukces', async () => {
+    const { supabase } = makeFakeSupabase(
+      [
+        { data: [], error: null }, // dedup: brak
+        { data: null, error: { code: '23502', message: 'null value in column "company"' } },
+      ],
+      VALID_KEY_RPCS,
+    )
+    __setSupabaseClient(supabase)
+
+    const res = await handler()(post([BASTION_ROW]))
+    expect(res.status).toBe(500)
+    const body = (await res.json()) as { success: boolean; summary: Record<string, number> }
+    expect(body.success).toBe(false)
+    expect(body.summary.errors).toBe(1)
+  })
+
   it('wiersz bez firmy i systemu → skipped (nie wywala całej paczki)', async () => {
     const { supabase, calls } = makeFakeSupabase([], VALID_KEY_RPCS)
     __setSupabaseClient(supabase)
