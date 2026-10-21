@@ -1,8 +1,20 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { DbProfileRow } from '../types'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 import { appConfirm, appPrompt } from '../lib/appDialogs'
+
+// Legenda ról — to samo, co macierz w lib/permissions.ts, ludzkim językiem.
+// Aktualizować przy zmianach macierzy!
+const ROLE_LEGEND: Array<{ role: string; opis: string }> = [
+  { role: 'pracownik_produkcji', opis: 'Widzi przypisane kategorie, oznacza TYLKO swoje przypisane etapy (przycisk „Etapy produkcji"), dodaje komentarze i drukuje etykiety.' },
+  { role: 'magazynier', opis: 'Podgląd zleceń + Wysyłka + ruchy magazynowe (PZ/MM). Bez edycji zleceń, komponentów i receptur.' },
+  { role: 'obsluga_klienta', opis: 'Podgląd wszystkich zleceń + komentarze + druk etykiet. Bez edycji.' },
+  { role: 'kierownik_dzialu', opis: 'Pełny kierownik (tworzenie/edycja/wydawanie zleceń, etapy, magazyn, weryfikacja, statystyki) — ale TYLKO w przypisanych kategoriach. Np. brygadzista STA.' },
+  { role: 'kierownik_magazynu', opis: 'Pełna firma, wszystkie kategorie — bez oznaczania „gotowe do fakturowania".' },
+  { role: 'kierownik_produkcji', opis: 'Pełna firma, wszystkie kategorie, wszystko poza panelem administracyjnym.' },
+  { role: 'admin', opis: 'Wszystko + panel administracyjny (Użytkownicy, Konfiguracja, Klucze API, Kontrahenci). Ceny widzą tylko kierownicy i admin.' },
+]
 
 type UsersViewProps = {
   profilesLoading: boolean
@@ -116,8 +128,26 @@ export default function UsersView({
     ]
   }, [currentUserId, onEditUser, onDeleteUser, onDeactivateUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
 
+  const [legendOpen, setLegendOpen] = useState(false)
+
   return (
     <>
+      <div className="role-legend">
+        <button type="button" className="role-legend-toggle" onClick={() => setLegendOpen((v) => !v)}>
+          {legendOpen ? '▾' : '▸'} Legenda ról — kto co może
+        </button>
+        {legendOpen && (
+          <div className="role-legend-body">
+            {ROLE_LEGEND.map((l) => (
+              <div key={l.role} className="role-legend-row">
+                <span className="role-legend-name">{getRoleLabel(l.role)}</span>
+                <span className="role-legend-desc">{l.opis}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {profilesLoading ? (
         <Spinner center label="Ładowanie użytkowników…" />
       ) : (
