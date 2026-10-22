@@ -317,7 +317,8 @@ export function useWarehouse({
         component_code: wc?.code ?? null,
         component_name: wc?.name ?? null,
         component_unit: wc?.unit ?? null,
-        order_number: ord?.order_number ?? null,
+        // po archiwizacji zlecenia order_id = null — numer zostaje w samym ruchu
+        order_number: ord?.order_number ?? (r.order_number as string | null | undefined) ?? null,
       } as WarehouseMovementRow
     })
     setWarehouseMovements(mapped)
