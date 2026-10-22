@@ -1427,18 +1427,21 @@ function App() {
   }, [activeTab, orders, searchTerm, selectedProductionDay, hideCompletedOrders, showCancelledOrders])
 
   const filteredOrders = useMemo(() => {
+    // Filtr wykonawcy widać tylko w STA/Disting — w innych zakładkach nie może
+    // działać po cichu (wybrany w STA chował wszystko np. w Technicznych: 0/589)
+    const useWykonawca = wykonawcaFilter.length > 0 && (activeTab === 'STA' || activeTab === 'Disting')
     return categoryFilteredOrders.filter((order) => {
       if (sourceFilter !== 'all') {
         if (sourceFilter === 'manual' && order.source === 'bot') return false
         if (sourceFilter === 'bot' && order.source !== 'bot') return false
       }
-      if (wykonawcaFilter.length > 0) {
+      if (useWykonawca) {
         const wyk = (order.extra_fields as Record<string, unknown> | null)?.wykonawca as string | undefined
         if (!wyk || !wykonawcaFilter.includes(wyk)) return false
       }
       return true
     })
-  }, [categoryFilteredOrders, sourceFilter, wykonawcaFilter])
+  }, [categoryFilteredOrders, sourceFilter, wykonawcaFilter, activeTab])
 
   const sourceFilterCounts = useMemo(
     () => ({
