@@ -97,6 +97,25 @@ export function textCol(
   }
 }
 
+/** MODEL z systemem pod spodem — jedna kolumna zamiast dwóch (jak w Wysyłce). */
+export function modelSystemCol(opts: { className?: string } = {}): DataTableColumn<Order> {
+  const joined = (o: Order) => [o.model, o.system].filter((v) => String(v ?? '').trim() !== '').join(' · ')
+  return {
+    key: 'model',
+    label: 'MODEL',
+    title: 'Model (pod spodem system)',
+    className: opts.className ?? 'col-order-text',
+    tdTitle: (o) => orderCellTooltip(joined(o)),
+    sortValue: (o) => `${o.model ?? ''} ${o.system ?? ''}`.trim() || null,
+    render: (o) => (
+      <>
+        {o.model}
+        {String(o.system ?? '').trim() !== '' && <div className="dt-stack-sub">{o.system}</div>}
+      </>
+    ),
+  }
+}
+
 type OrderNumberOpts = {
   /** Dodatkowa klasa td (np. order-num-td w Bastionie). */
   tdClassName?: string
@@ -393,7 +412,6 @@ export function orderRowClassName(
  * (klucz kolumny → klucz kolumny-matki). Brak matki w danej tabeli = bez zmian.
  */
 const ORDER_STACK: Record<string, string> = {
-  system: 'model',
   production_day: 'order_date',
   height: 'width',
   opening: 'direction',

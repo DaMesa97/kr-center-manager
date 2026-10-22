@@ -14,6 +14,7 @@ import {
   quantityCol,
   releaseCol,
   rushCol,
+  modelSystemCol,
   textCol,
   type OrderTableCtx,
 } from './orderTableColumns'
@@ -340,8 +341,7 @@ function StaDistingOrdersTableView({
       productionDayCol(),
       quantityCol(),
       rushCol(ctx),
-      textCol('system', 'SYSTEM', (o) => o.system),
-      textCol('model', 'MODEL', (o) => o.model, { className: 'col-order-text col-order-model' }),
+      modelSystemCol({ className: 'col-order-text col-order-model' }),
       textCol('wing_color', 'KOLOR SKRZYDŁA', (o) => o.wing_color, { className: 'col-order-text col-wing-color' }),
       textCol('frame_color', 'KOLOR OŚCIEŻNICY', (o) => o.frame_color, { className: 'col-order-text col-frame-color' }),
       textCol('threshold_color', 'KOLOR PROGU', (o) => o.threshold_color),
