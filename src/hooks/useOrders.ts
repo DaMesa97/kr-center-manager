@@ -29,6 +29,7 @@ import {
   isStTitanSystemLabel,
   isTitanSystem,
   mergeOrderExtraFields,
+  omitKeys,
   orderToBastionForm,
   orderToLegacyForm,
   orderToStForm,
@@ -522,7 +523,7 @@ export function useOrders({
     const PAGE = 500
     let fetchError = null
     let firstPaint = true
-    while (true) {
+    for (;;) {
       const { data, error: pageError } = await supabase
         .from('orders')
         .select('*')
@@ -1023,6 +1024,39 @@ export function useOrders({
     setOrders((prev) => prev.map((o) => (o.id === partnerId ? ({ ...o, ...partnerPayload } as Order) : o)))
   }
 
+  // Titan: noga Bastion jest spięta tylko extra_fields.titan_group (bez
+  // linked_order_id), więc edycja STA/ST jej nie dotykała — Bastion okuwał
+  // stary wymiar/kolor. Wspólne pola idą na resztę grupy (jak przy tworzeniu
+  // trójki: Bastion dostaje te same pola co STA/ST) + przeliczenie rezerwacji.
+  const syncSharedFieldsToTitanGroup = async (
+    baseline: Order,
+    mapped: Record<string, unknown>,
+  ): Promise<void> => {
+    const group = (baseline.extra_fields as Record<string, unknown> | null)?.titan_group
+    if (group == null || String(group).trim() === '') return
+    const payload = buildPartnerSyncPayload(mapped)
+    if (Object.keys(payload).length === 0) return
+    const skip = new Set([baseline.id, baseline.linked_order_id].filter((id) => id != null))
+    const { data: legs, error: legsErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('extra_fields->>titan_group', String(group))
+    if (legsErr) {
+      pushToast(`Noga Bastion Titana nie zsynchronizowana: ${legsErr.message}`, 'error')
+      return
+    }
+    for (const leg of (legs ?? []) as Order[]) {
+      if (leg.id == null || skip.has(leg.id)) continue
+      const { error } = await supabase.from('orders').update(payload).eq('id', leg.id)
+      if (error) {
+        pushToast(`Noga ${leg.category} ${leg.order_number} nie zsynchronizowana: ${error.message}`, 'error')
+        continue
+      }
+      setOrders((prev) => prev.map((o) => (o.id === leg.id ? ({ ...o, ...payload } as Order) : o)))
+      await syncWarehouseStockAfterOrderEdit(leg.id, leg, payload)
+    }
+  }
+
   const handleSaveOrderImpl = async () => {
     setIsSaving(true)
 
@@ -1172,13 +1206,8 @@ export function useOrders({
         // ustawione w międzyczasie przez inne stanowiska starą kopią).
         // sequence/order_date to snapshot z chwili otwarcia okna (nie pola
         // formularza) — wysyłane nadpisywały PILNE ustawione w międzyczasie
-        const {
-          production_stages: mergedStages,
-          extra_fields: _efIgnored,
-          sequence: _seqIgnored,
-          order_date: _odIgnored,
-          ...formFields
-        } = mapped
+        const mergedStages = mapped.production_stages
+        const formFields = omitKeys(mapped, ['production_stages', 'extra_fields', 'sequence', 'order_date'])
         const payload = sanitizeOrderPayloadForDb(formFields)
         // Etapy: merge po stronie bazy TYLKO kluczy zmienionych w formularzu
         const baselineStages = parseProductionStages(
@@ -1206,6 +1235,7 @@ export function useOrders({
         const merged = { ...editingOrderBaseline, ...(updatedRow as Partial<Order>) } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
+        await syncSharedFieldsToTitanGroup(editingOrderBaseline, mapped)
         await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
         // Partner (Disting Plus / Titan) dostał te same zmiany pól przez sync —
@@ -1518,15 +1548,15 @@ export function useOrders({
       if (isEditing) {
         // UPDATE wysyła TYLKO pola formularza ST — bez snapshotu zamówienia
         // (etapy, wydanie, linki zostają nietknięte w bazie).
-        const {
-          production_stages: _psIgnored,
-          linked_order_id: _loIgnored,
-          sta_ref: _srIgnored,
-          st_sheet: _ssIgnored,
-          sequence: _seqIgnored,
-          order_date: _odIgnored,
-          ...formFields
-        } = mapped
+        // Formularz ST nie ma pól ościeżnicy/panelu/naświetla/dostawki — wysyłał
+        // je jako puste stringi i KASOWAŁ dane z konfiguratora (bot: kolor
+        // ościeżnicy, panel) u siebie i u partnera STA (Titan).
+        const stSyncFields = omitKeys(mapped, [
+          'frame_color', 'decorative_panel', 'top_light', 'top_light_glazing', 'side_panel', 'side_panel_glazing',
+        ])
+        const formFields = omitKeys(stSyncFields, [
+          'production_stages', 'linked_order_id', 'sta_ref', 'st_sheet', 'sequence', 'order_date',
+        ])
         const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {
@@ -1536,19 +1566,9 @@ export function useOrders({
         }
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
-        // Titan: formularz ST nie ma pól ościeżnicy/naświetla/dostawki STA —
-        // wysyłał je jako puste stringi i sync CZYŚCIŁ je na partnerze STA.
-        const {
-          frame_color: _fcIgnored,
-          decorative_panel: _dpIgnored,
-          top_light: _tlIgnored,
-          top_light_glazing: _tgIgnored,
-          side_panel: _spIgnored,
-          side_panel_glazing: _sgIgnored,
-          ...stSyncFields
-        } = mapped
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, stSyncFields)
-        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
+        await syncSharedFieldsToTitanGroup(editingOrderBaseline, stSyncFields)
+        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, stSyncFields)
         // Partner STA (Titan) dostał zmiany wspólnych pól — przelicz też jego rezerwacje
         if (editingOrderBaseline.linked_order_id != null) {
           await syncWarehouseStockAfterOrderEdit(
@@ -1769,8 +1789,14 @@ export function useOrders({
 
       if (isEditing) {
         // UPDATE wysyła TYLKO pola formularza — bez etapów (stary kod wysyłał
-        // tu PUSTE etapy createEmptyProductionStages i zerował oznaczone!).
-        const { production_stages: _psIgnored, sequence: _seqIgnored, order_date: _odIgnored, ...formFields } = mapped
+        // tu PUSTE etapy createEmptyProductionStages i zerował oznaczone!)
+        // i bez pól, których formularz Techniczne nie ma (puste stringi
+        // kasowały np. INFO, przedłużenie, kolor ościeżnicy).
+        const formFields = omitKeys(mapped, [
+          'production_stages', 'sequence', 'order_date',
+          'frame_color', 'decorative_panel', 'top_light', 'top_light_glazing', 'side_panel', 'side_panel_glazing',
+          'extension', 'info',
+        ])
         const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {
@@ -1780,8 +1806,8 @@ export function useOrders({
         }
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
-        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
-        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
+        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, formFields)
+        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, formFields)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
           await fetchOrdersNeedingReview()
@@ -1902,8 +1928,13 @@ export function useOrders({
 
       if (isEditing) {
         // UPDATE wysyła TYLKO pola formularza — bez snapshotu etapów z chwili
-        // otwarcia okna (kasował etapy oznaczone w międzyczasie przez halę).
-        const { production_stages: _psIgnored, sequence: _seqIgnored, order_date: _odIgnored, ...formFields } = mapped
+        // otwarcia okna (kasował etapy oznaczone w międzyczasie przez halę)
+        // i bez pól, których formularz Bastion nie ma (pusta klamka/naświetle
+        // kasowały dane z konfiguratora).
+        const formFields = omitKeys(mapped, [
+          'production_stages', 'sequence', 'order_date',
+          'handle', 'top_light', 'top_light_glazing', 'side_panel', 'side_panel_glazing',
+        ])
         const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {
@@ -1913,9 +1944,9 @@ export function useOrders({
         }
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
-        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
+        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, formFields)
         await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)
-        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
+        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, formFields)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
           await fetchOrdersNeedingReview()

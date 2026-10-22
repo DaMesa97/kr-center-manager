@@ -1209,6 +1209,13 @@ export function supabaseNumericFromForm(value: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/** Kopia obiektu bez podanych kluczy (np. pól, których formularz nie ma). */
+export function omitKeys<T extends Record<string, unknown>, K extends keyof T>(obj: T, keys: readonly K[]): Omit<T, K> {
+  const out = { ...obj }
+  for (const k of keys) delete out[k]
+  return out
+}
+
 export function sanitizeOrderPayloadForDb<T extends Record<string, unknown>>(payload: T): T {
   const out = { ...payload } as Record<string, unknown>
   if ('configurator_value' in out) {
