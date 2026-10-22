@@ -97,22 +97,36 @@ export function textCol(
   }
 }
 
-/** MODEL z systemem pod spodem — jedna kolumna zamiast dwóch (jak w Wysyłce). */
-export function modelSystemCol(opts: { className?: string } = {}): DataTableColumn<Order> {
-  const joined = (o: Order) => [o.model, o.system].filter((v) => String(v ?? '').trim() !== '').join(' · ')
+type ModelSystem = { model?: string | null; system?: string | null }
+
+/**
+ * MODEL z systemem pod spodem — jedna kolumna zamiast dwóch (jak w Wysyłce).
+ * `get` dla wierszy, które nie są zamówieniem (reklamacja, wiersz szyb).
+ */
+export function modelSystemCol<T = Order>(
+  opts: { className?: string; get?: (r: T) => ModelSystem } = {},
+): DataTableColumn<T> {
+  const get = opts.get ?? ((r: T) => r as unknown as ModelSystem)
+  const joined = (r: T) => {
+    const { model, system } = get(r)
+    return [model, system].filter((v) => String(v ?? '').trim() !== '').join(' · ')
+  }
   return {
     key: 'model',
     label: 'MODEL',
     title: 'Model (pod spodem system)',
     className: opts.className ?? 'col-order-text',
-    tdTitle: (o) => orderCellTooltip(joined(o)),
-    sortValue: (o) => `${o.model ?? ''} ${o.system ?? ''}`.trim() || null,
-    render: (o) => (
-      <>
-        {o.model}
-        {String(o.system ?? '').trim() !== '' && <div className="dt-stack-sub">{o.system}</div>}
-      </>
-    ),
+    tdTitle: (r) => orderCellTooltip(joined(r)),
+    sortValue: (r) => `${get(r).model ?? ''} ${get(r).system ?? ''}`.trim() || null,
+    render: (r) => {
+      const { model, system } = get(r)
+      return (
+        <>
+          {model}
+          {String(system ?? '').trim() !== '' && <div className="dt-stack-sub">{system}</div>}
+        </>
+      )
+    },
   }
 }
 

@@ -14,6 +14,7 @@ import {
   stStageCellKind,
 } from '../utils'
 import { appConfirm } from '../lib/appDialogs'
+import { modelSystemCol } from './orderTableColumns'
 
 type ComplaintsViewProps = {
   activeTab: string
@@ -181,8 +182,7 @@ export default function ComplaintsView({
       ),
     },
     textCol('what_complained', 'CO REKLAMOWANE', (c) => c.what_complained),
-    textCol('system', 'SYSTEM', (c) => c.system),
-    textCol('model', 'MODEL', (c) => c.model, opts.modelClass),
+    modelSystemCol<Complaint>({ className: opts.modelClass }),
   ]
 
   // REALIZACJA reklamacji — klikalna dla kierownika (wcześniej pole było
@@ -618,7 +618,6 @@ export default function ComplaintsView({
  * (klucz kolumny → klucz kolumny-matki) — jak ORDER_STACK w tabelach zamówień.
  */
 const COMPLAINT_STACK: Record<string, string> = {
-  system: 'model',
   production_day: 'order_date',
   height: 'width',
   opening: 'direction',

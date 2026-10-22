@@ -4,6 +4,7 @@ import { calcGlassDim, getGlassAllowance, parseGlassDim } from '../utils'
 import { generateGlassOrderPdf, type GlassOrderLine } from '../utils/glassOrderPdfGenerator'
 import { appAlert, appConfirm } from '../lib/appDialogs'
 import DataTable, { type DataTableColumn } from './DataTable'
+import { modelSystemCol } from './orderTableColumns'
 
 // Pozycje szyb (naświetle / dostawka A / B) dla jednego zamówienia
 function glassLinesFor(
@@ -200,8 +201,7 @@ export default function GlassView({
     },
     textCol('order_date', 'DATA', (r) => r.order.order_date, 'col-order-date'),
     textCol('quantity', 'ILOŚĆ', (r) => r.order.quantity),
-    { ...textCol('system', 'SYSTEM', (r) => r.order.system), stackUnder: 'model' },
-    textCol('model', 'MODEL', (r) => r.order.model),
+    { ...modelSystemCol<GlassRow>({ get: (r) => r.order }), className: undefined, thClassName: 'col-order-text' },
     textCol('wing_color', 'KOLOR SKRZYDŁA', (r) => r.order.wing_color, 'col-wing-color'),
     { ...textCol('frame_color', 'KOLOR OŚCIEŻNICY', (r) => r.order.frame_color, 'col-frame-color'), stackUnder: 'wing_color' },
     textCol('width', 'SZEROKOŚĆ', (r) => r.order.width),
