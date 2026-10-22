@@ -72,6 +72,46 @@
 
 ---
 
+## 🧪 DO SPRAWDZENIA W DOMU — przegląd 22.10 (wszystko na `clean`, bez nowej bety)
+
+Zrobione 22.10 (Claude). Typecheck i lint czyste, 259 testów zielonych. SQL wgrany do bazy po teście w transakcji z ROLLBACK.
+W aplikacji NIC nie było przeklikane — odhacz po sprawdzeniu:
+
+**Formularz zamówienia**
+- [ ] Edycja ST z bota NIE kasuje koloru ościeżnicy / panelu (wcześniej każda poprawka kasowała: 194 zleceń z kolorem, 105 z panelem). To samo Techniczne (INFO, przedłużenie) i Bastion (klamka) — `6070f8f`
+- [ ] Zamknięcie formularza BEZ zmian nie pyta o niezapisane dane (ST/Bastion pytały zawsze); po zmianie dowolnego pola pyta — `0d2f334`
+- [ ] Enter w polu formularza NIE zapisuje zamówienia (tylko przycisk) — `e91e95b`
+- [ ] Titan: edycja STA/ST zmienia też nogę Bastion (wymiar/kolor) — `6070f8f`
+- [ ] Filtr „Wykonawca” wybrany w STA nie chowa zleceń w innych zakładkach (było Techniczne 0/589) — `7ce46c0`
+- [ ] Szkic komentarza nie przechodzi na następne zamówienie — `79fce97`
+- [ ] Tabele zamówień / reklamacji / szyb: MODEL z systemem pod spodem (kolumna SYSTEM zniknęła) — `de4ca24`, `fda7056`
+
+**Magazyn**
+- [ ] Zapis / usunięcie / wyłączenie receptury → komunikat „Przeliczono rezerwacje N zleceń” (zlecenia z wydanym towarem pominięte) — `7b0e0a2`
+- [ ] Dobieranie receptur ~35× szybsze → zapis zlecenia powinien być wyraźnie szybszy
+- [ ] UWAGA dane: jednorazowo przeliczone rezerwacje wszystkich kategorii — Disting ma teraz rezerwacje na wszystkich zleceniach, więc w Alertach dużo więcej braków (dane testowe)
+- [ ] Przesunięcie MM z brakiem → okno z listą braków i „Przesuń mimo to” (nie blokuje) — `f5bd7fa`
+- [ ] Archiwizacja nie wywraca się na zleceniach z ruchami magazynowymi; komentarze i pozycje drzwi wewn. NIE są już kasowane przy archiwizacji; historia ruchów pokazuje nr zlecenia po archiwizacji — `9187205`
+
+**Hala / mobile**
+- [ ] „Ilość” w szczegółach każdego etapu (desktop + telefon) — `bc092f5`
+- [ ] Pasek „Cofnij” przez 60 s po oznaczeniu etapu (desktop + telefon) — cofa etap, zwraca wydany towar (ZWR), czyści lustro u partnera
+- [ ] Telefon bez internetu: komunikat + „Spróbuj ponownie” zamiast „Brak zadań 🎉”; większe przyciski; pracownik produkcji startuje w „Moje zadania”
+- [ ] Stanowisko (desktop i telefon) pobiera tylko zlecenia z kategorii pracownika — zadania mają być te same co wcześniej (sprawdzić na koncie z etapami)
+- [ ] Duchy: 21 starych zleceń Disting z migracji (2024–2026) zamknięte bez wydania, rezerwacje zdjęte — nie ma ich już na górze stanowiska — `a36cb9b`
+
+**Uprawnienia**
+- [ ] Klucze API widzi/zmienia tylko admin (aplikacja + RLS) — kierownik działu nie widzi — `b9dac19`
+- [ ] „+ Nowe zamówienie” tylko dla kierowników (także drzwi wewnętrzne — jeśli magazyn je zakłada, przywrócić) — `97c7d5b`
+
+**Wcześniej (21.10, beta.55): stanowisko, logowanie, magazyn/inwentaryzacja** — opis w historii gita (`ae435f1`, `cebbd16`, commit magazynu przed `c0fefff`)
+
+### ❓ Czeka na decyzję (22.10)
+- [ ] **Webhook szyb przy tworzeniu zlecenia** — zostawić automatyczną wysyłkę do Make przy zapisie nowego zlecenia ze szkłem, czy wyłączyć (szyby zamawiane tylko PDF-em z zakładki Szyby)?
+- [ ] **(21) `revalidate_bot_order` kasuje „MOŻLIWY DUPLIKAT”** — edycja zlecenia z konfiguratora przelicza ostrzeżenia od nowa (model/firma/nr klienta) i gubi ostrzeżenie o duplikacie dodane przez bota → poprawiona literówka = zlecenie znika z Weryfikacji jako czyste. Poprawka: zachować ostrzeżenie duplikatu przy przeliczaniu
+- [ ] **(22) Surowe błędy z bazy** — ~126 miejsc pokazuje techniczny komunikat po angielsku („violates foreign key constraint…”), a dymek błędu znika po 3 s i chowa się pod otwartym oknem. Poprawka: tłumaczenie typowych błędów na polski + dłuższy dymek błędu nad oknami
+- [ ] **(23) Profil się nie wczytał** — przy chwilowym braku sieci przy logowaniu rola = pusta → program traktuje to jak starą rolę: pracownik hali widzi całe menu i ceny (zapisy blokuje baza, ale dane widać). Poprawka: bez profilu tylko komunikat „Nie wczytano profilu — odśwież”
+
 ## 🟠 ODŁOŻONE Z PRZEGLĄDU (2026-10-22)
 
 - [ ] **Szablon etykiety Disting** (id 4): wiersz „Szklenie dostawki” używa `{{naswietle_szkl}}` zamiast pola dostawki (`dostawka_szkl`) — poprawić w edytorze szablonów
