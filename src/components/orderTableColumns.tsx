@@ -433,6 +433,7 @@ const ORDER_STACK: Record<string, string> = {
   opening: 'direction',
   frame_color: 'wing_color',
   threshold_color: 'wing_color',
+  handle: 'hardware',
   entered_by: 'client_order_number',
   airtable_id: 'client_order_number',
   info: 'notes',
