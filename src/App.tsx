@@ -893,6 +893,16 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // STA → ST (Titan/Bastion): st_sheet na STA to order_number nogi ST
+  const handleStaTitanStSheetNavigate = useCallback((sheetValue: string, e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    const v = sheetValue.trim()
+    if (!v) return
+    setActiveTab('ST')
+    setSearchTerm(v)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleStTitanStaSheetNavigate = useCallback((sheetValue: string, e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
     const v = sheetValue.trim()
@@ -3389,6 +3399,7 @@ function App() {
                     onSetReleaseClearTarget={setReleaseClearTarget}
                     handleDistingStaSheetNavigate={handleDistingStaSheetNavigate}
                     handleStaDistingSheetNavigate={handleStaDistingSheetNavigate}
+                    handleStaTitanStSheetNavigate={handleStaTitanStSheetNavigate}
                     onHandleCancelOrderClick={handleCancelOrderClick}
                     onHandleRestoreOrder={handleRestoreOrder}
                     onShowHistory={handleShowOrderHistory}

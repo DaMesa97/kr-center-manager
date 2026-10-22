@@ -46,6 +46,7 @@ type StaDistingOrdersTableViewProps = OrderTableCtx & {
   onToggleOscReceived?: (order: Order) => void | Promise<void>
   handleDistingStaSheetNavigate: (staVal: string, event: MouseEvent<HTMLButtonElement>) => void
   handleStaDistingSheetNavigate: (distingVal: string, event: MouseEvent<HTMLButtonElement>) => void
+  handleStaTitanStSheetNavigate: (stVal: string, event: MouseEvent<HTMLButtonElement>) => void
 }
 
 const WYKONAWCA_COLORS: Record<string, string> = { Center: '#9b1c1c', Profil: '#16a34a', WZ: '#0369a1' }
@@ -136,6 +137,7 @@ function StaDistingOrdersTableView({
   onToggleOscReceived,
   handleDistingStaSheetNavigate,
   handleStaDistingSheetNavigate,
+  handleStaTitanStSheetNavigate,
   ...ctx
 }: StaDistingOrdersTableViewProps) {
   const { isManager, pushToast } = ctx
@@ -289,7 +291,7 @@ function StaDistingOrdersTableView({
 
     // NR. W ARKUSZU STA/DISTING: w „drugiej” zakładce to link do partnera
     const sheetCol = (
-      key: 'sta_sheet' | 'disting_sheet',
+      key: 'sta_sheet' | 'disting_sheet' | 'st_sheet',
       label: string,
       linkTab: string,
       linkTitle: (v: string) => string,
@@ -378,8 +380,21 @@ function StaDistingOrdersTableView({
       ...stageCols,
       ...staOscCols,
       releaseCol(ctx, { thClassName: 'release-date-th' }),
-      sheetCol('sta_sheet', 'NR. W ARKUSZU STA', 'Disting', (v) => `Przejdź do zamówienia STA (${v})`, handleDistingStaSheetNavigate),
-      sheetCol('disting_sheet', 'NR. W ARKUSZU DISTING', 'STA', (v) => `Przejdź do zamówienia Disting (${v})`, handleStaDistingSheetNavigate),
+      // Zakładka STA: sta_sheet jest tu ZAWSZE puste (to pole zwrotne na
+      // zleceniach Disting) — zamiast niego NR W ARKUSZU ST (noga Titan/Bastion)
+      // z Distingiem piętrowanym pod spodem. Zakładka Disting: bez zmian.
+      ...(activeTab === 'STA'
+        ? [
+            sheetCol('st_sheet', 'NR. W ARKUSZU ST', 'STA', (v) => `Przejdź do zamówienia ST — Titan (${v})`, handleStaTitanStSheetNavigate),
+            {
+              ...sheetCol('disting_sheet', 'NR. W ARKUSZU DISTING', 'STA', (v) => `Przejdź do zamówienia Disting (${v})`, handleStaDistingSheetNavigate),
+              stackUnder: 'st_sheet',
+            },
+          ]
+        : [
+            sheetCol('sta_sheet', 'NR. W ARKUSZU STA', 'Disting', (v) => `Przejdź do zamówienia STA (${v})`, handleDistingStaSheetNavigate),
+            sheetCol('disting_sheet', 'NR. W ARKUSZU DISTING', 'STA', (v) => `Przejdź do zamówienia Disting (${v})`, handleStaDistingSheetNavigate),
+          ]),
       textCol('notes', 'UWAGI', (o) => o.notes, { className: 'col-notes' }),
       textCol('client_order_number', 'NUMER ZAMÓWIENIA KLIENTA', (o) => o.client_order_number),
       textCol('defects', 'BRAKI', (o) => o.defects),
@@ -396,7 +411,7 @@ function StaDistingOrdersTableView({
     return withOrderStacking(cols)
     // ctx to nowy obiekt przy każdym renderze — zależności pole po polu przez orderCtxDeps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowInfo, activeTab, orderStageColumnDefs, orders, linkedOrders, canSeePrices, productionStageUpdating, onMarkProductionStageWithProfileInitials, onSetStageRevertTarget, onToggleOscReceived, handleDistingStaSheetNavigate, handleStaDistingSheetNavigate, ...orderCtxDeps(ctx)])
+  }, [rowInfo, activeTab, orderStageColumnDefs, orders, linkedOrders, canSeePrices, productionStageUpdating, onMarkProductionStageWithProfileInitials, onSetStageRevertTarget, onToggleOscReceived, handleDistingStaSheetNavigate, handleStaDistingSheetNavigate, handleStaTitanStSheetNavigate, ...orderCtxDeps(ctx)])
 
   return (
     <DataTable
