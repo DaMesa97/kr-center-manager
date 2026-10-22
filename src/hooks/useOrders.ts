@@ -1415,14 +1415,9 @@ export function useOrders({
         const staId = Number((staRow as { id: number }).id)
         const staNr = String((staRow as { order_number: string }).order_number ?? '')
 
-        const hasDistGlass = !!(distMapped.top_light || distMapped.side_panel_a || distMapped.side_panel_b)
-        if (hasDistGlass && distRow) {
-          void sendGlassOrderWebhook(distRow as Order)
-        }
-        const hasStaGlass = !!(staMapped.top_light || staMapped.side_panel_a || staMapped.side_panel_b)
-        if (hasStaGlass && staRow) {
-          void sendGlassOrderWebhook(staRow as Order)
-        }
+        // AUTO-wysyłka szyb przy tworzeniu WYŁĄCZONA (decyzja Tymka 2026-10-22):
+        // szyby zamawia się wyłącznie świadomie z zakładki Szyby (PDF/przycisk
+        // z potwierdzeniem) — zapis zlecenia nie strzela już do szklarza
 
         const { error: linkErr } = await supabase
           .from('orders')
@@ -1461,19 +1456,8 @@ export function useOrders({
       const savedId = (savedOrder as Order).id
       await reserveStockForOrderWithToasts(savedId!)
 
-      const hasRealDim = (val: string | null | undefined) => {
-        if (!val) return false
-        const parts = val.split('×')
-        return parts[0]?.trim() !== '' || parts[1]?.trim() !== ''
-      }
-
-      const hasGlass =
-        hasRealDim(mapped.top_light) ||
-        hasRealDim(mapped.side_panel_a) ||
-        hasRealDim(mapped.side_panel_b)
-      if (hasGlass && savedOrder) {
-        void sendGlassOrderWebhook(savedOrder as Order)
-      }
+      // AUTO-wysyłka szyb przy tworzeniu WYŁĄCZONA (decyzja Tymka 2026-10-22)
+      // — zamawianie tylko z zakładki Szyby (świadomy klik z potwierdzeniem)
 
       setIsModalOpen(false)
       setStaFormData(INITIAL_STA_ORDER_FORM)

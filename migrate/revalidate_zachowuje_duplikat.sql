@@ -1,0 +1,8 @@
+-- (21) z przeglądu 22.10 (wdrożone przez MCP jako revalidate_zachowuje_duplikat
+-- + _fix, 2026-10-22): revalidate_bot_order przeliczał warnings OD ZERA, więc
+-- edycja zlecenia z konfiguratora kasowała ostrzeżenie "MOZLIWY DUPLIKAT"
+-- dodane przez create_bot_order — poprawiona literówka = duplikat znikał
+-- z Weryfikacji jako czysty.
+-- Fix: ostrzeżenia zawierające 'duplikat' (ILIKE) ze starych warnings są
+-- zachowywane przy przeliczaniu i podtrzymują needs_review.
+-- (pełna treść funkcji: migracja revalidate_zachowuje_duplikat_fix w Supabase)

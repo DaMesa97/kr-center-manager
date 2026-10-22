@@ -107,8 +107,8 @@ W aplikacji NIC nie było przeklikane — odhacz po sprawdzeniu:
 **Wcześniej (21.10, beta.55): stanowisko, logowanie, magazyn/inwentaryzacja** — opis w historii gita (`ae435f1`, `cebbd16`, commit magazynu przed `c0fefff`)
 
 ### ❓ Czeka na decyzję (22.10)
-- [ ] **Webhook szyb przy tworzeniu zlecenia** — zostawić automatyczną wysyłkę do Make przy zapisie nowego zlecenia ze szkłem, czy wyłączyć (szyby zamawiane tylko PDF-em z zakładki Szyby)?
-- [ ] **(21) `revalidate_bot_order` kasuje „MOŻLIWY DUPLIKAT”** — edycja zlecenia z konfiguratora przelicza ostrzeżenia od nowa (model/firma/nr klienta) i gubi ostrzeżenie o duplikacie dodane przez bota → poprawiona literówka = zlecenie znika z Weryfikacji jako czyste. Poprawka: zachować ostrzeżenie duplikatu przy przeliczaniu
+- [x] **Webhook szyb przy tworzeniu zlecenia** — DECYZJA (22.10 wieczór): WYŁĄCZONE. Szyby zamawiane wyłącznie świadomie z zakładki Szyby (PDF/przycisk z potwierdzeniem). Auto-wysyłka przy zapisie STA/pary usunięta z useOrders
+- [x] **(21) `revalidate_bot_order` kasuje „MOŻLIWY DUPLIKAT”** — NAPRAWIONE (migracja revalidate_zachowuje_duplikat_fix): ostrzeżenia zawierające „duplikat” są zachowywane przy przeliczaniu; przetestowane w transakcji z rollbackiem
 - [ ] **(22) Surowe błędy z bazy** — ~126 miejsc pokazuje techniczny komunikat po angielsku („violates foreign key constraint…”), a dymek błędu znika po 3 s i chowa się pod otwartym oknem. Poprawka: tłumaczenie typowych błędów na polski + dłuższy dymek błędu nad oknami
 - [ ] **(23) Profil się nie wczytał** — przy chwilowym braku sieci przy logowaniu rola = pusta → program traktuje to jak starą rolę: pracownik hali widzi całe menu i ceny (zapisy blokuje baza, ale dane widać). Poprawka: bez profilu tylko komunikat „Nie wczytano profilu — odśwież”
 
