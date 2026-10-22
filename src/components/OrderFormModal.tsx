@@ -74,7 +74,6 @@ function OrderFormModal(props: OrderFormModalProps) {
     editingOrderId,
     editingOrderBaseline,
     newOrderFormNumber,
-    submitOnEnterInInput,
     handleSaveOrder,
     staFormData,
     orderFormErrors,
@@ -373,7 +372,6 @@ function OrderFormModal(props: OrderFormModalProps) {
                   </div>
                 <div
                   className="order-form-grid order-form-grid--sta"
-                  onKeyDown={(e) => submitOnEnterInInput(e, () => void handleSaveOrder())}
                 >
                   <label className="order-field-full order-field-full--keep">
                     <span className="order-field-label-text">Numer zlecenia</span>
@@ -868,7 +866,6 @@ function OrderFormModal(props: OrderFormModalProps) {
               ) : activeTab === 'ST' ? (
                 <div
                   className="order-form-grid order-form-grid--sta"
-                  onKeyDown={(e) => submitOnEnterInInput(e, () => void handleSaveOrder())}
                 >
                   <label className="order-field-full">
                     <span className="order-field-label-text">Numer zlecenia</span>
@@ -1120,7 +1117,6 @@ function OrderFormModal(props: OrderFormModalProps) {
               ) : activeTab === 'Techniczne' ? (
                 <div
                   className="order-form-grid order-form-grid--sta"
-                  onKeyDown={(e) => submitOnEnterInInput(e, () => void handleSaveOrder())}
                 >
                   <label className="order-field-full">
                     <span className="order-field-label-text">Numer zlecenia</span>
@@ -1346,7 +1342,6 @@ function OrderFormModal(props: OrderFormModalProps) {
               ) : activeTab === 'Bastion' ? (
                 <div
                   className="order-form-grid order-form-grid--sta"
-                  onKeyDown={(e) => submitOnEnterInInput(e, () => void handleSaveOrder())}
                 >
                   <label className="order-field-full">
                     <span className="order-field-label-text">Numer zlecenia</span>
@@ -1673,7 +1668,6 @@ function OrderFormModal(props: OrderFormModalProps) {
               ) : (
                 <div
                   className="order-form-grid"
-                  onKeyDown={(e) => submitOnEnterInInput(e, () => void handleSaveOrder())}
                 >
                   <label className="order-field-full">
                     <span className="order-field-label-text">Numer zlecenia</span>
