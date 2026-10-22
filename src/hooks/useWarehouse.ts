@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { appConfirm } from '../lib/appDialogs'
 import { buildRecipeAutoName, isInternalWarehouseCode } from '../utils'
 import {
   INITIAL_MM_FORM, INITIAL_PZ_FORM, INITIAL_RECIPE_FORM
@@ -1484,6 +1485,39 @@ export function useWarehouse({
       return
     }
 
+    // Miękka kontrola dostępności w magazynie źródłowym: ostrzega (lista braków),
+    // ale NIE blokuje — fizycznie towar mógł już pojechać, a stan bywa nieaktualny.
+    const { data: srcStock, error: srcErr } = await supabase
+      .from('warehouse_stock')
+      .select('component_id, quantity, reserved_quantity')
+      .eq('warehouse_id', mmFormData.warehouse_from_id)
+      .in('component_id', validItems.map((it) => it.component_id))
+    if (srcErr) {
+      pushToast(`Nie sprawdzono stanu magazynu źródłowego: ${srcErr.message}`, 'error')
+      return
+    }
+    const stockBy = new Map(
+      ((srcStock ?? []) as Array<{ component_id: number; quantity: number; reserved_quantity: number }>).map((s) => [
+        s.component_id,
+        s,
+      ]),
+    )
+    const shortages = validItems.flatMap((it) => {
+      const s = stockBy.get(it.component_id)
+      const onHand = Number(s?.quantity ?? 0)
+      const available = onHand - Number(s?.reserved_quantity ?? 0)
+      if (it.quantity <= available) return []
+      const name = warehouseComponents.find((c) => c.id === it.component_id)?.name ?? `#${it.component_id}`
+      return [`• ${name}: przesuwasz ${it.quantity}, na stanie ${onHand}, wolne ${available}`]
+    })
+    if (shortages.length > 0) {
+      const ok = await appConfirm(
+        `W magazynie źródłowym brakuje wolnego towaru:\n${shortages.join('\n')}\n\nPo przesunięciu stan / dostępne zejdą poniżej zera. Przesunąć mimo to?`,
+        { title: 'Brak na magazynie źródłowym', confirmLabel: 'Przesuń mimo to' },
+      )
+      if (!ok) return
+    }
+
     setMmSaving(true)
     try {
       const { data, error } = await supabase.rpc('create_mm_document', {
@@ -1518,7 +1552,7 @@ export function useWarehouse({
     } finally {
       setMmSaving(false)
     }
-  }, [mmFormData, pushToast, fetchMmGroups, fetchWarehouseStock, fetchOrders, fetchAlertsBadgeCount, touchSession])
+  }, [mmFormData, warehouseComponents, pushToast, fetchMmGroups, fetchWarehouseStock, fetchOrders, fetchAlertsBadgeCount, touchSession])
 
   const handleMmPreview = useCallback((referenceDoc: string) => {
     setDocDetailsModal({ open: true, referenceDoc, movementType: 'MM' })
