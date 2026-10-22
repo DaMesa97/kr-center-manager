@@ -123,7 +123,7 @@ export function useWarehouse({
     let from = 0
     const PAGE = 1000
     let fetchError: { message: string } | null = null
-    while (true) {
+    for (;;) {
       const { data, error } = await supabase
         .from('warehouse_components')
         .select('*')
@@ -195,7 +195,7 @@ export function useWarehouse({
     let from = 0
     const PAGE = 1000
     let fetchError: { message: string } | null = null
-    while (true) {
+    for (;;) {
       const { data, error } = await supabase
         .from('warehouse_stock')
         .select(
@@ -952,7 +952,7 @@ export function useWarehouse({
     let from = 0
     const PAGE = 1000
     let fetchError: { message: string } | null = null
-    while (true) {
+    for (;;) {
       const { data, error } = await supabase
         .from('stock_reservations')
         .select(
@@ -1038,6 +1038,56 @@ export function useWarehouse({
   // Recipe operations
   // ---------------------------------------------------------------------------
 
+  // Zmiana receptury → przeliczenie rezerwacji otwartych zleceń jej kategorii
+  // (porcjami — limit zapytania 8 s). Zlecenia, z których coś już wydano,
+  // baza pomija (wydanego towaru automat nie cofa) — zgłaszamy ich liczbę.
+  const rebuildReservationsForCategories = useCallback(
+    async (categories: Array<string | null | undefined>) => {
+      const cats = [...new Set(categories.filter((c): c is string => !!c && c.trim() !== ''))]
+      if (cats.length === 0) return
+      pushToast(`Przeliczam rezerwacje otwartych zleceń (${cats.join(', ')})…`, 'info')
+      let rebuilt = 0
+      let skipped = 0
+      let failed = 0
+      const failedOrders: string[] = []
+      for (const category of cats) {
+        let afterId = 0
+        for (;;) {
+          const { data, error } = await supabase.rpc('rebuild_reservations_for_category', {
+            p_category: category,
+            p_after_id: afterId,
+            p_limit: 120,
+          })
+          if (error) {
+            pushToast(`Nie przeliczono rezerwacji (${category}): ${error.message}`, 'error')
+            return
+          }
+          const row = ((data ?? []) as Array<{
+            r_rebuilt: number
+            r_skipped_released: number
+            r_failed: number
+            r_failed_orders: string[] | null
+            r_last_id: number
+            r_done: boolean
+          }>)[0]
+          if (!row) break
+          rebuilt += row.r_rebuilt
+          skipped += row.r_skipped_released
+          failed += row.r_failed
+          failedOrders.push(...(row.r_failed_orders ?? []))
+          if (row.r_done || row.r_last_id <= afterId) break
+          afterId = row.r_last_id
+        }
+      }
+      const parts = [`Przeliczono rezerwacje ${rebuilt} zleceń`]
+      if (skipped > 0) parts.push(`${skipped} pominięto (już coś wydano z magazynu — skoryguj ręcznie)`)
+      if (failed > 0) parts.push(`${failed} z błędem: ${failedOrders.slice(0, 3).join('; ')}`)
+      pushToast(parts.join(' · '), failed > 0 ? 'error' : skipped > 0 ? 'info' : 'success')
+      await fetchWarehouseStock()
+    },
+    [pushToast, fetchWarehouseStock],
+  )
+
   const handleDeleteRecipe = useCallback(
     async (id: number) => {
       touchSession()
@@ -1058,10 +1108,11 @@ export function useWarehouse({
           }
           pushToast('Receptura usunięta', 'success')
           await fetchWarehouseRecipes()
+          void rebuildReservationsForCategories([recipe?.category])
         },
       })
     },
-    [pushToast, fetchWarehouseRecipes, warehouseRecipes, setDeleteConfirm, touchSession],
+    [pushToast, fetchWarehouseRecipes, warehouseRecipes, setDeleteConfirm, touchSession, rebuildReservationsForCategories],
   )
 
   const handleToggleRecipeActive = useCallback(
@@ -1072,8 +1123,9 @@ export function useWarehouse({
         return
       }
       await fetchWarehouseRecipes()
+      void rebuildReservationsForCategories([warehouseRecipes.find((r) => r.id === id)?.category])
     },
-    [pushToast, fetchWarehouseRecipes],
+    [pushToast, fetchWarehouseRecipes, warehouseRecipes, rebuildReservationsForCategories],
   )
 
   const handleRestoreRecipe = useCallback(
@@ -1085,8 +1137,9 @@ export function useWarehouse({
       }
       pushToast('Receptura przywrócona', 'success')
       await fetchWarehouseRecipes()
+      void rebuildReservationsForCategories([warehouseRecipes.find((r) => r.id === id)?.category])
     },
-    [pushToast, fetchWarehouseRecipes],
+    [pushToast, fetchWarehouseRecipes, warehouseRecipes, rebuildReservationsForCategories],
   )
 
   const handleOpenRecipeEditor = useCallback(() => {
@@ -1260,10 +1313,13 @@ export function useWarehouse({
       )
       setRecipeEditorOpen(false)
       await fetchWarehouseRecipes()
+      // zmiana kategorii receptury dotyka obu kategorii (stara traci, nowa zyskuje)
+      const prevCategory = warehouseRecipes.find((r) => r.id === recipeId)?.category
+      void rebuildReservationsForCategories([recipeFormData.category, prevCategory])
     } finally {
       setRecipeSaving(false)
     }
-  }, [recipeFormData, recipeEditorMode, pushToast, fetchWarehouseRecipes, touchSession])
+  }, [recipeFormData, recipeEditorMode, pushToast, fetchWarehouseRecipes, touchSession, warehouseRecipes, rebuildReservationsForCategories])
 
   // ---------------------------------------------------------------------------
   // Door component modals
