@@ -1209,6 +1209,22 @@ export function supabaseNumericFromForm(value: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/**
+ * Czy formularz zamówienia różni się od zrzutu z chwili otwarcia. Wszystkie pola
+ * (suma kluczy), stringi bez białych znaków na brzegach, null/undefined = ''.
+ * Brak zrzutu = nie pytamy.
+ */
+export function isOrderFormDirty(
+  snapshot: Record<string, unknown> | null,
+  current: Record<string, unknown>,
+): boolean {
+  if (!snapshot) return false
+  const norm = (v: unknown) => (v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v).trim())
+  const keys = new Set([...Object.keys(snapshot), ...Object.keys(current)])
+  for (const k of keys) if (norm(snapshot[k]) !== norm(current[k])) return true
+  return false
+}
+
 /** Kopia obiektu bez podanych kluczy (np. pól, których formularz nie ma). */
 export function omitKeys<T extends Record<string, unknown>, K extends keyof T>(obj: T, keys: readonly K[]): Omit<T, K> {
   const out = { ...obj }

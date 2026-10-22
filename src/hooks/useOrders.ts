@@ -29,6 +29,7 @@ import {
   isStTitanSystemLabel,
   isTitanSystem,
   mergeOrderExtraFields,
+  isOrderFormDirty,
   omitKeys,
   orderToBastionForm,
   orderToLegacyForm,
@@ -2476,6 +2477,39 @@ export function useOrders({
     })
   }, [isManager, orders, linkedOrders, fetchOrders, fetchWarehouseStock, fetchSmartRop, pushToast, currentUser, setDeleteConfirm, findTitanBastionLegIds])
 
+  // Wypełnia formularz właściwej kategorii danymi zlecenia i zwraca dokładnie to,
+  // co trafiło do formularza — to jest zrzut do pytania o niezapisane zmiany
+  // (porównanie z surowym zleceniem pytało zawsze: formularz ST/Bastion nie ma
+  // części pól zlecenia, a domyślne wartości różnią się od pustych w bazie).
+  const fillFormFromOrder = useCallback(
+    (category: string, order: Order, patch: Record<string, unknown> = {}): Record<string, unknown> => {
+      if (category === 'STA' || category === 'Disting') {
+        const f = { ...orderToStaForm(order), ...patch } as StaOrderFormData
+        setStaFormData(f)
+        return f
+      }
+      if (category === 'ST') {
+        const f = { ...orderToStForm(order), ...patch } as StOrderFormData
+        setStFormData(f)
+        return f
+      }
+      if (category === 'Techniczne') {
+        const f = { ...orderToTechniczneForm(order), ...patch } as TechniczneOrderFormData
+        setTechniczneFormData(f)
+        return f
+      }
+      if (category === 'Bastion') {
+        const f = { ...orderToBastionForm(order), ...patch } as BastionOrderFormData
+        setBastionFormData(f)
+        return f
+      }
+      const f = { ...orderToLegacyForm(order), ...patch } as NewOrderFormData
+      setFormData(f)
+      return f
+    },
+    [],
+  )
+
   const openEditOrderModal = useCallback((order: Order) => {
     if (!isManager) return
     if (order.id === undefined) {
@@ -2493,20 +2527,9 @@ export function useOrders({
         : rawCategory.toLowerCase().includes('bastion')
           ? 'Bastion'
           : 'Disting'
-    if (resolvedCategory === 'STA' || resolvedCategory === 'Disting') {
-      setStaFormData(orderToStaForm(order))
-    } else if (resolvedCategory === 'ST') {
-      setStFormData(orderToStForm(order))
-    } else if (resolvedCategory === 'Techniczne') {
-      setTechniczneFormData(orderToTechniczneForm(order))
-    } else if (resolvedCategory === 'Bastion') {
-      setBastionFormData(orderToBastionForm(order))
-    } else {
-      setFormData(orderToLegacyForm(order))
-    }
-    setOrderFormOpenSnapshot(null)
+    setOrderFormOpenSnapshot(fillFormFromOrder(resolvedCategory, order))
     setIsModalOpen(true)
-  }, [isManager, pushToast, setShowCompanyDropdown])
+  }, [isManager, pushToast, setShowCompanyDropdown, fillFormFromOrder])
 
   const handleDuplicateOrder = useCallback(async (order: Order) => {
     if (!isManager) return
@@ -2524,27 +2547,17 @@ export function useOrders({
     setEditingOrderBaseline(null)
     setShowCompanyDropdown(false)
 
-    if (resolvedCategory === 'STA' || resolvedCategory === 'Disting') {
-      setStaFormData({
-        ...orderToStaForm(order),
+    const isSta = resolvedCategory === 'STA' || resolvedCategory === 'Disting'
+    setOrderFormOpenSnapshot(
+      fillFormFromOrder(resolvedCategory, order, {
         order_number: newNr,
         // Wyczyść etapy produkcji — nowe zamówienie zaczyna od zera
-        stage1: '', stage2_1: '', stage2_2: '', stage3: '', stage4: '', stage5: '',
-      })
-    } else if (resolvedCategory === 'ST') {
-      setStFormData({ ...orderToStForm(order), order_number: newNr })
-    } else if (resolvedCategory === 'Techniczne') {
-      setTechniczneFormData({ ...orderToTechniczneForm(order), order_number: newNr })
-    } else if (resolvedCategory === 'Bastion') {
-      setBastionFormData({ ...orderToBastionForm(order), order_number: newNr })
-    } else {
-      setFormData({ ...orderToLegacyForm(order), order_number: newNr })
-    }
-
-    setOrderFormOpenSnapshot(null)
+        ...(isSta ? { stage1: '', stage2_1: '', stage2_2: '', stage3: '', stage4: '', stage5: '' } : {}),
+      }),
+    )
     setIsModalOpen(true)
     pushToast(`Duplikowanie zamówienia — nowy nr ${newNr}`, 'info')
-  }, [isManager, fetchNextOrderNumber, pushToast, setShowCompanyDropdown])
+  }, [isManager, fetchNextOrderNumber, pushToast, setShowCompanyDropdown, fillFormFromOrder])
 
   const closeNewOrderModal = useCallback(() => {
     if (isSaving) {
@@ -2570,39 +2583,9 @@ export function useOrders({
                 ? bastionFormData
                 : formData
 
-      const baseline: Record<string, unknown> | null =
-        editingOrderId !== null && editingOrderBaseline
-          ? (editingOrderBaseline as Record<string, unknown>)
-          : orderFormOpenSnapshot
-
-      if (!baseline) return false
-
-      const fieldsToCompare = [
-        'company',
-        'system',
-        'model',
-        'wing_color',
-        'frame_color',
-        'width',
-        'height',
-        'direction',
-        'glazing',
-        'hardware',
-        'handle',
-        'peephole',
-        'quantity',
-        'notes',
-        'client_order_number',
-        'threshold_color',
-        'decorative_panel',
-      ] as const
-
-      const activeRec = active as Record<string, unknown>
-      return fieldsToCompare.some((field) => {
-        const oldVal = baseline[field] ?? ''
-        const newVal = activeRec[field] ?? ''
-        return String(oldVal).trim() !== String(newVal).trim()
-      })
+      // Zrzut formularza z chwili otwarcia (nowe / edycja / duplikat / weryfikacja)
+      // — porównujemy WSZYSTKIE pola formularza, nie wybraną listę
+      return isOrderFormDirty(orderFormOpenSnapshot, active as Record<string, unknown>)
     })()
 
     if (!isDirty) {
@@ -2621,8 +2604,6 @@ export function useOrders({
     })
   }, [
     isSaving,
-    editingOrderId,
-    editingOrderBaseline,
     activeTab,
     orderFormOpenSnapshot,
     staFormData,
@@ -2762,21 +2743,10 @@ export function useOrders({
       setEditingOrderId(order.id)
       setEditingOrderBaseline(order)
       setShowCompanyDropdown(false)
-      if (category === 'STA' || category === 'Disting') {
-        setStaFormData(orderToStaForm(order))
-      } else if (category === 'ST') {
-        setStFormData(orderToStForm(order))
-      } else if (category === 'Techniczne') {
-        setTechniczneFormData(orderToTechniczneForm(order))
-      } else if (category === 'Bastion') {
-        setBastionFormData(orderToBastionForm(order))
-      } else {
-        setFormData(orderToLegacyForm(order))
-      }
-      setOrderFormOpenSnapshot(null)
+      setOrderFormOpenSnapshot(fillFormFromOrder(category, order))
       setIsModalOpen(true)
     },
-    [isManager, openInternalDoorDetails, pushToast, setActiveTab, setActiveSubTab, setShowCompanyDropdown],
+    [isManager, openInternalDoorDetails, pushToast, setActiveTab, setActiveSubTab, setShowCompanyDropdown, fillFormFromOrder],
   )
 
   const handleShowOrderHistory = useCallback((order: Order) => {
