@@ -520,6 +520,7 @@ function App() {
     applyStationOrderEvent,
     handleStageComplete,
     handleComplaintStageComplete,
+    handleStageUndo,
   } = useMyStation({ pushToast, currentUser })
 
   const {
@@ -3040,6 +3041,7 @@ function App() {
             stationProfiles={stationProfiles}
             onStageComplete={handleStageComplete}
             onComplaintStageComplete={handleComplaintStageComplete}
+            onStageUndo={handleStageUndo}
             loading={myStationLoading}
             pushToast={pushToast}
             isManager={isManager}

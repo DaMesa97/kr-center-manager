@@ -353,7 +353,6 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     { label: 'Kolor ościeżnicy', value: str(order.frame_color) },
     ...ORIENTATION,
     { label: 'System', value: str(order.system) },
-    { label: 'Ilość', value: str(order.quantity) },
   ]
   // pakowanie: co ma trafić do kartonu oprócz drzwi
   const PACK: DetailField[] = [
@@ -403,7 +402,9 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     else if (k === 'mag') group = PACK
   }
 
-  return [...NOTES, ...group].filter((f) => f.value !== '')
+  // Ilość na KAŻDYM etapie — 2 szt. to dwie ościeżnice/skrzydła do zrobienia
+  const QTY: DetailField = { label: 'Ilość', value: str(order.quantity) }
+  return [QTY, ...NOTES, ...group].filter((f) => f.value !== '')
 }
 
 export type StationOrderEvent = {

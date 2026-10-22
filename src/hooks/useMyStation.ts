@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { mirrorStageKey } from '../lib/stageMirror'
 import { markLocalStageWrite } from '../lib/stageWrites'
-import { isReleaseDateEmpty, parseProductionStages } from '../utils'
+import { clearStageLocally, stationUndoMessage, undoStationTask } from '../lib/stationUndo'
+import { ALL_STATION_CATEGORIES, fetchStationOrders } from '../lib/stationFetch'
+import { parseProductionStages } from '../utils'
 import type { Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
 import type { ToastVariant } from '../types'
 import {
@@ -115,54 +117,15 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       }
     }
     if (!userId) categories = []
-    scopeRef.current = new Set(categories ?? ['STA', 'Disting', 'ST', 'Bastion', 'Techniczne'])
+    scopeRef.current = new Set(categories ?? ALL_STATION_CATEGORIES)
 
-    const all: Order[] = []
-    let fetchError: { message: string } | null = null
-    if (categories === null || categories.length > 0) {
-      // Paginacja — PostgREST oddaje max 1000 wierszy na zapytanie
-      const PAGE = 1000
-      for (let from = 0; ; from += PAGE) {
-        let q = supabase
-          .from('orders')
-          .select('*')
-          // tylko OTWARTE — wydane nie są zadaniami
-          .is('release_date', null)
-        if (categories) q = q.in('category', categories)
-        const { data, error } = await q.order('id', { ascending: false }).range(from, from + PAGE - 1)
-        if (error) { fetchError = error; break }
-        all.push(...((data ?? []) as Order[]))
-        if (!data || data.length < PAGE) break
-      }
-      // Partnerzy zleceń łączonych z innych kategorii (Titan STA↔ST, Disting Plus) —
-      // od nich zależy, które etapy są blokowane (robi je druga strona)
-      if (!fetchError && categories) {
-        const have = new Set(all.map((o) => o.id))
-        const missing = [
-          ...new Set(all.map((o) => o.linked_order_id).filter((id): id is number => id != null && !have.has(id))),
-        ]
-        for (let i = 0; i < missing.length; i += 200) {
-          const { data, error } = await supabase.from('orders').select('*').in('id', missing.slice(i, i + 200))
-          if (error) { fetchError = error; break }
-          all.push(...((data ?? []) as Order[]))
-        }
-      }
-    }
+    const { data: stationOrders, error: fetchError } = await fetchStationOrders(categories)
     if (fetchError) {
       setMyStationLoading(false)
       pushToast(`Błąd: ${fetchError.message}`, 'error')
       return
     }
-
-    setMyStationOrders(
-      all.filter((o: Order) => {
-        const extra = o.extra_fields as Record<string, unknown> | null
-        if (extra?.cancelled === true) return false
-        // partner spoza naszych kategorii zostaje także po wydaniu (blokady etapów)
-        if (scopeRef.current.has(o.category ?? '') && !isReleaseDateEmpty(o.release_date)) return false
-        return true
-      }),
-    )
+    setMyStationOrders(stationOrders)
     await fetchStationComplaints()
     // Spinner schodzi dopiero po KOMPLECIE (zamówienia + reklamacje + kafelki) —
     // wcześniej klik "Zrobione" w oknie race'a widział pustą listę osób
@@ -329,7 +292,32 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     [pushToast, currentUser?.initials],
   )
 
+  // „Cofnij” tuż po pomyłce na stanowisku — wspólna logika z mobile (lib/stationUndo)
+  const handleStageUndo = useCallback(
+    async (task: MyTask): Promise<boolean> => {
+      const res = await undoStationTask(task)
+      if (!res.ok) {
+        pushToast(`Nie cofnięto etapu: ${res.error}`, 'error')
+        return false
+      }
+      const parse = (st: unknown, cat: string | null | undefined) => parseProductionStages(st, cat ?? task.category)
+      if (task.isComplaint) {
+        setMyStationComplaints((prev) =>
+          clearStageLocally(prev, task.complaintId, task.actualStageKey, task.linkedComplaintId, res.mirrorKey, parse),
+        )
+      } else {
+        setMyStationOrders((prev) =>
+          clearStageLocally(prev, task.order.id, task.actualStageKey, task.order.linked_order_id, res.mirrorKey, parse),
+        )
+      }
+      pushToast(stationUndoMessage(res, task.isComplaint === true), res.mirrorError ? 'error' : 'success')
+      return true
+    },
+    [pushToast],
+  )
+
   return {
+    handleStageUndo,
     myStationOrders,
     setMyStationOrders,
     myStationComplaints,

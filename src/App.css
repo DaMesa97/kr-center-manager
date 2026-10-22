@@ -4763,6 +4763,12 @@ html, body, #root {
   border-radius: 6px; margin-bottom: 16px;
   display: flex; gap: 24px; font-size: 0.9rem;
 }
+/* pasek „Cofnij” po oznaczeniu etapu (60 s) */
+.station-undo-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: #d8f0e4; color: #1d6d45; border: 1px solid #a7d8bd;
+  padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 0.9rem;
+}
 .my-station-ready-badge {
   background: #d8f0e4; color: #1d6d45;
   padding: 2px 7px; border-radius: 4px;

@@ -2,16 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Check, RefreshCw, Zap } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { mirrorStageKey } from '../../lib/stageMirror'
-import { isReleaseDateEmpty, isRushOrderSequence, orderRouteMark, parseProductionStages } from '../../utils'
+import { isRushOrderSequence, orderRouteMark, parseProductionStages } from '../../utils'
 import {
   buildComplaintTasks,
   buildTasks,
   fieldsForStage,
+  mergeStationOrderEvent,
   sortTasks,
+  stationEventNeedsRefetch,
   workersForTask,
   type MyTask,
   type StationWorker,
 } from '../../lib/stationLogic'
+import { ALL_STATION_CATEGORIES, fetchStationOrders } from '../../lib/stationFetch'
+import { clearStageLocally, stationUndoMessage, undoStationTask } from '../../lib/stationUndo'
 import type { Complaint, Order, WorkerStage } from '../../types'
 
 type ShortageRow = {
@@ -58,6 +62,21 @@ export default function MobileStationView({ userId }: Props) {
   const [toast, setToast] = useState<string | null>(null)
   const [myInitials, setMyInitials] = useState('')
   const mountedRef = useRef(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  // kategorie z etapami pracownika — realtime decyduje po nich, czy zlecenie jest „nasze”
+  const scopeRef = useRef<Set<string>>(new Set(ALL_STATION_CATEGORIES))
+  const ordersRef = useRef<Order[]>([])
+  useEffect(() => {
+    ordersRef.current = orders
+  }, [orders])
+  // „Cofnij” po pomyłce — pasek przez 60 s po oznaczeniu
+  const [lastDone, setLastDone] = useState<{ task: MyTask; initials: string } | null>(null)
+  const [undoing, setUndoing] = useState(false)
+  useEffect(() => {
+    if (!lastDone) return
+    const t = setTimeout(() => setLastDone(null), 60_000)
+    return () => clearTimeout(t)
+  }, [lastDone])
 
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flash = (msg: string, sticky = false) => {
@@ -71,41 +90,32 @@ export default function MobileStationView({ userId }: Props) {
   const load = useCallback(async () => {
     if (!userId) return
     setLoading(true)
-    // Tylko OTWARTE + paginacja — PostgREST ucina do 1000 wierszy, a stary
-    // limit liczył też wydane: starsze otwarte zlecenia wypadały z listy zadań
-    const fetchAllOpenOrders = async (): Promise<{ data: Order[]; error: { message: string } | null }> => {
-      const all: Order[] = []
-      let from = 0
-      const PAGE = 1000
-      while (true) {
-        const { data, error } = await supabase
-          .from('orders')
-          .select('*')
-          .is('release_date', null)
-          .order('id', { ascending: false })
-          .range(from, from + PAGE - 1)
-        if (error) return { data: all, error }
-        if (!data || data.length === 0) break
-        all.push(...(data as Order[]))
-        if (data.length < PAGE) break
-        from += PAGE
-      }
-      return { data: all, error: null }
-    }
-    const [stagesRes, ordersRes, profileRes, complaintsRes, allWsRes, profilesRes] = await Promise.all([
+    const [stagesRes, profileRes, complaintsRes, allWsRes, profilesRes] = await Promise.all([
       supabase.from('worker_stages').select('*').eq('worker_id', userId),
-      fetchAllOpenOrders(),
       supabase.from('profiles').select('initials').eq('id', userId).single(),
       supabase.from('complaints').select('*').is('release_date', null),
       supabase.from('worker_stages').select('*'),
       supabase.from('profiles').select('id, initials, full_name'),
     ])
+    // Tylko kategorie z etapami pracownika (+ partnerzy zleceń łączonych) —
+    // wcześniej telefon ciągnął WSZYSTKIE otwarte zlecenia (~5,8 tys.)
+    const categories = stagesRes.error
+      ? null
+      : [...new Set(((stagesRes.data ?? []) as WorkerStage[]).map((w) => w.category))]
+    const ordersRes = await fetchStationOrders(categories)
     if (!mountedRef.current) return
     setLoading(false)
     if (stagesRes.error || ordersRes.error) {
-      flash('Błąd ładowania zadań')
+      // NIE pokazuj pustej listy jak „Brak zadań 🎉” — to wygląda na koniec pracy
+      setLoadError(
+        typeof navigator !== 'undefined' && navigator.onLine === false
+          ? 'Brak internetu — nie pobrano zadań.'
+          : 'Nie udało się pobrać zadań.',
+      )
       return
     }
+    setLoadError(null)
+    scopeRef.current = new Set(categories ?? ALL_STATION_CATEGORIES)
     if (!profileRes.error) {
       setMyInitials(String((profileRes.data as { initials?: string } | null)?.initials ?? '').trim())
     }
@@ -116,13 +126,7 @@ export default function MobileStationView({ userId }: Props) {
         (profilesRes.data ?? []) as Array<{ id: string; initials: string | null; full_name: string | null }>,
       )
     }
-    const filtered = (ordersRes.data ?? []).filter((o: Order) => {
-      const extra = o.extra_fields as Record<string, unknown> | null
-      if (extra?.cancelled === true) return false
-      if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
-      return true
-    }) as Order[]
-    setOrders(filtered)
+    setOrders(ordersRes.data)
     if (!complaintsRes.error) {
       const openComplaints = ((complaintsRes.data ?? []) as Complaint[]).filter((c) => {
         const extra = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
@@ -150,18 +154,16 @@ export default function MobileStationView({ userId }: Props) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
-          if (payload.eventType === 'UPDATE') {
-            const updated = payload.new as Order
-            const extra = updated.extra_fields as Record<string, unknown> | null
-            if (extra?.cancelled === true || (updated.release_date && !isReleaseDateEmpty(updated.release_date))) {
-              // anulowane/wydane w międzyczasie — zdejmij z listy zadań
-              setOrders((prev) => prev.filter((o) => o.id !== updated.id))
-            } else {
-              setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
-            }
-          } else {
-            scheduleReload()
+          // scalanie lokalne jak na desktopie (lib/stationLogic) — wydane/anulowane
+          // znikają, nowe z naszych kategorii dochodzą; pełny przeładunek tylko,
+          // gdy brakuje partnera zlecenia łączonego
+          const ev = {
+            eventType: payload.eventType,
+            row: payload.new as Partial<Order> | null,
+            oldRow: payload.old as { id?: number } | null,
           }
+          if (stationEventNeedsRefetch(ordersRef.current, ev, scopeRef.current)) scheduleReload()
+          setOrders((prev) => mergeStationOrderEvent(prev, ev, scopeRef.current))
         },
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'complaints' }, () => scheduleReload())
@@ -297,6 +299,7 @@ export default function MobileStationView({ userId }: Props) {
           }),
         )
         flash('Etap reklamacji oznaczony ✓')
+        setLastDone({ task, initials: mark })
         setConfirmTask(null)
       } finally {
         if (mountedRef.current) setSaving(false)
@@ -368,10 +371,39 @@ export default function MobileStationView({ userId }: Props) {
         }),
       )
       flash('Etap oznaczony ✓')
+      setLastDone({ task, initials: mark })
       setConfirmTask(null)
       setShortageConfirm(null)
     } finally {
       if (mountedRef.current) setSaving(false)
+    }
+  }
+
+  const undoLast = async () => {
+    if (!lastDone || undoing) return
+    const task = lastDone.task
+    setUndoing(true)
+    try {
+      const res = await undoStationTask(task)
+      if (!mountedRef.current) return
+      if (!res.ok) {
+        flash(`Nie cofnięto: ${res.error}`, true)
+        return
+      }
+      const parse = (st: unknown, cat: string | null | undefined) => parseProductionStages(st, cat ?? task.category)
+      if (task.isComplaint) {
+        setComplaints((prev) =>
+          clearStageLocally(prev, task.complaintId, task.actualStageKey, task.linkedComplaintId, res.mirrorKey, parse),
+        )
+      } else {
+        setOrders((prev) =>
+          clearStageLocally(prev, task.order.id, task.actualStageKey, task.order.linked_order_id, res.mirrorKey, parse),
+        )
+      }
+      setLastDone(null)
+      flash(stationUndoMessage(res, task.isComplaint === true), !!res.mirrorError)
+    } finally {
+      if (mountedRef.current) setUndoing(false)
     }
   }
 
@@ -393,8 +425,29 @@ export default function MobileStationView({ userId }: Props) {
         </button>
       </div>
 
+      {lastDone && (
+        <div className="mstation-undo-bar" role="status">
+          <span>
+            Oznaczono {lastDone.task.stageHeader} ·{' '}
+            {lastDone.task.isComplaint ? lastDone.task.complaintNumber : lastDone.task.order.order_number} ({lastDone.initials})
+          </span>
+          <button type="button" className="mstation-undo-btn" disabled={undoing} onClick={() => void undoLast()}>
+            {undoing ? 'Cofam…' : 'Cofnij'}
+          </button>
+        </div>
+      )}
+
+      {loadError && (
+        <div className="mstation-load-error" role="alert">
+          {loadError}
+          <button type="button" onClick={() => void load()}>
+            Spróbuj ponownie
+          </button>
+        </div>
+      )}
+
       {tasks.length === 0 ? (
-        <div className="mpack-info">Brak zadań dla Twoich etapów 🎉</div>
+        loadError ? null : <div className="mpack-info">Brak zadań dla Twoich etapów 🎉</div>
       ) : (
         <>
           {groups.length > 1 && (

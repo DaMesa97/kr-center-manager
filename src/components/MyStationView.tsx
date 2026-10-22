@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Complaint, Order, WorkerStage } from '../types'
 import { isRushOrderSequence, orderRouteMark } from '../utils'
 import {
@@ -38,6 +38,8 @@ type Props = {
     opts?: { force?: boolean; markInitials?: string },
   ) => Promise<StageCompleteResult>
   onComplaintStageComplete: (task: MyTask, markInitials?: string) => Promise<StageCompleteResult>
+  /** „Cofnij” tuż po oznaczeniu (pomyłka) — etap + zwrot wydanego towaru */
+  onStageUndo: (task: MyTask) => Promise<boolean>
   loading: boolean
   pushToast: (msg: string, variant: ToastVariant) => void
   /** zgłaszanie zniszczeń tylko dla kierownika (wyprowadza towar ze stanu) */
@@ -53,6 +55,7 @@ export default function MyStationView({
   stationProfiles,
   onStageComplete,
   onComplaintStageComplete,
+  onStageUndo,
   loading,
   pushToast,
   isManager,
@@ -84,6 +87,14 @@ export default function MyStationView({
     }
   }
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  // Ostatnio oznaczone zadanie — pasek „Cofnij” przez UNDO_MS (pomyłka w hali)
+  const [lastDone, setLastDone] = useState<{ task: MyTask; initials?: string } | null>(null)
+  const [undoing, setUndoing] = useState(false)
+  useEffect(() => {
+    if (!lastDone) return
+    const t = setTimeout(() => setLastDone(null), UNDO_MS)
+    return () => clearTimeout(t)
+  }, [lastDone])
   const tasks = useMemo(
     () => sortTasks([...buildTasks(orders, workerStages), ...buildComplaintTasks(complaints, workerStages)]),
     [orders, complaints, workerStages],
@@ -285,6 +296,35 @@ export default function MyStationView({
         </div>
       </div>
 
+      {lastDone && (
+        <div className="station-undo-bar" role="status">
+          <span>
+            Oznaczono: <strong>{lastDone.task.stageHeader}</strong>
+            {lastDone.task.isComplaint ? ' reklamacji ' : ' zlecenia '}
+            <strong>{lastDone.task.isComplaint ? lastDone.task.complaintNumber : lastDone.task.order.order_number}</strong>
+            {lastDone.initials ? ` (${lastDone.initials})` : ''}
+          </span>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            disabled={undoing}
+            onClick={() => {
+              const run = async () => {
+                setUndoing(true)
+                try {
+                  if (await onStageUndo(lastDone.task)) setLastDone(null)
+                } finally {
+                  setUndoing(false)
+                }
+              }
+              void run()
+            }}
+          >
+            {undoing ? 'Cofam…' : 'Cofnij'}
+          </button>
+        </div>
+      )}
+
       {groups.length > 1 && (
         <div className="station-stage-chips">
           <button
@@ -391,6 +431,8 @@ export default function MyStationView({
                 setConfirmTask(null)
                 if (result.status === 'shortage') {
                   setShortageDialog({ task, shortages: result.shortages, markInitials })
+                } else if (result.status === 'ok') {
+                  setLastDone({ task, initials: markInitials })
                 }
               } finally {
                 setConfirmSaving(false)
@@ -424,8 +466,9 @@ export default function MyStationView({
             const run = async () => {
               if (!shortageDialog) return
               const { task, markInitials } = shortageDialog
-              await onStageComplete(task.order, task.stageKey, task.category, { force: true, markInitials })
+              const res = await onStageComplete(task.order, task.stageKey, task.category, { force: true, markInitials })
               setShortageDialog(null)
+              if (res.status === 'ok') setLastDone({ task, initials: markInitials })
             }
             void run()
           }}
@@ -435,6 +478,8 @@ export default function MyStationView({
     </div>
   )
 }
+
+const UNDO_MS = 60_000
 
 // Prefiks dla reklamacji — mają własną numerację id i mogłyby kolidować z zamówieniami
 const taskKey = (task: MyTask) =>

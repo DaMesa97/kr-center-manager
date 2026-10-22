@@ -18,6 +18,9 @@ export default function MobileApp() {
   const [error, setError] = useState('')
   const [view, setView] = useState<'packing' | 'station' | 'orders' | 'shipping'>('packing')
   const mountedRef = useRef(true)
+  // Pracownik produkcji ląduje od razu w swoich zadaniach (nie w Pakowaniu) —
+  // tylko raz po zalogowaniu, odświeżenie tokenu nie może przerzucać ekranu
+  const didDefaultViewRef = useRef(false)
 
   const loadProfile = async (userId: string) => {
     const { data } = await supabase
@@ -26,6 +29,10 @@ export default function MobileApp() {
       .eq('id', userId)
       .maybeSingle()
     if (!mountedRef.current) return
+    if (!didDefaultViewRef.current) {
+      didDefaultViewRef.current = true
+      if (String(data?.role ?? '') === 'pracownik_produkcji') setView('station')
+    }
     setUser({
       id: userId,
       initials: (data?.initials as string) || (data?.full_name as string)?.slice(0, 2)?.toUpperCase() || '??',
@@ -80,6 +87,9 @@ export default function MobileApp() {
   const handleSignOut = async () => {
     // scope:'local' — wyloguj ten telefon, nie wszystkie stanowiska konta
     await supabase.auth.signOut({ scope: 'local' })
+    // następna osoba na tym telefonie dostaje swój domyślny ekran
+    didDefaultViewRef.current = false
+    setView('packing')
     setUser(null)
     setUsername('')
     setPassword('')
