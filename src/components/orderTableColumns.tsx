@@ -426,6 +426,8 @@ export function orderRowClassName(
  * (klucz kolumny → klucz kolumny-matki). Brak matki w danej tabeli = bez zmian.
  */
 const ORDER_STACK: Record<string, string> = {
+  // (system scalony z modelem NA STAŁE przez modelSystemCol — nie piętrujemy)
+  disting_sheet: 'sta_sheet',
   production_day: 'order_date',
   height: 'width',
   opening: 'direction',

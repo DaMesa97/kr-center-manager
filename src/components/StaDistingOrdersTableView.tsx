@@ -385,7 +385,8 @@ function StaDistingOrdersTableView({
       textCol('defects', 'BRAKI', (o) => o.defects),
       textCol('entered_by', 'WPISAŁ', (o) => o.entered_by),
     ]
-    if (canSeePrices) cols.push(textCol('configurator_value', 'WARTOŚĆ KONFIGURATOR', (o) => o.configurator_value))
+    // WARTOŚĆ KONFIGURATOR usunięta z tabel (decyzja Tymka 2026-10-22) —
+    // wartość zostaje w danych i w szczegółach archiwum
     cols.push(
       textCol('info', 'INFO', (o) => o.info),
       textCol('airtable_id', 'AIRTABLE ID', (o) => o.airtable_id),

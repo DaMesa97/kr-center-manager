@@ -421,7 +421,6 @@ export default function ComplaintsView({
     textCol('client_order_number', 'NUMER ZAMÓWIENIA KLIENTA', (c) => c.client_order_number),
     textCol('defects', 'BRAKI', (c) => c.defects),
     textCol('created_by', 'WPISAŁ', (c) => c.created_by),
-    textCol('configurator_value', 'WARTOŚĆ KONFIGURATOR', (c) => c.configurator_value),
     textCol('info', 'INFO', (c) => c.info),
     textCol('airtable_id', 'AIRTABLE ID', (c) => c.airtable_id),
     textCol('label', 'ETYKIETA', (c) => c.label),
@@ -550,7 +549,6 @@ export default function ComplaintsView({
         textCol('notes', 'UWAGI', (c) => c.notes),
         textCol('client_order_number', 'NUMER ZAMÓWIENIA KLIENTA', (c) => c.client_order_number),
         textCol('created_by', 'WPISAŁ', (c) => c.created_by),
-        textCol('configurator_value', 'WARTOŚĆ KONFIGURATOR', (c) => c.configurator_value),
         textCol('airtable_id', 'AIRTABLE ID', (c) => c.airtable_id),
         {
           key: 'sta_sheet',

@@ -316,7 +316,7 @@ function BastionOrdersTableView({
       releaseCol(ctx, { label: 'ZREALIZOWANE', noun: 'realizację', thClassName: 'release-date-th' }),
       textCol('client_order_number', 'NUMER ZAMÓWIENIA KLIENTA', (o) => o.client_order_number),
     ]
-    if (canSeePrices) cols.push(textCol('configurator_value', 'WARTOŚĆ KONFIGURATOR', (o) => o.configurator_value))
+    // WARTOŚĆ KONFIGURATOR usunięta z tabel (decyzja Tymka 2026-10-22)
     cols.push(
       textCol('entered_by', 'WPISAŁ', (o) => o.entered_by),
       textCol('airtable_id', 'AIRTABLE ID', (o) => o.airtable_id),
