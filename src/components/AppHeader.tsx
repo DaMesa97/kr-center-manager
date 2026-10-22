@@ -194,6 +194,8 @@ type AppHeaderProps = {
   onAddContractor: () => void
   onAddUser: () => void
   onNewOrder: () => void
+  /** „+ Nowe zamówienie” tylko dla kierowników (pracownik hali / magazynier nie zakłada zleceń) */
+  canCreateOrder: boolean
   onSignOut: () => void
 }
 
@@ -216,6 +218,7 @@ export default function AppHeader({
   onAddContractor,
   onAddUser,
   onNewOrder,
+  canCreateOrder,
   onSignOut,
 }: AppHeaderProps) {
   const [showAbout, setShowAbout] = useState(false)
@@ -271,11 +274,11 @@ export default function AppHeader({
             <button type="button" className="btn btn-success btn-sm" onClick={onAddUser}>
               Dodaj użytkownika
             </button>
-          ) : (
+          ) : canCreateOrder ? (
             <button className="btn btn-success btn-sm" onClick={onNewOrder}>
               + Nowe zamówienie
             </button>
-          )}
+          ) : null}
 
           <div className="app-toolbar-user">
             <NotificationBell currentUserId={currentUserId} onNavigate={onNavigateTab} />

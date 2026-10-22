@@ -1062,8 +1062,8 @@ export function useOrders({
     setIsSaving(true)
 
     const isEditing = editingOrderId !== null && editingOrderBaseline !== null
-    if (isEditing && !isManager) {
-      pushToast('Brak uprawnień do edycji zamówień', 'error')
+    if (!isManager) {
+      pushToast(isEditing ? 'Brak uprawnień do edycji zamówień' : 'Brak uprawnień do zakładania zamówień', 'error')
       setIsSaving(false)
       return
     }
@@ -2060,6 +2060,8 @@ export function useOrders({
   }
 
   const openNewOrderModal = async () => {
+    // zakładanie zleceń tylko dla kierowników (przycisk też ukryty)
+    if (!isManager) return
     setEditingOrderId(null)
     setEditingOrderBaseline(null)
     setOrderFormErrors([])

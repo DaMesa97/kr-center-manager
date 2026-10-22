@@ -2503,6 +2503,7 @@ function App() {
           onAddContractor={openAddContractorModal}
           onAddUser={openAddUserModal}
           onNewOrder={activeTab === 'DrzwiWewnetrzne' ? openCreateInternalDoorOrder : openNewOrderModal}
+          canCreateOrder={isManager}
           onSignOut={() => void handleSignOut()}
         />
         <UpdateBanner />
