@@ -2409,7 +2409,9 @@ function App() {
           pushToast('Etapy zaktualizowane', 'success')
         }}
       />
+      {/* key = zlecenie: szkic/edycja komentarza nie przechodzą na następne zlecenie */}
       <OrderCommentsPanel
+        key={commentsPanelState.orderId ?? 'none'}
         open={commentsPanelState.open}
         orderId={commentsPanelState.orderId}
         orderNumber={commentsPanelState.orderNumber}
