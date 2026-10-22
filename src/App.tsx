@@ -99,7 +99,7 @@ import FeedbackView from './components/FeedbackView'
 import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
-import { can, isCategoryScoped, isManagerRole } from './lib/permissions'
+import { can, isAdminRole, isCategoryScoped, isManagerRole } from './lib/permissions'
 import { findCompanyInfo } from './lib/companyMatch'
 import { mergeIncomingStages } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
@@ -2980,7 +2980,7 @@ function App() {
             getRoleLabel={profileRoleLabel}
             getDepartmentLabel={profileDepartmentLabel}
           />
-        ) : isApiKeysTab && isManager ? (
+        ) : isApiKeysTab && (isAdminRole(currentUser?.role) || currentUser?.role === 'manager') ? (
           <ApiKeysView
             apiKeys={filteredApiKeys}
             filteredApiKeys={filteredApiKeys}
