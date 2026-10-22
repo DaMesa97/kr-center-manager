@@ -78,6 +78,7 @@
 - [ ] **Zgłoszenie #60 — łącznik naświetla** („ŁĄCZNIK NAROŻNY NIERDZEWNY NAŚWIETLA 68AC MAŁY”) siedzi w bazowych recepturach okuć STA #2 i #14 (kryterium tylko system) → rezerwuje się we wszystkich drzwiach STA, także bez naświetla. Ustalić z Dawidem: przenieść do receptury z kryterium „jest naświetle”
 - [ ] **Receptury do posprzątania**: receptura 55 pusta (0 komponentów), a wygrywa dobór; receptury 520 i 522 mają identyczne kryteria (duplikat)
 - [ ] **Disting — próg bez magazynu**: brak `warehouse_assignment` dla part=prog (to samo sprawdzić dla ST: prog / dostawka / naświetle)
+- [ ] **Migracja przed startem**: zakończone zlecenia z Excela MUSZĄ przyjść z datą wydania — inaczej wiszą jako otwarte „duchy” na górze stanowisk i rezerwują magazyn (22.10 zamknięto ręcznie 21 takich z `source='migracja'`, `migrate/duchy_migracji_zamkniecie.sql`)
 
 ## 🔴 PRIORYTET 1 — KRYTYCZNE dla 30 userów
 
