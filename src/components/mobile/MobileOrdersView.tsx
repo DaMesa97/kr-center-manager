@@ -4,14 +4,14 @@ import { supabase } from '../../supabaseClient'
 import { countCompletedStages, isReleaseDateEmpty, isRushOrderSequence } from '../../utils'
 import type { Order } from '../../types'
 
-const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
+const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'] as const
 
 const CAT_COLORS: Record<string, string> = {
   STA: '#005faf', Disting: '#4f46e5', ST: '#1d6d45',
-  Techniczne: '#854d0e', Bastion: '#b3261e', DrzwiWewnetrzne: '#0369a1',
+  Techniczne: '#854d0e', Bastion: '#b3261e', DrzwiWewnetrzne: '#0369a1', Aluminium: '#475569',
 }
 const CAT_LABEL: Record<string, string> = {
-  STA: 'STA', Disting: 'Disting', ST: 'ST', Techniczne: 'Techn.', Bastion: 'Bastion', DrzwiWewnetrzne: 'Wewn.',
+  STA: 'STA', Disting: 'Disting', ST: 'ST', Techniczne: 'Techn.', Bastion: 'Bastion', DrzwiWewnetrzne: 'Wewn.', Aluminium: 'Alu',
 }
 
 type Field = { label: string; value: string }
@@ -104,7 +104,7 @@ export default function MobileOrdersView() {
     let from = 0
     const PAGE = 1000
     let fetchError: { message: string } | null = null
-    while (true) {
+    for (;;) {
       const { data, error } = await supabase
         .from('orders')
         .select('*')

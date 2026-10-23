@@ -556,7 +556,17 @@ export function countCompletedStages(order: Order): {
 } {
   const category = order.category ?? ''
 
-  if (category === 'Techniczne' || category === 'DrzwiWewnetrzne' || category === 'Aluminium') {
+  // Aluminium: etapy per pozycja/sztuka — postęp przepisuje do zlecenia trigger
+  // (extra_fields.alu.progress = { done, total, percent }), tu tylko odczyt
+  if (category === 'Aluminium') {
+    const pr = ((order.extra_fields as Record<string, unknown> | null)?.alu as { progress?: { done?: number; total?: number; percent?: number } } | undefined)?.progress
+    const completed = Number(pr?.done ?? 0) || 0
+    const total = Number(pr?.total ?? 0) || 0
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0
+    return { completed, total, percent, stages: [] }
+  }
+
+  if (category === 'Techniczne' || category === 'DrzwiWewnetrzne') {
     return { completed: 0, total: 0, percent: 0, stages: [] }
   }
 

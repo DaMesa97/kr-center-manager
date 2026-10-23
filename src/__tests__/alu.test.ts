@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { aluLoadingDate, aluOrderProgress, aluPositionProgress, aluStageComplete, aluStageDone, defaultAluDeadline, formatAluGlass, summarizeAluTypes } from '../lib/alu'
 import { ALU_CONSTRUCTION_LABELS } from '../constants'
+import { ALU_MONTAZ_ROUTE, getOrderRouteDay } from '../lib/companyMatch'
 
 describe('alu — etapy per sztuka', () => {
   it('done przycięte do ilości, etap zrobiony gdy wszystkie sztuki', () => {
@@ -25,6 +26,13 @@ describe('alu — etapy per sztuka', () => {
     expect(formatAluGlass([{ spec: '4/16/4 Ug=1,1', width_mm: 841, height_mm: 1022, qty: 1 }])).toBe('841×1022 ×1 (4/16/4 Ug=1,1)')
     expect(summarizeAluTypes([{ construction_type: 'drzwi', quantity: 2 }, { construction_type: 'okno', quantity: 1 }], ALU_CONSTRUCTION_LABELS)).toBe('Drzwi ×2 · Okno ×1')
     expect(defaultAluDeadline(4, new Date(2026, 9, 23))).toBe('2026-11-20')
+  })
+
+  it('Wysyłka: dzień trasy alu = dzień tygodnia z terminu, montaż = osobna grupa', () => {
+    const alu = (extra: Record<string, unknown>) => ({ category: 'Aluminium', notes: '', extra_fields: { alu: extra } }) as unknown as Parameters<typeof getOrderRouteDay>[0]
+    expect(getOrderRouteDay(alu({ deadline: '2026-11-20', realizacja: 'wysylka' }), { production_day: '', route_day: 'ŚLĄSK' })).toBe('PIĄTEK')
+    expect(getOrderRouteDay(alu({ deadline: '2026-11-23', realizacja: 'montaz' }), null)).toBe(ALU_MONTAZ_ROUTE)
+    expect(getOrderRouteDay(alu({}), { production_day: '', route_day: 'ŚLĄSK' })).toBe('ŚLĄSK')
   })
 
   it('załadunek = dzień roboczy przed terminem (pn → pt, wt → pn)', () => {

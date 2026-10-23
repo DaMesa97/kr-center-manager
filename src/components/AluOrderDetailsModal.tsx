@@ -19,6 +19,8 @@ type Props = {
   onOpenDocument: (doc: OrderDocument) => void
   onUploadDocument: (kind: OrderDocumentKind, file: File) => Promise<void>
   onReimport: () => void
+  /** Anulowanie zlecenia (kierownik, tylko otwarte) — wspólny flow z innymi kategoriami */
+  onCancel?: () => void
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -28,7 +30,7 @@ function fmtDate(iso: string | null | undefined): string {
 }
 
 export default function AluOrderDetailsModal({
-  order, positions, documents, isManager, uploading, onClose, onOpenDocument, onUploadDocument, onReimport,
+  order, positions, documents, isManager, uploading, onClose, onOpenDocument, onUploadDocument, onReimport, onCancel,
 }: Props) {
   const extra = aluOrderExtra(order)
   const lp = documents.find((d) => d.kind === 'LP')
@@ -122,6 +124,11 @@ export default function AluOrderDetailsModal({
         </div>
 
         <div className="order-form-actions">
+          {isManager && !cancelled && !released && onCancel && (
+            <button type="button" className="btn btn-danger" onClick={onCancel} style={{ marginRight: 'auto' }}>
+              Anuluj zlecenie
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>Zamknij</button>
         </div>
       </div>

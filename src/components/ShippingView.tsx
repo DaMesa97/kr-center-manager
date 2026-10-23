@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { GlassAllowance, LeadTimeRule, Order } from '../types'
 import { CATEGORY_LABELS } from '../constants'
+import { aluOrderExtra } from '../lib/alu'
 import {
   autoSuggestReadyToInvoice,
   countCompletedStages,
@@ -31,9 +32,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   Techniczne:      '#854d0e',
   Bastion:         '#b3261e',
   DrzwiWewnetrzne: '#0369a1',
+  Aluminium:       '#475569',
 }
 
-const CATEGORY_SORT_ORDER = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
+const CATEGORY_SORT_ORDER = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'] as const
 
 const NO_ROUTE_KEY = '__NO_ROUTE__'
 
@@ -375,7 +377,16 @@ export default function ShippingView({
       key: 'nr',
       label: 'NR ZLECENIA',
       className: 'col-nr',
-      render: (order) => order.order_number,
+      render: (order) => (
+        <>
+          {order.order_number}
+          {order.category === 'Aluminium' && aluOrderExtra(order).realizacja === 'montaz' && (
+            <span className="alu-realizacja-chip alu-realizacja-chip--montaz" style={{ marginLeft: 6 }} title="Realizacja montażem własnym — nie jedzie transportem">
+              MONTAŻ
+            </span>
+          )}
+        </>
+      ),
       sortValue: sv((o) => o.order_number),
     }),
     col({

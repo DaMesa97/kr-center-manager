@@ -101,11 +101,24 @@ export function getOrderProductionDay(
   return cleanCompanyValue(companyInfo?.production_day)
 }
 
-/** Trasa: z firmy; odbiór osobisty to osobna grupa */
+export const ALU_MONTAZ_ROUTE = 'Montaż własny'
+const PL_WEEKDAYS_UPPER = ['NIEDZIELA', 'PONIEDZIAŁEK', 'WTOREK', 'ŚRODA', 'CZWARTEK', 'PIĄTEK', 'SOBOTA']
+
+/**
+ * Trasa: z firmy; odbiór osobisty to osobna grupa.
+ * Aluminium: termin z importu = dzień trasy → dzień tygodnia z terminu (jak
+ * route_day firm: PIĄTEK…); realizacja montażem = osobna grupa „Montaż własny”.
+ */
 export function getOrderRouteDay(
-  order: Pick<Order, 'notes' | 'extra_fields'>,
+  order: Pick<Order, 'notes' | 'extra_fields'> & { category?: string | null },
   companyInfo: CompanyShippingInfo | null | undefined,
 ): string {
   if (isPersonalPickup(order)) return PERSONAL_PICKUP_ROUTE
+  if (order.category === 'Aluminium') {
+    const alu = (order.extra_fields as Record<string, unknown> | null)?.alu as { deadline?: string; realizacja?: string } | undefined
+    if (alu?.realizacja === 'montaz') return ALU_MONTAZ_ROUTE
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(alu?.deadline ?? ''))
+    if (m) return PL_WEEKDAYS_UPPER[new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()]
+  }
   return cleanCompanyValue(companyInfo?.route_day)
 }

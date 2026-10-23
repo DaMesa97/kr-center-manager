@@ -2545,6 +2545,7 @@ function App() {
             onOpenDocument={(doc) => void openOrderDocument(doc)}
             onUploadDocument={async (kind, file) => { await handleAluUploadDocument(o.id!, kind, null, file) }}
             onReimport={() => { setAluReimportNumber(o.order_number); setAluDetailsOrderId(null); setAluImportOpen(true) }}
+            onCancel={() => { setAluDetailsOrderId(null); handleCancelOrderClick(o) }}
           />
         )
       })()}

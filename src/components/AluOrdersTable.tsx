@@ -2,7 +2,7 @@ import { useMemo, type MutableRefObject } from 'react'
 import DataTable, { type DataTableColumn } from './DataTable'
 import { ALU_CONSTRUCTION_LABELS, ALU_REALIZACJA_LABELS } from '../constants'
 import { aluLoadingDate, aluOrderExtra, aluOrderProgress, formatPlDateWithDow, summarizeAluTypes } from '../lib/alu'
-import { isReleaseDateEmpty } from '../utils'
+import { countCompletedStages, isReleaseDateEmpty } from '../utils'
 import type { AluPosition, Order, OrderDocument } from '../types'
 
 // Zlecenia „Stolarka aluminiowa” — jedno zlecenie = jedna lista produkcyjna (OF),
@@ -134,7 +134,10 @@ export default function AluOrdersTable({ orders, positionsByOrder, documentsByOr
         className: 'col-order-text',
         sortValue: (o) => aluOrderProgress(posOf(o)).percent,
         render: (o) => {
-          const pr = aluOrderProgress(posOf(o))
+          // pozycje wczytane → licz z nich; inaczej postęp przepisany przez trigger do zlecenia
+          const pr = posOf(o).length > 0
+            ? aluOrderProgress(posOf(o))
+            : (() => { const c = countCompletedStages(o); return { done: c.completed, total: c.total, percent: c.percent } })()
           if (pr.total === 0) return '—'
           return (
             <div className="alu-progress" title={`${pr.done} z ${pr.total} sztuko-etapów`}>

@@ -20,6 +20,7 @@ const ORDER_CATEGORIES = [
   { key: 'Techniczne', label: 'Techniczne', color: '#854d0e' },
   { key: 'Bastion', label: 'Bastion', color: '#b3261e' },
   { key: 'DrzwiWewnetrzne', label: 'Drzwi wewn.', color: '#0369a1' },
+  { key: 'Aluminium', label: 'Aluminium', color: '#475569' },
 ] as const
 
 type CategoryCount = { key: string; label: string; color: string; count: number }
