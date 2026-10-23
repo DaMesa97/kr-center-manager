@@ -17,7 +17,16 @@ import {
 } from '../../lib/stationLogic'
 import { ALL_STATION_CATEGORIES, fetchStationOrders } from '../../lib/stationFetch'
 import { clearStageLocally, stationUndoMessage, undoStationTask } from '../../lib/stationUndo'
-import type { Complaint, Order, WorkerStage } from '../../types'
+import {
+  aluDetailFields,
+  aluTaskKey,
+  applyAluPositionStages,
+  buildAluTasks,
+  mergeAluPositionEvent,
+} from '../../lib/aluStation'
+import { aluStageDone } from '../../lib/alu'
+import { ALU_CATEGORY } from '../../constants'
+import type { AluPosition, AluPositionStages, Complaint, Order, WorkerStage } from '../../types'
 
 type ShortageRow = {
   r_component_name: string
@@ -33,11 +42,24 @@ type Props = {
 const CAT_COLORS: Record<string, string> = {
   STA: '#005faf', Disting: '#4f46e5', ST: '#1d6d45',
   Techniczne: '#854d0e', Bastion: '#b3261e', DrzwiWewnetrzne: '#0369a1',
+  Aluminium: '#475569',
+}
+// Skrót kategorii na plakietce karty (plakietka ma ~52 px)
+const catShort = (category: string): string =>
+  category === 'DrzwiWewnetrzne' ? 'Wewn.' : category === ALU_CATEGORY ? 'Alu' : category
+
+/** Podpis pozycji alu na karcie i w dialogach: „poz. 2 · Drzwi 1-skrzydłowe” */
+const aluPosLabel = (task: MyTask): string => {
+  const a = task.alu
+  if (!a) return ''
+  return `poz. ${a.posNo} · ${a.position.description || a.position.system}`
 }
 
 export default function MobileStationView({ userId }: Props) {
   const [workerStages, setWorkerStages] = useState<WorkerStage[]>([])
   const [orders, setOrders] = useState<Order[]>([])
+  // Aluminium: etapy żyją na POZYCJACH zlecenia (per sztuka) — klucz = order_id
+  const [aluPositions, setAluPositions] = useState<Record<number, AluPosition[]>>({})
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
@@ -104,6 +126,28 @@ export default function MobileStationView({ userId }: Props) {
       ? null
       : [...new Set(((stagesRes.data ?? []) as WorkerStage[]).map((w) => w.category))]
     const ordersRes = await fetchStationOrders(categories)
+    // Aluminium: pozycje otwartych zleceń alu (etapy per pozycja/sztuka) —
+    // porcjami po 200 id jak na desktopie; błąd nie blokuje reszty stanowiska
+    const aluByOrder: Record<number, AluPosition[]> = {}
+    let aluError: string | null = null
+    if (!ordersRes.error) {
+      const aluIds = ordersRes.data
+        .filter((o) => o.category === ALU_CATEGORY && o.id != null)
+        .map((o) => o.id as number)
+      for (const id of aluIds) aluByOrder[id] = []
+      for (let i = 0; i < aluIds.length && !aluError; i += 200) {
+        const { data, error } = await supabase
+          .from('order_alu_positions')
+          .select('*')
+          .in('order_id', aluIds.slice(i, i + 200))
+          .order('pos_no', { ascending: true })
+        if (error) {
+          aluError = error.message
+          break
+        }
+        for (const p of (data ?? []) as AluPosition[]) (aluByOrder[p.order_id] ??= []).push(p)
+      }
+    }
     if (!mountedRef.current) return
     setLoading(false)
     if (stagesRes.error || ordersRes.error) {
@@ -128,6 +172,8 @@ export default function MobileStationView({ userId }: Props) {
       )
     }
     setOrders(ordersRes.data)
+    setAluPositions(aluByOrder)
+    if (aluError) flash(`Nie wczytano pozycji aluminium: ${aluError}`, true)
     if (!complaintsRes.error) {
       const openComplaints = ((complaintsRes.data ?? []) as Complaint[]).filter((c) => {
         const extra = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
@@ -164,7 +210,31 @@ export default function MobileStationView({ userId }: Props) {
             oldRow: payload.old as { id?: number } | null,
           }
           if (stationEventNeedsRefetch(ordersRef.current, ev, scopeRef.current)) scheduleReload()
+          // nowe zlecenie alu — pozycje trzeba dociągnąć (realtime pozycji
+          // ignoruje zlecenia, których nie ma jeszcze w mapie)
+          if (
+            payload.eventType === 'INSERT' &&
+            ev.row?.category === ALU_CATEGORY &&
+            scopeRef.current.has(ALU_CATEGORY)
+          ) {
+            scheduleReload()
+          }
           setOrders((prev) => mergeStationOrderEvent(prev, ev, scopeRef.current))
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_alu_positions' },
+        (payload) => {
+          // sztuki odklikane na innym telefonie/komputerze — scal lokalnie
+          setAluPositions((prev) =>
+            mergeAluPositionEvent(
+              prev,
+              payload.eventType,
+              payload.new as Partial<AluPosition> | null,
+              payload.old as { id?: number; order_id?: number } | null,
+            ),
+          )
         },
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'complaints' }, () => scheduleReload())
@@ -192,15 +262,19 @@ export default function MobileStationView({ userId }: Props) {
   }, [load, userId])
 
   const tasks = useMemo(
-    () => sortTasks([...buildTasks(orders, workerStages), ...buildComplaintTasks(complaints, workerStages)]),
-    [orders, complaints, workerStages],
+    () => [
+      ...sortTasks([...buildTasks(orders, workerStages), ...buildComplaintTasks(complaints, workerStages)]),
+      // aluminium osobno: własna kolejność (termin → zlecenie → pozycja → etap)
+      ...buildAluTasks(orders, aluPositions, workerStages),
+    ],
+    [orders, complaints, workerStages, aluPositions],
   )
   const readyCount = tasks.filter((t) => t.readyToWork).length
 
   // Grupowanie po etapie — kilka etapów (np. E3 i E5) wymieszanych na jednej
   // liście to prosta droga do oznaczenia złego. Sekcje + chipy filtra.
   const groups = useMemo(() => {
-    const catOrder = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+    const catOrder = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', ALU_CATEGORY]
     const multiCat = new Set(tasks.map((t) => t.category)).size > 1
     const map = new Map<string, { label: string; category: string; header: string; tasks: MyTask[] }>()
     for (const t of tasks) {
@@ -250,7 +324,54 @@ export default function MobileStationView({ userId }: Props) {
     }
   }
 
+  // Aluminium: jedno kliknięcie = jedna sztuka pozycji. Bez magazynu (alu nie ma
+  // rezerwacji) i bez mirroru — RPC pilnuje przepływu sztukowego i zwraca nowe
+  // production_stages pozycji, które scalamy lokalnie.
+  const completeAluPiece = async (task: MyTask, markInitials?: string) => {
+    const info = task.alu
+    if (!info) return
+    // Guard: ktoś inny mógł w międzyczasie odkliknąć resztę sztuk (realtime) —
+    // patrz na AKTUALNĄ pozycję, nie na migawkę z karty
+    const livePos = (aluPositions[task.order.id ?? -1] ?? []).find((p) => p.id === info.positionId)
+    const liveDone = livePos ? aluStageDone(livePos.production_stages, task.stageKey, info.quantity) : info.done
+    if (liveDone >= info.quantity) {
+      flash('Ten etap jest już oznaczony dla wszystkich sztuk')
+      setConfirmTask(null)
+      return
+    }
+    setSaving(true)
+    try {
+      const mark = (markInitials ?? myInitials).trim() || 'T'
+      const { data, error } = await supabase.rpc('mark_alu_position_stage', {
+        p_position_id: info.positionId,
+        p_stage_key: task.stageKey,
+        p_initials: mark,
+      })
+      if (!mountedRef.current) return
+      if (error) {
+        flash(`Nie oznaczono sztuki: ${error.message}`, true)
+        return
+      }
+      const stages = (data ?? {}) as AluPositionStages
+      setAluPositions((prev) => applyAluPositionStages(prev, info.positionId, stages))
+      const doneNow = aluStageDone(stages, task.stageKey, info.quantity)
+      flash(
+        doneNow >= info.quantity
+          ? `${task.stageHeader}: pozycja ${info.posNo} gotowa (${doneNow}/${info.quantity} szt.) ✓`
+          : `${task.stageHeader}: sztuka ${doneNow}/${info.quantity} pozycji ${info.posNo} ✓`,
+      )
+      setLastDone({ task, initials: mark })
+      setConfirmTask(null)
+    } finally {
+      if (mountedRef.current) setSaving(false)
+    }
+  }
+
   const completeStage = async (task: MyTask, opts?: { force?: boolean; markInitials?: string }) => {
+    if (task.alu) {
+      await completeAluPiece(task, opts?.markInitials)
+      return
+    }
     const actualKey = task.actualStageKey
     const current = parseProductionStages(task.order.production_stages, task.category)
     // Guard: ktoś inny mógł już oznaczyć ten etap (realtime/odświeżenie) —
@@ -385,6 +506,23 @@ export default function MobileStationView({ userId }: Props) {
     const task = lastDone.task
     setUndoing(true)
     try {
+      if (task.alu) {
+        // cofnięcie JEDNEJ sztuki — baza odmówi, gdy następny etap już ją „zużył”
+        const info = task.alu
+        const { data, error } = await supabase.rpc('undo_alu_position_stage', {
+          p_position_id: info.positionId,
+          p_stage_key: task.stageKey,
+        })
+        if (!mountedRef.current) return
+        if (error) {
+          flash(`Nie cofnięto sztuki: ${error.message}`, true)
+          return
+        }
+        setAluPositions((prev) => applyAluPositionStages(prev, info.positionId, (data ?? {}) as AluPositionStages))
+        setLastDone(null)
+        flash(`Cofnięto sztukę: ${task.stageHeader}, pozycja ${info.posNo}`)
+        return
+      }
       const res = await undoStationTask(task)
       if (!mountedRef.current) return
       if (!res.ok) {
@@ -430,7 +568,8 @@ export default function MobileStationView({ userId }: Props) {
         <div className="mstation-undo-bar" role="status">
           <span>
             Oznaczono {lastDone.task.stageHeader} ·{' '}
-            {lastDone.task.isComplaint ? lastDone.task.complaintNumber : lastDone.task.order.order_number} ({lastDone.initials})
+            {lastDone.task.isComplaint ? lastDone.task.complaintNumber : lastDone.task.order.order_number}
+            {lastDone.task.alu && ` poz. ${lastDone.task.alu.posNo} (sztuka)`} ({lastDone.initials})
           </span>
           <button type="button" className="mstation-undo-btn" disabled={undoing} onClick={() => void undoLast()}>
             {undoing ? 'Cofam…' : 'Cofnij'}
@@ -484,11 +623,18 @@ export default function MobileStationView({ userId }: Props) {
                   </div>
                 )}
                 {group.tasks.map((task) => {
-            // Reklamacje mają własną numerację id — prefiks chroni przed kolizją kluczy z zamówieniami
-            const key = `${task.isComplaint ? 'r' : ''}${task.order.id}-${task.stageKey}`
+            // Reklamacje mają własną numerację id — prefiks chroni przed kolizją kluczy z zamówieniami;
+            // alu: klucz = pozycja + etap (jedno zlecenie ma wiele pozycji na tym samym etapie)
+            const key = task.alu
+              ? aluTaskKey(task)
+              : `${task.isComplaint ? 'r' : ''}${task.order.id}-${task.stageKey}`
             const expanded = expandedKey === key
             const urgent = isRushOrderSequence(task.order.sequence)
-            const details = expanded ? fieldsForStage(task.order, task.category, task.actualStageKey) : []
+            const details = !expanded
+              ? []
+              : task.alu
+                ? aluDetailFields(task.alu.position, task.order, task.stageKey)
+                : fieldsForStage(task.order, task.category, task.actualStageKey)
             return (
               <div key={key} className={`mstation-card ${task.readyToWork ? '' : 'mstation-card--waiting'}`}>
                 <button
@@ -497,7 +643,7 @@ export default function MobileStationView({ userId }: Props) {
                   onClick={() => setExpandedKey(expanded ? null : key)}
                 >
                   <span className="mpack-cat" style={{ background: CAT_COLORS[task.category] ?? '#475569' }}>
-                    {task.category === 'DrzwiWewnetrzne' ? 'Wewn.' : task.category}
+                    {catShort(task.category)}
                   </span>
                   <span className="mstation-card-main">
                     <span className="mstation-card-nr">
@@ -514,6 +660,14 @@ export default function MobileStationView({ userId }: Props) {
                         </span>
                       )}
                     </span>
+                    {task.alu && (
+                      <span className="mstation-card-alu">
+                        <span className="mstation-card-alu-pos">{aluPosLabel(task)}</span>
+                        <span className="mstation-card-alu-count">
+                          {task.alu.done}/{task.alu.quantity} szt. z tym etapem
+                        </span>
+                      </span>
+                    )}
                     <span className="mstation-card-stage">
                       {task.stageHeader} — {task.stageTitle}
                     </span>
@@ -539,7 +693,10 @@ export default function MobileStationView({ userId }: Props) {
                         className="mstation-done-btn"
                         onClick={() => setConfirmTask(task)}
                       >
-                        <Check size={20} /> Oznacz jako zrobione
+                        <Check size={20} />{' '}
+                        {task.alu
+                          ? `Sztuka ${Math.min(task.alu.done + 1, task.alu.quantity)}/${task.alu.quantity}`
+                          : 'Oznacz jako zrobione'}
                       </button>
                     ) : (
                       <div className="mstation-waiting-note">⏳ Czeka na poprzedni etap</div>
@@ -560,11 +717,21 @@ export default function MobileStationView({ userId }: Props) {
         return (
           <div className="mstation-confirm-overlay" onClick={() => !saving && setConfirmTask(null)}>
             <div className="mstation-confirm" onClick={(e) => e.stopPropagation()}>
-              <div className="mstation-confirm-title">Oznaczyć etap jako zrobiony?</div>
+              <div className="mstation-confirm-title">
+                {confirmTask.alu
+                  ? `Oznaczyć sztukę ${Math.min(confirmTask.alu.done + 1, confirmTask.alu.quantity)}/${confirmTask.alu.quantity}?`
+                  : 'Oznaczyć etap jako zrobiony?'}
+              </div>
               <div className="mstation-confirm-body">
                 {confirmTask.isComplaint
                   ? `REKLAMACJA ${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number})`
                   : `Zlecenie ${confirmTask.order.order_number}`}
+                {confirmTask.alu && (
+                  <>
+                    <br />
+                    {aluPosLabel(confirmTask)}
+                  </>
+                )}
                 <br />
                 {confirmTask.stageHeader} — {confirmTask.stageTitle}
               </div>
