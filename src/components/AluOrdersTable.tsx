@@ -50,7 +50,7 @@ export default function AluOrdersTable({ orders, positionsByOrder, documentsByOr
       {
         key: 'order_number',
         label: 'NR ZLECENIA (OF)',
-        className: 'sticky-col sticky-1 col-order-number',
+        className: 'col-order-number',
         sortValue: (o) => o.order_number,
         render: (o) => <strong>{o.order_number}</strong>,
       },
@@ -64,7 +64,7 @@ export default function AluOrdersTable({ orders, positionsByOrder, documentsByOr
       {
         key: 'company',
         label: 'FIRMA',
-        className: 'sticky-col sticky-2 col-company',
+        className: 'col-company',
         sortValue: (o) => o.company,
         render: (o) => o.company || '—',
       },
@@ -185,6 +185,7 @@ export default function AluOrdersTable({ orders, positionsByOrder, documentsByOr
       rows={orders}
       rowKey={(o) => o.id ?? o.order_number}
       columns={columns}
+      className="alu-orders-table"
       wrapperClassName="orders-table-wrapper"
       tableWrapperRef={tableWrapperRef}
       loading={loading && orders.length === 0}

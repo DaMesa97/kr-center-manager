@@ -8155,9 +8155,13 @@ html, body, #root {
 .alu-deadline--late { color: #b91c1c; font-weight: 700; }
 .alu-deadline--soon { color: #b45309; font-weight: 600; }
 .alu-progress { display: flex; align-items: center; gap: 6px; min-width: 110px; }
-.alu-progress-bar { flex: 1; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
-.alu-progress-fill { height: 100%; background: #1d6d45; }
-.alu-progress-label { font-size: 0.75rem; color: #475569; min-width: 32px; text-align: right; }
+.alu-progress-bar { flex: 1; height: 10px; background: #cbd5e1; border-radius: 999px; overflow: hidden; }
+.alu-progress-fill { height: 100%; background: #16a34a; min-width: 0; }
+.alu-progress-label { font-size: 0.78rem; font-weight: 600; color: #334155; min-width: 34px; text-align: right; }
+/* mało kolumn — tabela na całą szerokość (STA ma 30 kolumn i szerokość po treści, tu zostawała pusta biel) */
+.orders-table.alu-orders-table { width: 100%; min-width: 100%; }
+.orders-table.alu-orders-table th, .orders-table.alu-orders-table td { white-space: normal; }
+.orders-table.alu-orders-table .col-order-number { white-space: nowrap; }
 .alu-docs { display: inline-flex; gap: 4px; }
 .alu-doc-chip { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; }
 .alu-doc-chip--on { background: #d8f0e4; color: #1d6d45; border-color: #a7d8bd; }
@@ -8167,12 +8171,16 @@ html, body, #root {
 .alu-stage-chip--partial { background: #fef3c7; color: #92400e; }
 .alu-stage-chip--done { background: #d8f0e4; color: #1d6d45; }
 /* długi tekst w komórce: max-width na <td> nie działa w auto-layout → własny blok, 2 linie */
-.alu-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; max-width: 300px; line-height: 1.3; }
+.alu-clamp { display: block; white-space: normal; line-height: 1.3; }
 .alu-col-description { white-space: normal; }
 /* treść okien alu pod nagłówkiem — ten sam margines co siatka formularza */
 .alu-modal-body { padding: 12px 24px 4px; }
 .alu-modal-body .order-form-grid { padding: 8px 0 12px; }
-.alu-positions-wrapper { max-height: 55vh; margin-top: 12px; }
+/* pozycje: cała szerokość okna, tekst łamany, BEZ przewijania w bok — okno rośnie w pionie */
+.alu-positions-wrapper { max-height: none; overflow-x: hidden; margin-top: 12px; }
+.orders-table.alu-positions-table { width: 100%; min-width: 100%; table-layout: auto; }
+.orders-table.alu-positions-table th, .orders-table.alu-positions-table td { white-space: normal; vertical-align: top; }
+.orders-table.alu-positions-table .dt-stack-sub { white-space: normal; }
 .alu-details-modal, .alu-import-modal { max-width: min(1500px, 96vw); max-height: 92vh; overflow-y: auto; }
 .alu-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 16px; padding: 8px 0; font-size: 0.9rem; }
 .alu-details-label { display: block; font-size: 0.72rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.02em; }

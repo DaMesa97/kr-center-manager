@@ -16,6 +16,8 @@ type OrdersFiltersProps = {
   showSourceFilter: boolean
   wykonawcaFilter: string[]
   showWykonawcaFilter: boolean
+  /** filtr dnia produkcji — aluminium ma termin z kalendarza, nie dzień tygodnia */
+  showDayFilter?: boolean
   onSearchChange: (v: string) => void
   // Enter w polu = wyszukaj natychmiast (bez czekania na debounce)
   onSearchCommit?: (v: string) => void
@@ -33,6 +35,7 @@ export default function OrdersFilters({
   showCancelledOrders,
   wykonawcaFilter,
   showWykonawcaFilter,
+  showDayFilter,
   onSearchChange,
   onSearchCommit,
   onDayChange,
@@ -61,16 +64,18 @@ export default function OrdersFilters({
           if (event.key === 'Enter') onSearchCommit?.(event.currentTarget.value)
         }}
       />
-      <select
-        className="day-filter"
-        value={selectedProductionDay}
-        onChange={(event) => onDayChange(event.target.value)}
-      >
-        <option>Wszystkie dni</option>
-        {PRODUCTION_DAYS.map((day) => (
-          <option key={day}>{day}</option>
-        ))}
-      </select>
+      {showDayFilter !== false && (
+        <select
+          className="day-filter"
+          value={selectedProductionDay}
+          onChange={(event) => onDayChange(event.target.value)}
+        >
+          <option>Wszystkie dni</option>
+          {PRODUCTION_DAYS.map((day) => (
+            <option key={day}>{day}</option>
+          ))}
+        </select>
+      )}
       <div className="orders-filter-checkbox-row">
         <label className="orders-filter-checkbox">
           <input

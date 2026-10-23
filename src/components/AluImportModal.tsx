@@ -399,6 +399,7 @@ export default function AluImportModal({
               rows={positions}
               rowKey={(p) => p.pos_no}
               columns={columns}
+              className="alu-positions-table"
               wrapperClassName="orders-table-wrapper alu-positions-wrapper"
               emptyText="Parser nie znalazł pozycji w tym PDF."
               renderAfterRow={(p, i) =>

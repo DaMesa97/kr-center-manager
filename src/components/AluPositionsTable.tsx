@@ -120,6 +120,7 @@ export default function AluPositionsTable({ positions, compact = false }: Props)
       rows={positions}
       rowKey={(p) => p.id}
       columns={columns}
+      className="alu-positions-table"
       wrapperClassName="orders-table-wrapper alu-positions-wrapper"
       emptyText="Brak pozycji."
       defaultSort={{ key: 'pos_no', dir: 'asc' }}

@@ -3427,6 +3427,7 @@ function App() {
               showSourceFilter={['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'].includes(activeTab)}
               wykonawcaFilter={wykonawcaFilter}
               showWykonawcaFilter={activeTab === 'STA' || activeTab === 'Disting'}
+              showDayFilter={activeTab !== 'Aluminium'}
               onSearchChange={handleSearchInputChange}
               onSearchCommit={commitSearch}
               onDayChange={(v) => startFilterTransition(() => setSelectedProductionDay(v))}
@@ -3455,7 +3456,8 @@ function App() {
                   </div>
                 )}
 
-                {['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'].includes(activeTab) && (
+                {/* Aluminium: bez paska podzakładek (nie ma reklamacji — samotny przycisk nie ma sensu) */}
+                {['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'].includes(activeTab) && (
                   <div className="subtab-bar">
                     <button
                       type="button"
