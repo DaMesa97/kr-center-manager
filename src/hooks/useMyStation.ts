@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient'
 import { mirrorStageKey } from '../lib/stageMirror'
 import { markLocalStageWrite } from '../lib/stageWrites'
 import { clearStageLocally, stationUndoMessage, undoStationTask } from '../lib/stationUndo'
-import { ALL_STATION_CATEGORIES, fetchStationOrders } from '../lib/stationFetch'
+import { ALL_STATION_CATEGORIES, fetchAluPositionsByOrder, fetchStationOrders } from '../lib/stationFetch'
 import { applyAluPositionStages, mergeAluPositionEvent } from '../lib/aluStation'
 import { ALU_CATEGORY } from '../constants'
 import { parseProductionStages } from '../utils'
@@ -133,20 +133,8 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     // Aluminium: etapy żyją na POZYCJACH zlecenia — dociągnij je dla otwartych zleceń alu
     if (scopeRef.current.has(ALU_CATEGORY)) {
       const aluIds = stationOrders.filter((o) => o.category === ALU_CATEGORY && o.id != null).map((o) => o.id as number)
-      const byOrder: Record<number, AluPosition[]> = {}
-      for (const id of aluIds) byOrder[id] = []
-      for (let i = 0; i < aluIds.length; i += 200) {
-        const { data, error } = await supabase
-          .from('order_alu_positions')
-          .select('*')
-          .in('order_id', aluIds.slice(i, i + 200))
-          .order('pos_no', { ascending: true })
-        if (error) {
-          pushToast(`Nie wczytano pozycji aluminium: ${error.message}`, 'error')
-          break
-        }
-        for (const p of (data ?? []) as AluPosition[]) (byOrder[p.order_id] ??= []).push(p)
-      }
+      const { data: byOrder, error: aluError } = await fetchAluPositionsByOrder(aluIds)
+      if (aluError) pushToast(`Nie wczytano pozycji aluminium: ${aluError.message}`, 'error')
       setAluPositionsByOrder(byOrder)
     } else {
       setAluPositionsByOrder({})
@@ -167,7 +155,11 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
   const applyStationOrderEvent = useCallback(
     (eventType: string, row: Partial<Order> | null, oldRow: { id?: number } | null): boolean => {
       const ev = { eventType, row, oldRow }
-      const needsFull = stationEventNeedsRefetch(ordersRef.current, ev, scopeRef.current)
+      const needsFull =
+        stationEventNeedsRefetch(ordersRef.current, ev, scopeRef.current) ||
+        // nowe zlecenie alu — pozycje trzeba dociągnąć (realtime pozycji
+        // ignoruje zlecenia, których nie ma jeszcze w mapie)
+        (eventType === 'INSERT' && row?.category === ALU_CATEGORY && scopeRef.current.has(ALU_CATEGORY))
       setMyStationOrders((prev) => mergeStationOrderEvent(prev, ev, scopeRef.current))
       return needsFull
     },
@@ -393,7 +385,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       pushToast(stationUndoMessage(res, task.isComplaint === true), res.mirrorError ? 'error' : 'success')
       return true
     },
-    [pushToast],
+    [pushToast, handleAluStageUndo],
   )
 
   return {

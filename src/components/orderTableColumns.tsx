@@ -311,7 +311,9 @@ export function releaseCol(ctx: OrderTableCtx, opts: ReleaseColOpts = {}): DataT
     sortValue: (o) => (isReleaseDateEmpty(o.release_date) ? null : String(o.release_date).trim()),
     render: (o) => {
       const id = o.id
-      const disabled = (id !== undefined && ctx.releaseDateUpdating === id) || id === undefined || isCancelledOwn(o)
+      // Wydanie = kierownik (RLS orders_update); drzwi wewn. mają własne okno
+      const disabled =
+        !ctx.isManager || (id !== undefined && ctx.releaseDateUpdating === id) || id === undefined || isCancelledOwn(o)
       const withId = (fn: (id: number) => void) => () => {
         if (id === undefined) {
           ctx.pushToast('Brak identyfikatora zamówienia', 'error')

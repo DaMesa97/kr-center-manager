@@ -5,9 +5,39 @@
 // odczytu przypisań — lepiej pokazać za dużo niż nic).
 import { supabase } from '../supabaseClient'
 import { isReleaseDateEmpty } from '../utils'
-import type { Order } from '../types'
+import { ALU_CATEGORY } from '../constants'
+import { fetchAllPages } from './fetchPaged'
+import type { AluPosition, Order } from '../types'
 
-export const ALL_STATION_CATEGORIES = ['STA', 'Disting', 'ST', 'Bastion', 'Techniczne']
+export const ALL_STATION_CATEGORIES = ['STA', 'Disting', 'ST', 'Bastion', 'Techniczne', ALU_CATEGORY]
+
+/**
+ * Pozycje otwartych zleceń aluminium (etapy per pozycja/sztuka) → mapa order_id → pozycje.
+ * Porcje po 200 id ORAZ paginacja wierszy: 200 zleceń × kilka pozycji łatwo
+ * przebija limit 1000 wierszy PostgREST (ucina po cichu, bez błędu).
+ */
+export async function fetchAluPositionsByOrder(
+  orderIds: number[],
+): Promise<{ data: Record<number, AluPosition[]>; error: { message: string } | null }> {
+  const byOrder: Record<number, AluPosition[]> = {}
+  for (const id of orderIds) byOrder[id] = []
+  for (let i = 0; i < orderIds.length; i += 200) {
+    const slice = orderIds.slice(i, i + 200)
+    const { data, error } = await fetchAllPages<AluPosition>((from, to) =>
+      supabase
+        .from('order_alu_positions')
+        .select('*')
+        .in('order_id', slice)
+        .order('order_id', { ascending: true })
+        .order('pos_no', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    )
+    if (error) return { data: byOrder, error }
+    for (const p of data) (byOrder[p.order_id] ??= []).push(p)
+  }
+  return { data: byOrder, error: null }
+}
 
 export async function fetchStationOrders(
   categories: string[] | null,

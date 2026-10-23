@@ -16,7 +16,7 @@ import {
   type MyTask,
   type StationWorker,
 } from '../../lib/stationLogic'
-import { ALL_STATION_CATEGORIES, fetchStationOrders } from '../../lib/stationFetch'
+import { ALL_STATION_CATEGORIES, fetchAluPositionsByOrder, fetchStationOrders } from '../../lib/stationFetch'
 import { clearStageLocally, stationUndoMessage, undoStationTask } from '../../lib/stationUndo'
 import {
   aluDetailFields,
@@ -128,26 +128,16 @@ export default function MobileStationView({ userId }: Props) {
       : [...new Set(((stagesRes.data ?? []) as WorkerStage[]).map((w) => w.category))]
     const ordersRes = await fetchStationOrders(categories)
     // Aluminium: pozycje otwartych zleceń alu (etapy per pozycja/sztuka) —
-    // porcjami po 200 id jak na desktopie; błąd nie blokuje reszty stanowiska
-    const aluByOrder: Record<number, AluPosition[]> = {}
+    // wspólny fetch z desktopem; błąd nie blokuje reszty stanowiska
+    let aluByOrder: Record<number, AluPosition[]> = {}
     let aluError: string | null = null
     if (!ordersRes.error) {
       const aluIds = ordersRes.data
         .filter((o) => o.category === ALU_CATEGORY && o.id != null)
         .map((o) => o.id as number)
-      for (const id of aluIds) aluByOrder[id] = []
-      for (let i = 0; i < aluIds.length && !aluError; i += 200) {
-        const { data, error } = await supabase
-          .from('order_alu_positions')
-          .select('*')
-          .in('order_id', aluIds.slice(i, i + 200))
-          .order('pos_no', { ascending: true })
-        if (error) {
-          aluError = error.message
-          break
-        }
-        for (const p of (data ?? []) as AluPosition[]) (aluByOrder[p.order_id] ??= []).push(p)
-      }
+      const aluRes = await fetchAluPositionsByOrder(aluIds)
+      aluByOrder = aluRes.data
+      aluError = aluRes.error?.message ?? null
     }
     if (!mountedRef.current) return
     setLoading(false)

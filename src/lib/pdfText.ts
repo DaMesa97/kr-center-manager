@@ -9,7 +9,7 @@
 
 import { getDocument } from 'pdfjs-dist'
 import type { PdfTextItem, PdfTextPage } from '../types'
-import { ensurePdfJsWorker } from './pdfjsSetup'
+import { ensurePdfJsWorker, runPdfJsExclusive } from './pdfjsSetup'
 
 const round = (v: number): number => Math.round(v * 100) / 100
 
@@ -22,7 +22,11 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   ])
 }
 
-export async function extractPdfTextPages(data: ArrayBuffer | Uint8Array): Promise<PdfTextPage[]> {
+export function extractPdfTextPages(data: ArrayBuffer | Uint8Array): Promise<PdfTextPage[]> {
+  return runPdfJsExclusive(() => extractPdfTextPagesNow(data))
+}
+
+async function extractPdfTextPagesNow(data: ArrayBuffer | Uint8Array): Promise<PdfTextPage[]> {
   ensurePdfJsWorker()
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data)
   const pdf = await withTimeout(getDocument({ data: bytes }).promise, 20000, 'Otwieranie PDF (pdfjs)')
@@ -50,6 +54,6 @@ export async function extractPdfTextPages(data: ArrayBuffer | Uint8Array): Promi
     }
     return pages
   } finally {
-    await pdf.destroy()
+    await withTimeout(pdf.destroy(), 5000, 'Zamykanie PDF').catch(() => {})
   }
 }

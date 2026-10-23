@@ -8165,6 +8165,8 @@ html, body, #root {
 .alu-docs { display: inline-flex; gap: 4px; }
 .alu-doc-chip { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; }
 .alu-doc-chip--on { background: #d8f0e4; color: #1d6d45; border-color: #a7d8bd; }
+.alu-doc-chip-remove { margin-left: 6px; padding: 0 4px; border: none; background: transparent; color: inherit; font-weight: 700; cursor: pointer; line-height: 1; }
+.alu-doc-chip-remove:hover { color: #b91c1c; }
 .alu-doc-missing { color: #94a3b8; font-size: 0.8rem; font-style: italic; }
 .alu-stage-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .alu-stage-chip { padding: 1px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 700; background: #f1f5f9; color: #64748b; white-space: nowrap; }

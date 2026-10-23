@@ -15,3 +15,14 @@ export function ensurePdfJsWorker(): void {
   GlobalWorkerOptions.workerPort = new PdfJsWorker()
   started = true
 }
+
+// Przy workerPort wszystkie dokumenty dzielą JEDEN PDFWorker, a destroy()
+// dokumentu niszczy też workera — druk DoP w trakcie importu LP (i odwrotnie)
+// zrywał drugą operację. Dokumenty idą więc po kolei, każdy aż do destroy().
+let queue: Promise<unknown> = Promise.resolve()
+
+export function runPdfJsExclusive<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queue.then(fn, fn)
+  queue = run.catch(() => {})
+  return run
+}

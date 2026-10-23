@@ -5,6 +5,7 @@ import { ALU_CONSTRUCTION_LABELS, ALU_REALIZACJA_LABELS } from '../constants'
 import { defaultAluDeadline, formatAluGlass, formatAluNotes } from '../lib/alu'
 import { extractPdfTextPages } from '../lib/pdfText'
 import { parseAluDocument } from '../lib/aluLpParser'
+import { appConfirm } from '../lib/appDialogs'
 import type {
   AluConstructionType, AluLcParseResult, AluLpParseResult, AluLpPosition, AluProductionNotes, AluRealizacja,
   OrderDocumentKind, ToastVariant,
@@ -127,7 +128,8 @@ export default function AluImportModal({
   const updateNote = (idx: number, key: keyof AluProductionNotes, value: string) =>
     setPositions((prev) => prev.map((p, i) => (i === idx ? { ...p, notes: { ...p.notes, [key]: value } } : p)))
 
-  const lcMismatch = lp && lc && lc.order_number.trim() !== lp.header.order_number.trim()
+  // porównanie z numerem z POLA (po ręcznej poprawce), nie z odczytem parsera
+  const lcMismatch = Boolean(lp && lc && lc.order_number.trim() !== orderNumber.trim())
   const problems = useMemo(() => {
     const out: string[] = []
     if (lp) {
@@ -136,13 +138,21 @@ export default function AluImportModal({
       if (!deadline) out.push('Ustaw termin.')
       if (positions.length === 0) out.push('LP nie ma żadnej pozycji.')
       positions.forEach((p) => {
-        if (!(Number(p.quantity) > 0)) out.push(`Poz. ${p.pos_no}: ilość musi być > 0.`)
-        if (!p.width_mm || !p.height_mm) out.push(`Poz. ${p.pos_no}: brak wymiaru konstrukcji (S×W).`)
+        const q = Number(p.quantity)
+        if (!(q > 0) || !Number.isInteger(q)) out.push(`Poz. ${p.pos_no}: ilość musi być liczbą całkowitą > 0.`)
+        if (!(Number(p.width_mm) > 0) || !(Number(p.height_mm) > 0))
+          out.push(`Poz. ${p.pos_no}: brak albo błędny wymiar konstrukcji (S×W musi być > 0).`)
       })
-      if (lcMismatch) out.push(`Lista cięcia jest do zlecenia ${lc?.order_number}, a LP do ${lp.header.order_number}.`)
+      if (lcMismatch)
+        out.push(`Lista cięcia jest do zlecenia ${lc?.order_number}, a zlecenie ma numer ${orderNumber.trim()} — popraw numer albo odepnij LC.`)
     }
     return out
   }, [lp, lc, lcMismatch, orderNumber, company, deadline, positions])
+
+  const removeLc = () => {
+    setLc(null)
+    setPicked((p) => ({ ...p, lc: null }))
+  }
 
   // Tylko LC bez LP → dopnij do istniejącego zlecenia
   const attachLcOnly = async () => {
@@ -154,7 +164,15 @@ export default function AluImportModal({
         pushToast(`Nie ma zlecenia ${lc.order_number} — najpierw wgraj listę produkcyjną (LP) tego zlecenia`, 'error')
         return
       }
+      // find_alu_order zwraca najnowsze pierwsze (OF… (2) z „Dodaj ponownie”)
       const target = found[0]
+      if (found.length > 1) {
+        const ok = await appConfirm(
+          `Zleceń o numerze ${lc.order_number} jest ${found.length} (${found.map((f) => f.order_number).join(', ')}). Dopiąć listę cięcia do najnowszego: ${target.order_number}?`,
+          { title: 'Kilka zleceń o tym numerze', confirmLabel: 'Dopnij do najnowszego' },
+        )
+        if (!ok) return
+      }
       const ok = await onUploadDocument(target.id, 'LC', lc.lc_number, picked.lc)
       if (ok) {
         pushToast(`Lista cięcia ${lc.lc_number} dopięta do zlecenia ${target.order_number}`, 'success')
@@ -168,7 +186,8 @@ export default function AluImportModal({
 
   const save = async (mode: AluImportMode) => {
     if (!lp || !picked.lp) return
-    if (mode === 'check' && problems.length > 0) {
+    // walidacja także dla „Nadpisz” / „Dodaj ponownie” — pola są dalej edytowalne
+    if (problems.length > 0) {
       pushToast(problems[0], 'error')
       return
     }
@@ -255,12 +274,12 @@ export default function AluImportModal({
         label: 'S × W [mm]',
         className: 'col-order-text',
         stopRowClick: true,
-        tdClassName: (p) => (!p.width_mm || !p.height_mm ? 'alu-cell--warn' : undefined),
+        tdClassName: (p) => (!(Number(p.width_mm) > 0) || !(Number(p.height_mm) > 0) ? 'alu-cell--warn' : undefined),
         render: (p, i) => (
           <span className="alu-dims-edit">
-            <input type="number" value={p.width_mm ?? ''} onChange={(e) => updatePos(i, { width_mm: e.target.value === '' ? null : Number(e.target.value) })} />
+            <input type="number" min={1} value={p.width_mm ?? ''} onChange={(e) => updatePos(i, { width_mm: e.target.value === '' ? null : Number(e.target.value) })} />
             ×
-            <input type="number" value={p.height_mm ?? ''} onChange={(e) => updatePos(i, { height_mm: e.target.value === '' ? null : Number(e.target.value) })} />
+            <input type="number" min={1} value={p.height_mm ?? ''} onChange={(e) => updatePos(i, { height_mm: e.target.value === '' ? null : Number(e.target.value) })} />
           </span>
         ),
       },
@@ -340,7 +359,23 @@ export default function AluImportModal({
           )}
           <div className="alu-dropzone-files">
             <span className={`alu-doc-chip ${picked.lp ? 'alu-doc-chip--on' : ''}`}>LP {picked.lp ? `✓ ${lp?.header.lp_number ?? picked.lp.name}` : '— brak'}</span>
-            <span className={`alu-doc-chip ${picked.lc ? 'alu-doc-chip--on' : ''}`}>LC {picked.lc ? `✓ ${lc?.lc_number ?? picked.lc.name}` : '— brak (opcjonalnie)'}</span>
+            <span className={`alu-doc-chip ${picked.lc ? 'alu-doc-chip--on' : ''}`}>
+              LC {picked.lc ? `✓ ${lc?.lc_number ?? picked.lc.name}` : '— brak (opcjonalnie)'}
+              {picked.lc && (
+                <button
+                  type="button"
+                  className="alu-doc-chip-remove"
+                  title="Odepnij listę cięcia"
+                  disabled={saving}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    removeLc()
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </span>
           </div>
         </div>
 

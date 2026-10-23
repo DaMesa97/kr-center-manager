@@ -4,7 +4,7 @@
 // drogą co etykiety. Zero zależności od zewnętrznych czytników PDF.
 
 import { getDocument } from 'pdfjs-dist'
-import { ensurePdfJsWorker } from './pdfjsSetup'
+import { ensurePdfJsWorker, runPdfJsExclusive } from './pdfjsSetup'
 import { escapeHtml } from './labelRender'
 
 // worker startuje przy załadowaniu modułu — jak dotąd (konfiguracja w pdfjsSetup.ts)
@@ -41,7 +41,13 @@ export function uint8ToBase64(bytes: Uint8Array): string {
 }
 
 /** Strony PDF-a jako obrazki (dataURL) + rozmiar strony w mm. */
-export async function renderPdfPages(
+export function renderPdfPages(
+  pdfBase64: string,
+): Promise<{ imgs: string[]; widthMm: number; heightMm: number }> {
+  return runPdfJsExclusive(() => renderPdfPagesNow(pdfBase64))
+}
+
+async function renderPdfPagesNow(
   pdfBase64: string,
 ): Promise<{ imgs: string[]; widthMm: number; heightMm: number }> {
   const pdf = await withTimeout(
@@ -78,7 +84,8 @@ export async function renderPdfPages(
   } finally {
     // Zwolnij dokument w workerze — bez tego duże eksporty (dziesiątki
     // deklaracji PDF) kumulowały pamięć aż do OOM workera pdfjs
-    void pdf.destroy().catch(() => {})
+    // (czekamy na destroy — następny dokument z kolejki dostaje świeżego workera)
+    await withTimeout(pdf.destroy(), 5000, 'Zamykanie PDF').catch(() => {})
   }
 }
 

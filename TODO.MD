@@ -89,7 +89,29 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 
 - [ ] **Moje stanowisko — czekające schowane**: domyślnie widać tylko zadania gotowe do pracy + wszystko z X/XX (nawet niegotowe — towar na dziś/jutro). Przycisk „⏳ Pokaż czekające (N)” odsłania resztę, wybór zapamiętany na komputerze/telefonie (`stationShowWaiting`). Gdy nic nie jest gotowe — komunikat z przyciskiem zamiast pustej tabeli. Desktop + mobile.
 
+- [ ] **Poprawki z przeglądu paczki 23.10** (3 skautów):
+  - WYDANIE w tabelach tylko dla kierownika (było klikalne dla każdego → WZ schodziło z magazynu, a datę RLS odrzucał po cichu); zapis daty sprawdza, czy wiersz faktycznie się zmienił
+  - „Zamów szyby” (Naświetla) tylko kierownik — wcześniej webhook szedł do szklarza, a stempel daty RLS odrzucał po cichu → ryzyko podwójnego zamówienia
+  - Aluminium na desktopowym stanowisku: nowe zlecenie alu od razu pokazuje zadania (wcześniej dopiero po zmianie zakładki)
+  - Pozycje alu na stanowisku (desktop + mobile) pobierane z paginacją — wcześniej >1000 wierszy ucinało po cichu
+  - Import LP: porównanie z LC po numerze z pola (po ręcznej poprawce), przycisk ✕ odpina LC, wymiary > 0 i ilość całkowita, walidacja także przy „Nadpisz”/„Dodaj ponownie”, pytanie przy kilku zleceniach o tym numerze (dopinanie samej LC); w bazie CHECK wymiarów > 0
+  - pdfjs: druk DoP i import LP/LC idą po kolei (wspólny worker — równoczesna operacja zrywała drugą)
+  - **Sprawdź:** import LP z poprawką numeru OF; druk partii deklaracji (czy dalej śmiga)
+
+### 🟡 Drobnica z przeglądu 23.10 (nie ruszane)
+- [ ] Alu: „Cofnij” sztuki zdejmuje zawsze OSTATNI inicjał (przy dwóch stanowiskach może zdjąć cudzy) — ważne, gdy inicjały sztuk zaczniemy pokazywać
+- [ ] Alu: zmniejszenie ilości pozycji po częściowym oznaczeniu → pierwszy „Cofnij” bez widocznego efektu (done > ilość w bazie)
+- [ ] Alu: trigger postępu może chwilowo zaniżyć licznik o 1 przy równoczesnych kliknięciach dwóch pozycji (sam się naprawia)
+- [ ] Alu: każda sztuka = UPDATE zlecenia → pełny refetch pozycji w tabeli Aluminium (rozrzutne przy pracującej hali) + wpis w Audycie
+- [ ] Alu: termin w weekend daje w Wysyłce grupę SOBOTA/NIEDZIELA
+- [ ] Wzmianki @: RPC pozwala wysłać dowolny tekst do dowolnych 20 osób (bez sprawdzenia, że komentarz istnieje) — niska waga
+- [ ] Mobile i appAlert: tłumaczenie błędów nie loguje oryginału do konsoli (desktop loguje)
+- [ ] Okna potwierdzeń: brak focus trap (Tab wychodzi na tło); przy dwóch oknach naraz Esc zamyka to pod spodem
+- [ ] `merge_order_extra_fields` przy blokadzie RLS zwraca NULL bez błędu — dodać `if not found then raise`
+- [ ] Edge function glass-order-webhook nie sprawdza roli (tylko zalogowanie)
+
 ### ❓ Do przemyślenia (Tymek)
+- [ ] **Okna potwierdzeń: Enter = Anuluj WSZĘDZIE** — także przy „Wydaj”/„Odebrane”/„Tak, oznacz”. Wariant `tone='success'` (fokus na potwierdzeniu) istnieje, ale nikt go nie używa. Celowo (bezpieczniej) czy oznaczyć pozytywne okna?
 - [ ] **Wysyłka: PILNE vs X/XX** — dwa niezależne znaczniki pilności (PILNE w kolejności i Plan wydań X/XX) to trochę z dupy. Do decyzji, czy scalić / jak je rozdzielić znaczeniowo.
 
 ## 🧪 DO SPRAWDZENIA — 23.10 (punkt 3 z audytów, na `clean`, bez nowej bety)

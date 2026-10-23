@@ -357,12 +357,19 @@ export function useOrders({
   const applyReleaseDateCore = useCallback(
     async (orderId: number, value: string | null) => {
       setReleaseDateUpdating(orderId)
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('orders')
         .update({ release_date: value })
         .eq('id', orderId)
+        .select('id')
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
+        setReleaseDateUpdating(null)
+        return
+      }
+      // RLS odrzuca update bez błędu (0 wierszy) — bez tego UI pokazałby wydanie
+      if (!data || data.length === 0) {
+        pushToast('Nie zapisano daty wydania — brak uprawnień do tego zlecenia', 'error')
         setReleaseDateUpdating(null)
         return
       }
@@ -380,6 +387,12 @@ export function useOrders({
   // także dla kategorii bez etapów). Czyszczenie daty niczego nie cofa.
   const applyReleaseDateUpdate = useCallback(
     async (orderId: number, value: string | null) => {
+      // Najpierw uprawnienia: WZ (release_remaining_for_order) zdejmuje magazyn
+      // ZANIM zapiszemy datę — nie-kierownikowi RLS odrzuci datę po fakcie
+      if (!isManager) {
+        pushToast('Wydanie zlecenia oznacza kierownik', 'error')
+        return
+      }
       const order = orders.find((o) => o.id === orderId)
       const marking =
         value != null && String(value).trim() !== '' &&
@@ -401,7 +414,7 @@ export function useOrders({
       }
       await applyReleaseDateCore(orderId, value)
     },
-    [orders, runStockRelease, applyReleaseDateCore],
+    [isManager, pushToast, orders, runStockRelease, applyReleaseDateCore],
   )
 
   // Ręczny znacznik odbioru ościeżnicy na Marklowickiej (Disting Plus) — niezależny od etapów.
@@ -824,6 +837,12 @@ export function useOrders({
 
   const sendGlassOrderWebhook = useCallback(
     async (order: Order) => {
+      // Webhook idzie do szklarza PRZED stemplem daty — nie-kierownikowi RLS
+      // odrzuciłby stempel po cichu i szyba wróciłaby jako „niezamówiona”
+      if (!isManager) {
+        pushToast('Szyby zamawia kierownik', 'error')
+        return
+      }
       const topAllowance = getGlassAllowance(glassAllowances, order.category, 'top_light')
       const sideAllowance = getGlassAllowance(glassAllowances, order.category, 'side_panel')
       const top = splitWxH(order.top_light)
@@ -906,16 +925,17 @@ export function useOrders({
         }
         if (response.ok) {
           const today = new Date().toLocaleDateString('sv-SE') // lokalna data
-          const { error: stampErr } = await supabase
+          const { data: stampRows, error: stampErr } = await supabase
             .from('orders')
             .update({ glass_order_date: today })
             .eq('id', order.id)
             .is('glass_order_date', null)
-          if (stampErr) {
+            .select('id')
+          if (stampErr || !stampRows || stampRows.length === 0) {
             // Webhook POSZEDŁ — bez daty w bazie zamówienie wróci jako
             // "niezamówione" i grozi podwójnym zamówieniem u szklarza
             pushToast(
-              `UWAGA: szyba zamówiona u szklarza, ale NIE zapisała się data zamówienia (${stampErr.message}). Nie zamawiaj ponownie — uzupełnij datę po odświeżeniu.`,
+              `UWAGA: szyba zamówiona u szklarza, ale NIE zapisała się data zamówienia (${stampErr?.message ?? 'brak uprawnień albo już oznaczone'}). Nie zamawiaj ponownie — uzupełnij datę po odświeżeniu.`,
               'error',
             )
           }
@@ -953,7 +973,7 @@ export function useOrders({
         )
       }
     },
-    [pushToast, glassAllowances],
+    [isManager, pushToast, glassAllowances],
   )
 
   // Stempel „szyba zamówiona” BEZ webhooka — po zbiorczym PDF dla szklarza
