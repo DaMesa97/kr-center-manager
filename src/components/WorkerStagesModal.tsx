@@ -16,6 +16,8 @@ type Props = {
   worker: Profile | null
   onClose: () => void
   onSaved: () => void
+  /** błąd odczytu/zapisu (toast w App) — wcześniej połykany */
+  onError?: (message: string) => void
 }
 
 type WorkerStageKey = {
@@ -42,8 +44,12 @@ const CATEGORY_DEFS: Array<{
 
 const keyFor = (category: string, stageKey: string) => `${category}||${stageKey}`
 
-export default function WorkerStagesModal({ open, worker, onClose, onSaved }: Props) {
+export default function WorkerStagesModal({ open, worker, onClose, onSaved, onError }: Props) {
   const [loading, setLoading] = useState(false)
+  // nie udało się wczytać przypisań — NIE pozwalamy zapisać (pusta lista
+  // wyglądała jak „brak etapów”, a zapis dodawał wszystko od nowa)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [initialSelected, setInitialSelected] = useState<Set<string>>(new Set())
@@ -63,7 +69,12 @@ export default function WorkerStagesModal({ open, worker, onClose, onSaved }: Pr
 
       if (!mounted) return
       setLoading(false)
-      if (error) return
+      if (error) {
+        setLoadError(error.message)
+        onError?.(`Nie wczytano etapów pracownika: ${error.message}`)
+        return
+      }
+      setLoadError(null)
 
       const rows = (data ?? []) as WorkerStage[]
       const keys = new Set(rows.map((r) => keyFor(r.category, r.stage_key)))
@@ -75,7 +86,8 @@ export default function WorkerStagesModal({ open, worker, onClose, onSaved }: Pr
     return () => {
       mounted = false
     }
-  }, [open, worker])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, worker, reloadKey])
 
   const isChecked = useCallback(
     (category: string, stageKey: string) => selected.has(keyFor(category, stageKey)),
@@ -113,9 +125,10 @@ export default function WorkerStagesModal({ open, worker, onClose, onSaved }: Pr
 
   const onSave = useCallback(async () => {
     if (!worker) return
+    if (loadError) return
     setSaving(true)
     try {
-      await Promise.all([
+      const results = await Promise.all([
         ...diff.toAdd.map((row) =>
           supabase.from('worker_stages').insert({
             worker_id: worker.id,
@@ -132,13 +145,20 @@ export default function WorkerStagesModal({ open, worker, onClose, onSaved }: Pr
             .eq('stage_key', row.stage_key),
         ),
       ])
+      const failed = results.filter((r) => r.error)
+      if (failed.length > 0) {
+        // część zmian mogła wejść — wczytaj prawdziwy stan z bazy, okno zostaje otwarte
+        onError?.(`Nie zapisano ${failed.length} z ${results.length} zmian etapów: ${failed[0].error?.message ?? ''}`)
+        setReloadKey((k) => k + 1)
+        return
+      }
       setInitialSelected(new Set(selected))
       onSaved()
       onClose()
     } finally {
       setSaving(false)
     }
-  }, [diff.toAdd, diff.toRemove, onClose, onSaved, selected, worker])
+  }, [diff.toAdd, diff.toRemove, onClose, onSaved, onError, selected, worker, loadError])
 
   if (!open || !worker) return null
 
@@ -155,6 +175,13 @@ export default function WorkerStagesModal({ open, worker, onClose, onSaved }: Pr
         <div className="worker-stages-modal__body">
           {loading ? (
             <Spinner center label="Ładowanie przypisań…" />
+          ) : loadError ? (
+            <div className="worker-stages-load-error" role="alert">
+              Nie udało się wczytać etapów tego pracownika — zapis jest zablokowany, żeby nie nadpisać przypisań.
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setReloadKey((k) => k + 1)}>
+                Spróbuj ponownie
+              </button>
+            </div>
           ) : (
             CATEGORY_DEFS.map((section) => (
               <section key={section.label} className="worker-stages-section">
@@ -190,7 +217,7 @@ export default function WorkerStagesModal({ open, worker, onClose, onSaved }: Pr
           <button type="button" className="btn btn-sm btn-primary" onClick={onClose} disabled={saving}>
             Anuluj
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => void onSave()} disabled={saving}>
+          <button type="button" className="btn btn-primary" onClick={() => void onSave()} disabled={saving || loading || !!loadError}>
             {saving ? 'Zapisywanie…' : 'Zapisz'}
           </button>
         </div>

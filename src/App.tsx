@@ -2450,6 +2450,7 @@ function App() {
         onSaved={() => {
           pushToast('Etapy zaktualizowane', 'success')
         }}
+        onError={(msg) => pushToast(msg, 'error')}
       />
       {/* key = zlecenie: szkic/edycja komentarza nie przechodzą na następne zlecenie */}
       <OrderCommentsPanel

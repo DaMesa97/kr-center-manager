@@ -8140,3 +8140,10 @@ html, body, #root {
   color: #991b1b;
   font-size: 0.85rem;
 }
+
+/* okno etapów pracownika — błąd wczytania (zapis zablokowany) */
+.worker-stages-load-error {
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+  padding: 12px; border-radius: 6px;
+  background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+}
