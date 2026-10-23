@@ -85,6 +85,13 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [ ] Import LP z maila przez Make → API (dopiero gdy ręczny import się sprawdzi).
 - [ ] Etykiety dla aluminium — do decyzji (DoP nigdy: drukowane z LiczOkna).
 
+## 🧪 DO SPRAWDZENIA — 23.10 wieczór (Claude, na `clean`, bez nowej bety)
+
+- [ ] **Moje stanowisko — czekające schowane**: domyślnie widać tylko zadania gotowe do pracy + wszystko z X/XX (nawet niegotowe — towar na dziś/jutro). Przycisk „⏳ Pokaż czekające (N)” odsłania resztę, wybór zapamiętany na komputerze/telefonie (`stationShowWaiting`). Gdy nic nie jest gotowe — komunikat z przyciskiem zamiast pustej tabeli. Desktop + mobile.
+
+### ❓ Do przemyślenia (Tymek)
+- [ ] **Wysyłka: PILNE vs X/XX** — dwa niezależne znaczniki pilności (PILNE w kolejności i Plan wydań X/XX) to trochę z dupy. Do decyzji, czy scalić / jak je rozdzielić znaczeniowo.
+
 ## 🧪 DO SPRAWDZENIA — 23.10 (punkt 3 z audytów, na `clean`, bez nowej bety)
 
 SQL wgrany po teście w transakcji z ROLLBACK; Edge Function `dynamic-handler` v24 wdrożona. W aplikacji nic nie było przeklikane.

@@ -12,7 +12,7 @@ import {
 } from '../utils'
 import { docSpecificity, matchedDocsForOrder, orderGlazingType, type DopDocument } from '../lib/dopMatch'
 import { mirrorStageKey } from '../lib/stageMirror'
-import { sortTasks, workersForTask, type MyTask } from '../lib/stationLogic'
+import { isTaskShownByDefault, sortTasks, workersForTask, type MyTask } from '../lib/stationLogic'
 import type { DimensionMap, Order, StaOrderFormData, WorkerStage } from '../types'
 
 const dimMap: DimensionMap[] = [
@@ -222,6 +222,13 @@ describe('sortTasks — plan wydań XX/X nad wszystkim', () => {
     expect(out[0]).toBe(xxReadyRush)
     expect(out[1]).toBe(xxReady)
     expect(out[2]).toBe(xxWaiting)
+  })
+
+  it('domyślnie widoczne: gotowe albo X/XX (niegotowe bez planu schowane)', () => {
+    expect(isTaskShownByDefault(t({ order: withMark(null) }))).toBe(true)
+    expect(isTaskShownByDefault(t({ order: withMark(null), readyToWork: false }))).toBe(false)
+    expect(isTaskShownByDefault(t({ order: withMark('X'), readyToWork: false }))).toBe(true)
+    expect(isTaskShownByDefault(t({ order: withMark('XX'), readyToWork: false }))).toBe(true)
   })
 })
 

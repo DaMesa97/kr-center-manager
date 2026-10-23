@@ -6,6 +6,7 @@ import {
   buildComplaintTasks,
   buildTasks,
   fieldsForStage,
+  isTaskShownByDefault,
   sortTasks,
   workersForTask,
   type MyTask,
@@ -113,15 +114,38 @@ export default function MyStationView({
   const readyCount = tasks.filter((t) => t.readyToWork).length
   const waitingCount = tasks.length - readyCount
 
+  // Czekające na wcześniejszy etap domyślnie schowane (wybór zapamiętany na komputerze)
+  const [showWaiting, setShowWaiting] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('stationShowWaiting') === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleShowWaiting = () => {
+    const next = !showWaiting
+    setShowWaiting(next)
+    try {
+      localStorage.setItem('stationShowWaiting', next ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
+  const shownTasks = useMemo(
+    () => (showWaiting ? tasks : tasks.filter(isTaskShownByDefault)),
+    [tasks, showWaiting],
+  )
+  const hiddenCount = tasks.length - shownTasks.length
+
   // ── Grupowanie po etapie ──────────────────────────────────────────
   // Kto ma kilka etapów (np. składa skrzydła E3 i pakuje E5), widział je
   // wymieszane jedno pod drugim — prosta droga do oznaczenia złego etapu.
   // Sekcje per etap + chipy filtra (wybór zapamiętany na tym komputerze).
   const groups = useMemo(() => {
     const catOrder = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium']
-    const multiCat = new Set(tasks.map((t) => t.category)).size > 1
+    const multiCat = new Set(shownTasks.map((t) => t.category)).size > 1
     const map = new Map<string, { label: string; category: string; header: string; tasks: MyTask[] }>()
-    for (const t of tasks) {
+    for (const t of shownTasks) {
       const key = `${t.category}|${t.stageKey}`
       const g = map.get(key) ?? {
         label: `${multiCat ? `${t.category} · ` : ''}${t.stageHeader} — ${t.stageTitle}`,
@@ -139,7 +163,7 @@ export default function MyStationView({
           catOrder.indexOf(a.category) - catOrder.indexOf(b.category) ||
           a.header.localeCompare(b.header, 'pl', { numeric: true }),
       )
-  }, [tasks])
+  }, [shownTasks])
 
   const [stageFilter, setStageFilter] = useState<string>(() => {
     try {
@@ -315,6 +339,16 @@ export default function MyStationView({
         <div>
           Czeka: <strong>{waitingCount}</strong>
         </div>
+        {(hiddenCount > 0 || showWaiting) && waitingCount > 0 && (
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={toggleShowWaiting}
+            title="Zadania czekające na wcześniejszy etap (bez X/XX — te są zawsze widoczne)"
+          >
+            {showWaiting ? 'Ukryj czekające' : `⏳ Pokaż czekające (${hiddenCount})`}
+          </button>
+        )}
       </div>
 
       {lastDone && (
@@ -353,7 +387,7 @@ export default function MyStationView({
             className={`station-stage-chip ${activeFilter === 'all' ? 'station-stage-chip--active' : ''}`}
             onClick={() => setStageFilterPersist('all')}
           >
-            Wszystkie ({tasks.length})
+            Wszystkie ({shownTasks.length})
           </button>
           {groups.map((g) => (
             <button
@@ -376,7 +410,18 @@ export default function MyStationView({
         wrapperClassName="orders-table-wrapper"
         loading={loading}
         loadingText={<Spinner center label="Ładowanie…" />}
-        emptyText="Brak zadań dla przypisanych etapów."
+        emptyText={
+          hiddenCount > 0 ? (
+            <>
+              Nic gotowego do pracy (czekające na wcześniejsze etapy: {hiddenCount}).{' '}
+              <button type="button" className="btn btn-sm btn-secondary" onClick={toggleShowWaiting}>
+                Pokaż czekające
+              </button>
+            </>
+          ) : (
+            'Brak zadań dla przypisanych etapów.'
+          )
+        }
         renderRow={(r) => {
           if (r.kind !== 'header') return undefined
           return (

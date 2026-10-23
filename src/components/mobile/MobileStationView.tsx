@@ -8,6 +8,7 @@ import {
   buildComplaintTasks,
   buildTasks,
   fieldsForStage,
+  isTaskShownByDefault,
   mergeStationOrderEvent,
   sortTasks,
   stationEventNeedsRefetch,
@@ -271,13 +272,36 @@ export default function MobileStationView({ userId }: Props) {
   )
   const readyCount = tasks.filter((t) => t.readyToWork).length
 
+  // Czekające na wcześniejszy etap domyślnie schowane (wybór zapamiętany na telefonie)
+  const [showWaiting, setShowWaiting] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('stationShowWaiting') === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleShowWaiting = () => {
+    const next = !showWaiting
+    setShowWaiting(next)
+    try {
+      localStorage.setItem('stationShowWaiting', next ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
+  const shownTasks = useMemo(
+    () => (showWaiting ? tasks : tasks.filter(isTaskShownByDefault)),
+    [tasks, showWaiting],
+  )
+  const hiddenCount = tasks.length - shownTasks.length
+
   // Grupowanie po etapie — kilka etapów (np. E3 i E5) wymieszanych na jednej
   // liście to prosta droga do oznaczenia złego. Sekcje + chipy filtra.
   const groups = useMemo(() => {
     const catOrder = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', ALU_CATEGORY]
-    const multiCat = new Set(tasks.map((t) => t.category)).size > 1
+    const multiCat = new Set(shownTasks.map((t) => t.category)).size > 1
     const map = new Map<string, { label: string; category: string; header: string; tasks: MyTask[] }>()
-    for (const t of tasks) {
+    for (const t of shownTasks) {
       const key = `${t.category}|${t.stageKey}`
       const g = map.get(key) ?? {
         label: `${multiCat ? `${t.category} · ` : ''}${t.stageHeader} — ${t.stageTitle}`,
@@ -295,7 +319,7 @@ export default function MobileStationView({ userId }: Props) {
           catOrder.indexOf(a.category) - catOrder.indexOf(b.category) ||
           a.header.localeCompare(b.header, 'pl', { numeric: true }),
       )
-  }, [tasks])
+  }, [shownTasks])
   const [stageFilter, setStageFilter] = useState<string>(() => {
     try {
       return localStorage.getItem('stationStageFilter') ?? 'all'
@@ -586,8 +610,16 @@ export default function MobileStationView({ userId }: Props) {
         </div>
       )}
 
+      {tasks.length > 0 && (hiddenCount > 0 || showWaiting) && readyCount < tasks.length && (
+        <button type="button" className="mstation-waiting-toggle" onClick={toggleShowWaiting}>
+          {showWaiting ? 'Ukryj czekające' : `⏳ Pokaż czekające (${hiddenCount})`}
+        </button>
+      )}
+
       {tasks.length === 0 ? (
         loadError ? null : <div className="mpack-info">Brak zadań dla Twoich etapów 🎉</div>
+      ) : shownTasks.length === 0 ? (
+        <div className="mpack-info">Nic gotowego do pracy (czekające na wcześniejsze etapy: {hiddenCount}).</div>
       ) : (
         <>
           {groups.length > 1 && (
@@ -597,7 +629,7 @@ export default function MobileStationView({ userId }: Props) {
                 className={`mstation-stage-chip ${activeFilter === 'all' ? 'mstation-stage-chip--active' : ''}`}
                 onClick={() => setStageFilterPersist('all')}
               >
-                Wszystkie ({tasks.length})
+                Wszystkie ({shownTasks.length})
               </button>
               {groups.map((g) => (
                 <button

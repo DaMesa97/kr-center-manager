@@ -245,6 +245,14 @@ export function sortTasks(tasks: MyTask[]): MyTask[] {
   return tasks
 }
 
+/**
+ * Domyślnie widoczne na stanowisku: gotowe do pracy ALBO w Planie wydań (X/XX).
+ * Pakowacz nie musi oglądać 800 drzwi, z których gotowych jest 5 — ale
+ * niegotowe X/XX zostają, bo to towar na dziś/jutro i stanowisko ma wiedzieć,
+ * co zaraz do niego przyjdzie. Resztę odsłania przełącznik „Pokaż czekające”.
+ */
+export const isTaskShownByDefault = (t: MyTask): boolean => t.readyToWork || orderRouteMark(t.order) !== ''
+
 // Reklamacje jako zadania stanowisk — do tej pory istniały TYLKO w podzakładce
 // Reklamacje i stolarz/ościeżniczarz nigdy ich nie widział w swojej kolejce.
 // Etapy pisze update_complaint_stage (bez magazynu — komponenty napraw
