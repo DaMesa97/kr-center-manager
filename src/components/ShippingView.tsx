@@ -419,6 +419,7 @@ export default function ShippingView({
     col({
       key: 'model',
       label: 'MODEL',
+      headerSub: 'SYSTEM',
       className: 'col-ship-model',
       render: (order) => (
         <>

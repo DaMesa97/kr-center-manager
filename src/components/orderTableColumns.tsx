@@ -144,6 +144,7 @@ export function modelSystemCol<T = Order>(
   return {
     key: 'model',
     label: 'MODEL',
+    headerSub: 'SYSTEM',
     title: 'Model (pod spodem system)',
     className: opts.className ?? 'col-order-text',
     tdTitle: (r) => orderCellTooltip(joined(r)),

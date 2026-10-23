@@ -48,6 +48,8 @@ export type DataTableColumn<T> = {
    * zwykła osobna kolumna. Nie łączyć z przyklejonymi kolumnami ani colgroup.
    */
   stackUnder?: string
+  /** Stały podpis pod etykietą nagłówka — kolumna, która ZAWSZE pokazuje dwie wartości (np. MODEL / system). */
+  headerSub?: ReactNode
 }
 
 type VisibleColumn<T> = { col: DataTableColumn<T>; subs: DataTableColumn<T>[] }
@@ -242,8 +244,9 @@ export default function DataTable<T>({
         {visible.map(({ col: c, subs }) => {
           const style = { ...alignStyle(c.align), ...c.thStyle }
           // pod-etykiety spiętrowanych kolumn — każda sortuje po swojej kolumnie
-          const subLabels = subs.length > 0 && (
+          const subLabels = (subs.length > 0 || c.headerSub) && (
             <span className="dt-stack-th-subs">
+              {c.headerSub && <span className="dt-stack-th-sub">{c.headerSub}</span>}
               {subs.map((sc) => {
                 const on = sort?.key === sc.key
                 return (
