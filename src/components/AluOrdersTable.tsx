@@ -1,7 +1,7 @@
 import { useMemo, type MutableRefObject } from 'react'
 import DataTable, { type DataTableColumn } from './DataTable'
 import { ALU_CONSTRUCTION_LABELS, ALU_REALIZACJA_LABELS } from '../constants'
-import { aluOrderExtra, aluOrderProgress, summarizeAluTypes } from '../lib/alu'
+import { aluLoadingDate, aluOrderExtra, aluOrderProgress, formatPlDateWithDow, summarizeAluTypes } from '../lib/alu'
 import { isReleaseDateEmpty } from '../utils'
 import type { AluPosition, Order, OrderDocument } from '../types'
 
@@ -81,12 +81,14 @@ export default function AluOrdersTable({ orders, positionsByOrder, documentsByOr
         render: (o) => {
           const { label, daysLeft } = deadlineInfo(aluOrderExtra(o).deadline)
           const open = orderStatus(o) === 'in_progress'
+          const loading = aluLoadingDate(aluOrderExtra(o).deadline)
           return (
             <>
               {label}
               {open && daysLeft != null && (
                 <div className="dt-stack-sub">{daysLeft < 0 ? `${-daysLeft} dni po terminie` : daysLeft === 0 ? 'dziś' : `za ${daysLeft} dni`}</div>
               )}
+              {loading && <div className="dt-stack-sub" title="Załadunek = 1 dzień roboczy przed terminem">załadunek {formatPlDateWithDow(loading)}</div>}
             </>
           )
         },

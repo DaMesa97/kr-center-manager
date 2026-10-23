@@ -76,6 +76,28 @@ export function formatAluDims(w: number | null | undefined, h: number | null | u
   return `${w ?? '?'}×${h ?? '?'}`
 }
 
+/**
+ * Załadunek = 1 dzień ROBOCZY przed terminem (dniem trasy): pn–pt, bez świąt
+ * (jak workingDaysBetween). Poniedziałek → piątek. Pusty/zły termin → ''.
+ */
+export function aluLoadingDate(deadline: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(deadline ?? '').trim())
+  if (!m) return ''
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  do {
+    d.setDate(d.getDate() - 1)
+  } while (d.getDay() === 0 || d.getDay() === 6)
+  return d.toLocaleDateString('sv-SE')
+}
+
+/** „19.11.2026 (czw.)” — data po polsku ze skrótem dnia tygodnia */
+export function formatPlDateWithDow(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd ?? '').trim())
+  if (!m) return ymd || '—'
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return `${d.toLocaleDateString('pl-PL')} (${d.toLocaleDateString('pl-PL', { weekday: 'short' })})`
+}
+
 /** Domyślny termin przy imporcie: dziś + N tygodni (lokalna data YYYY-MM-DD) */
 export function defaultAluDeadline(weeks = 4, from = new Date()): string {
   const d = new Date(from)

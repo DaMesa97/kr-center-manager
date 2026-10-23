@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ALU_REALIZACJA_LABELS } from '../constants'
-import { aluOrderExtra, aluOrderProgress } from '../lib/alu'
+import { aluLoadingDate, aluOrderExtra, aluOrderProgress, formatPlDateWithDow } from '../lib/alu'
 import { isReleaseDateEmpty } from '../utils'
 import AluPositionsTable from './AluPositionsTable'
 import type { AluPosition, Order, OrderDocument, OrderDocumentKind } from '../types'
@@ -69,7 +69,10 @@ export default function AluOrderDetailsModal({
         <div className="alu-details-grid">
           <div><span className="alu-details-label">Lista produkcyjna</span>{extra.lp_number || '—'}</div>
           <div><span className="alu-details-label">LP utworzona</span>{fmtDate(extra.lp_created_at)}</div>
-          <div><span className="alu-details-label">Termin</span>{extra.deadline ? new Date(`${extra.deadline}T00:00:00`).toLocaleDateString('pl-PL') : '—'}</div>
+          <div><span className="alu-details-label">Termin (dzień trasy)</span>{extra.deadline ? formatPlDateWithDow(extra.deadline) : '—'}</div>
+          <div title="1 dzień roboczy przed terminem">
+            <span className="alu-details-label">Załadunek</span>{extra.deadline ? formatPlDateWithDow(aluLoadingDate(extra.deadline)) : '—'}
+          </div>
           <div><span className="alu-details-label">Pozycje / sztuki</span>{positions.length} / {qty}</div>
           <div><span className="alu-details-label">Powierzchnia</span>{extra.area_m2 != null ? `${extra.area_m2} m²` : '—'}</div>
           <div><span className="alu-details-label">Masa</span>{extra.weight_kg != null ? `${extra.weight_kg} kg` : '—'}</div>

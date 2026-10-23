@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aluOrderProgress, aluPositionProgress, aluStageComplete, aluStageDone, defaultAluDeadline, formatAluGlass, summarizeAluTypes } from '../lib/alu'
+import { aluLoadingDate, aluOrderProgress, aluPositionProgress, aluStageComplete, aluStageDone, defaultAluDeadline, formatAluGlass, summarizeAluTypes } from '../lib/alu'
 import { ALU_CONSTRUCTION_LABELS } from '../constants'
 
 describe('alu — etapy per sztuka', () => {
@@ -25,5 +25,12 @@ describe('alu — etapy per sztuka', () => {
     expect(formatAluGlass([{ spec: '4/16/4 Ug=1,1', width_mm: 841, height_mm: 1022, qty: 1 }])).toBe('841×1022 ×1 (4/16/4 Ug=1,1)')
     expect(summarizeAluTypes([{ construction_type: 'drzwi', quantity: 2 }, { construction_type: 'okno', quantity: 1 }], ALU_CONSTRUCTION_LABELS)).toBe('Drzwi ×2 · Okno ×1')
     expect(defaultAluDeadline(4, new Date(2026, 9, 23))).toBe('2026-11-20')
+  })
+
+  it('załadunek = dzień roboczy przed terminem (pn → pt, wt → pn)', () => {
+    expect(aluLoadingDate('2026-11-20')).toBe('2026-11-19') // pt → czw
+    expect(aluLoadingDate('2026-11-23')).toBe('2026-11-20') // pn → pt
+    expect(aluLoadingDate('2026-11-24')).toBe('2026-11-23') // wt → pn
+    expect(aluLoadingDate('')).toBe('')
   })
 })
