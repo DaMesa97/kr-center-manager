@@ -97,6 +97,8 @@ function PromptDialog({ req, onClose }: { req: PromptRequest; onClose: () => voi
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
+            // nie przepuszczaj do okna pod spodem (Esc zamykał też formularz)
+            if (e.key === 'Enter' || e.key === 'Escape') e.stopPropagation()
             if (e.key === 'Enter') finish(value)
             if (e.key === 'Escape') finish(null)
           }}
@@ -129,6 +131,21 @@ export function AppDialogHost() {
   const confirmReq = state.confirm
   const alertReq = state.alert
   const promptReq = state.prompt
+
+  // Esc zamyka komunikat (OK) — tylko ten, bez okna pod spodem
+  useEffect(() => {
+    if (!alertReq) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      state.alert = null
+      setTick((t) => t + 1)
+      alertReq.resolve()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [alertReq])
 
   return (
     <>

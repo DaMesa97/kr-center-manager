@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
 type DeleteConfirmDialogProps = {
@@ -22,17 +22,32 @@ export default function DeleteConfirmDialog({
   cancelLabel = 'Anuluj',
   tone = 'danger',
 }: DeleteConfirmDialogProps) {
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  const confirmRef = useRef<HTMLButtonElement>(null)
+  // Fokus na BEZPIECZNYM przycisku: przy usuwaniu „Anuluj”, przy pozytywnym
+  // potwierdzeniu — potwierdzenie. Enter = przycisk z fokusem (natywnie).
   useEffect(() => {
+    const target = tone === 'success' ? confirmRef : cancelRef
+    target.current?.focus()
+  }, [tone])
+
+  useEffect(() => {
+    // capture + stopImmediatePropagation: Esc/Enter z okna potwierdzenia nie trafia
+    // do formularza/okna POD spodem (wcześniej Esc zamykało oba, a Enter zawsze
+    // POTWIERDZAŁ — także usuwanie, nawet z fokusem na „Anuluj”)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-      if (e.key === 'Enter') {
+      if (e.key === 'Escape') {
         e.preventDefault()
-        onConfirm()
+        e.stopImmediatePropagation()
+        onCancel()
+      } else if (e.key === 'Enter') {
+        e.stopImmediatePropagation()
+        if (e.repeat) e.preventDefault() // przytrzymany Enter z formularza nie klika
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel, onConfirm])
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onCancel])
 
   return createPortal(
     <div className="confirm-dialog-overlay" role="presentation" onClick={onCancel}>
@@ -58,10 +73,11 @@ export default function DeleteConfirmDialog({
           {message}
         </p>
         <div className="confirm-dialog-actions">
-          <button type="button" className="btn btn-secondary" onClick={onCancel}>
+          <button ref={cancelRef} type="button" className="btn btn-secondary" onClick={onCancel}>
             {cancelLabel}
           </button>
           <button
+            ref={confirmRef}
             type="button"
             className={`btn ${tone === 'success' ? 'btn-success' : 'btn-danger'}`}
             onClick={onConfirm}
