@@ -1303,6 +1303,7 @@ export function orderToStaForm(order: Order): StaOrderFormData {
     notes: order.notes ?? '',
     client_order_number: order.client_order_number ?? '',
     wykonawca: String((order.extra_fields as Record<string, unknown> | null)?.wykonawca ?? ''),
+    podwalina: String((order.extra_fields as Record<string, unknown> | null)?.podwalina ?? ''),
   }
 }
 

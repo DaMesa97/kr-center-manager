@@ -540,6 +540,7 @@ export const INITIAL_STA_ORDER_FORM: StaOrderFormData = {
   notes: '',
   client_order_number: '',
   wykonawca: '',
+  podwalina: '',
 }
 
 export const INITIAL_ST_ORDER_FORM: StOrderFormData = {

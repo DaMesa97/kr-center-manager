@@ -457,6 +457,8 @@ export type StaOrderFormData = {
   notes: string
   client_order_number: string
   wykonawca: string
+  /** podwalina (extra_fields.podwalina) — z konfiguratora albo wpisana ręcznie */
+  podwalina: string
 }
 
 export type StaConfigRow = {

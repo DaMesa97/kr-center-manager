@@ -861,6 +861,12 @@ function OrderFormModal(props: OrderFormModalProps) {
                     onChange={(v) => handleStaFormChange('client_order_number', v)}
                   />
 
+                  <FormInput
+                    label="Podwalina"
+                    value={staFormData.podwalina}
+                    onChange={(v) => handleStaFormChange('podwalina', v)}
+                  />
+
                 </div>
                 </>
               ) : activeTab === 'ST' ? (

@@ -325,6 +325,8 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     { label: 'Poszerzenie', value: str(order.extension) },
     // zaczep montowany w ościeżnicy — frez robi stanowisko ościeżnic
     { label: 'Elektrozaczep', value: str(order.electric_strike) },
+    // podwalina idzie pod ościeżnicę (z konfiguratora: extra_fields.podwalina)
+    { label: 'Podwalina', value: str((o.extra_fields as Record<string, unknown> | null)?.podwalina) },
   ]
   const GLASS: DetailField[] = [
     { label: 'Naświetle górne', value: str(order.top_light) },
@@ -361,6 +363,7 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     { label: 'Dostawka boczna', value: str(order.side_panel_a || order.side_panel) },
     { label: 'Dostawka B', value: str(order.side_panel_b) },
     { label: 'Osłonki', value: str(order.oslonki) },
+    { label: 'Podwalina', value: str((o.extra_fields as Record<string, unknown> | null)?.podwalina) },
   ]
   const BASTION: DetailField[] = [
     { label: 'Model', value: str(order.model) },

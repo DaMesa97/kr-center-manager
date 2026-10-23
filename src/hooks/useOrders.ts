@@ -1180,7 +1180,7 @@ export function useOrders({
         intarsja: staFormData.intarsja,
         extra_fields: mergeOrderExtraFields(
           isEditing ? editingOrderBaseline.extra_fields : null,
-          { wykonawca: staFormData.wykonawca || '' },
+          { wykonawca: staFormData.wykonawca || '', podwalina: staFormData.podwalina.trim() },
         ),
         production_stages: productionStagesFromLegacyStageFormFields(
           activeTab,
@@ -1225,7 +1225,7 @@ export function useOrders({
           p_order_id: editId,
           p_fields: payload,
           p_stage_patch: stagePatch,
-          p_extra_patch: { wykonawca: staFormData.wykonawca || '' },
+          p_extra_patch: { wykonawca: staFormData.wykonawca || '', podwalina: staFormData.podwalina.trim() },
         })
         if (error) {
           pushToast(`Wystąpił błąd: ${error.message}`, 'error')
