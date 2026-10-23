@@ -3,13 +3,12 @@
 // PDF-a i drukujemy po cichu na wybraną drukarkę — czyli dokładnie tą samą
 // drogą co etykiety. Zero zależności od zewnętrznych czytników PDF.
 
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
-// ?worker = Vite tworzy prawdziwego workera modułowego (workerSrc przez ?url
-// potrafił nigdy nie wystartować → getDocument wisiał bez błędu)
-import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
+import { getDocument } from 'pdfjs-dist'
+import { ensurePdfJsWorker } from './pdfjsSetup'
 import { escapeHtml } from './labelRender'
 
-GlobalWorkerOptions.workerPort = new PdfJsWorker()
+// worker startuje przy załadowaniu modułu — jak dotąd (konfiguracja w pdfjsSetup.ts)
+ensurePdfJsWorker()
 
 // twardy limit: lepszy czytelny błąd niż wieczne "Drukuję…"
 function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
