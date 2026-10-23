@@ -77,7 +77,7 @@ import AluOrdersTable from './components/AluOrdersTable'
 import AluOrderDetailsModal from './components/AluOrderDetailsModal'
 import AluImportModal, { type AluImportOpts } from './components/AluImportModal'
 import { useAluOrders } from './hooks/useAluOrders'
-import type { AluLpParseResult, OrderDocumentKind } from './types'
+import type { AluLpParseResult, AluPosition, OrderDocumentKind } from './types'
 import OrderFormModal from './components/OrderFormModal'
 import StatsView from './components/StatsView'
 import WarehouseView from './components/WarehouseView'
@@ -543,6 +543,9 @@ function App() {
     handleStageComplete,
     handleComplaintStageComplete,
     handleStageUndo,
+    aluPositionsByOrder: stationAluPositions,
+    applyAluPositionEvent,
+    handleAluStageClick,
   } = useMyStation({ pushToast, currentUser })
 
   const {
@@ -1184,6 +1187,21 @@ function App() {
           }
         },
       )
+
+    // Aluminium: etapy żyją na pozycjach — stanowisko scala zmiany pozycji lokalnie
+    if (isStationTab) {
+      ordersChannel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_alu_positions' },
+        (payload) => {
+          applyAluPositionEvent(
+            payload.eventType,
+            payload.new as Partial<AluPosition> | null,
+            payload.old as { id?: number; order_id?: number } | null,
+          )
+        },
+      )
+    }
 
     // Subskrypcja na zmiany w complaints
     const complaintsChannel = supabase
@@ -3177,6 +3195,8 @@ function App() {
             onStageComplete={handleStageComplete}
             onComplaintStageComplete={handleComplaintStageComplete}
             onStageUndo={handleStageUndo}
+            aluPositionsByOrder={stationAluPositions}
+            onAluStageClick={handleAluStageClick}
             loading={myStationLoading}
             pushToast={pushToast}
             isManager={isManager}

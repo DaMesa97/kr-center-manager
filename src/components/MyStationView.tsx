@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Complaint, Order, WorkerStage } from '../types'
+import type { AluPosition, Complaint, Order, WorkerStage } from '../types'
 import { isRushOrderSequence, orderRouteMark } from '../utils'
+import { aluDetailFields, aluTaskKey, buildAluTasks } from '../lib/aluStation'
 import {
   buildComplaintTasks,
   buildTasks,
@@ -38,6 +39,10 @@ type Props = {
     opts?: { force?: boolean; markInitials?: string },
   ) => Promise<StageCompleteResult>
   onComplaintStageComplete: (task: MyTask, markInitials?: string) => Promise<StageCompleteResult>
+  /** Aluminium: pozycje otwartych zleceń alu (etapy per pozycja/sztuka) */
+  aluPositionsByOrder: Record<number, AluPosition[]>
+  /** Aluminium: jedno kliknięcie = jedna sztuka pozycji na etapie */
+  onAluStageClick: (task: MyTask, markInitials?: string) => Promise<boolean>
   /** „Cofnij” tuż po oznaczeniu (pomyłka) — etap + zwrot wydanego towaru */
   onStageUndo: (task: MyTask) => Promise<boolean>
   loading: boolean
@@ -55,6 +60,8 @@ export default function MyStationView({
   stationProfiles,
   onStageComplete,
   onComplaintStageComplete,
+  aluPositionsByOrder,
+  onAluStageClick,
   onStageUndo,
   loading,
   pushToast,
@@ -96,8 +103,12 @@ export default function MyStationView({
     return () => clearTimeout(t)
   }, [lastDone])
   const tasks = useMemo(
-    () => sortTasks([...buildTasks(orders, workerStages), ...buildComplaintTasks(complaints, workerStages)]),
-    [orders, complaints, workerStages],
+    () => [
+      ...sortTasks([...buildTasks(orders, workerStages), ...buildComplaintTasks(complaints, workerStages)]),
+      // aluminium osobno: własna kolejność (termin → zlecenie → pozycja → etap)
+      ...buildAluTasks(orders, aluPositionsByOrder, workerStages),
+    ],
+    [orders, complaints, workerStages, aluPositionsByOrder],
   )
   const readyCount = tasks.filter((t) => t.readyToWork).length
   const waitingCount = tasks.length - readyCount
@@ -107,7 +118,7 @@ export default function MyStationView({
   // wymieszane jedno pod drugim — prosta droga do oznaczenia złego etapu.
   // Sekcje per etap + chipy filtra (wybór zapamiętany na tym komputerze).
   const groups = useMemo(() => {
-    const catOrder = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+    const catOrder = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium']
     const multiCat = new Set(tasks.map((t) => t.category)).size > 1
     const map = new Map<string, { label: string; category: string; header: string; tasks: MyTask[] }>()
     for (const t of tasks) {
@@ -206,14 +217,24 @@ export default function MyStationView({
         key: 'product',
         label: 'PRODUKT',
         sortValue: (task) => task.order.model,
-        render: (task) => (
-          <>
-            <div className="my-station-cell-main">{task.order.model}</div>
-            <div className="my-station-cell-sub">
-              {task.category} · {task.order.quantity} szt.
-            </div>
-          </>
-        ),
+        render: (task) =>
+          task.alu ? (
+            <>
+              <div className="my-station-cell-main">
+                poz. {task.alu.posNo} · {task.alu.position.description || task.alu.position.system}
+              </div>
+              <div className="my-station-cell-sub">
+                {task.alu.position.system} · {task.alu.done}/{task.alu.quantity} szt. z tym etapem
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="my-station-cell-main">{task.order.model}</div>
+              <div className="my-station-cell-sub">
+                {task.category} · {task.order.quantity} szt.
+              </div>
+            </>
+          ),
       },
       {
         key: 'stage',
@@ -232,9 +253,9 @@ export default function MyStationView({
                 setConfirmTask(task)
               }}
             >
-              ✓ Zrobione
+              {task.alu ? `✓ Sztuka ${Math.min(task.alu.done + 1, task.alu.quantity)}/${task.alu.quantity}` : '✓ Zrobione'}
             </button>
-            {isManager && !task.isComplaint && (
+            {isManager && !task.isComplaint && !task.alu && (
               <>
                 {' '}
                 <button
@@ -383,7 +404,9 @@ export default function MyStationView({
           if (r.kind !== 'task') return null
           const task = r.task
           if (expandedKey !== taskKey(task)) return null
-          const details = fieldsForStage(task.order, task.category, task.actualStageKey)
+          const details = task.alu
+            ? aluDetailFields(task.alu.position, task.order, task.stageKey)
+            : fieldsForStage(task.order, task.category, task.actualStageKey)
           return (
             <tr className="my-station-details-row">
               <td colSpan={rowColumns.length}>
@@ -409,9 +432,11 @@ export default function MyStationView({
         <StageWorkerConfirmDialog
           title="Oznaczyć etap jako zrobiony?"
           message={
-            confirmTask.isComplaint
-              ? `REKLAMACJA ${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number}), etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
-              : `Zamówienie nr ${confirmTask.order.order_number}, etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
+            confirmTask.alu
+              ? `Zlecenie ${confirmTask.order.order_number}, pozycja ${confirmTask.alu.posNo} (${confirmTask.alu.position.description}) — ${confirmTask.stageTitle}: sztuka ${Math.min(confirmTask.alu.done + 1, confirmTask.alu.quantity)} z ${confirmTask.alu.quantity}`
+              : confirmTask.isComplaint
+                ? `REKLAMACJA ${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number}), etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
+                : `Zamówienie nr ${confirmTask.order.order_number}, etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
           }
           workers={workersForTask(confirmTask, allWorkerStages, stationProfiles)}
           lastWorkerId={lastWorkerId}
@@ -425,9 +450,11 @@ export default function MyStationView({
               try {
                 rememberWorker(worker)
                 const markInitials = worker?.initials
-                const result = task.isComplaint
-                  ? await onComplaintStageComplete(task, markInitials)
-                  : await onStageComplete(task.order, task.stageKey, task.category, { markInitials })
+                const result: StageCompleteResult = task.alu
+                  ? (await onAluStageClick(task, markInitials)) ? { status: 'ok' } : { status: 'error' }
+                  : task.isComplaint
+                    ? await onComplaintStageComplete(task, markInitials)
+                    : await onStageComplete(task.order, task.stageKey, task.category, { markInitials })
                 setConfirmTask(null)
                 if (result.status === 'shortage') {
                   setShortageDialog({ task, shortages: result.shortages, markInitials })
@@ -483,4 +510,5 @@ const UNDO_MS = 60_000
 
 // Prefiks dla reklamacji — mają własną numerację id i mogłyby kolidować z zamówieniami
 const taskKey = (task: MyTask) =>
+  task.alu ? aluTaskKey(task) :
   `${task.isComplaint ? 'r' : ''}${task.order.id ?? task.order.order_number}-${task.stageKey}`

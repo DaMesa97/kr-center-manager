@@ -1,5 +1,5 @@
 import { BASTION_STAGE_DEFS, BASTION_TITAN_STAGE_DEFS, STA_DISTING_STAGE_DEFS, ST_STAGE_DEFS, ST_TITAN_STAGE_DEFS } from '../constants'
-import type { Complaint, Order, StageDef, WhatComplained, WorkerStage } from '../types'
+import type { AluPosition, Complaint, Order, StageDef, WhatComplained, WorkerStage } from '../types'
 import { mergeIncomingStages } from './stageWrites'
 import {
   getComplaintBlockedStages,
@@ -26,6 +26,19 @@ export type MyTask = {
   complaintId?: number
   complaintNumber?: string
   linkedComplaintId?: number | null
+  /** Zadanie ALUMINIUM: pozycja zlecenia, etap per SZTUKA (lib/aluStation) */
+  alu?: AluTaskInfo
+}
+
+export type AluTaskInfo = {
+  position: AluPosition
+  positionId: number
+  posNo: number
+  /** sztuki z tym etapem / wszystkie */
+  done: number
+  quantity: number
+  /** ile sztuk można teraz odkliknąć (poprzedni etap je przepuścił) */
+  readyCount: number
 }
 
 export type DetailField = { label: string; value: string }

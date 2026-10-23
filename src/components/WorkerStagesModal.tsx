@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import {
+  ALU_STAGE_DEFS,
   BASTION_STAGE_DEFS,
   BASTION_TITAN_STAGE_DEFS,
   STA_DISTING_STAGE_DEFS,
@@ -40,6 +41,8 @@ const CATEGORY_DEFS: Array<{
   // Noga Titana w Bastionie: okuwanie/montaż/pakowanie (klucze tit_*) —
   // bez tej sekcji „titanowego pakowania" nie dało się nikomu przypisać
   { category: 'Bastion', label: 'Bastion (Titan)', defs: BASTION_TITAN_STAGE_DEFS },
+  // Stolarka aluminiowa: etapy per pozycja/sztuka (klikane na Moim stanowisku)
+  { category: 'Aluminium', label: 'Stolarka aluminiowa', defs: ALU_STAGE_DEFS },
 ]
 
 const keyFor = (category: string, stageKey: string) => `${category}||${stageKey}`

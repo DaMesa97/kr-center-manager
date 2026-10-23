@@ -4,8 +4,10 @@ import { mirrorStageKey } from '../lib/stageMirror'
 import { markLocalStageWrite } from '../lib/stageWrites'
 import { clearStageLocally, stationUndoMessage, undoStationTask } from '../lib/stationUndo'
 import { ALL_STATION_CATEGORIES, fetchStationOrders } from '../lib/stationFetch'
+import { applyAluPositionStages, mergeAluPositionEvent } from '../lib/aluStation'
+import { ALU_CATEGORY } from '../constants'
 import { parseProductionStages } from '../utils'
-import type { Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
+import type { AluPosition, AluPositionStages, Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
 import type { ToastVariant } from '../types'
 import {
   mergeStationOrderEvent,
@@ -36,6 +38,8 @@ export type StageCompleteResult =
 export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
   const [myStationOrders, setMyStationOrders] = useState<Order[]>([])
   const [myStationComplaints, setMyStationComplaints] = useState<Complaint[]>([])
+  // Aluminium: pozycje otwartych zleceń alu (etapy per pozycja/sztuka) — klucz = order_id
+  const [aluPositionsByOrder, setAluPositionsByOrder] = useState<Record<number, AluPosition[]>>({})
   const [myStationLoading, setMyStationLoading] = useState(false)
   const [workerStagesForCurrent, setWorkerStagesForCurrent] = useState<WorkerStage[]>([])
   // Kafelki "kto zrobił": wszystkie przypisania etapów + profile (stanowisko
@@ -126,6 +130,27 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       return
     }
     setMyStationOrders(stationOrders)
+    // Aluminium: etapy żyją na POZYCJACH zlecenia — dociągnij je dla otwartych zleceń alu
+    if (scopeRef.current.has(ALU_CATEGORY)) {
+      const aluIds = stationOrders.filter((o) => o.category === ALU_CATEGORY && o.id != null).map((o) => o.id as number)
+      const byOrder: Record<number, AluPosition[]> = {}
+      for (const id of aluIds) byOrder[id] = []
+      for (let i = 0; i < aluIds.length; i += 200) {
+        const { data, error } = await supabase
+          .from('order_alu_positions')
+          .select('*')
+          .in('order_id', aluIds.slice(i, i + 200))
+          .order('pos_no', { ascending: true })
+        if (error) {
+          pushToast(`Nie wczytano pozycji aluminium: ${error.message}`, 'error')
+          break
+        }
+        for (const p of (data ?? []) as AluPosition[]) (byOrder[p.order_id] ??= []).push(p)
+      }
+      setAluPositionsByOrder(byOrder)
+    } else {
+      setAluPositionsByOrder({})
+    }
     await fetchStationComplaints()
     // Spinner schodzi dopiero po KOMPLECIE (zamówienia + reklamacje + kafelki) —
     // wcześniej klik "Zrobione" w oknie race'a widział pustą listę osób
@@ -293,8 +318,63 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
   )
 
   // „Cofnij” tuż po pomyłce na stanowisku — wspólna logika z mobile (lib/stationUndo)
+  // ── Aluminium: jedno kliknięcie = jedna sztuka (RPC pilnuje przepływu sztukowego) ──
+  const applyAluPositionEvent = useCallback(
+    (eventType: string, row: Partial<AluPosition> | null, oldRow: { id?: number; order_id?: number } | null) => {
+      setAluPositionsByOrder((prev) => mergeAluPositionEvent(prev, eventType, row, oldRow))
+    },
+    [],
+  )
+
+  const handleAluStageClick = useCallback(
+    async (task: MyTask, markInitials?: string): Promise<boolean> => {
+      const info = task.alu
+      if (!info) return false
+      const mark = (markInitials ?? currentUser?.initials ?? '').trim() || 'T'
+      const { data, error } = await supabase.rpc('mark_alu_position_stage', {
+        p_position_id: info.positionId,
+        p_stage_key: task.stageKey,
+        p_initials: mark,
+      })
+      if (error) {
+        pushToast(`Nie oznaczono sztuki: ${error.message}`, 'error')
+        return false
+      }
+      setAluPositionsByOrder((prev) => applyAluPositionStages(prev, info.positionId, (data ?? {}) as AluPositionStages))
+      const doneNow = Math.min(info.quantity, info.done + 1)
+      pushToast(
+        doneNow >= info.quantity
+          ? `${task.stageHeader}: pozycja ${info.posNo} gotowa (${doneNow}/${info.quantity} szt.)`
+          : `${task.stageHeader}: sztuka ${doneNow}/${info.quantity} pozycji ${info.posNo}`,
+        'success',
+      )
+      return true
+    },
+    [pushToast, currentUser?.initials],
+  )
+
+  const handleAluStageUndo = useCallback(
+    async (task: MyTask): Promise<boolean> => {
+      const info = task.alu
+      if (!info) return false
+      const { data, error } = await supabase.rpc('undo_alu_position_stage', {
+        p_position_id: info.positionId,
+        p_stage_key: task.stageKey,
+      })
+      if (error) {
+        pushToast(`Nie cofnięto sztuki: ${error.message}`, 'error')
+        return false
+      }
+      setAluPositionsByOrder((prev) => applyAluPositionStages(prev, info.positionId, (data ?? {}) as AluPositionStages))
+      pushToast(`Cofnięto sztukę: ${task.stageHeader}, pozycja ${info.posNo}`, 'success')
+      return true
+    },
+    [pushToast],
+  )
+
   const handleStageUndo = useCallback(
     async (task: MyTask): Promise<boolean> => {
+      if (task.alu) return handleAluStageUndo(task)
       const res = await undoStationTask(task)
       if (!res.ok) {
         pushToast(`Nie cofnięto etapu: ${res.error}`, 'error')
@@ -318,6 +398,9 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
 
   return {
     handleStageUndo,
+    aluPositionsByOrder,
+    applyAluPositionEvent,
+    handleAluStageClick,
     myStationOrders,
     setMyStationOrders,
     myStationComplaints,
