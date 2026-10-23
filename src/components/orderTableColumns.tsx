@@ -97,6 +97,36 @@ export function textCol(
   }
 }
 
+/**
+ * Kolor + kolor strony wewnętrznej (WF) pod spodem — Bastion bywa dwukolorowy
+ * (extra_fields.kolor_skrzydla_wf / kolor_oscieznicy_wf z importu Excela),
+ * a WF nie był nigdzie widoczny.
+ */
+export function colorWithWfCol(
+  key: string,
+  label: string,
+  get: (o: Order) => string | null | undefined,
+  wfKey: string,
+  className: string,
+): DataTableColumn<Order> {
+  const wf = (o: Order) => String((o.extra_fields as Record<string, unknown> | null)?.[wfKey] ?? '').trim()
+  const showWf = (o: Order) => wf(o) !== '' && wf(o).toUpperCase() !== String(get(o) ?? '').trim().toUpperCase()
+  return {
+    key,
+    label,
+    title: `${label} (pod spodem WF — strona wewnętrzna, gdy inna)`,
+    className,
+    tdTitle: (o) => orderCellTooltip([get(o), showWf(o) ? `WF: ${wf(o)}` : ''].filter(Boolean).join(' · ')),
+    sortValue: (o) => get(o) ?? null,
+    render: (o) => (
+      <>
+        {get(o)}
+        {showWf(o) && <div className="dt-stack-sub">WF: {wf(o)}</div>}
+      </>
+    ),
+  }
+}
+
 type ModelSystem = { model?: string | null; system?: string | null }
 
 /**

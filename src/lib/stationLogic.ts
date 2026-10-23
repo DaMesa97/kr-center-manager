@@ -365,13 +365,16 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     { label: 'Osłonki', value: str(order.oslonki) },
     { label: 'Podwalina', value: str((o.extra_fields as Record<string, unknown> | null)?.podwalina) },
   ]
+  const ef = (o.extra_fields as Record<string, unknown> | null) ?? {}
   const BASTION: DetailField[] = [
     { label: 'Model', value: str(order.model) },
     { label: 'Kolekcja', value: str(o.bastion_collection) },
     { label: 'Typ ościeżnicy', value: str(o.bastion_frame_type) },
     { label: 'Zakres ościeżnicy', value: str(o.bastion_frame_range) },
     { label: 'Kolor skrzydła', value: str(order.wing_color) },
+    { label: 'Kolor skrzydła WF (wewn.)', value: str(ef.kolor_skrzydla_wf) },
     { label: 'Kolor ościeżnicy', value: str(order.frame_color) },
+    { label: 'Kolor ościeżnicy WF (wewn.)', value: str(ef.kolor_oscieznicy_wf) },
     ...ORIENTATION,
   ]
   // stolarnia Bastiona: zabudowy, progi, opaski
@@ -390,10 +393,13 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     if (k.includes('oscieznica')) {
       group = [
         ...FRAME,
+        { label: 'Kolor ościeżnicy WF (wewn.)', value: str(ef.kolor_oscieznicy_wf) },
         { label: 'Typ ościeżnicy', value: str(o.bastion_frame_type) },
         { label: 'Zakres ościeżnicy', value: str(o.bastion_frame_range) },
       ]
-    } else if (k.includes('skrzydla') || k === 'tit_oku') group = WING
+    } else if (k.includes('skrzydla') || k === 'tit_oku') {
+      group = [...WING, { label: 'Kolor skrzydła WF (wewn.)', value: str(ef.kolor_skrzydla_wf) }]
+    }
     else if (k === 'stolarnia') group = BASTION_JOINERY
     else if (k === 'tit_mon') group = FULL
     else if (k === 'tit_pak') group = PACK
