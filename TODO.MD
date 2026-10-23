@@ -72,6 +72,23 @@
 
 ---
 
+## 🧪 DO SPRAWDZENIA — 23.10 (punkt 3 z audytów, na `clean`, bez nowej bety)
+
+SQL wgrany po teście w transakcji z ROLLBACK; Edge Function `dynamic-handler` v24 wdrożona. W aplikacji nic nie było przeklikane.
+
+- [ ] **Aktualizacja bez trwałej blokady**: błąd pobierania pokazuje „Aktualizacja się nie udała” z „Spróbuj ponownie” / „Pracuj na obecnej wersji”; pobieranie bez postępu 60 s = błąd. Admin przechodzi przez `min_app_version` (czerwony pasek zamiast blokady) — `949d6bc`
+- [ ] **Podwalina z konfiguratora**: pole „Podwalina” w formularzu STA/Disting (np. „Podwalina 100 mm ×1”), w szczegółach ościeżnicy i pakowania na stanowisku, na etykiecie `{{podwalina}}`; uzupełnione 43 zlecenia — `dfc0bb2`
+- [ ] **Uwagi „-” / „undefined”** z bota i Excela → puste (bot w bazie, Excel w dynamic-handler v24). UWAGA: czyszczenie zamieniło też puste uwagi '' na NULL w 3634 zleceniach z Excela (w aplikacji bez różnicy, w Audycie widać zmiany) — `dfc0bb2`, `528be2e`
+- [ ] **Wzmianki @ w komentarzach** znowu dają powiadomienie w dzwonku (nie działały od lipca — RLS po cichu odrzucał) — `ca20809`
+- [ ] **Logowanie na telefonie**: 5 złych haseł → blokada 15 min jak na komputerze — `3767fa0`
+- [ ] **„Możliwy duplikat” dla firm z aliasem** (bot: ta sama firma + nr klienta) — `bc46afe`
+- [ ] **Limit klucza API** 60 → 600/min (paczki z Excela dostawały 429 i przepadały) — `9cc9f19`
+- [ ] **Etapy pracownika**: błąd wczytania blokuje zapis, błąd zapisu widoczny — `1b99b2d`
+- [ ] **Bastion — kolor WF** (strona wewn.) pod kolorem w tabeli, na stanowisku, pola etykiety `{{kolor_wf}}` / `{{kolor_oscieznicy_wf}}` (70 zleceń) — `51c9572`
+- [ ] **Okna potwierdzeń**: Enter = przycisk z fokusem (przy usuwaniu domyślnie „Anuluj”!), Esc zamyka tylko to okno, Esc zamyka komunikat OK — `c0c5be5`
+- [ ] **Uprawnienia w bazie = aplikacja**: zakładanie zleceń tylko kierownicy; edycja kierownicy + magazynier tylko drzwi wewnętrzne („✓ Wydane”); `app_config` zapis tylko admin — `d128665`
+- [ ] **(22) błędy po ludzku + (23) profil** — `fbafe6e`, `32c963b`
+
 ## 🧪 DO SPRAWDZENIA W DOMU — przegląd 22.10 (wszystko na `clean`, bez nowej bety)
 
 Zrobione 22.10 (Claude). Typecheck i lint czyste, 259 testów zielonych. SQL wgrany do bazy po teście w transakcji z ROLLBACK.
