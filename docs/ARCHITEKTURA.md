@@ -441,3 +441,15 @@ mówi co robi i kiedy odpalić. Ważne pliki:
 *Aktualizuj ten dokument przy każdej zmianie architektury (nowy kanał wejścia,
 nowa kategoria, zmiana logiki rekordów łączonych lub modelu magazynu).
 Ostatnia aktualizacja: beta.34 (2026-09).*
+
+## 13. Stolarka aluminiowa — zlecenie z listy produkcyjnej AluronCAD (od 23.10.2026)
+
+Kategoria w bazie `Aluminium`, zakładka „Stolarka aluminiowa”. Inny model niż STA/Bastion — **nie ma formularza**, zlecenie powstaje z PDF:
+
+- **Zlecenie = lista produkcyjna (LP)** z AluronCAD. `orders.order_number` = numer OF (np. `OF341/2026`), `source = 'alu_lp'`, dane LP w `extra_fields.alu` (lp_number, lp_created_at, deadline — termin wybrany przy imporcie, domyślnie +4 tyg., realizacja `wysylka|montaz`, powierzchnia, masa). `quantity` = suma sztuk pozycji.
+- **Pozycje (konstrukcje)** w `order_alu_positions` (do ~100 na zlecenie): typ (drzwi/okno/scianka/inne), system, kolory, wypełnienia, wymiar S×W, ilość, uwagi produkcyjne (jsonb), szkło (jsonb — tylko informacyjnie; zamówienie do szklarza = plik ZM GLASS z LiczOkna). **Etapy per POZYCJA i per SZTUKA**: `production_stages = { ciecie: { done, marks[] }, okuwanie, skladanie, szklenie, pakowanie }` — etap pozycji zrobiony, gdy `done >= quantity`; każde kliknięcie dopisuje inicjały do `marks`. Helpery: `src/lib/alu.ts`.
+- **PDF-y** (LP + lista cięcia LC = komplet) w prywatnym bucket `order-documents` (`aluminium/<order_id>/<kind>_<ts>.pdf`), metadane w `order_documents` (UNIQUE (order_id, kind) — nowy plik zastępuje stary; `order_number` snapshot przeżywa archiwizację). Otwieranie: signed URL (10 min) → `shell.openExternal` przez IPC `shell:open-external`.
+- **Parser** `src/lib/aluLpParser.ts`: czyta `PdfTextPage[]` (tekst z położeniem, `src/lib/pdfText.ts` / pdfjs) — AluronCAD generuje rozjechane PDF-y, parsowanie liniowe nie działa. Strona → pozycja ze **stopki** `OF… (N)`. Wymiar konstrukcji z odcinków profilu „Ościeżnica” (heurystyka, warning gdy niepewne). Uwagi produkcyjne przepisywane „po ludzku” (`humanizeProductionNotes`). Fixtures z prawdziwych PDF-ów w `src/__tests__/fixtures/alu/` + `scripts/pdf-text-fixture.mjs` (nowy przypadek LP → nowy fixture + test).
+- **Import** (`AluImportModal`): LP wymagana, LC opcjonalna, rozpoznawane po treści; wszystko do poprawki w podglądzie przed zapisem; RPC `import_alu_order(header, positions, mode)` — `check` (jeśli OF istnieje → `exists`, UI pyta: **nadpisz** = pozycje po `pos_no`, etapy zostają z `done` przyciętym do nowej ilości / **dodaj ponownie** = `OF… (2)`). Sama LC → `find_alu_order` + `attach_order_document`.
+- **Uprawnienia**: import/dokumenty tylko kierownik (RPC + RLS + storage policies), odczyt authenticated. Kategoria w zawężeniu KD/PP jak inne (`worker_stages.category = 'Aluminium'`).
+- Migracja: `migrate/aluminium_etap1.sql`. Etap 2 (stanowisko, wydanie, realtime pozycji) — patrz TODO.MD.

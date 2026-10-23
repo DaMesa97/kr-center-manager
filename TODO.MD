@@ -72,6 +72,17 @@
 
 ---
 
+## 🧱 STOLARKA ALUMINIOWA — nowa kategoria (start 23.10)
+
+Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycje (konstrukcje) w `order_alu_positions`, etapy PER POZYCJA i PER SZTUKA (ilość 3 = 3 kliknięcia na etap). PDF-y (LP + lista cięcia LC) w storage `order-documents` → `order_documents`. Kategoria w bazie: `Aluminium`, zakładka „Stolarka aluminiowa”. Kod: `src/lib/aluLpParser.ts` (parser po współrzędnych, fixtures + testy), `src/lib/alu.ts`, `src/hooks/useAluOrders.ts`, `src/components/Alu*.tsx`, `migrate/aluminium_etap1.sql`.
+
+- [x] **Etap 1 (23.10)**: zakładka + tabela zleceń, import LP (+LC jako komplet) z podglądem do poprawki, „istnieje → nadpisz / dodaj ponownie (OF… (2))”, szczegóły z pozycjami i PDF-ami, dopinanie listy cięcia do istniejącego zlecenia, nowa wersja LP z okna szczegółów. **Do sprawdzenia w aplikacji:** wgraj `LP_0003_10_2026.pdf` + `LC_0004_10_2026.pdf` naraz → podgląd (1 poz. drzwi AS75, 1090×2060, uwagi po ludzku) → Zapisz → zlecenie w tabeli, w szczegółach „Otwórz LP” / „Otwórz listę cięcia” (PDF w przeglądarce systemowej).
+- [ ] **Etap 2 — produkcja**: etapy per pozycja/sztuka na Moim stanowisku (komputer + telefon; zadania pogrupowane po zleceniu, do 100 pozycji), RPC z guardem (kto może klikać), „Cofnij” sztuki, realtime `order_alu_positions`, wydanie w Wysyłce (koniec obiegu; chip MONTAŻ przy realizacji montażem), anulowanie zlecenia alu, kolor/sortowanie kategorii w Wysyłce/Pulpicie/Statystykach, mobile listy kategorii.
+- [ ] **ZM GLASS z LiczOkna**: zamówienia szyb do aluminium NIE idą przez zakładkę Szyby (szklarz dostaje plik ZM GLASS generowany w LiczOkna — tam liczą się wymiary). Pomysł: wgrywać plik ZM GLASS do zlecenia (jak LC) i automatycznie go dopinać po numerze OF; szyby odczytane z LP zostają tylko informacyjnie przy pozycji.
+- [ ] **Parser — do sprawdzenia na kolejnych LP** (Tymek podrzuci): LP z wieloma pozycjami, okno (reguła wymiaru „szerokość wyżej na rysunku”), klient wielolinijkowy. Każdy nowy przypadek → fixture + test.
+- [ ] Import LP z maila przez Make → API (dopiero gdy ręczny import się sprawdzi).
+- [ ] Etykiety dla aluminium — do decyzji (DoP nigdy: drukowane z LiczOkna).
+
 ## 🧪 DO SPRAWDZENIA — 23.10 (punkt 3 z audytów, na `clean`, bez nowej bety)
 
 SQL wgrany po teście w transakcji z ROLLBACK; Edge Function `dynamic-handler` v24 wdrożona. W aplikacji nic nie było przeklikane.
