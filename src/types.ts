@@ -1122,3 +1122,105 @@ export type WarehouseRecipe = {
   updated_at: string
   components_count?: number
 }
+
+// =====================================================================
+// ALUMINIUM — zlecenie = lista produkcyjna (LP) z AluronCAD, pozycje = konstrukcje.
+// Numer zlecenia = numer OF z LP. Etapy per POZYCJA (order_alu_positions),
+// PDF-y (LP + lista cięcia LC) w storage `order-documents` (order_documents).
+// =====================================================================
+
+export type AluConstructionType = 'drzwi' | 'okno' | 'scianka' | 'inne'
+export type AluRealizacja = 'wysylka' | 'montaz'
+
+export type AluGlassLine = {
+  /** np. "4/16/4 Ug=1,1" */
+  spec: string
+  width_mm: number
+  height_mm: number
+  qty: number
+}
+
+/** Uwagi produkcyjne pozycji (sekcja „Uwagi produkcyjne” w LP) */
+export type AluProductionNotes = {
+  okucia?: string
+  klamka?: string
+  dodatki?: string
+  prog?: string
+  inne?: string
+}
+
+/** Pozycja LP po sparsowaniu (to samo, co trafia do order_alu_positions) */
+export type AluLpPosition = {
+  pos_no: number
+  /** np. "AS 75 + AS 75P - drzwi otwierane do wewnątrz" */
+  description: string
+  construction_type: AluConstructionType
+  system: string
+  profile_color: string
+  hardware_color: string
+  fillings: string
+  width_mm: number | null
+  height_mm: number | null
+  quantity: number
+  weight_kg: number | null
+  u_value: number | null
+  notes: AluProductionNotes
+  glass: AluGlassLine[]
+  /** wątpliwości parsera do pokazania w podglądzie importu */
+  warnings: string[]
+}
+
+export type AluLpHeader = {
+  /** "LP 0003/10/2026" */
+  lp_number: string
+  /** "OF341/2026" — numer zlecenia w programie */
+  order_number: string
+  /** ISO (data utworzenia LP w AluronCAD) */
+  created_at: string | null
+  client: string
+  positions_count: number | null
+  area_m2: number | null
+  weight_kg: number | null
+  deadline_text: string
+}
+
+export type AluLpParseResult = { kind: 'LP'; header: AluLpHeader; positions: AluLpPosition[]; warnings: string[] }
+export type AluLcParseResult = { kind: 'LC'; lc_number: string; order_number: string; client: string }
+export type AluParsedDocument = AluLpParseResult | AluLcParseResult
+
+/** Tekst z PDF z położeniem (pdfjs) — wejście parsera, zapisywane też jako fixture testów */
+export type PdfTextItem = { str: string; x: number; y: number; w: number; h: number }
+export type PdfTextPage = { pageNumber: number; width: number; height: number; items: PdfTextItem[] }
+
+/** Wiersz order_alu_positions */
+export type AluPosition = Omit<AluLpPosition, 'warnings'> & {
+  id: number
+  order_id: number
+  production_stages: Record<string, string>
+  created_at: string
+}
+
+/** Pola zlecenia Aluminium trzymane w orders.extra_fields.alu */
+export type AluOrderExtra = {
+  lp_number: string
+  lp_created_at: string | null
+  /** YYYY-MM-DD — termin wybrany przy imporcie (domyślnie +4 tyg.) */
+  deadline: string
+  realizacja: AluRealizacja
+  positions_count: number
+  area_m2: number | null
+  weight_kg: number | null
+}
+
+export type OrderDocumentKind = 'LP' | 'LC'
+export type OrderDocument = {
+  id: number
+  order_id: number
+  kind: OrderDocumentKind
+  /** numer dokumentu, np. "LP 0003/10/2026" / "LC 0004/10/2026" */
+  number: string | null
+  storage_path: string
+  file_name: string
+  uploaded_by: string | null
+  uploaded_at: string
+}

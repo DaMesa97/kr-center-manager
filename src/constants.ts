@@ -643,3 +643,23 @@ export const PURCHASE_ORDER_ITEM_STATUS_LABELS: Record<string, string> = {
   completed: 'Zrealizowana',
   cancelled: 'Anulowana',
 }
+
+// ── ALUMINIUM ────────────────────────────────────────────────────────
+// Etapy per POZYCJA (konstrukcja) LP — kolejność liniowa (każdy wymaga poprzedniego)
+export const ALU_CATEGORY = 'Aluminium' as const
+export const ALU_STAGE_DEFS: StageDef[] = [
+  { key: 'ciecie', header: 'CIĘCIE', title: 'Cięcie i frezowanie profili' },
+  { key: 'okuwanie', header: 'OKUW', title: 'Okuwanie konstrukcji' },
+  { key: 'skladanie', header: 'SKŁAD', title: 'Składanie konstrukcji' },
+  { key: 'szklenie', header: 'SZKL', title: 'Szklenie konstrukcji' },
+  { key: 'pakowanie', header: 'PAK', title: 'Pakowanie' },
+]
+export const ALU_REALIZACJA_LABELS: Record<string, string> = { wysylka: 'Wysyłka', montaz: 'Montaż' }
+export const ALU_CONSTRUCTION_LABELS: Record<string, string> = {
+  drzwi: 'Drzwi',
+  okno: 'Okno',
+  scianka: 'Ścianka',
+  inne: 'Inne',
+}
+/** Storage bucket na PDF-y zleceń (LP, lista cięcia) — prywatny, URL podpisany */
+export const ORDER_DOCUMENTS_BUCKET = 'order-documents'
