@@ -2301,7 +2301,10 @@ function App() {
     )
   }
 
-  if (minVersionRequired) {
+  // Admin przechodzi (z paskiem ostrzeżenia w pracy) — inaczej literówka w
+  // min_app_version (wersja, której nie ma) zamykałaby program WSZYSTKIM, także
+  // temu, kto może to poprawić w Konfiguracji
+  if (minVersionRequired && !isAdminRole(currentUser.role)) {
     return (
       <>
         <UpdateBlocker />
@@ -2545,6 +2548,12 @@ function App() {
           onSignOut={() => void handleSignOut()}
         />
         <UpdateBanner />
+        {minVersionRequired && (
+          <div className="min-version-admin-banner" role="alert">
+            Minimalna wymagana wersja to v{minVersionRequired}, a masz v{__APP_VERSION__} — pozostali użytkownicy są
+            zablokowani. Jeśli to pomyłka, popraw <code>min_app_version</code> (app_config); jako admin pracujesz dalej.
+          </div>
+        )}
         <OverdueBanner
           overdueCount={overdueCount}
           warningCount={warningCount}

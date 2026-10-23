@@ -8129,3 +8129,14 @@ html, body, #root {
 .shipping-view .orders-table td.col-ship-model { overflow: hidden; white-space: nowrap; }
 .ship-cell-main { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .ship-cell-sub { font-size: 0.72rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; }
+
+/* admin z wersją poniżej min_app_version — ostrzeżenie zamiast blokady */
+.min-version-admin-banner {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 0.85rem;
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Download, RefreshCw, Zap } from 'lucide-react'
+import { AlertTriangle, Download, RefreshCw, Zap } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -8,8 +8,9 @@ import { Download, RefreshCw, Zap } from 'lucide-react'
 type BlockerState =
   | { status: 'clear' }          // brak wymaganej aktualizacji
   | { status: 'available'; version: string }
-  | { status: 'downloading'; percent: number; bytesPerSecond: number }
+  | { status: 'downloading'; version: string; percent: number; bytesPerSecond: number; lastAt: number }
   | { status: 'downloaded'; version: string }
+  | { status: 'error'; version: string; message: string }
 
 type IpcListener = (...args: unknown[]) => void
 
@@ -37,6 +38,20 @@ function formatSpeed(bps: number): string {
 // Component
 // ---------------------------------------------------------------------------
 
+// Pobieranie bez postępu tyle czasu = „stoi” (zerwana sieć potrafi nie dać błędu)
+const STALL_MS = 60_000
+
+// Wersja, przy której ktoś wybrał „Pracuj na obecnej wersji” — na poziomie modułu,
+// bo App montuje UpdateBlocker na nowo przy każdym ekranie (logowanie → praca)
+let dismissedVersion: string | null = null
+
+function friendlyUpdateError(message: string): string {
+  if (/404|Cannot find|latest\.yml/i.test(message)) return 'Plik aktualizacji jest niedostępny na serwerze (wydanie mogło jeszcze nie być gotowe).'
+  if (/net::ERR_|ENOTFOUND|ETIMEDOUT|ECONNRESET|socket/i.test(message)) return 'Brak połączenia z serwerem aktualizacji.'
+  if (/sha512|checksum/i.test(message)) return 'Pobrany plik jest uszkodzony.'
+  return message
+}
+
 /**
  * UpdateBlocker – fullscreen overlay wymuszający aktualizację PRZED logowaniem.
  * Renderuj go jako PIERWSZE dziecko w App.tsx, przed wszelkimi early-return'ami.
@@ -54,20 +69,36 @@ export default function UpdateBlocker() {
 
     // Zapytaj o update wykryty przy starcie
     void ipc.invoke('updater:get-status').then((pending) => {
-      if (pending && typeof (pending as { version?: string }).version === 'string') {
-        setState({ status: 'available', version: (pending as { version: string }).version })
-      }
+      const v = (pending as { version?: string } | null)?.version
+      if (typeof v === 'string' && v !== dismissedVersion) setState({ status: 'available', version: v })
     })
 
     // Nasłuchuj na wypadek gdyby check jeszcze trwał (race condition)
     const onAvailable: IpcListener = (...args) => {
       const info = args[1] as { version: string }
-      setState({ status: 'available', version: info.version })
+      if (info.version !== dismissedVersion) setState({ status: 'available', version: info.version })
     }
 
     const onProgress: IpcListener = (...args) => {
       const p = args[1] as { percent: number; bytesPerSecond: number }
-      setState({ status: 'downloading', percent: p.percent, bytesPerSecond: p.bytesPerSecond })
+      setState((prev) =>
+        prev.status === 'clear' || prev.status === 'error'
+          ? prev
+          : {
+              status: 'downloading',
+              version: 'version' in prev ? prev.version : '',
+              percent: p.percent,
+              bytesPerSecond: p.bytesPerSecond,
+              lastAt: Date.now(),
+            },
+      )
+    }
+
+    const onError: IpcListener = (...args) => {
+      const message = String(args[1] ?? 'Nieznany błąd')
+      setState((prev) =>
+        prev.status === 'clear' ? prev : { status: 'error', version: 'version' in prev ? prev.version : '', message },
+      )
     }
 
     const onDownloaded: IpcListener = (...args) => {
@@ -78,25 +109,82 @@ export default function UpdateBlocker() {
     ipc.on('update:available', onAvailable)
     ipc.on('update:progress', onProgress)
     ipc.on('update:downloaded', onDownloaded)
+    ipc.on('update:error', onError)
 
     return () => {
       ipc.off('update:available', onAvailable)
       ipc.off('update:progress', onProgress)
       ipc.off('update:downloaded', onDownloaded)
+      ipc.off('update:error', onError)
     }
   }, [])
 
+  // Watchdog: pobieranie bez postępu przez STALL_MS → błąd z wyjściem
+  const stallKey = state.status === 'downloading' ? state.lastAt : null
+  useEffect(() => {
+    if (stallKey == null) return
+    const t = setTimeout(() => {
+      setState((prev) =>
+        prev.status === 'downloading' && prev.lastAt === stallKey
+          ? { status: 'error', version: prev.version, message: 'Pobieranie stoi od minuty (słaby internet?).' }
+          : prev,
+      )
+    }, STALL_MS)
+    return () => clearTimeout(t)
+  }, [stallKey])
+
   if (state.status === 'clear') return null
 
-  const handleDownload = () => void getIpc()?.invoke('updater:download')
+  const handleDownload = () => {
+    const version = 'version' in state ? state.version : ''
+    setState({ status: 'downloading', version, percent: 0, bytesPerSecond: 0, lastAt: Date.now() })
+    void getIpc()
+      ?.invoke('updater:download')
+      .then((res) => {
+        const r = res as { ok?: boolean; message?: string } | undefined
+        if (r && r.ok === false) setState({ status: 'error', version, message: r.message ?? 'Nieznany błąd' })
+      })
+  }
   const handleInstall  = () => void getIpc()?.invoke('updater:install')
+  // Wyjście awaryjne — tylko po błędzie. Wymuszenie wersji robi min_app_version
+  // w Konfiguracji (osobny ekran w App), więc praca na starej wersji jest bezpieczna.
+  const handleSkip = () => {
+    dismissedVersion = 'version' in state ? state.version : null
+    setState({ status: 'clear' })
+  }
 
   return (
     <div className="update-blocker">
       <div className="update-blocker-card">
-        <Zap size={40} className="update-blocker-icon" />
+        {state.status === 'error' ? (
+          <AlertTriangle size={40} className="update-blocker-icon" />
+        ) : (
+          <Zap size={40} className="update-blocker-icon" />
+        )}
 
-        <h2 className="update-blocker-title">Wymagana aktualizacja</h2>
+        <h2 className="update-blocker-title">
+          {state.status === 'error' ? 'Aktualizacja się nie udała' : 'Wymagana aktualizacja'}
+        </h2>
+
+        {state.status === 'error' && (
+          <>
+            <p className="update-blocker-desc">
+              {friendlyUpdateError(state.message)}
+              <br />
+              Możesz spróbować jeszcze raz albo pracować dalej na obecnej wersji — aktualizacja zaproponuje się przy
+              następnym uruchomieniu.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-primary update-blocker-btn" onClick={handleDownload}>
+                <RefreshCw size={16} />
+                Spróbuj ponownie
+              </button>
+              <button type="button" className="btn btn-secondary update-blocker-btn" onClick={handleSkip}>
+                Pracuj na obecnej wersji
+              </button>
+            </div>
+          </>
+        )}
 
         {state.status === 'available' && (
           <>

@@ -150,8 +150,14 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
   ipcMain.handle('updater:download', async () => {
     try {
       await autoUpdater.downloadUpdate()
+      return { ok: true }
     } catch (err) {
+      // Błąd pobierania MUSI dojść do renderera — wcześniej był połykany (a błędy
+      // sieci 'net::ERR_' filtr w 'error' też gasił), przez co pełnoekranowa
+      // blokada wisiała na „Pobieranie…” bez wyjścia
       console.error('[AutoUpdater] download failed:', err)
+      Sentry.captureException(err, { tags: { context: 'auto-updater-download' } })
+      return { ok: false, message: (err as Error).message }
     }
   })
 
