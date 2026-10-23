@@ -122,8 +122,9 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [ ] Edge function glass-order-webhook nie sprawdza roli (tylko zalogowanie)
 
 ### ❓ Do przemyślenia (Tymek)
-- [ ] **Okna potwierdzeń: Enter = Anuluj WSZĘDZIE** — także przy „Wydaj”/„Odebrane”/„Tak, oznacz”. Wariant `tone='success'` (fokus na potwierdzeniu) istnieje, ale nikt go nie używa. Celowo (bezpieczniej) czy oznaczyć pozytywne okna?
-- [ ] **Wysyłka: PILNE vs X/XX** — dwa niezależne znaczniki pilności (PILNE w kolejności i Plan wydań X/XX) to trochę z dupy. Do decyzji, czy scalić / jak je rozdzielić znaczeniowo.
+- [x] **Okna potwierdzeń** — DECYZJA 23.10: Enter potwierdza POZYTYWNE okna (wydanie, odebrane, zrealizowana, zweryfikowane — zielony przycisk), przy usuwaniu/anulowaniu/cofaniu/„mimo to” fokus dalej na „Anuluj”. Rodzaj okna z treści: `lib/confirmTone.ts`
+- [x] **Wysyłka: PILNE vs X/XX** — DECYZJA 23.10: na razie tylko PILNE. Plan wydań X/XX schowany przełącznikiem `ROUTE_PLAN_ENABLED = false` (constants.ts): znika z Wysyłki, chipy i kolejność na stanowiskach; dane `extra_fields.route_mark` zostają, cron `route-plan-summary-daily` wstrzymany (`cron.alter_job(4, active := true)` przy powrocie)
+- [ ] ~~Wysyłka: PILNE vs X/XX~~ (stary opis poniżej) — dwa niezależne znaczniki pilności (PILNE w kolejności i Plan wydań X/XX) to trochę z dupy. Do decyzji, czy scalić / jak je rozdzielić znaczeniowo.
 
 ## 🧪 DO SPRAWDZENIA — 23.10 (punkt 3 z audytów, na `clean`, bez nowej bety)
 

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { GlassAllowance, LeadTimeRule, Order } from '../types'
-import { CATEGORY_LABELS } from '../constants'
+import { CATEGORY_LABELS, ROUTE_PLAN_ENABLED } from '../constants'
 import { aluOrderExtra } from '../lib/alu'
 import {
   autoSuggestReadyToInvoice,
@@ -313,7 +313,7 @@ export default function ShippingView({
     const icon = row.route === PERSONAL_PICKUP_ROUTE ? '🙋' : '🚛'
     return (
       <tr className="shipping-route-group-header">
-        <td colSpan={17}>
+        <td colSpan={ROUTE_PLAN_ENABLED ? 17 : 16}>
           <div>
             <span className="shipping-route-label">{icon} {label}</span>
             <span className="shipping-route-stats">
@@ -528,7 +528,7 @@ export default function ShippingView({
         !hasGlassExtra(o) ? 0 : o.glass_received ? 1 : o.glass_order_date ? 2 : 3,
       ),
     }),
-    col({
+    ...(ROUTE_PLAN_ENABLED ? [col({
       key: 'route_mark',
       label: 'X/XX',
       title: 'Plan wydań: X = towar na magazyn JUTRO, XX = DZIŚ. Klik przełącza: puste → X → XX → puste.',
@@ -555,7 +555,7 @@ export default function ShippingView({
         )
       },
       sortValue: sv((o) => (orderRouteMark(o) === 'XX' ? 2 : orderRouteMark(o) === 'X' ? 1 : 0)),
-    }),
+    })] : []),
     col({
       key: 'inv',
       label: 'FAKTURA',
@@ -628,9 +628,11 @@ export default function ShippingView({
         <span>
           <strong>Gotowych do fakturowania:</strong> {readyCount}
         </span>
-        <span title="Plan wydań: XX = towar na magazyn dziś, X = na jutro">
-          <strong>Na dziś (XX):</strong> {routeTodayCount} · <strong>Na jutro (X):</strong> {routeTomorrowCount}
-        </span>
+        {ROUTE_PLAN_ENABLED && (
+          <span title="Plan wydań: XX = towar na magazyn dziś, X = na jutro">
+            <strong>Na dziś (XX):</strong> {routeTodayCount} · <strong>Na jutro (X):</strong> {routeTomorrowCount}
+          </span>
+        )}
         <span>
           <strong>Z brakami magazynowymi:</strong>{' '}
           <strong style={{ color: '#b91c1c' }}>{withIssuesCount}</strong>
@@ -707,14 +709,16 @@ export default function ShippingView({
         </label>
 
         {/* Plan wydań */}
-        <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span>Plan wydań</span>
-          <select value={routeMarkFilter} onChange={(e) => setRouteMarkFilter(e.target.value)} className="day-filter">
-            <option value="">wszystkie</option>
-            <option value="XX">XX — na dziś</option>
-            <option value="X">X — na jutro</option>
-          </select>
-        </label>
+        {ROUTE_PLAN_ENABLED && (
+          <label className="orders-filter-checkbox" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span>Plan wydań</span>
+            <select value={routeMarkFilter} onChange={(e) => setRouteMarkFilter(e.target.value)} className="day-filter">
+              <option value="">wszystkie</option>
+              <option value="XX">XX — na dziś</option>
+              <option value="X">X — na jutro</option>
+            </select>
+          </label>
+        )}
 
         {/* Checkboxy */}
         <label className="orders-filter-checkbox">
@@ -793,7 +797,7 @@ export default function ShippingView({
             <col className="col-status" />
             <col className="col-stock" />
             <col className="col-glass" />
-            <col className="col-route-mark" />
+            {ROUTE_PLAN_ENABLED && <col className="col-route-mark" />}
             <col className="col-inv" />
             <col className="col-ship-notes" />
             <col className="col-act" />

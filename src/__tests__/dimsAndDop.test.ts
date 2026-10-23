@@ -1,6 +1,14 @@
 // Testy TOP 8: łańcuch wymiarów naświetli/dostawek + determinizm doboru DoP
 // + spójność mapy mirrorów (jedno źródło: lib/stageMirror).
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// Plan wydań X/XX jest na razie wyłączony (ROUTE_PLAN_ENABLED) — testy tej logiki
+// sprawdzają zachowanie PO ponownym włączeniu; wyłączony plan: routePlanDisabled.test.ts
+vi.mock('../constants', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../constants')>()),
+  ROUTE_PLAN_ENABLED: true,
+}))
+
 import {
   calcExtensionDims,
   calcGlassDim,

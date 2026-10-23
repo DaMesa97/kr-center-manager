@@ -4,6 +4,7 @@ import {
   DEPARTMENT_LABELS,
   DISTING_PLUS_MIRROR_KEYS,
   RECIPE_PARTS,
+  ROUTE_PLAN_ENABLED,
   STA_DISTING_PLUS_MIRROR_KEYS,
   STA_DISTING_STAGE_DEFS,
   ST_STAGE_DEFS,
@@ -1029,6 +1030,7 @@ export function orderSetCompleteness(order: Order, allOrders: Order[]): SetCompl
 // Plan wydań (zastępuje Airtable brygadzisty): XX = towar na magazyn DZIŚ,
 // X = na JUTRO — konwencja 1:1 z arkuszem. Trzymane w extra_fields.route_mark.
 export function orderRouteMark(order: Order): '' | 'X' | 'XX' {
+  if (!ROUTE_PLAN_ENABLED) return ''
   const ef = order.extra_fields as Record<string, unknown> | null
   const v = String(ef?.route_mark ?? '').trim().toUpperCase()
   return v === 'X' || v === 'XX' ? v : ''

@@ -659,6 +659,14 @@ export const ALU_STAGE_DEFS: StageDef[] = [
   { key: 'pakowanie', header: 'PAK', title: 'Pakowanie' },
 ]
 export const ALU_REALIZACJA_LABELS: Record<string, string> = { wysylka: 'Wysyłka', montaz: 'Montaż' }
+
+/**
+ * Plan wydań X/XX (Wysyłka, chipy i kolejność na stanowiskach, dzwonek o 13:00).
+ * WYŁĄCZONY 23.10 (Tymek: „na razie wystarczy PILNE, bez tych X”) — dane w
+ * extra_fields.route_mark zostają, cron route-plan-summary-daily wstrzymany
+ * (cron.alter_job(4, active := true) przy ponownym włączeniu).
+ */
+export const ROUTE_PLAN_ENABLED = false
 export const ALU_CONSTRUCTION_LABELS: Record<string, string> = {
   drzwi: 'Drzwi',
   okno: 'Okno',
