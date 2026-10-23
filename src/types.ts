@@ -217,6 +217,7 @@ export type OrderCategory =
   | 'Techniczne'
   | 'Bastion'
   | 'DrzwiWewnetrzne'
+  | 'Aluminium'
 
 export type InternalDoorItem = {
   id: number

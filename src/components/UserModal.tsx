@@ -8,7 +8,7 @@ const ROLE_OPTIONS = [
   'obsluga_klienta', 'pracownik_produkcji', 'magazynier',
   'kierownik_dzialu', 'kierownik_magazynu', 'kierownik_produkcji', 'admin',
 ]
-const USER_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+const USER_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium']
 
 type UserModalProps = {
   open: boolean

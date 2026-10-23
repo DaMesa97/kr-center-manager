@@ -73,6 +73,11 @@ import TechniczneOrdersTableView from './components/TechniczneOrdersTableView'
 import StaDistingOrdersTableView from './components/StaDistingOrdersTableView'
 import BastionOrdersTableView from './components/BastionOrdersTableView'
 import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
+import AluOrdersTable from './components/AluOrdersTable'
+import AluOrderDetailsModal from './components/AluOrderDetailsModal'
+import AluImportModal, { type AluImportOpts } from './components/AluImportModal'
+import { useAluOrders } from './hooks/useAluOrders'
+import type { AluLpParseResult, OrderDocumentKind } from './types'
 import OrderFormModal from './components/OrderFormModal'
 import StatsView from './components/StatsView'
 import WarehouseView from './components/WarehouseView'
@@ -506,6 +511,22 @@ function App() {
     fetchArchivedOrders,
   } = useArchive({ pushToast, touchSession })
 
+  // ── Stolarka aluminiowa: pozycje/PDF-y zleceń + import LP ──
+  const {
+    aluPositionsByOrder,
+    documentsByOrder: aluDocumentsByOrder,
+    aluLoading,
+    fetchAluData,
+    importAluOrder,
+    uploadOrderDocument,
+    openOrderDocument,
+    findAluOrderByNumber,
+  } = useAluOrders({ pushToast, touchSession })
+  const [aluImportOpen, setAluImportOpen] = useState(false)
+  const [aluReimportNumber, setAluReimportNumber] = useState<string | null>(null)
+  const [aluDetailsOrderId, setAluDetailsOrderId] = useState<number | null>(null)
+  const [aluUploading, setAluUploading] = useState(false)
+
   const {
     myStationOrders,
     myStationComplaints,
@@ -679,6 +700,7 @@ function App() {
     touchSession,
     activeTab,
     isManager,
+    onOpenAluOrder: (o) => setAluDetailsOrderId(o.id ?? null),
     currentUser,
     companies,
     allConfigDefaults,
@@ -1903,6 +1925,33 @@ function App() {
     activeSubTab,
   ])
 
+  // Pozycje i PDF-y zleceń aluminium — dla zleceń aktualnie wczytanych w zakładce
+  useEffect(() => {
+    if (activeTab !== 'Aluminium') return
+    void fetchAluData(orders.map((o) => o.id).filter((id): id is number => id != null))
+  }, [activeTab, orders, fetchAluData])
+
+  const handleAluImport = useCallback(
+    (parsed: AluLpParseResult, opts: AluImportOpts) => importAluOrder(parsed, opts),
+    [importAluOrder],
+  )
+  const handleAluUploadDocument = useCallback(
+    async (orderId: number, kind: OrderDocumentKind, number: string | null, file: File) => {
+      setAluUploading(true)
+      try {
+        return (await uploadOrderDocument(orderId, kind, number, file, file.name)) != null
+      } finally {
+        setAluUploading(false)
+      }
+    },
+    [uploadOrderDocument],
+  )
+  const handleAluFindOrder = useCallback(
+    async (orderNumber: string) =>
+      (await findAluOrderByNumber(orderNumber)).map((r) => ({ id: r.id, order_number: r.order_number, company: r.company })),
+    [findAluOrderByNumber],
+  )
+
   const visibleTabs = useMemo(() => {
     if (!currentUser) return [] as (typeof TABS)[number][]
     return tabsForUserDepartment(currentUser.department, isManager, currentUser.role, currentUser.categories)
@@ -2453,6 +2502,34 @@ function App() {
         }}
         onError={(msg) => pushToast(msg, 'error')}
       />
+      <AluImportModal
+        open={aluImportOpen}
+        companies={companies.map((c) => c.name)}
+        reimportOrderNumber={aluReimportNumber}
+        onClose={() => setAluImportOpen(false)}
+        onImport={handleAluImport}
+        onUploadDocument={handleAluUploadDocument}
+        onFindOrder={handleAluFindOrder}
+        onDone={() => { fetchOrders() }}
+        pushToast={pushToast}
+      />
+      {aluDetailsOrderId != null && (() => {
+        const o = orders.find((x) => x.id === aluDetailsOrderId)
+        if (!o) return null
+        return (
+          <AluOrderDetailsModal
+            order={o}
+            positions={aluPositionsByOrder[o.id!] ?? []}
+            documents={aluDocumentsByOrder[o.id!] ?? []}
+            isManager={isManager}
+            uploading={aluUploading}
+            onClose={() => setAluDetailsOrderId(null)}
+            onOpenDocument={(doc) => void openOrderDocument(doc)}
+            onUploadDocument={async (kind, file) => { await handleAluUploadDocument(o.id!, kind, null, file) }}
+            onReimport={() => { setAluReimportNumber(o.order_number); setAluDetailsOrderId(null); setAluImportOpen(true) }}
+          />
+        )
+      })()}
       {/* key = zlecenie: szkic/edycja komentarza nie przechodzą na następne zlecenie */}
       <OrderCommentsPanel
         key={commentsPanelState.orderId ?? 'none'}
@@ -2545,7 +2622,14 @@ function App() {
           onNavigateTab={(tab) => setActiveTab(tab as (typeof TABS)[number])}
           onAddContractor={openAddContractorModal}
           onAddUser={openAddUserModal}
-          onNewOrder={activeTab === 'DrzwiWewnetrzne' ? openCreateInternalDoorOrder : openNewOrderModal}
+          onNewOrder={
+            activeTab === 'Aluminium'
+              ? () => { setAluReimportNumber(null); setAluImportOpen(true) }
+              : activeTab === 'DrzwiWewnetrzne'
+                ? openCreateInternalDoorOrder
+                : openNewOrderModal
+          }
+          newOrderLabel={activeTab === 'Aluminium' ? '⬆ Wgraj listę produkcyjną' : undefined}
           canCreateOrder={isManager}
           onSignOut={() => void handleSignOut()}
         />
@@ -3371,7 +3455,7 @@ function App() {
                   </div>
                 )}
 
-                {['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'].includes(activeTab) && (
+                {['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'].includes(activeTab) && (
                   <div className="subtab-bar">
                     <button
                       type="button"
@@ -3380,7 +3464,7 @@ function App() {
                     >
                       Zamówienia
                     </button>
-                    {activeTab !== 'DrzwiWewnetrzne' && (
+                    {activeTab !== 'DrzwiWewnetrzne' && activeTab !== 'Aluminium' && (
                       <button
                         type="button"
                         className={`btn btn-sm ${activeSubTab === 'Reklamacje' ? 'btn-primary' : 'btn-secondary'}`}
@@ -3540,9 +3624,20 @@ function App() {
                     tableWrapperRef={ordersTableWrapperRef}
                   />
                 )}
+                {activeTab === 'Aluminium' && (
+                  <AluOrdersTable
+                    orders={filteredOrders}
+                    positionsByOrder={aluPositionsByOrder}
+                    documentsByOrder={aluDocumentsByOrder}
+                    loading={aluLoading}
+                    onShowDetails={(o) => setAluDetailsOrderId(o.id ?? null)}
+                    tableWrapperRef={ordersTableWrapperRef}
+                  />
+                )}
                 {filteredOrders.length === 0 &&
                   activeTab !== 'ST' &&
                   activeTab !== 'DrzwiWewnetrzne' &&
+                  activeTab !== 'Aluminium' &&
                   activeTab !== 'Techniczne' && (
                   <p className="no-results">Brak zamówień spełniających kryteria wyszukiwania.</p>
                 )}

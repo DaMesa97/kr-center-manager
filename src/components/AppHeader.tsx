@@ -194,6 +194,8 @@ type AppHeaderProps = {
   onAddContractor: () => void
   onAddUser: () => void
   onNewOrder: () => void
+  /** inny napis przycisku (np. „Wgraj listę produkcyjną” dla aluminium) */
+  newOrderLabel?: string
   /** „+ Nowe zamówienie” tylko dla kierowników (pracownik hali / magazynier nie zakłada zleceń) */
   canCreateOrder: boolean
   onSignOut: () => void
@@ -218,6 +220,7 @@ export default function AppHeader({
   onAddContractor,
   onAddUser,
   onNewOrder,
+  newOrderLabel,
   canCreateOrder,
   onSignOut,
 }: AppHeaderProps) {
@@ -245,6 +248,7 @@ export default function AppHeader({
     Techniczne: 'Zamówienia Techniczne',
     Bastion: 'Zamówienia Bastion',
     DrzwiWewnetrzne: 'Drzwi Wewnętrzne',
+    Aluminium: 'Stolarka aluminiowa',
     Statystyki: 'Statystyki',
     Weryfikacja: 'Weryfikacja BOT',
     Audyt: 'Audyt',
@@ -276,7 +280,7 @@ export default function AppHeader({
             </button>
           ) : canCreateOrder ? (
             <button className="btn btn-success btn-sm" onClick={onNewOrder}>
-              + Nowe zamówienie
+              {newOrderLabel ?? '+ Nowe zamówienie'}
             </button>
           ) : null}
 

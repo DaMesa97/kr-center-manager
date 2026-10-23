@@ -157,7 +157,7 @@ export function tabsForUserDepartment(
 
   // ── NOWE role: widoczność wprost z uprawnień (can) + przypisanych kategorii ──
   if (!LEGACY) {
-    const allCats: (typeof TABS)[number][] = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+    const allCats: (typeof TABS)[number][] = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium']
     const orderTabs: (typeof TABS)[number][] = isCategoryScoped(role)
       ? (allCats.filter((c) => (categories ?? []).includes(c)))
       : allCats
@@ -186,7 +186,7 @@ export function tabsForUserDepartment(
     isMgr || roleNormalized === 'manager' || roleNormalized === 'sprzedawca'
   let orderTabs: (typeof TABS)[number][]
   if (seesAllOrderCategories) {
-    orderTabs = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+    orderTabs = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium']
   } else if (dept === 'bastion') {
     orderTabs = ['Bastion']
   } else if (dept === 'stalowe') {
@@ -194,9 +194,9 @@ export function tabsForUserDepartment(
   } else if (dept === 'magazyn') {
     orderTabs = ['DrzwiWewnetrzne']
   } else if (dept === 'all') {
-    orderTabs = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+    orderTabs = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium']
   } else {
-    orderTabs = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+    orderTabs = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium']
   }
   const managerOnlyTabs = isMgr ? (['Statystyki', 'Weryfikacja', 'Audyt', 'Archiwum', 'Wysyłka'] as const) : []
   let result: (typeof TABS)[number][] = [...orderTabs, ...managerOnlyTabs, 'Magazyn', 'Zamawianie', 'Inwentaryzacja', 'Etykiety']
@@ -353,7 +353,8 @@ export function getOrderStageDefinitions(tab: string): StageDef[] {
   if (tab === 'STA' || tab === 'Disting') return STA_DISTING_STAGE_DEFS
   if (tab === 'ST') return ST_STAGE_DEFS
   if (tab === 'Bastion') return BASTION_STAGE_DEFS
-  if (tab === 'Techniczne' || tab === 'DrzwiWewnetrzne') return []
+  // Aluminium: etapy per POZYCJA (order_alu_positions), nie kolumny w tabeli zleceń
+  if (tab === 'Techniczne' || tab === 'DrzwiWewnetrzne' || tab === 'Aluminium') return []
   return []
 }
 
@@ -370,7 +371,7 @@ export function allProductionStageKeysForCategory(category: string): string[] {
     // standardowe etapy + etapy Titana (okuwanie/montaż/pakowanie)
     return [...base, ...BASTION_TITAN_STAGE_DEFS.map((d) => d.key)]
   }
-  if (category === 'Techniczne' || category === 'DrzwiWewnetrzne') return []
+  if (category === 'Techniczne' || category === 'DrzwiWewnetrzne' || category === 'Aluminium') return []
   return base
 }
 
@@ -555,7 +556,7 @@ export function countCompletedStages(order: Order): {
 } {
   const category = order.category ?? ''
 
-  if (category === 'Techniczne' || category === 'DrzwiWewnetrzne') {
+  if (category === 'Techniczne' || category === 'DrzwiWewnetrzne' || category === 'Aluminium') {
     return { completed: 0, total: 0, percent: 0, stages: [] }
   }
 

@@ -31,6 +31,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   Techniczne: '#854d0e',
   Bastion: '#b3261e',
   DrzwiWewnetrzne: '#0369a1',
+  Aluminium: '#475569',
 }
 
 export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
@@ -185,7 +186,7 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
                   className="global-search-result-cat"
                   style={{ background: CATEGORY_COLORS[r.category] ?? '#475569' }}
                 >
-                  {r.category === 'DrzwiWewnetrzne' ? 'Wewn.' : r.category}
+                  {r.category === 'DrzwiWewnetrzne' ? 'Wewn.' : r.category === 'Aluminium' ? 'Alu' : r.category}
                 </span>
                 <span className="global-search-result-nr">{r.order_number}</span>
                 {wyk && <span className="global-search-result-wyk">{wyk}</span>}

@@ -106,6 +106,8 @@ type UseOrdersParams = {
   touchSession: () => void
   activeTab: (typeof TABS)[number]
   isManager: boolean
+  /** Aluminium: otwarcie szczegółów zlecenia (lupka / link z magazynu) — zamiast formularza */
+  onOpenAluOrder?: (order: Order) => void
   currentUser: CurrentUser | null
   companies: Company[]
   // z useConfig:
@@ -134,6 +136,7 @@ type UseOrdersParams = {
 export function useOrders({
   pushToast,
   touchSession,
+  onOpenAluOrder,
   activeTab,
   isManager,
   currentUser,
@@ -2696,6 +2699,12 @@ export function useOrders({
       setActiveTab(category)
       setActiveSubTab('Zamówienia')
 
+      // Aluminium nie ma formularza — szczegóły (pozycje, PDF-y) otwiera App
+      if (category === 'Aluminium') {
+        onOpenAluOrder?.(order)
+        return
+      }
+
       if (category === 'DrzwiWewnetrzne') {
         const { data: itemsData, error: itemsError } = await supabase
           .from('order_internal_door_items')
@@ -2745,7 +2754,7 @@ export function useOrders({
       setOrderFormOpenSnapshot(fillFormFromOrder(category, order))
       setIsModalOpen(true)
     },
-    [isManager, openInternalDoorDetails, pushToast, setActiveTab, setActiveSubTab, setShowCompanyDropdown, fillFormFromOrder],
+    [isManager, openInternalDoorDetails, pushToast, setActiveTab, setActiveSubTab, setShowCompanyDropdown, fillFormFromOrder, onOpenAluOrder],
   )
 
   const handleShowOrderHistory = useCallback((order: Order) => {

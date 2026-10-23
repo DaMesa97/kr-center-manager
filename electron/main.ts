@@ -486,6 +486,20 @@ function createWindow() {
     return rlog
   })
 
+  // Otwarcie linku w systemowej przeglądarce (np. podpisany URL do PDF-u LP/LC
+  // z prywatnego bucketu). Tylko https:// — renderer nie może odpalić dowolnego
+  // protokołu (file://, mailto:, …) przez shell.openExternal.
+  ipcMain.handle('shell:open-external', async (_e, url: unknown) => {
+    if (typeof url !== 'string' || !/^https:\/\//i.test(url)) return false
+    try {
+      await shell.openExternal(url)
+      return true
+    } catch (err) {
+      logLine('ERR', `openExternal: ${(err as Error).message}`)
+      return false
+    }
+  })
+
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {

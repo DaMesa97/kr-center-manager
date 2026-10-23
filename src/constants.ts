@@ -70,6 +70,7 @@ export const TABS = [
   'Techniczne',
   'Bastion',
   'DrzwiWewnetrzne',
+  'Aluminium',
   'Statystyki',
   'Weryfikacja',
   'Audyt',
@@ -107,6 +108,7 @@ export const CATEGORY_LABELS: Record<OrderCategory, string> = {
   Techniczne: 'Techniczne',
   Bastion: 'Bastion',
   DrzwiWewnetrzne: 'Drzwi wewnętrzne',
+  Aluminium: 'Stolarka aluminiowa',
 }
 
 export const DEPARTMENT_LABELS: Record<string, string> = {

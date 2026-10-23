@@ -25,7 +25,7 @@ const TAB_GROUPS: TabGroupDef[] = [
     id: 'orders',
     label: 'Zamówienia',
     Icon: DoorOpen,
-    tabs: ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'],
+    tabs: ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'],
   },
   {
     type: 'group',

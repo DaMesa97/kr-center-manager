@@ -1,0 +1,29 @@
+import { describe, expect, it } from 'vitest'
+import { aluOrderProgress, aluPositionProgress, aluStageComplete, aluStageDone, defaultAluDeadline, formatAluGlass, summarizeAluTypes } from '../lib/alu'
+import { ALU_CONSTRUCTION_LABELS } from '../constants'
+
+describe('alu — etapy per sztuka', () => {
+  it('done przycięte do ilości, etap zrobiony gdy wszystkie sztuki', () => {
+    const stages = { ciecie: { done: 5, marks: ['MK'] }, okuwanie: { done: 2, marks: ['MK', 'T'] } }
+    expect(aluStageDone(stages, 'ciecie', 3)).toBe(3)
+    expect(aluStageDone(stages, 'okuwanie', 3)).toBe(2)
+    expect(aluStageDone(stages, 'szklenie', 3)).toBe(0)
+    expect(aluStageComplete(stages, 'ciecie', 3)).toBe(true)
+    expect(aluStageComplete(stages, 'okuwanie', 3)).toBe(false)
+    expect(aluStageComplete(undefined, 'ciecie', 0)).toBe(false)
+  })
+
+  it('postęp pozycji i zlecenia liczy sztuko-etapy (5 etapów)', () => {
+    const p1 = { quantity: 2, production_stages: { ciecie: { done: 2, marks: [] }, okuwanie: { done: 1, marks: [] } } }
+    const p2 = { quantity: 1, production_stages: {} }
+    expect(aluPositionProgress(p1)).toEqual({ done: 3, total: 10 })
+    expect(aluOrderProgress([p1, p2])).toEqual({ done: 3, total: 15, percent: 20 })
+    expect(aluOrderProgress([]).percent).toBe(0)
+  })
+
+  it('formatowanie szkła, typów i domyślny termin +4 tyg.', () => {
+    expect(formatAluGlass([{ spec: '4/16/4 Ug=1,1', width_mm: 841, height_mm: 1022, qty: 1 }])).toBe('841×1022 ×1 (4/16/4 Ug=1,1)')
+    expect(summarizeAluTypes([{ construction_type: 'drzwi', quantity: 2 }, { construction_type: 'okno', quantity: 1 }], ALU_CONSTRUCTION_LABELS)).toBe('Drzwi ×2 · Okno ×1')
+    expect(defaultAluDeadline(4, new Date(2026, 9, 23))).toBe('2026-11-20')
+  })
+})

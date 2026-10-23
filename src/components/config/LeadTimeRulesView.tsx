@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { LeadTimeRule, ToastVariant } from '../../types'
 import DataTable, { type DataTableColumn } from '../DataTable'
 
-const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne']
+const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium']
 
 type RuleFormState = {
   id?: number
