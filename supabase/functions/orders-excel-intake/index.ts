@@ -164,6 +164,8 @@ const todayISO = (): string => new Date().toISOString().split('T')[0]
 // Zwraca null jeśli brak kluczowych danych (firma + system).
 export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknown> | null => {
   const get = (k: string) => String(row[k] ?? '').trim()
+  // „-” / „undefined” w uwagach = brak uwag (w tabeli wyglądało jak wpisana uwaga)
+  const note = (k: string) => (/^(-+|undefined|null|none)$/i.test(get(k)) ? '' : get(k))
 
   const company = get('Nazwa firmy')
   const system = get('System')
@@ -195,7 +197,7 @@ export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknow
       ? {
           bastion_frame_type: get('Ościeżnica'),
           bastion_frame_range: get('Regulacja ościeżnicy'),
-          bastion_notes_2: get('Uwagi 2'),
+          bastion_notes_2: note('Uwagi 2'),
           bastion_collection: system,
           // Panel boczny/górny (wykończenie) — format "SZER×WYS"
           bastion_side_panel_k: get('Panel boczny klamkowy') || get('Panel boczny'),
@@ -250,7 +252,7 @@ export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknow
     side_panel_a_glazing: get('Szerokość dostawki bocznej A') ? get('Szklenie dostawki') : '',
     side_panel_b_glazing: get('Szerokość dostawki bocznej B') ? get('Szklenie dostawki') : '',
     extension: get('Poszerzenie'),
-    notes: get('Uwagi'),
+    notes: note('Uwagi'),
     client_order_number: get('Numer zamówienia'),
     // Rodzaj intarsji (tylko Titan): 'INTARSJA JEDNOSTRONNA'/'jednostronna' → 'JEDNOSTRONNA'
     intarsja: (get('Rodzaj intarsji') || get('Intarsja')).toUpperCase().replace(/INTARSJA/g, '').trim(),
