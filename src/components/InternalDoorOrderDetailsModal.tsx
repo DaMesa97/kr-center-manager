@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import DeleteConfirmDialog from './DeleteConfirmDialog'
 import { isManagerRole } from '../lib/permissions'
+import { inferConfirmTone } from '../lib/confirmTone'
 import type { InternalDoorItem, Order, ToastVariant } from '../types'
 
 type DetailsUser = {
@@ -257,6 +258,7 @@ function InternalDoorOrderDetailsModal({
           message={confirmState.message}
           confirmLabel={confirmState.confirmLabel}
           cancelLabel="Wróć"
+          tone={inferConfirmTone(confirmState.title, confirmState.confirmLabel)}
           onCancel={() => setConfirmState(null)}
           onConfirm={() => {
             const run = confirmState.run

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog'
 import { humanizeErrorText } from './friendlyError'
+import { inferConfirmTone } from './confirmTone'
 
 // Zamienniki natywnych window.alert / window.confirm.
 //
@@ -14,6 +15,9 @@ type ConfirmRequest = {
   message: string
   title?: string
   confirmLabel?: string
+  tone: 'danger' | 'success'
+  /** klucz okna — kolejne potwierdzenie otwarte zaraz po poprzednim montuje się od nowa (fokus) */
+  seq: number
   resolve: (ok: boolean) => void
 }
 
@@ -38,14 +42,23 @@ const state: { confirm: ConfirmRequest | null; alert: AlertRequest | null; promp
   prompt: null,
 }
 let notify: Listener | null = null
+let confirmSeq = 0
 
-/** Potwierdzenie tak/nie — zamiennik window.confirm (Promise<boolean>). */
+/** Potwierdzenie tak/nie — zamiennik window.confirm (Promise<boolean>).
+ *  tone domyślnie z treści: pozytywne okna potwierdza Enter, niebezpieczne nie (lib/confirmTone). */
 export function appConfirm(
   message: string,
-  opts?: { title?: string; confirmLabel?: string },
+  opts?: { title?: string; confirmLabel?: string; tone?: 'danger' | 'success' },
 ): Promise<boolean> {
   return new Promise((resolve) => {
-    state.confirm = { message, title: opts?.title, confirmLabel: opts?.confirmLabel, resolve }
+    state.confirm = {
+      message,
+      title: opts?.title,
+      confirmLabel: opts?.confirmLabel,
+      tone: opts?.tone ?? inferConfirmTone(message, opts?.title, opts?.confirmLabel),
+      seq: ++confirmSeq,
+      resolve,
+    }
     notify?.()
   })
 }
@@ -160,10 +173,12 @@ export function AppDialogHost() {
       )}
       {confirmReq && (
         <DeleteConfirmDialog
+          key={confirmReq.seq}
           title={confirmReq.title ?? 'Potwierdzenie'}
           message={confirmReq.message}
           confirmLabel={confirmReq.confirmLabel ?? 'Tak'}
           cancelLabel="Anuluj"
+          tone={confirmReq.tone}
           onConfirm={() => {
             state.confirm = null
             setTick((t) => t + 1)
