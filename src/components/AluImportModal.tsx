@@ -227,7 +227,7 @@ export default function AluImportModal({
         label: 'OPIS',
         className: 'col-order-text alu-col-description',
         stopRowClick: true,
-        render: (p, i) => <input value={p.description} onChange={(e) => updatePos(i, { description: e.target.value })} />,
+        render: (p, i) => <input value={p.description} onChange={(e) => updatePos(i, { description: e.target.value })} style={{ minWidth: 260 }} />,
       },
       {
         key: 'system',
@@ -313,6 +313,7 @@ export default function AluImportModal({
           <button className="btn btn-icon btn-ghost" onClick={onClose} disabled={saving || parsing} aria-label="Zamknij">×</button>
         </div>
 
+        <div className="alu-modal-body">
         <div
           className={`alu-dropzone ${dragOver ? 'alu-dropzone--over' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
@@ -438,6 +439,7 @@ export default function AluImportModal({
             )}
           </>
         )}
+        </div>
 
         <div className="order-form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving || parsing}>Anuluj</button>

@@ -65,6 +65,7 @@ export default function AluOrderDetailsModal({
           <button className="btn btn-icon btn-ghost" onClick={onClose} aria-label="Zamknij">×</button>
         </div>
 
+        <div className="alu-modal-body">
         <div className="alu-details-grid">
           <div><span className="alu-details-label">Lista produkcyjna</span>{extra.lp_number || '—'}</div>
           <div><span className="alu-details-label">LP utworzona</span>{fmtDate(extra.lp_created_at)}</div>
@@ -115,6 +116,7 @@ export default function AluOrderDetailsModal({
         </div>
 
         <AluPositionsTable positions={positions} />
+        </div>
 
         <div className="order-form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Zamknij</button>

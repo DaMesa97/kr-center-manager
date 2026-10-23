@@ -30,10 +30,10 @@ export default function AluPositionsTable({ positions, compact = false }: Props)
         sortValue: (p) => p.description,
         tdTitle: (p) => p.description || undefined,
         render: (p) => (
-          <>
+          <div className="alu-clamp">
             {p.description || '—'}
             {p.system && <div className="dt-stack-sub">{p.system}</div>}
-          </>
+          </div>
         ),
       },
       {
@@ -54,6 +54,7 @@ export default function AluPositionsTable({ positions, compact = false }: Props)
         key: 'glass',
         label: 'SZKŁO',
         className: 'col-order-text',
+        stackUnder: 'dims',
         sortValue: (p) => (p.glass ?? []).length,
         tdTitle: (p) => formatAluGlass(p.glass) || undefined,
         render: (p) => formatAluGlass(p.glass) || '—',
@@ -67,7 +68,7 @@ export default function AluPositionsTable({ positions, compact = false }: Props)
           className: 'col-order-text alu-col-description',
           sortValue: (p) => p.fillings,
           tdTitle: (p) => p.fillings || undefined,
-          render: (p) => p.fillings || '—',
+          render: (p) => <div className="alu-clamp">{p.fillings || '—'}</div>,
         },
         {
           key: 'notes',
@@ -75,12 +76,13 @@ export default function AluPositionsTable({ positions, compact = false }: Props)
           className: 'col-order-text alu-col-description',
           sortValue: (p) => formatAluNotes(p.notes),
           tdTitle: (p) => formatAluNotes(p.notes) || undefined,
-          render: (p) => formatAluNotes(p.notes) || '—',
+          render: (p) => <div className="alu-clamp">{formatAluNotes(p.notes) || '—'}</div>,
         },
         {
           key: 'weight',
           label: 'MASA / U',
           className: 'col-order-text',
+          stackUnder: 'quantity',
           sortValue: (p) => p.weight_kg ?? 0,
           render: (p) => [p.weight_kg != null ? `${p.weight_kg} kg` : '', p.u_value != null ? `U=${p.u_value}` : ''].filter(Boolean).join(' · ') || '—',
         },
