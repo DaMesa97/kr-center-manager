@@ -24,6 +24,8 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
   const [authSession, setAuthSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  // błąd PIERWSZEGO wczytania profilu (App pokazuje ekran z „Spróbuj ponownie”)
+  const [profileError, setProfileError] = useState<string | null>(null)
   const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginSubmitting, setLoginSubmitting] = useState(false)
@@ -44,6 +46,7 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
   }, [])
 
   const loadProfile = useCallback(async (user: User) => {
+    setProfileError(null)
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -51,17 +54,18 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
       .single()
     if (error) {
       console.error(error)
-      const fallbackProfile: CurrentUser = {
-        id: user.id,
-        email: user.email ?? '',
-        initials: '',
-        full_name: user.email ?? 'Użytkownik',
-        role: '',
-        department: 'all',
-      }
-      setCurrentUser(fallbackProfile)
-      setSentryUserFromProfile(fallbackProfile)
-      loadedUserIdRef.current = user.id
+      // Odświeżenie już wczytanego profilu padło (np. po edycji w Użytkownikach) —
+      // zostaje poprzedni, nic nie blokujemy
+      if (loadedUserIdRef.current === user.id) return
+      // Pierwsze wczytanie padło: NIE wpuszczamy z pustą rolą — „zastępczy” profil
+      // z role='' był traktowany jak stara rola i pokazywał pracownikowi hali
+      // całe menu i ceny. App pokazuje ekran z „Spróbuj ponownie”.
+      setCurrentUser(null)
+      setProfileError(
+        error.code === 'PGRST116'
+          ? 'Twoje konto nie ma profilu w programie — poproś administratora o jego założenie.'
+          : 'Nie udało się wczytać Twojego profilu (sprawdź internet).',
+      )
       return
     }
     const role = String((data as { role?: string }).role ?? '')
@@ -120,6 +124,7 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
         loadedUserIdRef.current = null
         clearSentryUserContext()
         setCurrentUser(null)
+        setProfileError(null)
         setLoginPassword('')
         onLogout()
       }
@@ -280,5 +285,6 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
     handleExtendSession,
     handleAutoLogout,
     reloadProfile: loadProfile,
+    profileError,
   }
 }

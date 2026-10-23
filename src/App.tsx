@@ -312,6 +312,7 @@ function App() {
     handleExtendSession,
     handleAutoLogout,
     reloadProfile,
+    profileError,
   } = useAuth({ pushToast, onLogout: () => resetAppStateAfterLogoutRef.current() })
 
   // Stabilny klucz sesji do zależności efektów: obiekt authSession zmienia się
@@ -2257,6 +2258,33 @@ function App() {
           onPasswordChange={setLoginPassword}
           onSubmit={handleLoginSubmit}
         />
+      </>
+    )
+  }
+
+  // Profil się nie wczytał — bez roli NIE wpuszczamy (pusta rola odsłaniała
+  // całe menu i ceny). Ponów albo wyloguj.
+  if (currentUser === null && profileError) {
+    return (
+      <>
+        <UpdateBlocker />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+        <div className="app-crash">
+          <div className="app-crash-box" role="alert">
+            <div className="app-crash-title">Nie wczytano profilu</div>
+            <div className="app-crash-msg">
+              {profileError} Bez profilu program nie wie, jakie masz uprawnienia, więc nic nie pokazuje.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button type="button" className="btn btn-primary" onClick={() => void reloadProfile(authSession.user)}>
+                Spróbuj ponownie
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => void handleSignOut()}>
+                Wyloguj
+              </button>
+            </div>
+          </div>
+        </div>
       </>
     )
   }
