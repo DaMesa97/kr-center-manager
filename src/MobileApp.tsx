@@ -75,11 +75,37 @@ export default function MobileApp() {
     }
     setSubmitting(true)
     setError('')
+    // Ten sam limit prób co na komputerze (5 nieudanych / 15 min) — telefon go
+    // omijał: nie sprawdzał blokady i nie zapisywał nieudanych prób
+    const { data: rate } = await supabase.rpc('check_login_rate_limit', { p_email: email })
+    const rateRow = (rate as Array<{ r_blocked: boolean; r_seconds_until_unlock: number }> | null)?.[0]
+    if (rateRow?.r_blocked) {
+      if (!mountedRef.current) return
+      setSubmitting(false)
+      setError(`Zbyt wiele nieudanych prób. Spróbuj za ${Math.ceil((rateRow.r_seconds_until_unlock ?? 0) / 60)} min.`)
+      return
+    }
     const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password })
+    if (!mountedRef.current) return
+    if (loginErr?.code === 'user_banned') {
+      setSubmitting(false)
+      setError('Konto jest zablokowane — skontaktuj się z administratorem.')
+      return
+    }
+    if (loginErr?.status === 429) {
+      setSubmitting(false)
+      setError('Za dużo prób logowania — odczekaj kilka minut.')
+      return
+    }
+    // 400 = złe dane (liczymy próbę); sieć / 5xx to nie „złe hasło”
+    if (!loginErr || loginErr.status === 400) {
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 300) : null
+      await supabase.rpc('log_login_attempt', { p_email: email, p_success: !loginErr, p_user_agent: ua })
+    }
     if (!mountedRef.current) return
     setSubmitting(false)
     if (loginErr) {
-      setError('Błędny login lub hasło')
+      setError(loginErr.status === 400 ? 'Błędny login lub hasło' : 'Błąd połączenia — sprawdź internet i spróbuj ponownie')
       return
     }
   }
