@@ -647,6 +647,8 @@ export const PURCHASE_ORDER_ITEM_STATUS_LABELS: Record<string, string> = {
 // ── ALUMINIUM ────────────────────────────────────────────────────────
 // Etapy per POZYCJA (konstrukcja) LP — kolejność liniowa (każdy wymaga poprzedniego)
 export const ALU_CATEGORY = 'Aluminium' as const
+/** Nazwa zakładki (w bazie kategoria 'Aluminium' — bez spacji/ogonków, jak DrzwiWewnetrzne) */
+export const ALU_TAB_LABEL = 'Stolarka aluminiowa'
 export const ALU_STAGE_DEFS: StageDef[] = [
   { key: 'ciecie', header: 'CIĘCIE', title: 'Cięcie i frezowanie profili' },
   { key: 'okuwanie', header: 'OKUW', title: 'Okuwanie konstrukcji' },

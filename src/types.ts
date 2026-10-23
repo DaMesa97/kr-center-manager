@@ -1192,11 +1192,19 @@ export type AluParsedDocument = AluLpParseResult | AluLcParseResult
 export type PdfTextItem = { str: string; x: number; y: number; w: number; h: number }
 export type PdfTextPage = { pageNumber: number; width: number; height: number; items: PdfTextItem[] }
 
+/**
+ * Etapy pozycji: SZTUKA = KLIK. Pozycja z ilością 3 ma na każdym etapie 3 kliknięcia;
+ * etap zrobiony, gdy done >= quantity. marks = inicjały per kliknięcie (ostatni na końcu),
+ * cofnięcie zdejmuje ostatni wpis.
+ */
+export type AluStageProgress = { done: number; marks: string[] }
+export type AluPositionStages = Partial<Record<string, AluStageProgress>>
+
 /** Wiersz order_alu_positions */
 export type AluPosition = Omit<AluLpPosition, 'warnings'> & {
   id: number
   order_id: number
-  production_stages: Record<string, string>
+  production_stages: AluPositionStages
   created_at: string
 }
 
