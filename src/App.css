@@ -2602,8 +2602,9 @@ html, body, #root {
 
 .toast-stack {
   position: fixed;
-  /* nad pływającym „Zgłoś uwagę" (z-index 9000, bottom 18px) — FAB zasłaniał toasty */
-  z-index: 9100;
+  /* NAD oknami (modal 9999, potwierdzenia 100050) — błąd zapisu w otwartym
+     formularzu chował się pod nim; i nad FAB „Zgłoś uwagę” (9000) */
+  z-index: 100100;
   right: 1rem;
   bottom: 72px;
   display: flex;

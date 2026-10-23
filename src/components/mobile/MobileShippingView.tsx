@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, RefreshCw, Truck } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
+import { humanizeErrorText } from '../../lib/friendlyError'
 import { countCompletedStages, isRushOrderSequence } from '../../utils'
 import { can, isCategoryScoped } from '../../lib/permissions'
 import {
@@ -58,7 +59,7 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flash = (m: string, sticky = false) => {
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
-    setToast(m)
+    setToast(humanizeErrorText(m)) // techniczne błędy bazy/sieci po ludzku
     flashTimerRef.current = sticky ? null : setTimeout(() => setToast(null), 2500)
   }
 

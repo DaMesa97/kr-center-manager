@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog'
+import { humanizeErrorText } from './friendlyError'
 
 // Zamienniki natywnych window.alert / window.confirm.
 //
@@ -52,7 +53,8 @@ export function appConfirm(
 /** Komunikat z przyciskiem OK — zamiennik window.alert. */
 export function appAlert(message: string): Promise<void> {
   return new Promise((resolve) => {
-    state.alert = { message, resolve }
+    // techniczne błędy bazy/sieci po ludzku (zwykłe komunikaty bez zmian)
+    state.alert = { message: humanizeErrorText(message), resolve }
     notify?.()
   })
 }

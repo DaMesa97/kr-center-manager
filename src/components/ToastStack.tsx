@@ -4,9 +4,10 @@ import type { ToastRecord } from '../types'
 
 function Toast({ toast, onDismiss }: { toast: ToastRecord; onDismiss: (id: string) => void }) {
   useEffect(() => {
-    const timer = window.setTimeout(() => onDismiss(toast.id), 3000)
+    // błąd musi dać się przeczytać — 3 s to za mało (znikał, zanim ktoś spojrzał)
+    const timer = window.setTimeout(() => onDismiss(toast.id), toast.variant === 'error' ? 10_000 : 3500)
     return () => window.clearTimeout(timer)
-  }, [toast.id, onDismiss])
+  }, [toast.id, toast.variant, onDismiss])
 
   return (
     <div className={`toast toast--${toast.variant}`} role="alert">

@@ -2,6 +2,7 @@ import { appConfirm } from '../../lib/appDialogs'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Search, ArrowLeft, Camera, Trash2 } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
+import { humanizeErrorText } from '../../lib/friendlyError'
 
 type SearchResult = {
   id: number
@@ -56,7 +57,7 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
   const flash = (msg: string, sticky = false) => {
     // kasuj poprzedni timer — stary timeout gasił nowy toast po ułamku sekundy
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
-    setToast(msg)
+    setToast(humanizeErrorText(msg)) // techniczne błędy bazy/sieci po ludzku
     flashTimerRef.current = sticky ? null : setTimeout(() => setToast(null), 2500)
   }
 

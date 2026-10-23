@@ -109,8 +109,8 @@ W aplikacji NIC nie było przeklikane — odhacz po sprawdzeniu:
 ### ❓ Czeka na decyzję (22.10)
 - [x] **Webhook szyb przy tworzeniu zlecenia** — DECYZJA (22.10 wieczór): WYŁĄCZONE. Szyby zamawiane wyłącznie świadomie z zakładki Szyby (PDF/przycisk z potwierdzeniem). Auto-wysyłka przy zapisie STA/pary usunięta z useOrders
 - [x] **(21) `revalidate_bot_order` kasuje „MOŻLIWY DUPLIKAT”** — NAPRAWIONE (migracja revalidate_zachowuje_duplikat_fix): ostrzeżenia zawierające „duplikat” są zachowywane przy przeliczaniu; przetestowane w transakcji z rollbackiem
-- [ ] **(22) Surowe błędy z bazy** — ~126 miejsc pokazuje techniczny komunikat po angielsku („violates foreign key constraint…”), a dymek błędu znika po 3 s i chowa się pod otwartym oknem. Poprawka: tłumaczenie typowych błędów na polski + dłuższy dymek błędu nad oknami
-- [ ] **(23) Profil się nie wczytał** — przy chwilowym braku sieci przy logowaniu rola = pusta → program traktuje to jak starą rolę: pracownik hali widzi całe menu i ceny (zapisy blokuje baza, ale dane widać). Poprawka: bez profilu tylko komunikat „Nie wczytano profilu — odśwież”
+- [x] **(22) Surowe błędy z bazy** — ZROBIONE 23.10: `lib/friendlyError.ts` tłumaczy typowe błędy Postgresa/sieci (duplikat, FK, brak uprawnień/RLS, brak pola, timeout, brak internetu, sesja…) w KAŻDYM toaście błędu, na telefonie i w appAlert — prefiks i polska dalsza część komunikatu zostają, oryginał w konsoli. Dymek błędu 10 s (inne 3,5 s) i NAD oknami (z-index). **Sprawdź:** np. zapis bez internetu → „brak połączenia z serwerem”
+- [x] **(23) Profil się nie wczytał** — ZROBIONE 23.10: zamiast zastępczego profilu z pustą rolą ekran „Nie wczytano profilu” (Spróbuj ponownie / Wyloguj); jeśli profil był już wczytany, a padło tylko odświeżenie — zostaje stary. **Sprawdź:** wyłącz internet tuż po zalogowaniu (trudne do odtworzenia — wystarczy, że normalne logowanie działa)
 
 ## 🟠 ODŁOŻONE Z PRZEGLĄDU (2026-10-22)
 
