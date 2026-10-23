@@ -1187,7 +1187,16 @@ export type AluLpHeader = {
 
 export type AluLpParseResult = { kind: 'LP'; header: AluLpHeader; positions: AluLpPosition[]; warnings: string[] }
 export type AluLcParseResult = { kind: 'LC'; lc_number: string; order_number: string; client: string }
-export type AluParsedDocument = AluLpParseResult | AluLcParseResult
+/** Zamówienie szyb z LiczOkna/AluronCAD („ZAMÓWIENIE NR: ZM_GLASS 0003/09/2026/Vitroszlif”) —
+ *  numery zleceń z kolumny „Położenie szkła” (OF270/2026:1:4 → OF270/2026); jedno ZM może objąć kilka OF */
+export type AluZmParseResult = {
+  kind: 'ZM'
+  zm_number: string
+  supplier: string
+  order_numbers: string[]
+  panes: number | null
+}
+export type AluParsedDocument = AluLpParseResult | AluLcParseResult | AluZmParseResult
 
 /** Tekst z PDF z położeniem (pdfjs) — wejście parsera, zapisywane też jako fixture testów */
 export type PdfTextItem = { str: string; x: number; y: number; w: number; h: number }

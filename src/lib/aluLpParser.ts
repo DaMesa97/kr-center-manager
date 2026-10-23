@@ -20,6 +20,7 @@ import type {
   AluLpPosition,
   AluParsedDocument,
   AluProductionNotes,
+  AluZmParseResult,
   PdfTextItem,
   PdfTextPage,
 } from '../types'
@@ -121,14 +122,19 @@ function continuationLines(
   used: Set<PdfTextItem>,
   stopY: number,
   maxPitch = 14,
+  /** linie z etykietą po lewej PRZESKAKUJ zamiast kończyć (termin realizacji
+   *  przeplata się z wartością „Klient:” w tej samej kolumnie); koniec na kropce */
+  interleaved = false,
 ): string[] {
   const out: string[] = []
   let prev = first
+  const skipped = new Set<PdfTextItem>()
   for (;;) {
     const next = page.items
       .filter(
         (it) =>
           !used.has(it) &&
+          !skipped.has(it) &&
           it.y > prev.y + LINE_TOL &&
           it.y - prev.y <= maxPitch &&
           it.y < stopY &&
@@ -140,10 +146,15 @@ function continuationLines(
     const labelOnLine = page.items.find(
       (it) => it !== next && Math.abs(it.y - next.y) <= LINE_TOL && it.x < next.x && isLabel(it.str),
     )
-    if (labelOnLine) break
+    if (labelOnLine) {
+      if (!interleaved) break
+      skipped.add(next)
+      continue
+    }
     used.add(next)
     out.push(next.str)
     prev = next
+    if (interleaved && /\.\s*$/.test(next.str)) break
   }
   return out
 }
@@ -278,6 +289,7 @@ export function humanizeProductionNotes(raw: {
 
 const LP_TITLE_RE = /LISTA\s+PRODUKCYJNA\s+NR\s*:?/i
 const LC_TITLE_RE = /OPTYMALIZACJA\s+NR\s*:?/i
+const ZM_TITLE_RE = /ZAM[ÓO]WIENIE\s+NR\s*:\s*ZM_GLASS\b/i
 
 export function parseAluDocument(pages: PdfTextPage[]): AluParsedDocument | null {
   const first = pages[0]
@@ -285,7 +297,43 @@ export function parseAluDocument(pages: PdfTextPage[]): AluParsedDocument | null
   const text = first.items.map((i) => i.str).join(' ')
   if (LP_TITLE_RE.test(text)) return parseAluLp(pages)
   if (LC_TITLE_RE.test(text)) return parseAluLc(pages)
+  if (ZM_TITLE_RE.test(text)) return parseAluZm(pages)
   return null
+}
+
+// ---------------------------------------------------------------------------
+// ZM GLASS — zamówienie szyb (dokument do dopięcia, pozycje informacyjnie)
+// ---------------------------------------------------------------------------
+
+const ZM_NUMBER_RE = /ZM_GLASS\s+(\d+\/\d+\/\d{4})(?:\/(.+))?/i
+const ZM_OF_RE = /^(OF\d+\/\d{4})(?::|\s|$)/i
+
+export function parseAluZm(pages: PdfTextPage[]): AluZmParseResult {
+  const items = pages.flatMap((p) => p.items)
+  const title = items.find((it) => ZM_NUMBER_RE.test(it.str))
+  const m = title?.str.match(ZM_NUMBER_RE)
+  const orderNumbers: string[] = []
+  for (const it of items) {
+    const of = it.str.trim().match(ZM_OF_RE)?.[1]?.toUpperCase()
+    if (of && !orderNumbers.includes(of)) orderNumbers.push(of)
+  }
+  // „Razem: 4” w kolumnie ilości — liczba szyb w zamówieniu
+  let panes: number | null = null
+  for (const p of pages) {
+    const razem = p.items.find((it) => /^Razem\s*:/i.test(it.str.trim()))
+    if (!razem) continue
+    const next = p.items
+      .filter((it) => it !== razem && Math.abs(it.y - razem.y) <= LINE_TOL && it.x > razem.x)
+      .sort((a, b) => a.x - b.x)[0]
+    panes = parseNum(next?.str)
+  }
+  return {
+    kind: 'ZM',
+    zm_number: m ? `ZM_GLASS ${m[1]}` : '',
+    supplier: squeeze(m?.[2] ?? ''),
+    order_numbers: orderNumbers,
+    panes,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -334,7 +382,7 @@ function parseLpHeader(page: PdfTextPage, warnings: string[]): AluLpHeader {
     const right = valueRight(page, deadlineLab.item, used)
     parts.push(...right.map((i) => i.str))
     const anchor = right[0]
-    if (anchor) parts.push(...continuationLines(page, anchor, used, page.height * FOOTER_FRACTION))
+    if (anchor) parts.push(...continuationLines(page, anchor, used, page.height * FOOTER_FRACTION, 14, true))
     deadline_text = squeeze(parts.join(' '))
   }
 
@@ -419,7 +467,26 @@ function groupPagesByPosition(pages: PdfTextPage[], orderNumber: string, warning
 // LP — blok pozycji (strona z rysunkiem)
 // ---------------------------------------------------------------------------
 
-const BLOCK_LABEL_RE = /^(System|Kolor profili|Kolor okuć|Kolor okuc|Wypełnienia|Wypelnienia)\s*:\s*(.*)$/i
+// Dwa układy bloku w AluronCAD:
+//  A) „Poz.: 1 AS 75 - drzwi…” + System / Kolor profili / Kolor okuć / Wypełnienia
+//  B) bez wiersza „Poz.”: System / Kolor konstrukcji / Wypełnienia / Okucia i dodatki /
+//     Wymiar zewnętrzny konstrukcji / Termika konstrukcji
+const BLOCK_LABEL_RE =
+  /^(System|Kolor profili|Kolor konstrukcji|Kolor okuć|Kolor okuc|Wypełnienia|Wypelnienia|Okucia i dodatki|Wymiar zewnętrzny konstrukcji|Wymiar zewnetrzny konstrukcji|Termika konstrukcji)\s*:\s*(.*)$/i
+
+/** Blok pozycji zaczyna się pod nagłówkiem LP — ale tylko na stronie, która go ma (pozycje 2+ zaczynają się od góry) */
+function blockMinY(page: PdfTextPage): number {
+  return page.items.some((it) => LP_TITLE_RE.test(it.str)) ? 120 : 0
+}
+
+/** „2 360 mm x 2 590 mm” (spacja jako separator tysięcy) → { 2360, 2590 } */
+export function parseOuterDims(s: string): { width_mm: number; height_mm: number } | null {
+  const m = s.match(/(\d[\d\s]*)\s*mm\s*x\s*(\d[\d\s]*)\s*mm/i)
+  if (!m) return null
+  const w = Number(m[1].replace(/\s/g, ''))
+  const h = Number(m[2].replace(/\s/g, ''))
+  return w > 0 && h > 0 ? { width_mm: w, height_mm: h } : null
+}
 
 type PositionBlock = {
   description: string
@@ -427,22 +494,30 @@ type PositionBlock = {
   profile_color: string
   hardware_color: string
   fillings: string
+  fittings: string
+  outer: { width_mm: number; height_mm: number } | null
   quantity: number | null
   weight_kg: number | null
   u_value: number | null
+  area_m2: number | null
   pozY: number
 }
 
 function parsePositionBlock(page: PdfTextPage, warnings: string[]): PositionBlock | null {
   const body = page.items.filter((it) => !isFooterItem(page, it))
-  const poz = pozLine(buildLines(page, body))
-  if (!poz) return null
   const split = page.width * 0.58
+  const poz = pozLine(buildLines(page, body))
+  // układ B: blok zaczyna pierwsza linia „System:” w lewej kolumnie pod nagłówkiem LP
+  const systemLine = poz
+    ? null
+    : buildLines(page, body.filter((it) => it.x + it.w < split && it.y > blockMinY(page))).find((ln) => /^System\s*:/i.test(ln.text))
+  if (!poz && !systemLine) return null
+  const anchorY = poz ? poz.line.y : (systemLine as Line).y - LINE_TOL - 1
 
-  // --- lewa kolumna: System / Kolor profili / Kolor okuć / Wypełnienia (wielolinijkowe, wyśrodkowane)
+  // --- lewa kolumna: pola bloku (wielolinijkowe, wyśrodkowane)
   const leftLines = buildLines(
     page,
-    body.filter((it) => it.y > poz.line.y + LINE_TOL && it.x + it.w < split),
+    body.filter((it) => it.y > anchorY + LINE_TOL && it.x + it.w < split),
   )
   const fields = new Map<string, string[]>()
   let currentKey: string | null = null
@@ -450,7 +525,12 @@ function parsePositionBlock(page: PdfTextPage, warnings: string[]): PositionBloc
   for (const ln of leftLines) {
     const m = ln.text.match(BLOCK_LABEL_RE)
     if (m) {
-      const key = m[1].toLowerCase().replace('okuc', 'okuć').replace('wypelnienia', 'wypełnienia')
+      const key = m[1]
+        .toLowerCase()
+        .replace(/^kolor okuc$/, 'kolor okuć')
+        .replace('wypelnienia', 'wypełnienia')
+        .replace('zewnetrzny', 'zewnętrzny')
+        .replace('kolor konstrukcji', 'kolor profili')
       if (fields.has(key)) break // drugi, skrócony blok „System / Kolor profili” — bierzemy pierwszy
       fields.set(key, [m[2]])
       currentKey = key
@@ -471,25 +551,34 @@ function parsePositionBlock(page: PdfTextPage, warnings: string[]): PositionBloc
     prev = ln
   }
   const field = (k: string) => squeeze((fields.get(k) ?? []).join(' '))
-  const system = field('system')
+  // „ALURON AS75” (układ B) → „AS75” jak w układzie A
+  const system = field('system').replace(/^aluron\s+/i, '')
   const profile_color = cleanAluColor(field('kolor profili'))
   const hardware_color = cleanAluColor(field('kolor okuć'))
   const fillings = squeeze(field('wypełnienia').replace(/\s*;\s*/g, '; '))
+  const fittings = squeeze(field('okucia i dodatki').replace(/\.\s*$/, ''))
+  const outer = parseOuterDims(field('wymiar zewnętrzny konstrukcji'))
   if (!system) warnings.push('Nie odczytano systemu profili')
   if (!profile_color) warnings.push('Nie odczytano koloru profili')
 
-  // --- prawa kolumna: Ilość / Ciężar razem / Współczynnik U
+  // --- prawa kolumna: Ilość / Powierzchnia / Ciężar razem / Współczynnik U
   const rightLines = buildLines(
     page,
-    body.filter((it) => it.x >= split && it.y >= poz.line.y - 30 && it.y <= poz.line.y + 130),
+    body.filter((it) => it.x >= split && it.y >= anchorY - 30 && it.y <= anchorY + 130),
   )
   let quantity: number | null = null
   let weight_kg: number | null = null
   let u_value: number | null = null
+  let area_m2: number | null = null
   for (const ln of rightLines) {
     let m = ln.text.match(/^Ilość\s*:\s*(.+)$/i)
     if (m) {
       quantity = parseNum(m[1])
+      continue
+    }
+    m = ln.text.match(/^Powierzchnia\s*:\s*(.+)$/i)
+    if (m) {
+      area_m2 = parseNum(m[1])
       continue
     }
     m = ln.text.match(/^Ciężar razem\s*:\s*(.+)$/i)
@@ -503,15 +592,18 @@ function parsePositionBlock(page: PdfTextPage, warnings: string[]): PositionBloc
   if (quantity === null) warnings.push('Nie odczytano ilości sztuk pozycji — przyjęto 1')
 
   return {
-    description: poz.description,
+    description: poz?.description ?? '',
     system,
     profile_color,
     hardware_color,
     fillings,
+    fittings,
+    outer,
     quantity,
     weight_kg,
     u_value,
-    pozY: poz.line.y,
+    area_m2,
+    pozY: anchorY,
   }
 }
 
@@ -543,7 +635,9 @@ function sectionHeaderName(ln: Line): string | null {
   return null
 }
 
-const QTY_RE = /^(\d+)\s*szt\.?$/i
+// „2 szt” albo „1x5 szt” (pozycja z ilością 5: sztuk NA JEDNĄ konstrukcję × konstrukcje) —
+// bierzemy sztuki na konstrukcję, ilość konstrukcji ma pozycja
+const QTY_RE = /^(\d+)(?:\s*x\s*\d+)?\s*szt\.?$/i
 const LEN_RE = /^(\d+(?:[.,]\d+)?)\s*mm\.?(?:\s*\(\s*(\d+)\s*'?\s*;\s*(\d+)\s*'?\s*\))?/i
 const GLASS_DIM_RE = /(\d+(?:[.,]\d+)?)\s*mm\s*x\s*(\d+(?:[.,]\d+)?)\s*mm/i
 
@@ -579,8 +673,10 @@ function scanPositionPages(pages: PdfTextPage[], startAfterY: number | null): Po
   let section: Section | null = null
   let inNotes = false
   let group: MaterialGroup | null = null
+  let lastNameY: number | null = null
 
   pages.forEach((page, idx) => {
+    lastNameY = null
     const body = page.items.filter((it) => !isFooterItem(page, it))
     const lines = buildLines(page, body)
     for (const ln of lines) {
@@ -612,11 +708,23 @@ function scanPositionPages(pages: PdfTextPage[], startAfterY: number | null): Po
       if (!section) continue
       if (/^Kod\s*:/.test(ln.text) && ln.items.length >= 2) continue // nagłówek kolumn tabeli
       const { row, left } = parseMaterialRow(ln)
-      if (left && row) {
+      // zawinięta nazwa („…szkło klejone” / „bezpieczne”) potrafi wypaść w tej samej
+      // linii co wiersz wymiarów — to dalszy ciąg nazwy, nie nowy kod materiału
+      const nameWrap =
+        left && row && group && lastNameY !== null && ln.y - lastNameY <= 14 && /^[a-ząćęłńóśźż]/.test(left.str)
+      if (nameWrap && group && left && row) {
+        group.name = squeeze(`${group.name} ${left.str}`)
+        group.rows.push(row)
+        lastNameY = ln.y
+      } else if (left && row) {
         group = { code: left.str, name: '', rows: [row] }
         section.groups.push(group)
+        lastNameY = null
       } else if (left) {
-        if (group) group.name = squeeze(`${group.name} ${ln.items.filter((i) => i.x < page.width * 0.3).map((i) => i.str).join(' ')}`)
+        if (group) {
+          group.name = squeeze(`${group.name} ${ln.items.filter((i) => i.x < page.width * 0.3).map((i) => i.str).join(' ')}`)
+          lastNameY = ln.y
+        }
       } else if (row && group) {
         group.rows.push(row)
       }
@@ -642,7 +750,11 @@ function frameDimensions(
     warnings.push('Brak sekcji „Profile” — wymiary konstrukcji nieznane')
     return { width_mm: null, height_mm: null }
   }
-  const frame = profile.groups.find((g) => /^Ościeżnica|^Oscieznica/i.test(g.name) || /^Ościeżnica/i.test(g.code))
+  // Kilka ościeżnic w pozycji (np. drzwiowa + okienna doświetla) → zewnętrzna,
+  // czyli ta z najdłuższym odcinkiem (LP 0003/03: okienna 1061, drzwiowa 2500/3100)
+  const frames = profile.groups.filter((g) => /^Ościeżnica|^Oscieznica/i.test(g.name) || /^Ościeżnica/i.test(g.code))
+  const maxLen = (g: MaterialGroup) => Math.max(0, ...g.rows.map((r) => r.length_mm ?? 0))
+  const frame = [...frames].sort((a, b) => maxLen(b) - maxLen(a))[0]
   if (!frame) {
     warnings.push('Brak ościeżnicy w sekcji „Profile” — wymiary konstrukcji nieznane')
     return { width_mm: null, height_mm: null }
@@ -736,23 +848,66 @@ function glassLines(scan: PositionScan, warnings: string[]): AluGlassLine[] {
 // LP — całość
 // ---------------------------------------------------------------------------
 
+// Uwagi produkcyjne układu B: „Kierunek: drzwi lewe”, „Sposób otwierania: …”,
+// „Typ konstrukcji: …” idą do opisu pozycji, „Zawiasy: …” do okuć
+const DESC_NOTE_RE = /^(Kierunek|Sposób otwierania|Sposob otwierania|Typ konstrukcji)\s*:\s*(.*)$/i
+const HINGES_NOTE_RE = /^Zawiasy\s*:\s*(.*)$/i
+
+function descriptionFromNotes(system: string, other: string[]): string {
+  const get = (re: RegExp) => other.map((l) => l.match(DESC_NOTE_RE)).find((m) => m && re.test(m[1]))?.[2]?.trim() ?? ''
+  const kierunek = get(/^kierunek/i)
+  const otwieranie = get(/^spos/i)
+  const typ = get(/^typ/i)
+  if (!kierunek && !otwieranie && !typ) return ''
+  // „drzwi lewe” → rodzaj „drzwi” + strona „lewe”
+  const km = kierunek.match(/^(drzwi|okno)\s*(.*)$/i)
+  const rodzaj = km ? km[1].toLowerCase() : ''
+  const strona = km ? km[2] : kierunek
+  const head = squeeze([rodzaj, typ].join(' '))
+  const rest = [otwieranie, strona].filter(Boolean).join(', ')
+  return squeeze(`${system ? `${system} - ` : ''}${head}${rest ? `${head ? ', ' : ''}${rest}` : ''}`)
+}
+
+function hasPositionBlock(p: PdfTextPage): boolean {
+  const body = p.items.filter((it) => !isFooterItem(p, it))
+  if (pozLine(buildLines(p, body)) !== null) return true
+  return body.some((it) => it.y > blockMinY(p) && it.x + it.w < p.width * 0.58 && /^System\s*:\s*\S/i.test(it.str))
+}
+
 function parsePosition(group: PageGroup): AluLpPosition {
   const warnings: string[] = []
-  const drawingPage = group.pages.find((p) => pozLine(buildLines(p, p.items.filter((it) => !isFooterItem(p, it)))) !== null) ?? null
+  const drawingPage = group.pages.find(hasPositionBlock) ?? null
   const block = drawingPage ? parsePositionBlock(drawingPage, warnings) : null
-  if (!block) warnings.push('Brak wiersza „Poz.” — nie odczytano opisu, systemu i kolorów')
-
-  const description = block?.description ?? ''
-  const construction_type = detectConstructionType(description)
+  if (!block) warnings.push('Nie znaleziono bloku pozycji — nie odczytano opisu, systemu i kolorów')
 
   // strumień sekcji: strona z rysunkiem (od bloku pozycji w dół), potem reszta stron pozycji
   const orderedPages = drawingPage ? [drawingPage, ...group.pages.filter((p) => p !== drawingPage)] : group.pages
   const scan = scanPositionPages(orderedPages, drawingPage && block ? block.pozY : null)
 
-  const notes = humanizeProductionNotes({ ...scan.notesRaw, inne: scan.notesOther.join('; ') || undefined })
+  const descNotes = scan.notesOther.filter((l) => DESC_NOTE_RE.test(l))
+  const hinges = scan.notesOther.map((l) => l.match(HINGES_NOTE_RE)?.[1]).filter((v): v is string => !!v)
+  const otherNotes = scan.notesOther.filter((l) => !DESC_NOTE_RE.test(l) && !HINGES_NOTE_RE.test(l))
+  const description = block?.description || descriptionFromNotes(block?.system ?? '', descNotes)
+  const construction_type = detectConstructionType(description)
+
+  const okucia = [scan.notesRaw.okucia, ...hinges, block?.fittings].filter(Boolean).join('; ')
+  const notes = humanizeProductionNotes({
+    ...scan.notesRaw,
+    okucia: okucia || undefined,
+    inne: otherNotes.join('; ') || undefined,
+  })
   if (!Object.keys(scan.notesRaw).length && !scan.notesOther.length) warnings.push('Brak sekcji „Uwagi produkcyjne”')
 
-  const dims = frameDimensions(scan, drawingPage, construction_type, warnings)
+  // „Wymiar zewnętrzny konstrukcji” (układ B) jest ostateczny; inaczej z ościeżnicy
+  const dims = block?.outer ?? frameDimensions(scan, drawingPage, construction_type, warnings)
+  if (block?.area_m2 && dims.width_mm && dims.height_mm) {
+    const calc = (dims.width_mm * dims.height_mm) / 1e6
+    if (Math.abs(calc - block.area_m2) / block.area_m2 > 0.1) {
+      warnings.push(
+        `Wymiar ${dims.width_mm}×${dims.height_mm} nie zgadza się z powierzchnią pozycji (${block.area_m2} m²) — sprawdź S×W`,
+      )
+    }
+  }
   const glass = glassLines(scan, warnings)
 
   return {

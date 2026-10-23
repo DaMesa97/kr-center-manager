@@ -8,11 +8,12 @@ import { parseAluDocument } from '../lib/aluLpParser'
 import { appConfirm } from '../lib/appDialogs'
 import type {
   AluConstructionType, AluLcParseResult, AluLpParseResult, AluLpPosition, AluProductionNotes, AluRealizacja,
-  OrderDocumentKind, ToastVariant,
+  AluZmParseResult, OrderDocumentKind, ToastVariant,
 } from '../types'
 
 // Import zlecenia aluminium z PDF: lista produkcyjna (LP, wymagana) + lista cięcia
-// (LC, opcjonalna — komplet). Sama LC dopina się do ISTNIEJĄCEGO zlecenia po numerze OF.
+// (LC, opcjonalna — komplet) + zamówienie szyb ZM GLASS (opcjonalne). Sama LC / samo ZM
+// dopina się do ISTNIEJĄCEGO zlecenia po numerze OF (ZM — do każdego OF z dokumentu).
 // Parser czyta tekst po współrzędnych; wszystko, co rozpoznał, jest tu do poprawki
 // PRZED zapisem (AluronCAD generuje rozjechane PDF-y).
 
@@ -33,7 +34,7 @@ type Props = {
   pushToast: (msg: string, variant: ToastVariant) => void
 }
 
-type Picked = { lp: File | null; lc: File | null }
+type Picked = { lp: File | null; lc: File | null; zm: File | null }
 type EditablePosition = AluLpPosition
 
 const NOTE_FIELDS: Array<[keyof AluProductionNotes, string]> = [
@@ -52,10 +53,11 @@ async function parseFile(file: File) {
 export default function AluImportModal({
   open, companies, reimportOrderNumber, onClose, onImport, onUploadDocument, onFindOrder, onDone, pushToast,
 }: Props) {
-  const [picked, setPicked] = useState<Picked>({ lp: null, lc: null })
+  const [picked, setPicked] = useState<Picked>({ lp: null, lc: null, zm: null })
   const [parsing, setParsing] = useState(false)
   const [lp, setLp] = useState<AluLpParseResult | null>(null)
   const [lc, setLc] = useState<AluLcParseResult | null>(null)
+  const [zm, setZm] = useState<AluZmParseResult | null>(null)
   const [orderNumber, setOrderNumber] = useState('')
   const [company, setCompany] = useState('')
   const [deadline, setDeadline] = useState(defaultAluDeadline())
@@ -69,7 +71,7 @@ export default function AluImportModal({
 
   useEffect(() => {
     if (!open) return
-    setPicked({ lp: null, lc: null }); setLp(null); setLc(null); setPositions([]); setExistsPanel(null)
+    setPicked({ lp: null, lc: null, zm: null }); setLp(null); setLc(null); setZm(null); setPositions([]); setExistsPanel(null)
     setOrderNumber(''); setCompany(''); setDeadline(defaultAluDeadline()); setRealizacja('wysylka'); setNotesOpen(null)
   }, [open])
 
@@ -94,7 +96,16 @@ export default function AluImportModal({
       for (const file of pdfs) {
         const parsed = await parseFile(file)
         if (!parsed) {
-          pushToast(`${file.name}: to nie jest lista produkcyjna ani lista cięcia z AluronCAD`, 'error')
+          pushToast(`${file.name}: to nie jest lista produkcyjna, lista cięcia ani zamówienie szyb ZM GLASS`, 'error')
+          continue
+        }
+        if (parsed.kind === 'ZM') {
+          if (parsed.order_numbers.length === 0) {
+            pushToast(`${file.name}: w zamówieniu szyb nie ma numeru zlecenia (OF) w kolumnie „Położenie szkła”`, 'error')
+            continue
+          }
+          setZm(parsed)
+          setPicked((p) => ({ ...p, zm: file }))
           continue
         }
         if (parsed.kind === 'LP') {
@@ -130,6 +141,7 @@ export default function AluImportModal({
 
   // porównanie z numerem z POLA (po ręcznej poprawce), nie z odczytem parsera
   const lcMismatch = Boolean(lp && lc && lc.order_number.trim() !== orderNumber.trim())
+  const zmMismatch = Boolean(lp && zm && !zm.order_numbers.includes(orderNumber.trim().toUpperCase()))
   const problems = useMemo(() => {
     const out: string[] = []
     if (lp) {
@@ -145,39 +157,71 @@ export default function AluImportModal({
       })
       if (lcMismatch)
         out.push(`Lista cięcia jest do zlecenia ${lc?.order_number}, a zlecenie ma numer ${orderNumber.trim()} — popraw numer albo odepnij LC.`)
+      if (zmMismatch)
+        out.push(`Zamówienie szyb jest do zlecenia ${zm?.order_numbers.join(', ')}, a zlecenie ma numer ${orderNumber.trim()} — popraw numer albo odepnij ZM.`)
     }
     return out
-  }, [lp, lc, lcMismatch, orderNumber, company, deadline, positions])
+  }, [lp, lc, lcMismatch, zm, zmMismatch, orderNumber, company, deadline, positions])
 
   const removeLc = () => {
     setLc(null)
     setPicked((p) => ({ ...p, lc: null }))
   }
+  const removeZm = () => {
+    setZm(null)
+    setPicked((p) => ({ ...p, zm: null }))
+  }
 
-  // Tylko LC bez LP → dopnij do istniejącego zlecenia
-  const attachLcOnly = async () => {
-    if (!lc || !picked.lc) return
+  /** Istniejące zlecenie o numerze OF; przy kilku (OF… (2) z „Dodaj ponownie”) pyta o najnowsze. */
+  const resolveTarget = async (of: string, what: string) => {
+    const found = await onFindOrder(of)
+    if (found.length === 0) return null
+    // find_alu_order zwraca najnowsze pierwsze
+    const target = found[0]
+    if (found.length > 1) {
+      const ok = await appConfirm(
+        `Zleceń o numerze ${of} jest ${found.length} (${found.map((f) => f.order_number).join(', ')}). Dopiąć ${what} do najnowszego: ${target.order_number}?`,
+        { title: 'Kilka zleceń o tym numerze', confirmLabel: 'Dopnij do najnowszego' },
+      )
+      if (!ok) return undefined
+    }
+    return target
+  }
+
+  // Sama LC / samo ZM (bez LP) → dopnij do istniejących zleceń
+  const attachDocsOnly = async () => {
     setSaving(true)
     try {
-      const found = await onFindOrder(lc.order_number)
-      if (found.length === 0) {
-        pushToast(`Nie ma zlecenia ${lc.order_number} — najpierw wgraj listę produkcyjną (LP) tego zlecenia`, 'error')
-        return
+      const done: string[] = []
+      const missing: string[] = []
+      let lastId: number | null = null
+      if (lc && picked.lc) {
+        const target = await resolveTarget(lc.order_number, 'listę cięcia')
+        if (target === undefined) return
+        if (target === null) missing.push(`${lc.order_number} (lista cięcia)`)
+        else if (await onUploadDocument(target.id, 'LC', lc.lc_number, picked.lc)) {
+          done.push(`LC → ${target.order_number}`)
+          lastId = target.id
+        }
       }
-      // find_alu_order zwraca najnowsze pierwsze (OF… (2) z „Dodaj ponownie”)
-      const target = found[0]
-      if (found.length > 1) {
-        const ok = await appConfirm(
-          `Zleceń o numerze ${lc.order_number} jest ${found.length} (${found.map((f) => f.order_number).join(', ')}). Dopiąć listę cięcia do najnowszego: ${target.order_number}?`,
-          { title: 'Kilka zleceń o tym numerze', confirmLabel: 'Dopnij do najnowszego' },
-        )
-        if (!ok) return
+      if (zm && picked.zm) {
+        for (const of of zm.order_numbers) {
+          const target = await resolveTarget(of, 'zamówienie szyb')
+          if (target === undefined) return
+          if (target === null) missing.push(`${of} (ZM GLASS)`)
+          else if (await onUploadDocument(target.id, 'ZM', zm.zm_number, picked.zm)) {
+            done.push(`ZM → ${target.order_number}`)
+            lastId = target.id
+          }
+        }
       }
-      const ok = await onUploadDocument(target.id, 'LC', lc.lc_number, picked.lc)
-      if (ok) {
-        pushToast(`Lista cięcia ${lc.lc_number} dopięta do zlecenia ${target.order_number}`, 'success')
-        onDone(target.id)
-        onClose()
+      if (missing.length) {
+        pushToast(`Nie ma zlecenia: ${missing.join(', ')} — najpierw wgraj listę produkcyjną (LP)`, 'error')
+      }
+      if (done.length) {
+        pushToast(`Dopięto: ${done.join(', ')}`, 'success')
+        if (lastId != null) onDone(lastId)
+        if (!missing.length) onClose()
       }
     } finally {
       setSaving(false)
@@ -213,10 +257,13 @@ export default function AluImportModal({
       const lpOk = await onUploadDocument(res.orderId, 'LP', lp.header.lp_number, picked.lp)
       let lcOk = true
       if (lc && picked.lc && !lcMismatch) lcOk = await onUploadDocument(res.orderId, 'LC', lc.lc_number, picked.lc)
+      let zmOk = true
+      if (zm && picked.zm && !zmMismatch) zmOk = await onUploadDocument(res.orderId, 'ZM', zm.zm_number, picked.zm)
+      const allOk = lpOk && lcOk && zmOk
       pushToast(
         `${res.result === 'overwritten' ? 'Zaktualizowano' : 'Utworzono'} zlecenie ${res.orderNumber} (${parsed.positions.length} poz.)` +
-          (lpOk && lcOk ? '' : ' — UWAGA: nie wszystkie PDF-y się wgrały, dodaj je w szczegółach'),
-        lpOk && lcOk ? 'success' : 'error',
+          (allOk ? '' : ' — UWAGA: nie wszystkie PDF-y się wgrały, dodaj je w szczegółach'),
+        allOk ? 'success' : 'error',
       )
       onDone(res.orderId)
       onClose()
@@ -352,7 +399,7 @@ export default function AluImportModal({
             <span>Czytam PDF…</span>
           ) : (
             <span>
-              Przeciągnij tu PDF-y z AluronCAD (lista produkcyjna + lista cięcia) albo kliknij, żeby wybrać.
+              Przeciągnij tu PDF-y z AluronCAD (lista produkcyjna, lista cięcia, zamówienie szyb ZM GLASS) albo kliknij, żeby wybrać.
               <br />
               <small>Pliki rozpoznaję po treści, kolejność nie ma znaczenia.</small>
             </span>
@@ -376,15 +423,46 @@ export default function AluImportModal({
                 </button>
               )}
             </span>
+            <span className={`alu-doc-chip ${picked.zm ? 'alu-doc-chip--on' : ''}`}>
+              ZM {picked.zm ? `✓ ${zm?.zm_number ?? picked.zm.name}` : '— brak (opcjonalnie)'}
+              {picked.zm && (
+                <button
+                  type="button"
+                  className="alu-doc-chip-remove"
+                  title="Odepnij zamówienie szyb"
+                  disabled={saving}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    removeZm()
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </span>
           </div>
         </div>
 
-        {!lp && lc && (
+        {!lp && (lc || zm) && (
           <div className="alu-import-info">
-            Sama lista cięcia <strong>{lc.lc_number}</strong> dla zlecenia <strong>{lc.order_number}</strong> — dopnę ją do istniejącego zlecenia.
-            <button type="button" className="btn btn-sm btn-primary" style={{ marginLeft: 10 }} disabled={saving} onClick={() => void attachLcOnly()}>
-              {saving ? 'Wgrywam…' : `Dopnij do ${lc.order_number}`}
-            </button>
+            {lc && (
+              <div>
+                Lista cięcia <strong>{lc.lc_number}</strong> → zlecenie <strong>{lc.order_number}</strong>
+              </div>
+            )}
+            {zm && (
+              <div>
+                Zamówienie szyb <strong>{zm.zm_number}</strong>
+                {zm.supplier ? ` (${zm.supplier}${zm.panes ? `, ${zm.panes} szyb` : ''})` : ''} → zlecenie{' '}
+                <strong>{zm.order_numbers.join(', ')}</strong>
+              </div>
+            )}
+            <div style={{ marginTop: 6 }}>
+              Dopnę {lc && zm ? 'je' : 'go'} do istniejących zleceń.
+              <button type="button" className="btn btn-sm btn-primary" style={{ marginLeft: 10 }} disabled={saving} onClick={() => void attachDocsOnly()}>
+                {saving ? 'Wgrywam…' : 'Dopnij'}
+              </button>
+            </div>
           </div>
         )}
 
