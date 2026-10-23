@@ -43,6 +43,13 @@ export default function DeleteConfirmDialog({
       } else if (e.key === 'Enter') {
         e.stopImmediatePropagation()
         if (e.repeat) e.preventDefault() // przytrzymany Enter z formularza nie klika
+      } else if (e.key === 'Tab') {
+        // fokus krąży między przyciskami okna — Tab nie ucieka na formularz pod spodem
+        // (a Enter kliknąłby wtedy coś POD oknem)
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const next = document.activeElement === cancelRef.current ? confirmRef.current : cancelRef.current
+        next?.focus()
       }
     }
     window.addEventListener('keydown', onKey, true)

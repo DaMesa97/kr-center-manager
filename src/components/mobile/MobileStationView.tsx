@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Check, RefreshCw, Zap } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
-import { humanizeErrorText } from '../../lib/friendlyError'
+import { humanizeAndLog } from '../../lib/friendlyError'
 import { mirrorStageKey } from '../../lib/stageMirror'
 import { isRushOrderSequence, orderRouteMark, parseProductionStages } from '../../utils'
 import {
@@ -107,7 +107,7 @@ export default function MobileStationView({ userId }: Props) {
     // kasuj POPRZEDNI timer — stary timeout gasił nowy toast po ułamku
     // sekundy, a ostrzeżenia znikały pod toastem sukcesu
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
-    setToast(humanizeErrorText(msg)) // techniczne błędy bazy/sieci po ludzku
+    setToast(humanizeAndLog(msg, 'mobile-stanowisko')) // techniczne błędy bazy/sieci po ludzku
     flashTimerRef.current = sticky ? null : setTimeout(() => setToast(null), 2500)
   }
 

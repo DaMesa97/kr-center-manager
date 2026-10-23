@@ -86,3 +86,10 @@ export function humanizeErrorText(message: string): string {
   }
   return message
 }
+
+/** humanizeErrorText + oryginał w konsoli (do diagnozy — ekran pokazuje już polską wersję). */
+export function humanizeAndLog(message: string, source: string): string {
+  const human = humanizeErrorText(message)
+  if (human !== message) console.info(`[${source}] oryginalny błąd:`, message)
+  return human
+}

@@ -115,11 +115,12 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [ ] Alu: trigger postępu może chwilowo zaniżyć licznik o 1 przy równoczesnych kliknięciach dwóch pozycji (sam się naprawia)
 - [ ] Alu: każda sztuka = UPDATE zlecenia → pełny refetch pozycji w tabeli Aluminium (rozrzutne przy pracującej hali) + wpis w Audycie
 - [x] Alu: termin w weekend — ZROBIONE 23.10: import blokuje termin w sobotę/niedzielę (pod datą widać dzień tygodnia), domyślny +4 tyg. z weekendu → poniedziałek; załadunek dalej = dzień roboczy przed trasą (pn → pt)
-- [ ] Wzmianki @: RPC pozwala wysłać dowolny tekst do dowolnych 20 osób (bez sprawdzenia, że komentarz istnieje) — niska waga
-- [ ] Mobile i appAlert: tłumaczenie błędów nie loguje oryginału do konsoli (desktop loguje)
-- [ ] Okna potwierdzeń: brak focus trap (Tab wychodzi na tło); przy dwóch oknach naraz Esc zamyka to pod spodem
-- [ ] `merge_order_extra_fields` przy blokadzie RLS zwraca NULL bez błędu — dodać `if not found then raise`
-- [ ] Edge function glass-order-webhook nie sprawdza roli (tylko zalogowanie)
+- [x] Wzmianki @ — ZROBIONE 23.10: powiadomienie tylko dla komentarza, który autor naprawdę dodał na zleceniu (ta sama treść)
+- [x] Mobile i appAlert loguje oryginał błędu do konsoli — ZROBIONE 23.10 (`humanizeAndLog`)
+- [x] Okna potwierdzeń: Tab krąży między przyciskami okna — ZROBIONE 23.10. (Zostaje: przy dwóch oknach naraz Esc zamyka to pod spodem — rzadkie)
+- [x] `merge_order_extra_fields` rzuca błąd przy odmowie RLS / braku zlecenia — ZROBIONE 23.10 (`migrate/drobnica_przegladu_23_10.sql`)
+- [x] glass-order-webhook (v2) sprawdza rolę kierownika — ZROBIONE 23.10
+- [x] Postęp par Disting Plus liczy etapy partnera z lustra (dist_*/sta_*) — ZROBIONE 23.10 + dopisane 4 lustra sta_e3 z uzgadniania
 
 ### ❓ Do przemyślenia (Tymek)
 - [x] **Okna potwierdzeń** — DECYZJA 23.10: Enter potwierdza POZYTYWNE okna (wydanie, odebrane, zrealizowana, zweryfikowane — zielony przycisk), przy usuwaniu/anulowaniu/cofaniu/„mimo to” fokus dalej na „Anuluj”. Rodzaj okna z treści: `lib/confirmTone.ts`

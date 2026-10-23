@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { ToastRecord, ToastVariant } from '../types'
-import { humanizeErrorText } from '../lib/friendlyError'
+import { humanizeAndLog } from '../lib/friendlyError'
 
 export function useToasts() {
   const [toasts, setToasts] = useState<ToastRecord[]>([])
@@ -11,8 +11,7 @@ export function useToasts() {
 
   const pushToast = useCallback((rawMessage: string, variant: ToastVariant) => {
     // błędy z bazy / sieci po ludzku (oryginał zostaje w konsoli do diagnozy)
-    const message = variant === 'error' ? humanizeErrorText(rawMessage) : rawMessage
-    if (message !== rawMessage) console.info('[toast] oryginalny błąd:', rawMessage)
+    const message = variant === 'error' ? humanizeAndLog(rawMessage, 'toast') : rawMessage
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
     setToasts((prev) => [...prev, { id, message, variant }])
   }, [])

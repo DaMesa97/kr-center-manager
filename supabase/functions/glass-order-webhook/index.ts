@@ -3,6 +3,8 @@
 // go wyciągnąć i strzelać zamówieniami szyb bez logowania). Teraz URL żyje
 // tylko tutaj, a funkcja wymaga ZALOGOWANEGO użytkownika (auth.getUser),
 // nie samego anon key (verify_jwt przepuszcza też anon).
+// v2 (23.10): zamawiać szyby może tylko kierownik — ta sama reguła co RLS
+// (current_user_is_manager); wcześniej wystarczało dowolne konto.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/tzy1k1wrzpkbwv32sa57sprtkv5vnogx'
@@ -30,6 +32,12 @@ Deno.serve(async (req) => {
   )
   const { data: userData, error: userErr } = await supabase.auth.getUser()
   if (userErr || !userData?.user) return json(401, { error: 'Wymagane zalogowanie' })
+
+  // Tylko kierownik (jak w RLS zleceń) — inaczej szyba wychodzi do szklarza,
+  // a stempel daty i tak zostałby odrzucony
+  const { data: isManager, error: roleErr } = await supabase.rpc('current_user_is_manager')
+  if (roleErr) return json(500, { ok: false, error: 'Nie sprawdzono uprawnień' })
+  if (isManager !== true) return json(403, { ok: false, error: 'Szyby zamawia kierownik' })
 
   let payload: unknown
   try {

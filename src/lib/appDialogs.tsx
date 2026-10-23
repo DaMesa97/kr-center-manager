@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog'
-import { humanizeErrorText } from './friendlyError'
+import { humanizeAndLog } from './friendlyError'
 import { inferConfirmTone } from './confirmTone'
 
 // Zamienniki natywnych window.alert / window.confirm.
@@ -67,7 +67,7 @@ export function appConfirm(
 export function appAlert(message: string): Promise<void> {
   return new Promise((resolve) => {
     // techniczne błędy bazy/sieci po ludzku (zwykłe komunikaty bez zmian)
-    state.alert = { message: humanizeErrorText(message), resolve }
+    state.alert = { message: humanizeAndLog(message, 'appAlert'), resolve }
     notify?.()
   })
 }
