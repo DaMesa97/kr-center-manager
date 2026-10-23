@@ -72,6 +72,16 @@
 
 ---
 
+## 🚦 PILOT STA — lista startowa (po stronie Tymka)
+
+- [x] **Przypisania etapów pracownikom (23.10)** — STA obsadzone na wszystkich etapach: e1 DK · e2_1/e2_2 BP, MK, PP · e3 KS, KW · e4 BP, KW, PP, TC · e5 BP, DK, KS, KW, PP, TC. Titan: tylko ST titan_e2 (KS); Bastion (Titan) OKU/MON/PAK i Disting/Techniczne bez przypisań — uzupełnić, gdy te kategorie wejdą na apkę
+- [ ] Przejrzeć 2 CSV z uzgadniania STA (23 niesparowane w apce → anuluj/zostaw; 15 otwartych tylko w arkuszu → potwierdź dosłanie)
+- [ ] Inwentaryzacja otwarcia, magazyn po magazynie
+- [ ] Wszystkie komputery na najnowszej becie → dać znać Claude: `min_app_version` + DROP starych kolumn (stage1–5/wpisał/release w orders i archiwum)
+- [ ] Supabase panel: rejestracja (enable_signup) wyłączona
+- [ ] Make: adres webhooka podsumowania Planu wydań (`app_config.route_plan_webhook_url`) + osobny klucz API dla importu z Excela
+- [ ] Po zamknięciu czyszczenia STA: DROP tabel roboczych `migracja_arkusz_sta`, `migracja_sta_akcje`, `migracja_sta_backup` (Claude)
+
 ## 🧱 STOLARKA ALUMINIOWA — nowa kategoria (start 23.10)
 
 Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycje (konstrukcje) w `order_alu_positions`, etapy PER POZYCJA i PER SZTUKA (ilość 3 = 3 kliknięcia na etap). PDF-y (LP + lista cięcia LC) w storage `order-documents` → `order_documents`. Kategoria w bazie: `Aluminium`, zakładka „Stolarka aluminiowa”. Kod: `src/lib/aluLpParser.ts` (parser po współrzędnych, fixtures + testy), `src/lib/alu.ts`, `src/hooks/useAluOrders.ts`, `src/components/Alu*.tsx`, `migrate/aluminium_etap1.sql`.
