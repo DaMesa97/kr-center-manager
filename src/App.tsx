@@ -589,7 +589,6 @@ function App() {
     isSaving,
     formData,
     staFormData,
-    setStaFormData,
     stFormData,
     bastionFormData,
     techniczneFormData,
@@ -644,6 +643,8 @@ function App() {
     handleStFormChange,
     handleStCompanySelect,
     handleBastionFormChange,
+    autoPatchStaForm,
+    autoPatchBastionForm,
     handleBastionCompanySelect,
     handleTechniczneFormChange,
     handleTechniczneCompanySelect,
@@ -1346,33 +1347,33 @@ function App() {
 
   useEffect(() => {
     if (!topLightDimsFilled) {
-      setStaFormData((p) => ({ ...p, top_light_glazing: '' }))
+      autoPatchStaForm({ top_light_glazing: '' })
     }
-  }, [topLightDimsFilled, setStaFormData])
+  }, [topLightDimsFilled, autoPatchStaForm])
 
   useEffect(() => {
     if (!sidePanelAFilled) {
-      setStaFormData((p) => ({ ...p, side_panel_a_glazing: '' }))
+      autoPatchStaForm({ side_panel_a_glazing: '' })
     }
-  }, [sidePanelAFilled, setStaFormData])
+  }, [sidePanelAFilled, autoPatchStaForm])
 
   useEffect(() => {
     if (!sidePanelBFilled) {
-      setStaFormData((p) => ({ ...p, side_panel_b_glazing: '' }))
+      autoPatchStaForm({ side_panel_b_glazing: '' })
     }
-  }, [sidePanelBFilled, setStaFormData])
+  }, [sidePanelBFilled, autoPatchStaForm])
 
   useEffect(() => {
     if (autoTopLightWidth && isModalOpen) {
-      setStaFormData((p) => ({ ...p, top_light_w_mm: autoTopLightWidth }))
+      autoPatchStaForm({ top_light_w_mm: autoTopLightWidth })
     }
-  }, [autoTopLightWidth, isModalOpen, setStaFormData])
+  }, [autoTopLightWidth, isModalOpen, autoPatchStaForm])
 
   useEffect(() => {
     if (autoSidePanelHeight && isModalOpen) {
-      setStaFormData((p) => ({ ...p, side_panel_h_mm: autoSidePanelHeight }))
+      autoPatchStaForm({ side_panel_h_mm: autoSidePanelHeight })
     }
-  }, [autoSidePanelHeight, isModalOpen, setStaFormData])
+  }, [autoSidePanelHeight, isModalOpen, autoPatchStaForm])
 
   const categoryFilteredOrders = useMemo(() => {
     if (
@@ -2631,6 +2632,7 @@ function App() {
               filteredBastionCompanies,
               handleBastionCompanySelect,
               handleBastionFormChange,
+              autoPatchBastionForm,
               bastionExclusionFormData,
               filteredCompanies,
               handleCompanySelect,

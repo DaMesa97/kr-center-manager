@@ -112,6 +112,7 @@ function OrderFormModal(props: OrderFormModalProps) {
     filteredBastionCompanies,
     handleBastionCompanySelect,
     handleBastionFormChange,
+    autoPatchBastionForm,
     bastionExclusionFormData,
     filteredCompanies,
     handleCompanySelect,
@@ -153,7 +154,7 @@ function OrderFormModal(props: OrderFormModalProps) {
 
   useEffect(() => {
     if (!isFrameRegulated && bastionFormData.frame_range) {
-      handleBastionFormChange('frame_range', '')
+      autoPatchBastionForm({ frame_range: '' })
     }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -166,7 +167,7 @@ function OrderFormModal(props: OrderFormModalProps) {
     const qty = Math.max(1, bastionFormData.quantity || 1)
     const labelQty = multiplier * qty
     if (labelQty !== bastionFormData.label_qty) {
-      handleBastionFormChange('label_qty', labelQty)
+      autoPatchBastionForm({ label_qty: labelQty })
     }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps

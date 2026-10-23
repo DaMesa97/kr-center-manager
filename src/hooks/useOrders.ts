@@ -702,6 +702,19 @@ export function useOrders({
     setBastionFormData((prev) => ({ ...prev, [field]: value }))
   }
 
+  // AUTOMATYCZNE poprawki formularza (szerokość naświetla / wysokość dostawki z
+  // wymiarów, czyszczenie szkleń bez wymiarów, ilość etykiet Bastionu ze słownika,
+  // zakres ościeżnicy) to nie zmiana użytkownika — idą też do zrzutu z otwarcia,
+  // inaczej zamknięcie BEZ zmian zawsze pytało o „niezapisane dane”.
+  const autoPatchStaForm = useCallback((patch: Partial<StaOrderFormData>) => {
+    setStaFormData((prev) => ({ ...prev, ...patch }))
+    setOrderFormOpenSnapshot((s) => (s ? { ...s, ...patch } : s))
+  }, [])
+  const autoPatchBastionForm = useCallback((patch: Partial<BastionOrderFormData>) => {
+    setBastionFormData((prev) => ({ ...prev, ...patch }))
+    setOrderFormOpenSnapshot((s) => (s ? { ...s, ...patch } : s))
+  }, [])
+
   const handleStCompanySelect = (item: Company) => {
     setHighlightedIndex(-1)
     setOrderFormErrors((prev) => prev.filter((e) => e !== 'company'))
@@ -2948,6 +2961,8 @@ export function useOrders({
     handleStFormChange,
     handleStCompanySelect,
     handleBastionFormChange,
+    autoPatchStaForm,
+    autoPatchBastionForm,
     handleBastionCompanySelect,
     handleTechniczneFormChange,
     handleTechniczneCompanySelect,
