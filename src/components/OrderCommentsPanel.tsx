@@ -12,6 +12,7 @@ type Props = {
   open: boolean
   orderId: number | null
   orderNumber: string
+  /** nieużywane od wzmianek przez RPC (zakładkę ustala serwer) — zostaje dla zgodności propsów */
   orderCategory?: string
   currentUserId: string
   currentUserRole: string
@@ -24,7 +25,6 @@ function OrderCommentsPanel({
   open,
   orderId,
   orderNumber,
-  orderCategory,
   currentUserId,
   currentUserRole,
   profiles = [],
@@ -78,16 +78,14 @@ function OrderCommentsPanel({
       (p) => p.id !== currentUserId && p.full_name && content.includes(`@${p.full_name}`),
     )
     if (mentioned.length === 0) return
-    const rows = mentioned.map((p) => ({
-      user_id: p.id,
-      type: 'mention',
-      title: 'Oznaczono Cię w komentarzu',
-      body: `Zlecenie ${orderNumber}: ${content.slice(0, 100)}`,
-      link_tab: orderCategory || null,
-      link_order_id: orderId,
-    }))
-    const { error } = await supabase.from('notifications').insert(rows)
-    if (error) console.warn('[mentions] notifications insert:', error.message)
+    // Przez RPC: RLS pozwala wstawić powiadomienie tylko sobie — bezpośredni
+    // insert dla oznaczonych był po cichu odrzucany (wzmianki nie działały od lipca)
+    const { error } = await supabase.rpc('notify_comment_mentions', {
+      p_order_id: orderId,
+      p_user_ids: mentioned.map((p) => p.id),
+      p_content: content,
+    })
+    if (error) console.warn('[mentions] notify_comment_mentions:', error.message)
   }
 
   const fetchComments = useCallback(async () => {
