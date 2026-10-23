@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { createPortal } from 'react-dom'
 import DataTable, { type DataTableColumn } from './DataTable'
 import { ALU_CONSTRUCTION_LABELS, ALU_REALIZACJA_LABELS } from '../constants'
-import { defaultAluDeadline, formatAluGlass, formatAluNotes } from '../lib/alu'
+import { defaultAluDeadline, formatAluGlass, formatAluNotes, formatPlDateWithDow, isWeekendYmd } from '../lib/alu'
 import { extractPdfTextPages } from '../lib/pdfText'
 import { parseAluDocument } from '../lib/aluLpParser'
 import { appConfirm } from '../lib/appDialogs'
@@ -148,6 +148,7 @@ export default function AluImportModal({
       if (!orderNumber.trim()) out.push('Brak numeru zlecenia (OF).')
       if (!company.trim()) out.push('Wybierz firmę (klienta).')
       if (!deadline) out.push('Ustaw termin.')
+      else if (isWeekendYmd(deadline)) out.push('Termin wypada w weekend — tras w sobotę/niedzielę nie ma, wybierz dzień pn–pt.')
       if (positions.length === 0) out.push('LP nie ma żadnej pozycji.')
       positions.forEach((p) => {
         const q = Number(p.quantity)
@@ -487,7 +488,10 @@ export default function AluImportModal({
               <label>
                 <span className="order-field-label-text">Termin *</span>
                 <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-                <small className="alu-field-hint">domyślnie +4 tygodnie{lp.header.deadline_text ? ` · w LP: „${lp.header.deadline_text}”` : ''}</small>
+                <small className="alu-field-hint" style={isWeekendYmd(deadline) ? { color: '#b91c1c', fontWeight: 700 } : undefined}>
+                  {deadline ? `${formatPlDateWithDow(deadline)}${isWeekendYmd(deadline) ? ' — weekend, wybierz pn–pt' : ''} · ` : ''}
+                  domyślnie +4 tygodnie{lp.header.deadline_text ? ` · w LP: „${lp.header.deadline_text}”` : ''}
+                </small>
               </label>
               <label>
                 <span className="order-field-label-text">Realizacja</span>

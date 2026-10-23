@@ -101,10 +101,10 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 
 ### 🟡 Drobnica z przeglądu 23.10 (nie ruszane)
 - [ ] Alu: „Cofnij” sztuki zdejmuje zawsze OSTATNI inicjał (przy dwóch stanowiskach może zdjąć cudzy) — ważne, gdy inicjały sztuk zaczniemy pokazywać
-- [ ] Alu: zmniejszenie ilości pozycji po częściowym oznaczeniu → pierwszy „Cofnij” bez widocznego efektu (done > ilość w bazie)
+- [x] Alu: zmniejszenie ilości pozycji po częściowym oznaczeniu → pierwszy „Cofnij” bez widocznego efektu — ZROBIONE 23.10: trigger w bazie przycina odklikane sztuki przy każdym zmniejszeniu ilości (`migrate/aluminium_przyciecie_ilosci.sql`, test z rollbackiem)
 - [ ] Alu: trigger postępu może chwilowo zaniżyć licznik o 1 przy równoczesnych kliknięciach dwóch pozycji (sam się naprawia)
 - [ ] Alu: każda sztuka = UPDATE zlecenia → pełny refetch pozycji w tabeli Aluminium (rozrzutne przy pracującej hali) + wpis w Audycie
-- [ ] Alu: termin w weekend daje w Wysyłce grupę SOBOTA/NIEDZIELA
+- [x] Alu: termin w weekend — ZROBIONE 23.10: import blokuje termin w sobotę/niedzielę (pod datą widać dzień tygodnia), domyślny +4 tyg. z weekendu → poniedziałek; załadunek dalej = dzień roboczy przed trasą (pn → pt)
 - [ ] Wzmianki @: RPC pozwala wysłać dowolny tekst do dowolnych 20 osób (bez sprawdzenia, że komentarz istnieje) — niska waga
 - [ ] Mobile i appAlert: tłumaczenie błędów nie loguje oryginału do konsoli (desktop loguje)
 - [ ] Okna potwierdzeń: brak focus trap (Tab wychodzi na tło); przy dwóch oknach naraz Esc zamyka to pod spodem

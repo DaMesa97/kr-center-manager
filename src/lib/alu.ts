@@ -98,10 +98,19 @@ export function formatPlDateWithDow(ymd: string): string {
   return `${d.toLocaleDateString('pl-PL')} (${d.toLocaleDateString('pl-PL', { weekday: 'short' })})`
 }
 
-/** Domyślny termin przy imporcie: dziś + N tygodni (lokalna data YYYY-MM-DD) */
+/** Sobota/niedziela? Tras w weekend nie ma — termin (dzień trasy) to zawsze pn–pt. */
+export function isWeekendYmd(ymd: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd ?? '').trim())
+  if (!m) return false
+  const dow = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()
+  return dow === 0 || dow === 6
+}
+
+/** Domyślny termin przy imporcie: dziś + N tygodni, weekend → najbliższy poniedziałek */
 export function defaultAluDeadline(weeks = 4, from = new Date()): string {
   const d = new Date(from)
   d.setDate(d.getDate() + weeks * 7)
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1)
   return d.toLocaleDateString('sv-SE')
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aluLoadingDate, aluOrderProgress, aluPositionProgress, aluStageComplete, aluStageDone, defaultAluDeadline, formatAluGlass, summarizeAluTypes } from '../lib/alu'
+import { aluLoadingDate, aluOrderProgress, aluPositionProgress, aluStageComplete, aluStageDone, defaultAluDeadline, formatAluGlass, isWeekendYmd, summarizeAluTypes } from '../lib/alu'
 import { ALU_CONSTRUCTION_LABELS } from '../constants'
 import { ALU_MONTAZ_ROUTE, getOrderRouteDay } from '../lib/companyMatch'
 
@@ -26,6 +26,14 @@ describe('alu — etapy per sztuka', () => {
     expect(formatAluGlass([{ spec: '4/16/4 Ug=1,1', width_mm: 841, height_mm: 1022, qty: 1 }])).toBe('841×1022 ×1 (4/16/4 Ug=1,1)')
     expect(summarizeAluTypes([{ construction_type: 'drzwi', quantity: 2 }, { construction_type: 'okno', quantity: 1 }], ALU_CONSTRUCTION_LABELS)).toBe('Drzwi ×2 · Okno ×1')
     expect(defaultAluDeadline(4, new Date(2026, 9, 23))).toBe('2026-11-20')
+  })
+
+  it('weekendów nie ma: domyślny termin z soboty → poniedziałek, załadunek trasy pn = pt', () => {
+    // import w sobotę 24.10 → +4 tyg. = sob. 21.11 → pn 23.11
+    expect(defaultAluDeadline(4, new Date(2026, 9, 24))).toBe('2026-11-23')
+    expect(isWeekendYmd('2026-11-21')).toBe(true)
+    expect(isWeekendYmd('2026-11-23')).toBe(false)
+    expect(aluLoadingDate('2026-11-23')).toBe('2026-11-20')
   })
 
   it('Wysyłka: dzień trasy alu = dzień tygodnia z terminu, montaż = osobna grupa', () => {
