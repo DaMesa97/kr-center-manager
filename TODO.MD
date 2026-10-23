@@ -119,6 +119,7 @@ W aplikacji NIC nie było przeklikane — odhacz po sprawdzeniu:
 - [ ] **Receptury do posprzątania**: receptura 55 pusta (0 komponentów), a wygrywa dobór; receptury 520 i 522 mają identyczne kryteria (duplikat)
 - [ ] **Disting — próg bez magazynu**: brak `warehouse_assignment` dla part=prog (to samo sprawdzić dla ST: prog / dostawka / naświetle)
 - [ ] **Migracja przed startem**: zakończone zlecenia z Excela MUSZĄ przyjść z datą wydania — inaczej wiszą jako otwarte „duchy” na górze stanowisk i rezerwują magazyn (22.10 zamknięto ręcznie 21 takich z `source='migracja'`, `migrate/duchy_migracji_zamkniecie.sql`)
+- [ ] **Osobny klucz API dla Excela** (Ty, w Make): teraz konfigurator i import z Excela jadą na JEDNYM kluczu „Konfigurator - prod” — paczka z Excela (19.10: 224 żądań/min, 268 odrzuconych 429) blokowała też konfigurator. 23.10 limit podniesiony 60 → 600/min (`migrate/limit_klucza_api_600.sql`). Docelowo: admin zakłada w „Klucze API” klucz „Excel”, Ty podmieniasz go w scenariuszu Make importu Excela
 
 ## 🔴 PRIORYTET 1 — KRYTYCZNE dla 30 userów
 
