@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
-import type { Order } from '../types'
+import { labelPagesHtml, renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
+import type { AluPosition, Order } from '../types'
 
 // Render etykiet — zgodnie z Pomocą: podstawianie pól, "-" dla pustych,
 // escapowanie danych (bezpieczeństwo), QR, rozmiar strony w mm.
@@ -89,5 +89,37 @@ describe('renderLabelHtml', () => {
       order({ id: 1, bastion_side_panel_k: '370×2080', bastion_top_panel: '900×400' }),
     )
     expect(html).toContain('370×2080|900×400')
+  })
+})
+
+describe('etykieta aluminium (per sztuka pozycji)', () => {
+  const pos = {
+    id: 1, order_id: 1, pos_no: 3, created_at: '', production_stages: {},
+    description: 'AS75 - drzwi', construction_type: 'drzwi', system: 'AS75',
+    profile_color: 'RAL7016', hardware_color: '', fillings: '', width_mm: 2360, height_mm: 2590,
+    quantity: 5, weight_kg: null, u_value: null, notes: { prog: 'Aluminiowy P2601X' }, glass: [],
+  } as unknown as AluPosition
+  const aluOrder = order({
+    id: 7, order_number: 'OF1/2026', category: 'Aluminium',
+    extra_fields: { alu: { lp_number: 'LP 1/2026', deadline: '2026-11-23', realizacja: 'montaz' } },
+  })
+
+  it('sztuka k/q, wymiar, typ, próg, realizacja, załadunek dzień roboczy przed terminem', async () => {
+    const html = await renderLabelHtml(
+      tpl('[{{alu_poz}}|{{alu_sztuka}}|{{alu_wymiar}}|{{alu_typ}}|{{alu_prog}}|{{alu_realizacja}}|{{alu_zaladunek}}|{{alu_lp}}]'),
+      aluOrder,
+      { position: pos, piece: 2 },
+    )
+    // termin pn 23.11 → załadunek pt 20.11
+    expect(html).toContain('[3|2/5|2360×2590 mm|Drzwi|Aluminiowy P2601X|MONTAŻ|20.11.2026 (pt.)|LP 1/2026]')
+  })
+  it('puste pole alu → „-”, bez kontekstu pozycji pola alu też „-”', async () => {
+    expect(await renderLabelHtml(tpl('[{{alu_kolor_okuc}}]'), aluOrder, { position: pos, piece: 1 })).toContain('[-]')
+    expect(await renderLabelHtml(tpl('[{{alu_sztuka}}]'), aluOrder)).toContain('[-]')
+  })
+  it('kilka etykiet = strony jednego dokumentu', () => {
+    const html = labelPagesHtml(['A', 'B'], 100, 150, 'x')
+    expect(html).toContain('@page { size: 100mm 150mm')
+    expect(html.match(/page-break-after:always/g)?.length).toBe(1)
   })
 })

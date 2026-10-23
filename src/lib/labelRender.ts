@@ -1,5 +1,7 @@
 import QRCode from 'qrcode'
-import type { Order } from '../types'
+import type { AluPosition, Order } from '../types'
+import { ALU_CONSTRUCTION_LABELS, ALU_REALIZACJA_LABELS } from '../constants'
+import { aluLoadingDate, aluOrderExtra, formatAluDims, formatAluGlass, formatPlDateWithDow } from './alu'
 
 export type LabelTemplate = {
   id: number
@@ -84,52 +86,90 @@ export const LABEL_FIELDS: { key: string; label: string; value: (o: Order) => st
   { key: 'qr',              label: 'Kod QR (ID zlecenia)',   value: () => '' },
 ]
 
-// Body etykiety (podstawione pola + QR) + wymiary — do samodzielnego druku
-// albo do sklejenia w zbiorczy PDF (printBundle)
-export async function renderLabelBody(
-  template: LabelTemplate,
-  order: Order,
-): Promise<{ body: string; widthMm: number; heightMm: number }> {
+// Stolarka aluminiowa: etykieta per SZTUKA pozycji (pozycja z ilością 3 = 3 etykiety
+// „1/3, 2/3, 3/3”). Pola {{alu_*}} czytają pozycję; bez kontekstu alu dają „-”.
+export type AluLabelCtx = { position: AluPosition; piece: number }
+
+export const ALU_LABEL_FIELDS: { key: string; label: string; value: (o: Order, c: AluLabelCtx) => string }[] = [
+  { key: 'alu_poz',          label: 'Alu: nr pozycji',          value: (_o, c) => str(c.position.pos_no) },
+  { key: 'alu_sztuka',       label: 'Alu: sztuka (np. 2/5)',     value: (_o, c) => `${c.piece}/${Math.max(1, Number(c.position.quantity) || 1)}` },
+  { key: 'alu_opis',         label: 'Alu: opis pozycji',        value: (_o, c) => str(c.position.description) },
+  { key: 'alu_typ',          label: 'Alu: typ konstrukcji',     value: (_o, c) => ALU_CONSTRUCTION_LABELS[c.position.construction_type] ?? str(c.position.construction_type) },
+  { key: 'alu_system',       label: 'Alu: system',              value: (_o, c) => str(c.position.system) },
+  { key: 'alu_wymiar',       label: 'Alu: wymiar S × W',        value: (_o, c) => { const d = formatAluDims(c.position.width_mm, c.position.height_mm); return d ? `${d} mm` : '' } },
+  { key: 'alu_kolor_profili',label: 'Alu: kolor profili',       value: (_o, c) => str(c.position.profile_color) },
+  { key: 'alu_kolor_okuc',   label: 'Alu: kolor okuć',          value: (_o, c) => str(c.position.hardware_color) },
+  { key: 'alu_szklo',        label: 'Alu: szkło',               value: (_o, c) => formatAluGlass(c.position.glass) },
+  { key: 'alu_wypelnienia',  label: 'Alu: wypełnienia',         value: (_o, c) => str(c.position.fillings) },
+  { key: 'alu_okucia',       label: 'Alu: okucia (uwagi)',      value: (_o, c) => str(c.position.notes?.okucia) },
+  { key: 'alu_klamka',       label: 'Alu: klamka',              value: (_o, c) => str(c.position.notes?.klamka) },
+  { key: 'alu_dodatki',      label: 'Alu: dodatki',             value: (_o, c) => str(c.position.notes?.dodatki) },
+  { key: 'alu_prog',         label: 'Alu: próg',                value: (_o, c) => str(c.position.notes?.prog) },
+  { key: 'alu_uwagi',        label: 'Alu: inne uwagi',          value: (_o, c) => str(c.position.notes?.inne) },
+  { key: 'alu_masa',         label: 'Alu: masa pozycji',        value: (_o, c) => (c.position.weight_kg ? `${c.position.weight_kg} kg` : '') },
+  { key: 'alu_lp',           label: 'Alu: nr listy produkcyjnej', value: (o) => aluOrderExtra(o).lp_number },
+  { key: 'alu_termin',       label: 'Alu: termin',              value: (o) => { const d = aluOrderExtra(o).deadline; return d ? formatPlDateWithDow(d) : '' } },
+  { key: 'alu_zaladunek',    label: 'Alu: dzień załadunku',     value: (o) => { const d = aluLoadingDate(aluOrderExtra(o).deadline); return d ? formatPlDateWithDow(d) : '' } },
+  { key: 'alu_realizacja',   label: 'Alu: realizacja',          value: (o) => (ALU_REALIZACJA_LABELS[aluOrderExtra(o).realizacja] ?? '').toUpperCase() },
+]
+
+async function qrImage(order: Order): Promise<string> {
   const qrPayload = str(order.id) || str(order.order_number)
-  let qrImg = ''
   try {
     const dataUrl = await QRCode.toDataURL(qrPayload, { margin: 0, width: 240 })
-    qrImg = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:contain" alt="QR" />`
+    return `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:contain" alt="QR" />`
   } catch {
-    qrImg = ''
-  }
-  let body = template.html
-  for (const field of LABEL_FIELDS) {
-    const val = field.key === 'qr' ? qrImg : (escapeHtml(field.value(order)) || '-')
-    body = body.split(`{{${field.key}}}`).join(val)
-  }
-  body = body.replace(/\{\{\s*[\wąćęłńóśźż.-]+\s*\}\}/gi, '-')
-  return {
-    body,
-    widthMm: Number(template.width_mm) || 100,
-    heightMm: Number(template.height_mm) || 50,
+    return ''
   }
 }
 
-// Renderuje finalny HTML etykiety: podstawia pola + generuje QR + ustawia rozmiar strony
-export async function renderLabelHtml(template: LabelTemplate, order: Order): Promise<string> {
-  const qrPayload = str(order.id) || str(order.order_number)
-  let qrImg = ''
-  try {
-    const dataUrl = await QRCode.toDataURL(qrPayload, { margin: 0, width: 240 })
-    qrImg = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:contain" alt="QR" />`
-  } catch {
-    qrImg = ''
-  }
-
+async function substituteFields(template: LabelTemplate, order: Order, alu?: AluLabelCtx): Promise<string> {
+  const qrImg = await qrImage(order)
   let body = template.html
+  if (alu) {
+    for (const field of ALU_LABEL_FIELDS) body = body.split(`{{${field.key}}}`).join(escapeHtml(field.value(order, alu)) || '-')
+  }
   for (const field of LABEL_FIELDS) {
     // Puste pole tekstowe → "-" (QR nie podlega tej regule; escapujemy dane usera)
     const val = field.key === 'qr' ? qrImg : (escapeHtml(field.value(order)) || '-')
     body = body.split(`{{${field.key}}}`).join(val)
   }
   // Nieznane/literówkowe placeholdery {{...}} → "-" (żeby nie drukować surowych klamr)
-  body = body.replace(/\{\{\s*[\wąćęłńóśźż.-]+\s*\}\}/gi, '-')
+  return body.replace(/\{\{\s*[\wąćęłńóśźż.-]+\s*\}\}/gi, '-')
+}
+
+// Body etykiety (podstawione pola + QR) + wymiary — do samodzielnego druku
+// albo do sklejenia w zbiorczy PDF (printBundle)
+export async function renderLabelBody(
+  template: LabelTemplate,
+  order: Order,
+  alu?: AluLabelCtx,
+): Promise<{ body: string; widthMm: number; heightMm: number }> {
+  return {
+    body: await substituteFields(template, order, alu),
+    widthMm: Number(template.width_mm) || 100,
+    heightMm: Number(template.height_mm) || 50,
+  }
+}
+
+/** Kilka etykiet w JEDNYM dokumencie (strona = etykieta) — jedno zadanie druku zamiast N. */
+export function labelPagesHtml(bodies: string[], widthMm: number, heightMm: number, title: string): string {
+  const pages = bodies
+    .map(
+      (b, i) =>
+        `<div style="width:${widthMm}mm;height:${heightMm}mm;box-sizing:border-box;overflow:hidden;${i < bodies.length - 1 ? 'page-break-after:always;' : ''}">${b}</div>`,
+    )
+    .join('')
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title || 'etykiety')}</title><style>
+    @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; }
+  </style></head><body>${pages}</body></html>`
+}
+
+// Renderuje finalny HTML etykiety: podstawia pola + generuje QR + ustawia rozmiar strony
+export async function renderLabelHtml(template: LabelTemplate, order: Order, alu?: AluLabelCtx): Promise<string> {
+  const body = await substituteFields(template, order, alu)
 
   const w = Number(template.width_mm) || 100
   const h = Number(template.height_mm) || 50

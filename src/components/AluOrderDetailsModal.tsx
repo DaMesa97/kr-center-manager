@@ -4,7 +4,8 @@ import { ALU_REALIZACJA_LABELS } from '../constants'
 import { aluLoadingDate, aluOrderExtra, aluOrderProgress, formatPlDateWithDow } from '../lib/alu'
 import { isReleaseDateEmpty } from '../utils'
 import AluPositionsTable from './AluPositionsTable'
-import type { AluPosition, Order, OrderDocument, OrderDocumentKind } from '../types'
+import AluLabelPrintModal from './AluLabelPrintModal'
+import type { AluPosition, Order, OrderDocument, OrderDocumentKind, ToastVariant } from '../types'
 
 // Szczegóły zlecenia aluminium: nagłówek z LP, PDF-y (LP + lista cięcia),
 // pozycje z postępem etapów. Nową wersję LP wgrywa się przez import (nadpisanie).
@@ -21,6 +22,9 @@ type Props = {
   onReimport: () => void
   /** Anulowanie zlecenia (kierownik, tylko otwarte) — wspólny flow z innymi kategoriami */
   onCancel?: () => void
+  /** druk etykiet (etykieta na sztukę) — brak = bez przycisku */
+  canPrintLabels?: boolean
+  pushToast?: (message: string, variant: ToastVariant) => void
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -31,7 +35,9 @@ function fmtDate(iso: string | null | undefined): string {
 
 export default function AluOrderDetailsModal({
   order, positions, documents, isManager, uploading, onClose, onOpenDocument, onUploadDocument, onReimport, onCancel,
+  canPrintLabels, pushToast,
 }: Props) {
+  const [labelsOpen, setLabelsOpen] = useState(false)
   const extra = aluOrderExtra(order)
   const lp = documents.find((d) => d.kind === 'LP')
   const lc = documents.find((d) => d.kind === 'LC')
@@ -140,9 +146,17 @@ export default function AluOrderDetailsModal({
               Anuluj zlecenie
             </button>
           )}
+          {canPrintLabels && pushToast && !cancelled && positions.length > 0 && (
+            <button type="button" className="btn btn-primary" onClick={() => setLabelsOpen(true)}>
+              🏷 Etykiety ({qty})
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>Zamknij</button>
         </div>
       </div>
+      {labelsOpen && pushToast && (
+        <AluLabelPrintModal order={order} positions={positions} onClose={() => setLabelsOpen(false)} pushToast={pushToast} />
+      )}
     </div>,
     document.body,
   )

@@ -2,15 +2,16 @@ import { appConfirm } from '../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
-import { renderLabelHtml, LABEL_FIELDS, type LabelTemplate } from '../lib/labelRender'
-import type { Order, ToastVariant } from '../types'
+import { renderLabelHtml, ALU_LABEL_FIELDS, LABEL_FIELDS, type AluLabelCtx, type LabelTemplate } from '../lib/labelRender'
+import { ALU_CATEGORY } from '../constants'
+import type { AluPosition, Order, ToastVariant } from '../types'
 
 type Props = {
   isManager: boolean
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
+const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', ALU_CATEGORY] as const
 
 // Przykładowe zlecenie do podglądu (żeby placeholdery coś pokazały)
 const SAMPLE_ORDER = {
@@ -19,6 +20,23 @@ const SAMPLE_ORDER = {
   system: 'NORMAL', direction: 'PRAWE', order_date: '2026-06-17', notes: 'Przykład',
   category: 'STA',
 } as unknown as Order
+
+// Aluminium: etykieta per sztuka pozycji — podgląd na przykładowej pozycji
+const SAMPLE_ALU_ORDER = {
+  id: 9999, order_number: 'OF318/2026', company: 'PRZYKŁAD Sp. z o.o.', category: ALU_CATEGORY,
+  extra_fields: { alu: { lp_number: 'LP 0002/04/2026', deadline: '2026-11-20', realizacja: 'wysylka' } },
+} as unknown as Order
+const SAMPLE_ALU_CTX: AluLabelCtx = {
+  piece: 1,
+  position: {
+    id: 1, order_id: 9999, pos_no: 1, created_at: '', production_stages: {},
+    description: 'AS75 - drzwi jednoskrzydłowe, otwierane do wewnątrz, lewe', construction_type: 'drzwi',
+    system: 'AS75', profile_color: '10/AR-RAL8019-MAT', hardware_color: '97 Inox', fillings: '33.1T/18AR/33.1T',
+    width_mm: 2360, height_mm: 2590, quantity: 2, weight_kg: 188.16, u_value: 1.6,
+    notes: { okucia: '3 zawiasy trzyskrzydełkowe nawierzchniowe WALA MEX, Zamek pomocniczy WILKA', prog: 'Aluminiowy P2601X', inne: 'Ościeżnica: P2102 X' },
+    glass: [{ spec: '33.1T/18AR/33.1T', width_mm: 1291, height_mm: 1898, qty: 1 }],
+  } as AluPosition,
+}
 
 const emptyForm = (category: string) => ({
   id: null as number | null,
@@ -60,7 +78,9 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
       id: form.id ?? 0, category: form.category, name: form.name,
       html: form.html, width_mm: form.width_mm, height_mm: form.height_mm, is_default: form.is_default,
     }
-    void renderLabelHtml(tpl, { ...SAMPLE_ORDER, category: form.category }).then((html) => {
+    const isAlu = form.category === ALU_CATEGORY
+    const sample = isAlu ? renderLabelHtml(tpl, SAMPLE_ALU_ORDER, SAMPLE_ALU_CTX) : renderLabelHtml(tpl, { ...SAMPLE_ORDER, category: form.category })
+    void sample.then((html) => {
       if (!cancelled) setPreview(html)
     })
     return () => { cancelled = true }
@@ -89,12 +109,10 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
       if (form.is_default) {
         await supabase.from('label_templates').update({ is_default: false }).eq('category', form.category)
       }
-      let error
-      if (form.id != null) {
-        ;({ error } = await supabase.from('label_templates').update(payload).eq('id', form.id))
-      } else {
-        ;({ error } = await supabase.from('label_templates').insert([payload]))
-      }
+      const { error } =
+        form.id != null
+          ? await supabase.from('label_templates').update(payload).eq('id', form.id)
+          : await supabase.from('label_templates').insert([payload])
       if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
       pushToast('Szablon zapisany', 'success')
       setForm(emptyForm(form.category))
@@ -175,7 +193,7 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
             <div className="label-tpl-placeholders">
               <span className="label-tpl-ph-title">Dostępne pola (kliknij, by wstawić):</span>
               <div className="label-tpl-ph-grid">
-                {LABEL_FIELDS.map((f) => (
+                {(form.category === ALU_CATEGORY ? [...ALU_LABEL_FIELDS, ...LABEL_FIELDS] : LABEL_FIELDS).map((f) => (
                   <button
                     key={f.key}
                     type="button"

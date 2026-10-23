@@ -1,0 +1,55 @@
+-- Etykieta stolarki aluminiowej (23.10): JEDNA na SZTUKĘ pozycji, 100x150 jak STA/Disting.
+-- Pola {{alu_*}} — src/lib/labelRender.ts (ALU_LABEL_FIELDS). Źródło HTML: migrate/etykieta_aluminium.html
+insert into public.label_templates (category, name, html, width_mm, height_mm, is_default)
+select 'Aluminium', 'Aluminium — sztuka', $tpl$<div style="width:100%;height:100%;box-sizing:border-box;border:1px solid #111;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#111;display:flex;flex-direction:column;overflow:hidden;">
+
+  <div style="background:#000;color:#fff;font-size:17px;font-weight:700;padding:5px 7px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{firma}}</div>
+
+  <div style="display:flex;border-bottom:2px solid #000;">
+    <div style="flex:1;min-width:0;padding:4px 7px;border-right:2px solid #000;">
+      <div style="font-size:8px;font-weight:700;letter-spacing:.6px;color:#444;">ZLECENIE</div>
+      <div style="font-size:21px;font-weight:700;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{nr_zlecenia}}</div>
+      <div style="font-size:9px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{alu_lp}}</div>
+    </div>
+    <div style="width:17%;padding:4px 4px;text-align:center;">
+      <div style="font-size:8px;font-weight:700;letter-spacing:.6px;color:#444;">POZ.</div>
+      <div style="font-size:26px;font-weight:700;line-height:1;">{{alu_poz}}</div>
+    </div>
+    <div style="width:25%;padding:4px 4px;text-align:center;background:#000;color:#fff;">
+      <div style="font-size:8px;font-weight:700;letter-spacing:.6px;">SZTUKA</div>
+      <div style="font-size:26px;font-weight:700;line-height:1;">{{alu_sztuka}}</div>
+    </div>
+  </div>
+
+  <div style="padding:5px 7px 5px;border-bottom:1px solid #000;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;">{{alu_typ}} · {{alu_system}}</div>
+    <div style="font-size:30px;font-weight:700;line-height:1.05;margin:1px 0 2px;">{{alu_wymiar}}</div>
+    <div style="font-size:11px;line-height:1.2;max-height:2.4em;overflow:hidden;">{{alu_opis}}</div>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px;line-height:1.22;">
+    <colgroup><col style="width:24%"><col></colgroup>
+    <tr><td style="border-bottom:1px solid #999;padding:2px 4px 2px 7px;color:#444;vertical-align:top;">kolor profili</td><td style="border-bottom:1px solid #999;padding:2px 7px 2px 4px;font-weight:700;vertical-align:top;"><div style="max-height:2.4em;overflow:hidden;">{{alu_kolor_profili}}</div></td></tr>
+    <tr><td style="border-bottom:1px solid #999;padding:2px 4px 2px 7px;color:#444;vertical-align:top;">kolor okuć</td><td style="border-bottom:1px solid #999;padding:2px 7px 2px 4px;font-weight:700;vertical-align:top;"><div style="max-height:2.4em;overflow:hidden;">{{alu_kolor_okuc}}</div></td></tr>
+    <tr><td style="border-bottom:1px solid #999;padding:2px 4px 2px 7px;color:#444;vertical-align:top;">szkło</td><td style="border-bottom:1px solid #999;padding:2px 7px 2px 4px;vertical-align:top;"><div style="max-height:3.6em;overflow:hidden;">{{alu_szklo}}</div></td></tr>
+    <tr><td style="border-bottom:1px solid #999;padding:2px 4px 2px 7px;color:#444;vertical-align:top;">okucia</td><td style="border-bottom:1px solid #999;padding:2px 7px 2px 4px;vertical-align:top;"><div style="max-height:7.4em;overflow:hidden;">{{alu_okucia}}</div></td></tr>
+    <tr><td style="border-bottom:1px solid #999;padding:2px 4px 2px 7px;color:#444;vertical-align:top;">klamka</td><td style="border-bottom:1px solid #999;padding:2px 7px 2px 4px;vertical-align:top;"><div style="max-height:2.4em;overflow:hidden;">{{alu_klamka}}</div></td></tr>
+    <tr><td style="border-bottom:1px solid #999;padding:2px 4px 2px 7px;color:#444;vertical-align:top;">próg</td><td style="border-bottom:1px solid #999;padding:2px 7px 2px 4px;vertical-align:top;"><div style="max-height:2.4em;overflow:hidden;">{{alu_prog}}</div></td></tr>
+    <tr><td style="border-bottom:1px solid #999;padding:2px 4px 2px 7px;color:#444;vertical-align:top;">dodatki</td><td style="border-bottom:1px solid #999;padding:2px 7px 2px 4px;vertical-align:top;"><div style="max-height:2.4em;overflow:hidden;">{{alu_dodatki}}</div></td></tr>
+    <tr><td style="padding:2px 4px 2px 7px;color:#444;vertical-align:top;">uwagi</td><td style="padding:2px 7px 2px 4px;vertical-align:top;"><div style="max-height:3.6em;overflow:hidden;">{{alu_uwagi}}</div></td></tr>
+  </table>
+
+  <div style="flex:1;"></div>
+
+  <div style="display:flex;border-top:2px solid #000;align-items:stretch;">
+    <div style="flex:1;min-width:0;padding:5px 7px;">
+      <div style="display:inline-block;background:#000;color:#fff;font-weight:700;font-size:12px;padding:2px 7px;letter-spacing:.4px;">{{alu_realizacja}}</div>
+      <div style="font-size:9px;color:#444;margin-top:5px;letter-spacing:.4px;">ZAŁADUNEK</div>
+      <div style="font-size:16px;font-weight:700;line-height:1.1;">{{alu_zaladunek}}</div>
+      <div style="font-size:9px;margin-top:3px;">termin <b>{{alu_termin}}</b> · masa {{alu_masa}}</div>
+    </div>
+    <div style="width:88px;height:88px;padding:5px;box-sizing:border-box;border-left:1px solid #000;">{{qr}}</div>
+  </div>
+
+</div>$tpl$, 100, 150, true
+where not exists (select 1 from public.label_templates where category = 'Aluminium');

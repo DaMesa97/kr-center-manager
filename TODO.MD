@@ -84,7 +84,7 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [x] **Parser — kolejne LP (23.10)**: 3 LP + 3 LC + ZM jako fixture i testy. Naprawione: drugi układ bloku AluronCAD (bez „Poz.:”, „Kolor konstrukcji”, „Okucia i dodatki”, „Wymiar zewnętrzny konstrukcji: 2 360 mm x 2 590 mm” — wymiar ostateczny), opis z uwag (typ/otwieranie/kierunek), pozycje 2+ na stronach bez nagłówka, kilka ościeżnic → zewnętrzna (największa), kontrola S×W z m² pozycji (ostrzeżenie), szkło „1x5 szt” (= sztuki na konstrukcję), zawinięta nazwa szkła, klient bez końcówki terminu realizacji.
 - [ ] **Parser — nadal brak przykładu**: OKNO (reguła wymiaru „szerokość wyżej na rysunku” nieprzetestowana), klient wielolinijkowy. Każdy nowy przypadek → fixture + test.
 - [ ] ~~Import LP z maila przez Make → API~~ — Tymek 23.10: na razie NIE.
-- [ ] Etykiety dla aluminium — do decyzji (DoP nigdy: drukowane z LiczOkna).
+- [x] **Etykiety dla aluminium (23.10)**: JEDNA etykieta na SZTUKĘ pozycji (poz. z ilością 5 = 5 etykiet „1/5…5/5”), 100×150 jak STA. Szczegóły zlecenia alu → „🏷 Etykiety (N)” → wybór pozycji, podgląd, jeden wydruk wielostronicowy. Szablon „Aluminium — sztuka” w bazie (domyślny), edytowalny w Etykiety → Szablony → Aluminium; pola `{{alu_*}}` (sztuka, wymiar, typ, kolory, szkło, okucia, próg, termin, załadunek, realizacja). DoP nadal z LiczOkna. **Sprawdź:** wydruk testowy na drukarce etykiet.
 
 ## 🧪 DO SPRAWDZENIA — 23.10 wieczór (Claude, na `clean`, bez nowej bety)
 

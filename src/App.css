@@ -7647,6 +7647,12 @@ html, body, #root {
 
 /* Etykiety dynamiczne — edytor + podgląd */
 .label-preview-frame { border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; margin-top: 4px; }
+.alu-label-print { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+.alu-label-print-form { display: flex; flex-direction: column; gap: 14px; }
+.alu-label-print-positions { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; margin-top: 4px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 6px; }
+.alu-label-print-pos { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; }
+.alu-label-print-count { font-size: 0.9rem; }
+@media (max-width: 720px) { .alu-label-print { grid-template-columns: 1fr; } }
 .labels-view .subtab-bar { margin-bottom: 12px; }
 .label-tpl-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 .label-tpl-row { display: flex; align-items: center; gap: 8px; }
