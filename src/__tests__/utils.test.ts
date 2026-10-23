@@ -58,6 +58,29 @@ describe('countCompletedStages — "zrobione" = komórka NIEPUSTA (inicjały, ni
     expect(res.stages.find((s) => s.key === 'e3')?.done).toBe(false)
   })
 
+  it('para Disting Plus: etapy partnera z lustra liczą się do postępu (koniec „nigdy 100%”)', () => {
+    // STA: e1/e2 robi Disting (dist_*), e3/e4/e5 STA
+    const sta = countCompletedStages(
+      order({
+        category: 'STA', linked_order_id: 2,
+        production_stages: { dist_e1: 'DK', dist_e2_1: 'BP', dist_e2_2: 'BP', e3: 'KS', e4: 'KW', e5: 'TC' },
+      }),
+    )
+    expect(sta.percent).toBe(100)
+    // Disting: e3/e4 robi STA (sta_*), reszta u siebie
+    const dist = countCompletedStages(
+      order({
+        category: 'Disting', linked_order_id: 1,
+        production_stages: { e1: 'A', e2_1: 'B', e2_2: 'C', sta_e3: 'KS', sta_e4: 'KW', e5: 'D' },
+      }),
+    )
+    expect(dist.completed).toBe(dist.total)
+    // lustro bez partnerskiego etapu nie zalicza innych
+    const partial = countCompletedStages(order({ category: 'Disting', production_stages: { sta_e3: 'KS' } }))
+    expect(partial.stages.find((s) => s.key === 'e3')?.done).toBe(true)
+    expect(partial.stages.find((s) => s.key === 'e4')?.done).toBe(false)
+  })
+
   it('Techniczne / Drzwi wewnętrzne — bez etapów', () => {
     expect(countCompletedStages(order({ category: 'Techniczne' })).total).toBe(0)
     expect(countCompletedStages(order({ category: 'DrzwiWewnetrzne' })).total).toBe(0)

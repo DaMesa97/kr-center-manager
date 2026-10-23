@@ -588,11 +588,17 @@ export function countCompletedStages(order: Order): {
 
   // Etap zrobiony = dowolna niepusta wartość (inicjały pracownika, 'T' lub 'X' z migracji) —
   // spójnie z komórkami tabeli, które każdą niepustą wartość traktują jako wykonany etap.
+  // Para Disting Plus: część etapów robi partner i trafiają tu jako lustro (STA: dist_e1/e2_*/e5,
+  // Disting: sta_e3/e4) — bez tego pary nigdy nie dochodziły do 100% (jak orderSetCompleteness).
+  const filled = (k: string) => String(parsed[k] ?? '').trim() !== ''
   const stages = defs.map((def) => ({
     key: def.key,
     header: def.header,
     title: def.title ?? '',
-    done: String(parsed[def.key] ?? '').trim() !== '' || (def.key === 'e2_2' && noGlassExtra),
+    done:
+      filled(def.key) ||
+      ((category === 'STA' || category === 'Disting') && (filled(`dist_${def.key}`) || filled(`sta_${def.key}`))) ||
+      (def.key === 'e2_2' && noGlassExtra),
   }))
 
   const completed = stages.filter((s) => s.done).length
