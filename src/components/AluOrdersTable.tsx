@@ -161,6 +161,7 @@ export default function AluOrdersTable({ orders, positionsByOrder, documentsByOr
             <span className="alu-docs">
               <span className={`alu-doc-chip ${kinds.has('LP') ? 'alu-doc-chip--on' : ''}`}>LP</span>
               <span className={`alu-doc-chip ${kinds.has('LC') ? 'alu-doc-chip--on' : ''}`}>LC</span>
+              <span className={`alu-doc-chip ${kinds.has('ZM') ? 'alu-doc-chip--on' : ''}`} title="ZM GLASS (zamówienie szyb z LiczOkna)">ZM</span>
             </span>
           )
         },

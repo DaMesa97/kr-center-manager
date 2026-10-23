@@ -35,6 +35,7 @@ export default function AluOrderDetailsModal({
   const extra = aluOrderExtra(order)
   const lp = documents.find((d) => d.kind === 'LP')
   const lc = documents.find((d) => d.kind === 'LC')
+  const zm = documents.find((d) => d.kind === 'ZM')
   const lcInputRef = useRef<HTMLInputElement>(null)
   const [pendingKind, setPendingKind] = useState<OrderDocumentKind | null>(null)
   const progress = aluOrderProgress(positions)
@@ -101,10 +102,20 @@ export default function AluOrderDetailsModal({
           ) : (
             <span className="alu-doc-missing">brak listy cięcia</span>
           )}
+          {zm ? (
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenDocument(zm)} title={zm.file_name}>
+              🪟 Otwórz ZM GLASS {zm.number ? `(${zm.number})` : ''}
+            </button>
+          ) : (
+            <span className="alu-doc-missing">brak ZM GLASS</span>
+          )}
           {isManager && !cancelled && (
             <>
               <button type="button" className="btn btn-sm btn-primary" disabled={uploading} onClick={() => pickFile('LC')}>
                 {uploading && pendingKind === 'LC' ? 'Wgrywam…' : lc ? 'Zamień listę cięcia' : '+ Dodaj listę cięcia'}
+              </button>
+              <button type="button" className="btn btn-sm btn-primary" disabled={uploading} onClick={() => pickFile('ZM')} title="Zamówienie szyb do szklarza generowane w LiczOkna">
+                {uploading && pendingKind === 'ZM' ? 'Wgrywam…' : zm ? 'Zamień ZM GLASS' : '+ Dodaj ZM GLASS'}
               </button>
               <button type="button" className="btn btn-sm btn-secondary" onClick={onReimport} title="Wgraj nową wersję listy produkcyjnej — pozycje zostaną nadpisane, oznaczone etapy zostają">
                 Nowa wersja LP…

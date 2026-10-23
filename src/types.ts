@@ -1221,7 +1221,8 @@ export type AluOrderExtra = {
   weight_kg: number | null
 }
 
-export type OrderDocumentKind = 'LP' | 'LC'
+/** LP = lista produkcyjna, LC = lista cięcia (AluronCAD), ZM = zamówienie szyb ZM GLASS (LiczOkno) */
+export type OrderDocumentKind = 'LP' | 'LC' | 'ZM'
 export type OrderDocument = {
   id: number
   order_id: number
