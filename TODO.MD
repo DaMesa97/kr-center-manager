@@ -190,7 +190,8 @@ W aplikacji NIC nie było przeklikane — odhacz po sprawdzeniu:
 - [ ] **Zgłoszenie #60 — łącznik naświetla** („ŁĄCZNIK NAROŻNY NIERDZEWNY NAŚWIETLA 68AC MAŁY”) siedzi w bazowych recepturach okuć STA #2 i #14 (kryterium tylko system) → rezerwuje się we wszystkich drzwiach STA, także bez naświetla. Ustalić z Dawidem: przenieść do receptury z kryterium „jest naświetle”
 - [x] **Pusta receptura 55** (0 składników, wygrywała dobór STA skrzydło ORZECH 80E) — USUNIĘTA 24.10, rezerwacje 129 otwartych STA przeliczone (3 pominięte — coś już wydano). Kopia do odtworzenia: `migrate/receptura_55_pusta_usunieta.sql`
 - [ ] Receptury 520 i 522 mają identyczne kryteria (duplikat) — do decyzji, którą zostawić
-- [ ] **Disting — próg bez magazynu**: brak `warehouse_assignment` dla part=prog (to samo sprawdzić dla ST: prog / dostawka / naświetle)
+- [x] **Disting — próg bez magazynu** — ZROBIONE 24.10: próg Disting i Disting Plus → Magazyn Bukowa (decyzja Tymka), rezerwacje 716 otwartych przeliczone (progi 997,5 szt.). ⚠️ W Alertach mogą dojść braki progów na Bukowej, jeśli stan jest niski
+- [ ] ST: sprawdzić przypisania magazynu dla prog / dostawka / naświetle (dziś ST ma receptury tylko na skrzydło — zrobić, gdy dojdą receptury tych części)
 - [ ] **Migracja przed startem**: zakończone zlecenia z Excela MUSZĄ przyjść z datą wydania — inaczej wiszą jako otwarte „duchy” na górze stanowisk i rezerwują magazyn (22.10 zamknięto ręcznie 21 takich z `source='migracja'`, `migrate/duchy_migracji_zamkniecie.sql`)
 - [ ] **Osobny klucz API dla Excela** (Ty, w Make): teraz konfigurator i import z Excela jadą na JEDNYM kluczu „Konfigurator - prod” — paczka z Excela (19.10: 224 żądań/min, 268 odrzuconych 429) blokowała też konfigurator. 23.10 limit podniesiony 60 → 600/min (`migrate/limit_klucza_api_600.sql`). Docelowo: admin zakłada w „Klucze API” klucz „Excel”, Ty podmieniasz go w scenariuszu Make importu Excela
 
