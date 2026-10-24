@@ -186,9 +186,10 @@ W aplikacji NIC nie było przeklikane — odhacz po sprawdzeniu:
 
 ## 🟠 ODŁOŻONE Z PRZEGLĄDU (2026-10-22)
 
-- [ ] **Szablon etykiety Disting** (id 4): wiersz „Szklenie dostawki” używa `{{naswietle_szkl}}` zamiast pola dostawki (`dostawka_szkl`) — poprawić w edytorze szablonów
+- [x] **Szablon etykiety Disting** (id 4): wiersz „Szklenie dostawki” pokazuje teraz `{{dostawka_szkl}}` — POPRAWIONE 24.10
 - [ ] **Zgłoszenie #60 — łącznik naświetla** („ŁĄCZNIK NAROŻNY NIERDZEWNY NAŚWIETLA 68AC MAŁY”) siedzi w bazowych recepturach okuć STA #2 i #14 (kryterium tylko system) → rezerwuje się we wszystkich drzwiach STA, także bez naświetla. Ustalić z Dawidem: przenieść do receptury z kryterium „jest naświetle”
-- [ ] **Receptury do posprzątania**: receptura 55 pusta (0 komponentów), a wygrywa dobór; receptury 520 i 522 mają identyczne kryteria (duplikat)
+- [x] **Pusta receptura 55** (0 składników, wygrywała dobór STA skrzydło ORZECH 80E) — USUNIĘTA 24.10, rezerwacje 129 otwartych STA przeliczone (3 pominięte — coś już wydano). Kopia do odtworzenia: `migrate/receptura_55_pusta_usunieta.sql`
+- [ ] Receptury 520 i 522 mają identyczne kryteria (duplikat) — do decyzji, którą zostawić
 - [ ] **Disting — próg bez magazynu**: brak `warehouse_assignment` dla part=prog (to samo sprawdzić dla ST: prog / dostawka / naświetle)
 - [ ] **Migracja przed startem**: zakończone zlecenia z Excela MUSZĄ przyjść z datą wydania — inaczej wiszą jako otwarte „duchy” na górze stanowisk i rezerwują magazyn (22.10 zamknięto ręcznie 21 takich z `source='migracja'`, `migrate/duchy_migracji_zamkniecie.sql`)
 - [ ] **Osobny klucz API dla Excela** (Ty, w Make): teraz konfigurator i import z Excela jadą na JEDNYM kluczu „Konfigurator - prod” — paczka z Excela (19.10: 224 żądań/min, 268 odrzuconych 429) blokowała też konfigurator. 23.10 limit podniesiony 60 → 600/min (`migrate/limit_klucza_api_600.sql`). Docelowo: admin zakłada w „Klucze API” klucz „Excel”, Ty podmieniasz go w scenariuszu Make importu Excela
@@ -202,24 +203,12 @@ W aplikacji NIC nie było przeklikane — odhacz po sprawdzeniu:
 - [x] Dorzucić `.cursorignore` (release/, dist/, dist-electron/, node_modules/, *.asar, *.exe)
 - [x] Git cleanup — odtrackowano dist-electron/ i release/ z historii, .env dodany do .gitignore
 
-### Supabase Pro (gdy będzie karta firmowa) — $25/mc — ⚠️ KONIECZNIE dla backupów bazy!
-- [ ] Upgrade konta Supabase do Pro
-- [ ] 30-dniowe backups + Point-in-Time Recovery (bez tego brak backupu danych!)
-- [ ] 8 GB databasy + 250 GB transferu
-- [ ] Decyzja: free quota Edge Functions vs Pro (raczej wystarcza)
-
-### Monitoring podstawowy (FREE)
-- [x] UptimeRobot — keyword monitor na Edge Function orders-intake (GET → {"status":"ok"})
-- [x] Alert email gdy padnie
-- [x] Drugi monitor (HTTP na Supabase URL) usunięty — zbędny, Edge Function i tak odpytuje bazę
-- [ ] Public status page (opcjonalnie)
-
-### Backup własny — ✅ DZIAŁA od 2026-09-07
-- [x] `scripts/db-backup.ps1` — pg_dump (session pooler, portable PostgreSQL 18.1 z `C:\Users\User\Tools\pgsql`)
-- [x] Harmonogram Windows: zadanie „KR Center DB Backup" codziennie 07:30 (+ start po włączeniu, gdy zaspał)
-- [x] Rotacja: 30 dni dziennych + 12 miesięcznych → `%USERPROFILE%\KRCenter-Backups`
-- [ ] Kopia poza komputerem (OneDrive/NAS) — folder KRCenter-Backups do synchronizacji
-- [ ] Docelowo: przenieść backup na maszynę 24/7 u informatyka (skrypt gotowy do przekazania)
+### Backupy bazy — ✅ DZIAŁAJĄ (stan sprawdzony 24.10)
+- [x] **Supabase Pro** od 2026-09-29: automatyczny backup dzienny, retencja 7 dni (Dashboard → Database → Backups)
+- [x] **Lokalny tygodniowy**: zadanie Windows „KRCenter DB Backup” (poniedziałki, dogania po włączeniu komputera) → `npm run backup:db` (pg_dump) → `C:\KRCenter-Backups\`, 8 ostatnich kopii. Ostatni: 20.10 (7 MB, bez błędów)
+- [x] Monitoring: UptimeRobot na Edge Function orders-intake + alert mailem
+- [ ] (opcjonalnie) Kopia lokalna poza komputerem — OneDrive/NAS na folder `C:\KRCenter-Backups`
+- [ ] (opcjonalnie) Point-in-Time Recovery w Supabase (płatny dodatek) — dziś najgorzej tracimy do 1 dnia danych
 
 ---
 
