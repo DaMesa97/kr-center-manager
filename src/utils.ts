@@ -152,6 +152,22 @@ export function tabsForUserDepartment(
   isMgr: boolean,
   role?: string,
   categories?: string[],
+  zkpRoles?: string[],
+): (typeof TABS)[number][] {
+  const tabs = baseTabsForUser(dept, isMgr, role, categories)
+  // ZKP AS 75EI: zakładka dla osób z rolą ZKP na koncie i admina (podgląd)
+  if ((zkpRoles ?? []).length > 0 || isAdminRole(role)) {
+    const at = tabs.indexOf('Zgłoszenia')
+    tabs.splice(at >= 0 ? at : tabs.length, 0, 'ZKP')
+  }
+  return tabs
+}
+
+function baseTabsForUser(
+  dept: ProfileDepartment,
+  isMgr: boolean,
+  role?: string,
+  categories?: string[],
 ): (typeof TABS)[number][] {
   const roleNormalized = String(role ?? '').toLowerCase()
   const LEGACY = roleNormalized === '' || roleNormalized === 'manager' || roleNormalized === 'worker' || roleNormalized === 'sprzedawca'

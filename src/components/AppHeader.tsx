@@ -238,7 +238,8 @@ export default function AppHeader({
     isApiKeysTab ||
     activeTab === 'Pulpit' ||
     activeTab === 'Zamawianie' ||
-    activeTab === 'Inwentaryzacja'
+    activeTab === 'Inwentaryzacja' ||
+    activeTab === 'ZKP'
 
   const sectionTitle: Record<string, string> = {
     'Moje stanowisko': 'Moje stanowisko',
@@ -262,6 +263,7 @@ export default function AppHeader({
     Konfiguracja: 'Konfiguracja',
     Użytkownicy: 'Użytkownicy',
     'Klucze API': 'Klucze API',
+    ZKP: 'ZKP AS 75EI — przyjęcia, dostawcy, komponenty krytyczne',
   }
 
   return (

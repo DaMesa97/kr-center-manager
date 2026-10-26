@@ -3,6 +3,15 @@ import { tabsForUserDepartment } from '../utils'
 
 // Widoczność zakładek per rola — zgodnie z Pomocą (sekcja Role) i permissions.ts.
 
+describe('tabsForUserDepartment — zakładka ZKP', () => {
+  it('admin zawsze, inni tylko z rolą ZKP na koncie (przed Zgłoszeniami)', () => {
+    expect(tabsForUserDepartment('all', true, 'admin', [])).toContain('ZKP')
+    expect(tabsForUserDepartment('all', true, 'kierownik_dzialu', ['STA'])).not.toContain('ZKP')
+    const mag = tabsForUserDepartment('all', false, 'magazynier', [], ['magazyn'])
+    expect(mag.indexOf('ZKP')).toBe(mag.indexOf('Zgłoszenia') - 1)
+  })
+})
+
 describe('tabsForUserDepartment — nowe role', () => {
   it('admin widzi panel administracyjny i wszystko inne', () => {
     const tabs = tabsForUserDepartment('all', true, 'admin', [])

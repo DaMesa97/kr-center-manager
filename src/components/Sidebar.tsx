@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { User, DoorOpen, Factory, Package, Settings, ChevronRight, ChevronLeft, Key, LayoutDashboard, HelpCircle, MessageSquare } from 'lucide-react'
+import { User, DoorOpen, Factory, Package, Settings, ChevronRight, ChevronLeft, Key, LayoutDashboard, HelpCircle, MessageSquare, ShieldCheck } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { CATEGORY_LABELS } from '../constants'
 
@@ -47,6 +47,12 @@ const TAB_GROUPS: TabGroupDef[] = [
     label: 'Administracja',
     Icon: Settings,
     tabs: ['Konfiguracja', 'Użytkownicy', 'Klucze API', 'Audyt', 'Archiwum'],
+  },
+  {
+    type: 'standalone',
+    tab: 'ZKP',
+    Icon: ShieldCheck,
+    label: 'ZKP AS 75EI',
   },
   {
     type: 'standalone',

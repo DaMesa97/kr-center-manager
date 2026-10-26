@@ -8212,3 +8212,32 @@ html, body, #root {
 .alu-warn-badge { display: inline-block; min-width: 18px; text-align: center; padding: 0 5px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 0.72rem; font-weight: 700; cursor: help; }
 .alu-exists-panel { margin-top: 12px; padding: 12px; background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; color: #78350f; }
 .alu-exists-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+/* ── ZKP AS 75EI (zakładka ZKP: przyjęcia, dostawcy, komponenty krytyczne) ── */
+.zkp-view-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.zkp-view-head .subtab-bar { margin-bottom: 0; }
+.zkp-roles { margin-left: auto; font-size: 0.82rem; color: #475569; }
+.zkp-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.zkp-hint { font-size: 0.82rem; color: #64748b; margin: 0 0 8px; }
+.zkp-missing { color: #b91c1c; font-style: italic; font-size: 0.85rem; }
+.zkp-warn { color: #b45309; font-weight: 700; }
+.zkp-link { border: none; background: none; padding: 0; color: #1d4ed8; cursor: pointer; font-size: 0.82rem; text-decoration: underline; }
+.zkp-actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.zkp-decision { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.zkp-decision--przyjeto { background: #dcfce7; color: #166534; }
+.zkp-decision--kwarantanna { background: #fef3c7; color: #92400e; }
+.zkp-decision--zwrot { background: #fee2e2; color: #991b1b; }
+.orders-table tr.zkp-row--quarantine td { background: #fffbeb; }
+.zkp-due { font-size: 0.85rem; }
+.zkp-due--soon { color: #b45309; font-weight: 700; }
+.zkp-due--overdue { color: #b91c1c; font-weight: 700; }
+.zkp-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; max-height: 70vh; overflow-y: auto; }
+.zkp-form-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.zkp-checks, .zkp-decision-pick { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 0.9rem; }
+.zkp-checks label, .zkp-decision-pick label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.zkp-warnbox { padding: 10px 12px; border-radius: 8px; background: #fef3c7; border: 1px solid #fcd34d; color: #78350f; font-size: 0.88rem; }
+.zkp-problems { font-size: 0.85rem; color: #b91c1c; }
+.zkp-info { padding: 10px 12px; border-radius: 8px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 0.88rem; display: flex; flex-direction: column; gap: 4px; }
+.zkp-history { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.zkp-history th, .zkp-history td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #e2e8f0; }
+.zkp-history th { color: #64748b; font-weight: 600; }

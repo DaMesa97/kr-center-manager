@@ -81,6 +81,7 @@ export const TABS = [
   'Inwentaryzacja',
   'Etykiety',
   'Kontrahenci',
+  'ZKP',
   'Konfiguracja',
   'Użytkownicy',
   'Klucze API',

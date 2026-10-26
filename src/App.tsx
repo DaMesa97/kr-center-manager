@@ -101,6 +101,7 @@ import Sidebar from './components/Sidebar'
 import LabelsView from './components/LabelsView'
 import HelpView from './components/HelpView'
 import FeedbackView from './components/FeedbackView'
+import ZkpView from './components/zkp/ZkpView'
 import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
@@ -1087,7 +1088,7 @@ function App() {
       setComplaints([])
       return
     }
-    if (activeTab === 'Zamawianie' || activeTab === 'Inwentaryzacja' || activeTab === 'Pulpit') {
+    if (activeTab === 'Zamawianie' || activeTab === 'Inwentaryzacja' || activeTab === 'Pulpit' || activeTab === 'ZKP') {
       setOrders([])
       setComplaints([])
       return
@@ -1119,6 +1120,7 @@ function App() {
         'Audyt',
         'Archiwum',
         'Wysyłka',
+        'ZKP',
       ].includes(activeTab)
     )
       return
@@ -1438,7 +1440,8 @@ function App() {
       activeTab === 'Wysyłka' ||
       activeTab === 'Etykiety' ||
       activeTab === 'Pomoc' ||
-      activeTab === 'Zgłoszenia'
+      activeTab === 'Zgłoszenia' ||
+      activeTab === 'ZKP'
     ) {
       return []
     }
@@ -1621,6 +1624,7 @@ function App() {
   const isLabelsTab = activeTab === 'Etykiety'
   const isHelpTab = activeTab === 'Pomoc'
   const isFeedbackTab = activeTab === 'Zgłoszenia'
+  const isZkpTab = activeTab === 'ZKP'
   const [printLabelOrder, setPrintLabelOrder] = useState<Order | null>(null)
   // #21 — masowy druk etykiet: zaznaczanie zamówień w tabelach
   const [labelSelection, setLabelSelection] = useState<Set<number>>(new Set())
@@ -1982,7 +1986,7 @@ function App() {
 
   const visibleTabs = useMemo(() => {
     if (!currentUser) return [] as (typeof TABS)[number][]
-    return tabsForUserDepartment(currentUser.department, isManager, currentUser.role, currentUser.categories)
+    return tabsForUserDepartment(currentUser.department, isManager, currentUser.role, currentUser.categories, currentUser.zkp_roles)
   }, [currentUser, isManager])
 
   useEffect(() => {
@@ -3382,6 +3386,8 @@ function App() {
           <HelpView isManager={isManager} />
         ) : isFeedbackTab ? (
           <FeedbackView isManager={isManager} currentUser={currentUser} pushToast={pushToast} />
+        ) : isZkpTab ? (
+          <ZkpView currentUser={currentUser} pushToast={pushToast} />
         ) : isWarehouseTab ? (
           <WarehouseView
             isManager={isManager}
