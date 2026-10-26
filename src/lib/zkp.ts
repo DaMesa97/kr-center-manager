@@ -4,7 +4,7 @@
 // pilnuje baza (migrate/zkp_03_przyjecia.sql) — tu tylko podpowiedzi w UI.
 // =====================================================================
 
-export type ZkpCriticalKind = 'wklad' | 'uszczelka' | 'szklo' | 'okucie'
+export type ZkpCriticalKind = 'wklad' | 'uszczelka' | 'szklo' | 'wypelnienie' | 'okucie'
 export type ZkpLotDecision = 'przyjeto' | 'kwarantanna' | 'zwrot'
 export type ZkpAssessmentKind = 'wstepna' | 'okresowa'
 export type ZkpAssessmentResult = 'pozytywna' | 'warunkowa' | 'negatywna'
@@ -74,6 +74,7 @@ export const ZKP_CRITICAL_KIND_LABELS: Record<ZkpCriticalKind, string> = {
   wklad: 'Wkład ogniochronny',
   uszczelka: 'Uszczelka pęczniejąca',
   szklo: 'Szkło ogniochronne',
+  wypelnienie: 'Wypełnienie nieprzezierne',
   okucie: 'Okucie',
 }
 

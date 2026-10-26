@@ -3387,7 +3387,7 @@ function App() {
         ) : isFeedbackTab ? (
           <FeedbackView isManager={isManager} currentUser={currentUser} pushToast={pushToast} />
         ) : isZkpTab ? (
-          <ZkpView currentUser={currentUser} pushToast={pushToast} />
+          <ZkpView currentUser={currentUser} isManager={isManager} pushToast={pushToast} />
         ) : isWarehouseTab ? (
           <WarehouseView
             isManager={isManager}

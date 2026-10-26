@@ -8,13 +8,21 @@ import { findTrace, loadAluOrderTrace, type AluOrderTrace, type TraceOrderChoice
 import { describeTraceQuery, parseTraceQuery } from '../../lib/zkpTrace'
 import { isReleaseDateEmpty } from '../../utils'
 import DossierExportButton from '../DossierExportButton'
+import ZkpCardModal, { type ZkpCardTarget } from './ZkpCardModal'
+import ZkpTraceLots from './ZkpTraceLots'
+import type { ZkpData } from './ZkpView'
 import type { AluDossierItem, OrderDocument, ToastVariant } from '../../types'
 
 // Wyszukiwarka „od tabliczki" (ZKP 5.9, zał. 6.26): numer konstrukcji z tabliczki
 // znamionowej → zlecenie, pozycja, postęp, teczka; eksport teczki dla audytora.
 // Tylko odczyt — każdy z dostępem do zakładki ZKP.
 
-type Props = { pushToast: (message: string, variant: ToastVariant) => void }
+type Props = {
+  zkp: ZkpData
+  roles: string[]
+  isManager: boolean
+  pushToast: (message: string, variant: ToastVariant) => void
+}
 
 type State =
   | { kind: 'idle' }
@@ -36,9 +44,10 @@ function fmt(iso: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-export default function ZkpTracePanel({ pushToast }: Props) {
+export default function ZkpTracePanel({ zkp, roles, isManager, pushToast }: Props) {
   const [query, setQuery] = useState('')
   const [state, setState] = useState<State>({ kind: 'idle' })
+  const [cardTarget, setCardTarget] = useState<ZkpCardTarget | null>(null)
 
   const openOrder = async (orderId: number, constructionId: number | null) => {
     setState({ kind: 'loading' })
@@ -126,6 +135,21 @@ export default function ZkpTracePanel({ pushToast }: Props) {
           constructionId={state.constructionId}
           onSelectConstruction={(id) => setState({ ...state, constructionId: id })}
           onOpenDocument={(d) => void openDocument(d)}
+          onOpenCard={setCardTarget}
+          zkp={zkp}
+          pushToast={pushToast}
+        />
+      )}
+      {cardTarget && (
+        <ZkpCardModal
+          target={cardTarget}
+          zkp={zkp}
+          roles={roles}
+          isManager={isManager}
+          onClose={() => setCardTarget(null)}
+          onChanged={() => {
+            if (state.kind === 'result') void openOrder(state.trace.order.id!, state.constructionId)
+          }}
           pushToast={pushToast}
         />
       )}
@@ -134,12 +158,14 @@ export default function ZkpTracePanel({ pushToast }: Props) {
 }
 
 function TraceResult({
-  trace, constructionId, onSelectConstruction, onOpenDocument, pushToast,
+  trace, constructionId, onSelectConstruction, onOpenDocument, onOpenCard, zkp, pushToast,
 }: {
   trace: AluOrderTrace
   constructionId: number | null
   onSelectConstruction: (id: number | null) => void
   onOpenDocument: (doc: OrderDocument) => void
+  onOpenCard: (target: ZkpCardTarget) => void
+  zkp: ZkpData
   pushToast: (message: string, variant: ToastVariant) => void
 }) {
   const { order, production, positions, constructions, documents, dossier } = trace
@@ -191,6 +217,26 @@ function TraceResult({
           <h3 className="zkp-trace-h">
             Konstrukcja — poz. {construction.pos_no}, sztuka {construction.piece_index}
             {position ? ` z ${position.quantity}` : ''}
+            {trace.isZkp && construction.status === 'aktywna' && (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                style={{ marginLeft: 10 }}
+                onClick={() =>
+                  onOpenCard({
+                    constructionId: construction.id,
+                    constructionNo: construction.construction_no,
+                    orderNumber: order.order_number,
+                    company: order.company ?? '',
+                    position: position
+                      ? { pos_no: position.pos_no, description: position.description, system: position.system, construction_type: position.construction_type, width_mm: position.width_mm, height_mm: position.height_mm }
+                      : null,
+                  })
+                }
+              >
+                Karta wyrobu (6.25)
+              </button>
+            )}
           </h3>
           {position ? (
             <>
@@ -228,11 +274,12 @@ function TraceResult({
         </>
       )}
 
-      <h3 className="zkp-trace-h">Partie komponentów (6.24 → 6.25)</h3>
-      <p className="zkp-hint">
-        Powiązanie partii (uszczelka pęczniejąca, wkład, szkło) z konstrukcją pojawi się z kartą wyrobu i wydaniem partii na
-        zlecenie — wtedy tutaj: konstrukcja → partia → przyjęcie 6.24 → dokument jakości i WZ.
-      </p>
+      <h3 className="zkp-trace-h">Partie komponentów (karta 6.25 → rejestr przyjęć 6.24)</h3>
+      {construction ? (
+        <ZkpTraceLots constructionId={construction.id} zkp={zkp} />
+      ) : (
+        <p className="zkp-hint">Wybierz konstrukcję (niżej), żeby zobaczyć partie użyte w jej karcie wyrobu.</p>
+      )}
 
       {dossier.length > 0 && (
         <>

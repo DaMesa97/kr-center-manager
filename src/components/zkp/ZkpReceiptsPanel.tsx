@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import ZkpModal from './ZkpModal'
+import { printRegister624Pdf } from '../../utils/zkpPdf'
+import { register624Rows } from '../../lib/zkpPrint'
 import {
   ZKP_CRITICAL_KIND_LABELS,
   ZKP_LOT_DECISION_LABELS,
@@ -33,6 +35,7 @@ export default function ZkpReceiptsPanel({ zkp, canReceive, canDecide, onGoTo }:
   const [newOpen, setNewOpen] = useState(false)
   const [completeLot, setCompleteLot] = useState<ZkpMaterialLot | null>(null)
   const [decideLot, setDecideLot] = useState<ZkpMaterialLot | null>(null)
+  const [printOpen, setPrintOpen] = useState(false)
 
   const componentById = useMemo(() => new Map(zkp.components.map((c) => [c.id, c])), [zkp.components])
   const supplierById = useMemo(() => new Map(zkp.suppliers.map((s) => [s.id, s])), [zkp.suppliers])
@@ -194,6 +197,9 @@ export default function ZkpReceiptsPanel({ zkp, canReceive, canDecide, onGoTo }:
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void zkp.reload()} disabled={zkp.loading}>
           Odśwież
         </button>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={() => setPrintOpen(true)} disabled={zkp.lots.length === 0}>
+          🖨 Rejestr 6.24 (PDF)
+        </button>
         {canReceive && (
           <button type="button" className="btn btn-sm btn-primary" onClick={() => setNewOpen(true)} style={{ marginLeft: 'auto' }}>
             + Nowe przyjęcie
@@ -210,6 +216,7 @@ export default function ZkpReceiptsPanel({ zkp, canReceive, canDecide, onGoTo }:
         rowClassName={(l) => (l.decision === 'kwarantanna' ? 'zkp-row--quarantine' : undefined)}
       />
 
+      {printOpen && <Print624Modal zkp={zkp} onClose={() => setPrintOpen(false)} />}
       {newOpen && <ReceiptModal zkp={zkp} onClose={() => setNewOpen(false)} onGoTo={onGoTo} />}
       {completeLot && <CompleteModal zkp={zkp} lot={completeLot} onClose={() => setCompleteLot(null)} />}
       {decideLot && <DecideModal zkp={zkp} lot={decideLot} onClose={() => setDecideLot(null)} />}
@@ -558,6 +565,41 @@ function DecideModal({ zkp, lot, onClose }: { zkp: ZkpData; lot: ZkpMaterialLot;
       {blocked && (
         <div className="zkp-warnbox">Nie można przyjąć partii bez nr partii i dokumentu jakości — najpierw „Uzupełnij”.</div>
       )}
+    </ZkpModal>
+  )
+}
+
+/** Wydruk rejestru przyjęć 6.24 za okres (domyślnie bieżący rok). */
+function Print624Modal({ zkp, onClose }: { zkp: ZkpData; onClose: () => void }) {
+  const [from, setFrom] = useState(`${new Date().getFullYear()}-01-01`)
+  const [to, setTo] = useState(today())
+  const input = { lots: zkp.lots, components: zkp.components, suppliers: zkp.suppliers, from, to }
+  const count = register624Rows(input).length
+  return (
+    <ZkpModal
+      title="Rejestr przyjęć komponentów krytycznych (zał. 6.24) — wydruk"
+      onClose={onClose}
+      width={520}
+      footer={
+        <>
+          <button type="button" className="btn btn-primary" disabled={count === 0 || from > to} onClick={() => { printRegister624Pdf(input); onClose() }}>
+            Drukuj ({count})
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Anuluj</button>
+        </>
+      }
+    >
+      <div className="order-form-grid zkp-form-grid">
+        <label>
+          <span className="order-field-label-text">Od (data przyjęcia)</span>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label>
+          <span className="order-field-label-text">Do</span>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        </label>
+      </div>
+      <p className="zkp-hint">Wszystkie decyzje (także kwarantanna i zwrot), w kolejności przyjęć. PDF poziomy A4.</p>
     </ZkpModal>
   )
 }

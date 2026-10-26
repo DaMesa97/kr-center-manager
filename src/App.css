@@ -8249,3 +8249,12 @@ html, body, #root {
 .zkp-trace-h { font-size: 0.95rem; margin: 14px 0 4px; color: #1e293b; }
 .zkp-trace-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .zkp-trace-chip { border: none; cursor: pointer; font-variant-numeric: tabular-nums; }
+/* ZKP — karta wyrobu (6.25) i rejestr wyrobów (6.33) */
+.zkp-card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.zkp-type-code { font-size: 0.82rem; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+.zkp-card-a { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; align-items: center; font-size: 0.9rem; }
+.zkp-card-a > span:nth-child(odd) { color: #64748b; }
+.zkp-history tr.zkp-row--nok td { background: #fef2f2; }
+.zkp-stage-editor { margin-top: 10px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; display: flex; flex-direction: column; gap: 8px; }
+.zkp-input--nok { border-color: #dc2626 !important; background: #fef2f2; }
+.zkp-register tbody tr:hover td { background: #f1f5f9; }

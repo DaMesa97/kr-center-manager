@@ -1,0 +1,2725 @@
+{
+ "source": "Zał. 6.10.5 Identyfikacja komponentów ALURON AS 75EI — raporty CERTBUD 1131/ALURON/2020/K-1/8, K-2/8, 3060_1556/K/2",
+ "note": "Numer katalogowy jest „na liście” zakresu, jeśli występuje w części B–G załącznika pod nagłówkiem „Zakres:” tego zakresu (w tabeli lub w warunkach). Kod z XX = dowolny kolor.",
+ "generated": "2026-10-26",
+ "codes": [
+  {
+   "code": "A002XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "F.7.11"
+   ]
+  },
+  {
+   "code": "A115",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A116",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A121",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A123",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A129",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A130",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A134",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A135",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A311",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A313",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A413",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A414",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A415",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A416",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A423",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "A424",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "B011",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "B012",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "B111",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "B191",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "E.4"
+   ]
+  },
+  {
+   "code": "B221",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4"
+   ]
+  },
+  {
+   "code": "B303",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "C.2",
+    "E.4"
+   ]
+  },
+  {
+   "code": "B304",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B305",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B306",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B307",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B308",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B309",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B310",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B311",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B312",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B313",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B314",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B315",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "C.2",
+    "E.4"
+   ]
+  },
+  {
+   "code": "B324",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "C.2",
+    "E.4"
+   ]
+  },
+  {
+   "code": "B326",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B328",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B330",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B332",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.2"
+   ]
+  },
+  {
+   "code": "B334",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "C.2",
+    "E.4"
+   ]
+  },
+  {
+   "code": "B411",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "B620",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B621",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B622",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B623",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B624",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B625",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B626",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B627",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B628",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B629",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B631",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B632",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B633",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B634",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B635",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B636",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B637",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B638",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B639",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B643",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B644",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.6"
+   ]
+  },
+  {
+   "code": "B710",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "G.2"
+   ]
+  },
+  {
+   "code": "B712",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "G.2"
+   ]
+  },
+  {
+   "code": "B719",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.5",
+    "D.7"
+   ]
+  },
+  {
+   "code": "B720",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.5"
+   ]
+  },
+  {
+   "code": "B722",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.5",
+    "D.7"
+   ]
+  },
+  {
+   "code": "B723",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.5",
+    "D.7"
+   ]
+  },
+  {
+   "code": "B724",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.5",
+    "D.7"
+   ]
+  },
+  {
+   "code": "B725",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.5",
+    "D.7"
+   ]
+  },
+  {
+   "code": "B726",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.5"
+   ]
+  },
+  {
+   "code": "B731",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "F.7.5"
+   ]
+  },
+  {
+   "code": "B732",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "F.7.5"
+   ]
+  },
+  {
+   "code": "B790",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "D521",
+   "ranges": [
+    "S"
+   ],
+   "sections": [
+    "F.7.8"
+   ]
+  },
+  {
+   "code": "D791",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "F.7.2"
+   ]
+  },
+  {
+   "code": "D792",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "F.7.2"
+   ]
+  },
+  {
+   "code": "H458",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H459",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H464",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H465",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H469",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H470",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6",
+    "G.2"
+   ]
+  },
+  {
+   "code": "H472",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H473",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H474",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H475",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H476",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H477",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H478",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "H479",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.5",
+    "B.6"
+   ]
+  },
+  {
+   "code": "K0217XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4"
+   ]
+  },
+  {
+   "code": "K0218XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4"
+   ]
+  },
+  {
+   "code": "K1101XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1102XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1103XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1104XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1105XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1106XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1107XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1108XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1109XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1110XX",
+   "ranges": [
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1111XX",
+   "ranges": [
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1204XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1205XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1206XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1207XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1208XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1209XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1210XX",
+   "ranges": [
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K1404XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "K2611XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.4",
+    "C.1",
+    "E.2"
+   ]
+  },
+  {
+   "code": "K2612XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.4",
+    "C.1",
+    "E.2"
+   ]
+  },
+  {
+   "code": "K3020XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "K3301XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "K3316XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.1",
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "K3320XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.1",
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "K3322XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "K3327XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "K3328XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "K3399XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.1",
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "K6201XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "G.2"
+   ]
+  },
+  {
+   "code": "K6211XX",
+   "ranges": [
+    "EI60"
+   ],
+   "sections": [
+    "G.2"
+   ]
+  },
+  {
+   "code": "K6212XX",
+   "ranges": [
+    "EI30"
+   ],
+   "sections": [
+    "G.2"
+   ]
+  },
+  {
+   "code": "P2113XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.2",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2114XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.2",
+    "B.4",
+    "B.5",
+    "B.7",
+    "C.1",
+    "E.1"
+   ]
+  },
+  {
+   "code": "P2116XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.2",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2117XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.2",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2243XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.3",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2244XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.5",
+    "B.7",
+    "C.1"
+   ]
+  },
+  {
+   "code": "P2245XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.3",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2246XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.3",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2247XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.3",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2248XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.3",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2249XX",
+   "ranges": [
+    "EI30",
+    "EI60"
+   ],
+   "sections": [
+    "B.1",
+    "B.3",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2405XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.2",
+    "B.3",
+    "B.4",
+    "B.5",
+    "E.2"
+   ]
+  },
+  {
+   "code": "P2406XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.2",
+    "B.3",
+    "B.4",
+    "B.5",
+    "E.2"
+   ]
+  },
+  {
+   "code": "P2423XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.2",
+    "B.4",
+    "B.5",
+    "B.7",
+    "C.1"
+   ]
+  },
+  {
+   "code": "P2424XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.2",
+    "B.4",
+    "B.5",
+    "B.7",
+    "C.1",
+    "G.2"
+   ]
+  },
+  {
+   "code": "P2425XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.2",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2426XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.2",
+    "B.4",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2427XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.1",
+    "B.5",
+    "B.7"
+   ]
+  },
+  {
+   "code": "P2600XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "E.1"
+   ]
+  },
+  {
+   "code": "P2601XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "E.1"
+   ]
+  },
+  {
+   "code": "P2606XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "E.1"
+   ]
+  },
+  {
+   "code": "P2611XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "P2612XX",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "S101",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "S102",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "S200",
+   "ranges": [
+    "S"
+   ],
+   "sections": [
+    "E.2"
+   ]
+  },
+  {
+   "code": "T139",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T140",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T147",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T148",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T149",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T150",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T155",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T156",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T157",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T158",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.7"
+   ]
+  },
+  {
+   "code": "T162",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "T181",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "F.7.11"
+   ]
+  },
+  {
+   "code": "T384",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "T385",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "T386",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "T387",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "T388",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "T389",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "T390",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "T391",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "U012",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4"
+   ]
+  },
+  {
+   "code": "U106",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "U107",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "U108",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "U110",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U111",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U112",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U113",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U114",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U121",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U122",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U137",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "E.1"
+   ]
+  },
+  {
+   "code": "U187",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "E.1"
+   ]
+  },
+  {
+   "code": "U188",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "E.1"
+   ]
+  },
+  {
+   "code": "U189",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "E.1"
+   ]
+  },
+  {
+   "code": "U190",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "E.1"
+   ]
+  },
+  {
+   "code": "U278",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "E.1",
+    "E.2"
+   ]
+  },
+  {
+   "code": "U279",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "E.1",
+    "E.2"
+   ]
+  },
+  {
+   "code": "U281",
+   "ranges": [
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "E.2",
+    "G.3"
+   ]
+  },
+  {
+   "code": "U283",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4",
+    "C.1",
+    "E.2",
+    "G.2",
+    "G.3"
+   ]
+  },
+  {
+   "code": "U622",
+   "ranges": [
+    "EI60"
+   ],
+   "sections": [
+    "G.2"
+   ]
+  },
+  {
+   "code": "U830",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U831",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U832",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "U833",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.7"
+   ]
+  },
+  {
+   "code": "W113",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "D.5",
+    "D.7"
+   ]
+  },
+  {
+   "code": "W114",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "W122",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "W123",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1",
+    "D.5"
+   ]
+  },
+  {
+   "code": "W126",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "W211",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "W213",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4",
+    "C.1",
+    "D.7",
+    "G.2"
+   ]
+  },
+  {
+   "code": "W215",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4",
+    "C.1"
+   ]
+  },
+  {
+   "code": "W225",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "C.1"
+   ]
+  },
+  {
+   "code": "W234",
+   "ranges": [
+    "EI30",
+    "EI30S",
+    "EI60",
+    "EI60S",
+    "S"
+   ],
+   "sections": [
+    "B.4",
+    "G.2"
+   ]
+  }
+ ]
+}

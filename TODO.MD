@@ -96,6 +96,13 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [ ] ~~Import LP z maila przez Make → API~~ — Tymek 23.10: na razie NIE.
 - [x] **Etykiety dla aluminium (23.10)**: JEDNA etykieta na SZTUKĘ pozycji (poz. z ilością 5 = 5 etykiet „1/5…5/5”), 100×150 jak STA. Szczegóły zlecenia alu → „🏷 Etykiety (N)” → wybór pozycji, podgląd, jeden wydruk wielostronicowy. Szablon „Aluminium — sztuka” w bazie (domyślny), edytowalny w Etykiety → Szablony → Aluminium; pola `{{alu_*}}` (sztuka, wymiar, typ, kolory, szkło, okucia, próg, termin, załadunek, realizacja). DoP nadal z LiczOkna. **Sprawdź:** wydruk testowy na drukarce etykiet.
 
+## 🧪 DO SPRAWDZENIA — ZKP 26.10 wieczór (Claude, na `clean`, bez nowej bety)
+- [ ] **Najpierw role:** Użytkownicy → swoje konto → role ZKP: Pełnomocnik (+ Magazyn do przyjęć). Bez tego zakładka ZKP to tylko podgląd.
+- [ ] **Szukaj po tabliczce** (ZKP → pierwsza podzakładka): wpisz `OF…/2026` zlecenia aluminium albo `2026/01/01` po „Uruchom do produkcji” → zlecenie, pozycja, teczka, konstrukcje; „📦 Eksport teczki (ZIP)” → otwórz ZIP: `00_Spis_tresci.pdf` + `dokumenty/…`.
+- [ ] **Karta wyrobu** (ZKP → Wyroby i karty; zlecenie musi być ZKP = system AS 75EI albo „ZKP: tak” w teczce, i uruchomione): A/B → „Załóż kartę i sprawdź zakres” → tabela zgodności (np. 2 zawiasy przy wys. 2100 = NIE) → popraw → „Potwierdź zakres”; C → etap 3a z partią U279 przy EI30 = odmowa (spoza listy 6.10.5), U278 = OK; regulacja ze szczeliną ponad limit = odmowa; D (zamek, zawiasy, trzpienie), E (skrzydło czynne); F → „ZWOLNIONY”; teczka: karta / PZ / RW = jest. „🖨 Drukuj kartę”.
+- [ ] **Wydruki rejestrów:** Wyroby i karty → „🖨 Rejestr 6.33”; Przyjęcia i partie → „🖨 Rejestr 6.24” (okres). Układy zaprojektowane przez Claude (brak wzorów 6.24 / 6.33 w folderze) — do akceptacji PJ.
+- [ ] **Decyzje:** kod typu dla zakresu S (`AS75EI-W-S-S-1-–`?), okno techniczne w kodzie jako „W”, czy wspólne konto hali dostaje rolę „kontroler” (wtedy hala sama wpisuje etapy).
+
 ## 🧪 DO SPRAWDZENIA — 23.10 wieczór (Claude, na `clean`, bez nowej bety)
 
 - [ ] **Moje stanowisko — czekające schowane**: domyślnie widać tylko zadania gotowe do pracy + wszystko z X/XX (nawet niegotowe — towar na dziś/jutro). Przycisk „⏳ Pokaż czekające (N)” odsłania resztę, wybór zapamiętany na komputerze/telefonie (`stationShowWaiting`). Gdy nic nie jest gotowe — komunikat z przyciskiem zamiast pustej tabeli. Desktop + mobile.

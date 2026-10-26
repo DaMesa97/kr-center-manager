@@ -6,21 +6,24 @@ import ZkpReceiptsPanel from './ZkpReceiptsPanel'
 import ZkpSuppliersPanel from './ZkpSuppliersPanel'
 import ZkpCriticalPanel from './ZkpCriticalPanel'
 import ZkpTracePanel from './ZkpTracePanel'
+import ZkpProductsPanel from './ZkpProductsPanel'
 import type { CurrentUser, ToastVariant } from '../../types'
 
 // Zakładka ZKP AS 75EI — etap F: przyjęcia komponentów krytycznych z partiami
 // (zał. 6.24), wykaz dostawców kwalifikowanych (6.31), lista komponentów
 // krytycznych (6.10.5). Zapis wyłącznie funkcjami bazy (role ZKP na koncie).
-// Pierwsza podzakładka: wyszukiwarka „od tabliczki” + eksport teczki (tylko odczyt).
+// Pierwsza podzakładka: wyszukiwarka „od tabliczki” + eksport teczki (tylko odczyt);
+// „Wyroby i karty”: rejestr wyrobów 6.33 i karty wyrobu 6.25 (etap C).
 
-type Sub = 'tabliczka' | 'przyjecia' | 'dostawcy' | 'komponenty'
+type Sub = 'tabliczka' | 'wyroby' | 'przyjecia' | 'dostawcy' | 'komponenty'
 
 type Props = {
   currentUser: CurrentUser | null
+  isManager: boolean
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-export default function ZkpView({ currentUser, pushToast }: Props) {
+export default function ZkpView({ currentUser, isManager, pushToast }: Props) {
   const [sub, setSub] = useState<Sub>('tabliczka')
   const zkp = useZkp(pushToast, true)
   const roles = currentUser?.zkp_roles ?? []
@@ -45,6 +48,7 @@ export default function ZkpView({ currentUser, pushToast }: Props) {
       <div className="zkp-view-head">
         <div className="subtab-bar" role="tablist" aria-label="ZKP — sekcje">
           {tab('tabliczka', 'Szukaj po tabliczce')}
+          {tab('wyroby', 'Wyroby i karty (6.33 / 6.25)')}
           {tab('przyjecia', `Przyjęcia i partie (6.24)${quarantine ? ` · kwarantanna ${quarantine}` : ''}`)}
           {tab('dostawcy', 'Dostawcy kwalifikowani (6.31)')}
           {tab('komponenty', 'Komponenty krytyczne (6.10.5)')}
@@ -55,7 +59,8 @@ export default function ZkpView({ currentUser, pushToast }: Props) {
         </span>
       </div>
 
-      {sub === 'tabliczka' && <ZkpTracePanel pushToast={pushToast} />}
+      {sub === 'tabliczka' && <ZkpTracePanel zkp={zkp} roles={roles} isManager={isManager} pushToast={pushToast} />}
+      {sub === 'wyroby' && <ZkpProductsPanel zkp={zkp} roles={roles} isManager={isManager} pushToast={pushToast} />}
       {sub === 'przyjecia' && <ZkpReceiptsPanel zkp={zkp} canReceive={canReceive} canDecide={canDecide} onGoTo={setSub} />}
       {sub === 'dostawcy' && <ZkpSuppliersPanel zkp={zkp} canEdit={canDecide} />}
       {sub === 'komponenty' && <ZkpCriticalPanel zkp={zkp} canEdit={canDecide} />}
