@@ -520,6 +520,8 @@ function App() {
     startAluProduction,
     withdrawOrderDocument,
     fetchAluDossier,
+    importMaterialList,
+    fetchMaterialList,
     setAluOrderZkp,
     setDossierNa,
     revokeDossierNa,
@@ -2556,6 +2558,8 @@ function App() {
             onSetZkp={setAluOrderZkp}
             onSetNa={setDossierNa}
             onRevokeNa={revokeDossierNa}
+            onImportMaterialList={(file, parsed) => importMaterialList(o.id!, file, parsed)}
+            fetchMaterialList={fetchMaterialList}
             isManager={isManager}
             uploading={aluUploading}
             onClose={() => setAluDetailsOrderId(null)}

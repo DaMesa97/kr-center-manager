@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { parseAluMaterialListRows, parseListNumber } from '../lib/aluMaterialListParser'
+import { parseAluMaterialListRows, parseListNumber, sameAluOrderNumber } from '../lib/aluMaterialListParser'
 import fixture from './fixtures/alu/LM_OF348_2026.json'
+
+describe('sameAluOrderNumber', () => {
+  it('ten sam OF także dla duplikatu „ (2)", inny OF i pusty → nie', () => {
+    expect(sameAluOrderNumber('OF348/2026', 'OF348/2026')).toBe(true)
+    expect(sameAluOrderNumber('OF348/2026', 'OF348/2026 (2)')).toBe(true)
+    expect(sameAluOrderNumber('of348/2026', 'OF348/2026')).toBe(true)
+    expect(sameAluOrderNumber('OF348/2026', 'OF341/2026')).toBe(false)
+    expect(sameAluOrderNumber('', '')).toBe(false)
+  })
+})
 
 describe('parseListNumber', () => {
   it('format z eksportu Aluron i polski', () => {

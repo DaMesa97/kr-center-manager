@@ -2,9 +2,12 @@ import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { fetchAllPages } from '../lib/fetchPaged'
 import { ORDER_DOCUMENTS_BUCKET } from '../constants'
+import type { AluMaterialListParseResult } from '../lib/aluMaterialListParser'
 import type {
   AluConstruction,
   AluDossierItem,
+  AluMaterialList,
+  AluMaterialListItemRow,
   AluLpParseResult,
   AluLpPosition,
   AluPosition,
@@ -425,6 +428,77 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     [pushToast, touchSession],
   )
 
+  /**
+   * Lista materiałowa Aluron (.xls) → plik do storage + RPC zkp_import_material_list:
+   * w jednej transakcji nowa wersja dokumentu LM i jej pozycje (ZKP 5.9).
+   */
+  const importMaterialList = useCallback(
+    async (orderId: number, file: File, parsed: AluMaterialListParseResult): Promise<boolean> => {
+      touchSession()
+      const xlsx = /\.xlsx$/i.test(file.name)
+      const path = `aluminium/${orderId}/LM_${Date.now()}.${xlsx ? 'xlsx' : 'xls'}`
+      const contentType = xlsx
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'application/vnd.ms-excel'
+      const { error: upErr } = await supabase.storage
+        .from(ORDER_DOCUMENTS_BUCKET)
+        .upload(path, file, { contentType, upsert: false })
+      if (upErr) {
+        pushToast(`Nie udało się wgrać pliku ${file.name}: ${upErr.message}`, 'error')
+        return false
+      }
+      const { data, error } = await supabase.rpc('zkp_import_material_list', {
+        p_order_id: orderId,
+        p_storage_path: path,
+        p_file_name: file.name,
+        p_header: {
+          order_number: parsed.order_number,
+          created_at: parsed.created_at,
+          total_value: parsed.total_value,
+          total_need_value: parsed.total_need_value,
+        },
+        p_items: parsed.items,
+      })
+      const row = (data as { r_version: number; r_item_count: number }[] | null)?.[0]
+      if (error || !row) {
+        pushToast(`Nie udało się zapisać listy materiałowej: ${error?.message ?? 'brak wyniku'}`, 'error')
+        return false
+      }
+      pushToast(`Lista materiałowa v${row.r_version}: ${row.r_item_count} pozycji`, 'success')
+      await fetchAluData([orderId])
+      return true
+    },
+    [pushToast, touchSession, fetchAluData],
+  )
+
+  /** Nagłówek i pozycje listy materiałowej danej wersji dokumentu LM; null = błąd/brak. */
+  const fetchMaterialList = useCallback(
+    async (documentId: number): Promise<{ list: AluMaterialList; items: AluMaterialListItemRow[] } | null> => {
+      const { data: list, error } = await supabase
+        .from('zkp_material_lists')
+        .select('*')
+        .eq('document_id', documentId)
+        .maybeSingle<AluMaterialList>()
+      if (error) {
+        pushToast(`Nie udało się wczytać listy materiałowej: ${error.message}`, 'error')
+        return null
+      }
+      if (!list) return null
+      const { data: items, error: itemsErr } = await supabase
+        .from('zkp_material_list_items')
+        .select('*')
+        .eq('list_id', list.id)
+        .order('line_no', { ascending: true })
+        .overrideTypes<AluMaterialListItemRow[], { merge: false }>()
+      if (itemsErr) {
+        pushToast(`Nie udało się wczytać pozycji listy materiałowej: ${itemsErr.message}`, 'error')
+        return null
+      }
+      return { list, items: items ?? [] }
+    },
+    [pushToast],
+  )
+
   /** Ręczne oznaczenie zlecenia jako ZKP / nie-ZKP; null = rozpoznanie automatyczne. */
   const setAluOrderZkp = useCallback(
     async (orderId: number, value: boolean | null): Promise<boolean> => {
@@ -504,6 +578,8 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     startAluProduction,
     withdrawOrderDocument,
     fetchAluDossier,
+    importMaterialList,
+    fetchMaterialList,
     setAluOrderZkp,
     setDossierNa,
     revokeDossierNa,

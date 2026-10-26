@@ -1266,9 +1266,42 @@ export type AluOrderExtra = {
 
 /**
  * LP = lista produkcyjna, LC = lista cięcia (AluronCAD), ZM = zamówienie szyb ZM GLASS (LiczOkno);
- * teczka ZKP (5.9): ZK = zamówienie klienta, ZMAT = zamówienie materiałów, MONT = protokół montażu, INNE
+ * teczka ZKP (5.9): ZK = zamówienie klienta, ZMAT = zamówienie materiałów, MONT = protokół montażu, INNE,
+ * LM = lista materiałowa Aluron (.xls) — zestawienie materiałowe z pozycjami w zkp_material_list_items
  */
-export type OrderDocumentKind = 'LP' | 'LC' | 'ZM' | 'ZK' | 'ZMAT' | 'MONT' | 'INNE'
+export type OrderDocumentKind = 'LP' | 'LC' | 'ZM' | 'ZK' | 'ZMAT' | 'MONT' | 'INNE' | 'LM'
+
+/** Wiersz zkp_material_lists — lista materiałowa przypięta do wersji dokumentu LM (ZKP 5.9) */
+export type AluMaterialList = {
+  id: number
+  order_id: number
+  document_id: number
+  source_order_number: string
+  list_created_on: string | null
+  total_value: number | null
+  total_need_value: number | null
+  item_count: number
+  imported_at: string
+  imported_by_name: string
+}
+
+/** Wiersz zkp_material_list_items */
+export type AluMaterialListItemRow = {
+  id: number
+  list_id: number
+  line_no: number
+  group_name: string
+  code: string
+  gm_code: string
+  description: string
+  quantity: number
+  unit: string
+  unit_price: number | null
+  value: number | null
+  need: number | null
+  need_value: number | null
+  need_net: number | null
+}
 export type OrderDocument = {
   id: number
   order_id: number

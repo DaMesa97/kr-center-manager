@@ -138,6 +138,12 @@ export function parseAluMaterialListRows(rows: string[][]): AluMaterialListParse
   }
 }
 
+/** „OF348/2026" z pliku vs numer zlecenia w programie (duplikat ma dopisek „ (2)") */
+export function sameAluOrderNumber(fromFile: string, orderNumber: string): boolean {
+  const norm = (s: string) => s.replace(/\s*\(\d+\)\s*$/, '').replace(/\s/g, '').toUpperCase()
+  return norm(fromFile) !== '' && norm(fromFile) === norm(orderNumber)
+}
+
 /** Plik .xls/.xlsx → wiersze pierwszego arkusza (wartości jako sformatowany tekst). */
 export function readMaterialListRows(data: ArrayBuffer): string[][] {
   const wb = XLSX.read(data, { type: 'array' })

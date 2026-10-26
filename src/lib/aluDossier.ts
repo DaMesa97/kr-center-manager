@@ -11,9 +11,10 @@ export const DOC_KIND_LABELS: Record<OrderDocumentKind, string> = {
   ZMAT: 'Zamówienie materiałów',
   MONT: 'Protokół montażu',
   INNE: 'Inny dokument',
+  LM: 'Lista materiałowa',
 }
 
-/** Rodzaje dokumentów wgrywane ręcznie do teczki (LP/LC/ZM idą przez import). */
+/** Rodzaje dokumentów wgrywane ręcznie do teczki (LP/LC/ZM/LM idą przez import). */
 export const DOSSIER_UPLOAD_KINDS: OrderDocumentKind[] = ['ZK', 'ZMAT', 'MONT', 'INNE']
 
 const isActive = (d: OrderDocument) => !d.withdrawn_at

@@ -5,12 +5,15 @@ import { aluLoadingDate, aluOrderExtra, aluOrderProgress, formatPlDateWithDow } 
 import { formatProductionOrderNo } from '../lib/aluConstructions'
 import { currentDocument } from '../lib/aluDossier'
 import AluDossierPanel from './AluDossierPanel'
+import AluMaterialListPanel from './AluMaterialListPanel'
 import { appConfirm } from '../lib/appDialogs'
+import type { AluMaterialListParseResult } from '../lib/aluMaterialListParser'
 import { isReleaseDateEmpty } from '../utils'
 import AluPositionsTable from './AluPositionsTable'
 import AluLabelPrintModal from './AluLabelPrintModal'
 import type {
-  AluConstruction, AluDossierItem, AluPosition, AluProductionOrder, Order, OrderDocument, OrderDocumentKind, ToastVariant,
+  AluConstruction, AluDossierItem, AluMaterialList, AluMaterialListItemRow, AluPosition, AluProductionOrder, Order,
+  OrderDocument, OrderDocumentKind, ToastVariant,
 } from '../types'
 
 // Szczegóły zlecenia aluminium: nagłówek z LP, PDF-y (LP + lista cięcia),
@@ -31,6 +34,9 @@ type Props = {
   onSetZkp: (orderId: number, value: boolean | null) => Promise<boolean>
   onSetNa: (orderId: number, itemKey: string, reason: string) => Promise<boolean>
   onRevokeNa: (naId: number, reason: string) => Promise<boolean>
+  /** ZKP 5.9 — lista materiałowa Aluron (.xls) jako zestawienie materiałowe */
+  onImportMaterialList: (file: File, parsed: AluMaterialListParseResult) => Promise<boolean>
+  fetchMaterialList: (documentId: number) => Promise<{ list: AluMaterialList; items: AluMaterialListItemRow[] } | null>
   isManager: boolean
   uploading: boolean
   onClose: () => void
@@ -52,7 +58,7 @@ function fmtDate(iso: string | null | undefined): string {
 
 export default function AluOrderDetailsModal({
   order, positions, documents, constructions, production, onStartProduction, canDecideZkp, onWithdrawDocument,
-  fetchDossier, onSetZkp, onSetNa, onRevokeNa, isManager, uploading, onClose,
+  fetchDossier, onSetZkp, onSetNa, onRevokeNa, onImportMaterialList, fetchMaterialList, isManager, uploading, onClose,
   onOpenDocument, onUploadDocument, onReimport, onCancel, canPrintLabels, pushToast,
 }: Props) {
   const [labelsOpen, setLabelsOpen] = useState(false)
@@ -178,6 +184,15 @@ export default function AluOrderDetailsModal({
         </div>
 
         <AluPositionsTable positions={positions} />
+
+        <AluMaterialListPanel
+          order={order}
+          documents={documents}
+          canImport={isManager && !cancelled}
+          onOpenDocument={onOpenDocument}
+          onImport={onImportMaterialList}
+          fetchList={fetchMaterialList}
+        />
 
         {/* ZKP 5.9 — numery konstrukcji; anulowane zostają (numer nie wraca do puli) */}
         {constructionsByPos.length > 0 && (
