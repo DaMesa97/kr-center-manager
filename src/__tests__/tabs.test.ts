@@ -9,6 +9,8 @@ describe('tabsForUserDepartment — zakładka ZKP', () => {
     expect(tabsForUserDepartment('all', true, 'kierownik_dzialu', ['STA'])).not.toContain('ZKP')
     const mag = tabsForUserDepartment('all', false, 'magazynier', [], ['magazyn'])
     expect(mag.indexOf('ZKP')).toBe(mag.indexOf('Zgłoszenia') - 1)
+    // konto hali z rolą ZKP „operator” (etapy w karcie wyrobu) też widzi zakładkę
+    expect(tabsForUserDepartment('all', false, 'pracownik_produkcji', ['ST'], ['operator'])).toContain('ZKP')
   })
 })
 

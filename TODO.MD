@@ -101,7 +101,8 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [ ] **Szukaj po tabliczce** (ZKP → pierwsza podzakładka): wpisz `OF…/2026` zlecenia aluminium albo `2026/01/01` po „Uruchom do produkcji” → zlecenie, pozycja, teczka, konstrukcje; „📦 Eksport teczki (ZIP)” → otwórz ZIP: `00_Spis_tresci.pdf` + `dokumenty/…`.
 - [ ] **Karta wyrobu** (ZKP → Wyroby i karty; zlecenie musi być ZKP = system AS 75EI albo „ZKP: tak” w teczce, i uruchomione): A/B → „Załóż kartę i sprawdź zakres” → tabela zgodności (np. 2 zawiasy przy wys. 2100 = NIE) → popraw → „Potwierdź zakres”; C → etap 3a z partią U279 przy EI30 = odmowa (spoza listy 6.10.5), U278 = OK; regulacja ze szczeliną ponad limit = odmowa; D (zamek, zawiasy, trzpienie), E (skrzydło czynne); F → „ZWOLNIONY”; teczka: karta / PZ / RW = jest. „🖨 Drukuj kartę”.
 - [ ] **Wydruki rejestrów:** Wyroby i karty → „🖨 Rejestr 6.33”; Przyjęcia i partie → „🖨 Rejestr 6.24” (okres). Układy zaprojektowane przez Claude (brak wzorów 6.24 / 6.33 w folderze) — do akceptacji PJ.
-- [ ] **Decyzje:** kod typu dla zakresu S (`AS75EI-W-S-S-1-–`?), okno techniczne w kodzie jako „W”, czy wspólne konto hali dostaje rolę „kontroler” (wtedy hala sama wpisuje etapy).
+- [ ] **Rola „Operator produkcji” (ZKP):** Użytkownicy → wspólne konto hali → zaznacz „Operator produkcji” w rolach ZKP → na tym koncie: ZKP → Wyroby i karty → karta z potwierdzonym zakresem otwiera się na etapach; wpis etapu / okucia / wypełnienia działa, zmiana zakresu i zwolnienie — nie.
+- [ ] **Decyzje:** kod typu dla zakresu S (`AS75EI-W-S-S-1-–`?), okno techniczne w kodzie jako „W”.
 
 ## 🧪 DO SPRAWDZENIA — 23.10 wieczór (Claude, na `clean`, bez nowej bety)
 

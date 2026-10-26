@@ -65,11 +65,19 @@ export default function ZkpCardModal({ target, zkp, roles, isManager, onClose, o
   const api = useZkpCard(target.constructionId, pushToast)
   const [section, setSection] = useState<Section>('ab')
   const card = api.data?.card ?? null
+  // jak w bazie: A/B — zkp_can_fill_card; etapy, okucia, wypełnienia — zkp_can_record_card (+ operator produkcji)
   const canFill = isManager || hasAny(roles, ['pelnomocnik', 'zastepca', 'kierownik_produkcji', 'kontroler'])
+  const canRecord = canFill || roles.includes('operator')
   const canConfirm = hasAny(roles, ['pelnomocnik', 'zastepca', 'kierownik_produkcji'])
   const canDecide = hasAny(roles, ['pelnomocnik', 'zastepca'])
   const confirmed = !!card?.range_confirmed_at
   const closed = !!card?.decision
+
+  // operator produkcji (konto hali) od razu na etapach, gdy zakres jest potwierdzony
+  const operatorOnly = canRecord && !canFill
+  useEffect(() => {
+    if (operatorOnly && confirmed) setSection((s) => (s === 'ab' ? 'c' : s))
+  }, [operatorOnly, confirmed])
 
   const wrap = <A extends unknown[]>(fn: (...a: A) => Promise<boolean>) => async (...a: A) => {
     const ok = await fn(...a)
@@ -143,11 +151,11 @@ export default function ZkpCardModal({ target, zkp, roles, isManager, onClose, o
       ) : section === 'ab' ? (
         <SectionAB api={api} target={target} canFill={canFill && !closed} canConfirm={canConfirm} onChanged={onChanged} />
       ) : section === 'c' ? (
-        <SectionC api={api} zkp={zkp} canFill={canFill && !closed} save={wrap(api.recordStage)} />
+        <SectionC api={api} zkp={zkp} canFill={canRecord && !closed} save={wrap(api.recordStage)} />
       ) : section === 'd' ? (
-        <SectionD api={api} zkp={zkp} canFill={canFill && !closed} save={wrap(api.saveHardware)} />
+        <SectionD api={api} zkp={zkp} canFill={canRecord && !closed} save={wrap(api.saveHardware)} />
       ) : section === 'e' ? (
-        <SectionE api={api} zkp={zkp} canFill={canFill && !closed} save={wrap(api.saveFilling)} />
+        <SectionE api={api} zkp={zkp} canFill={canRecord && !closed} save={wrap(api.saveFilling)} />
       ) : (
         <SectionF api={api} canDecide={canDecide && !closed} save={wrap(api.decide)} />
       )}
@@ -316,6 +324,9 @@ function SectionAB({ api, target, canFill, canConfirm, onChanged }: {
         </div>
       )}
       {card && !confirmed && !canConfirm && <p className="zkp-hint">Zakres potwierdza Pełnomocnik ZKP, Zastępca albo Kierownik Produkcji.</p>}
+      {!canFill && !confirmed && (
+        <p className="zkp-hint">Kartę zakłada i zakres potwierdza PJ / Kierownik Produkcji — potem w części C wpisuje się etapy z partiami.</p>
+      )}
     </>
   )
 }

@@ -277,6 +277,7 @@ export const ZKP_ROLE_LABELS: Record<string, string> = {
   kierownik_produkcji: 'Kierownik Produkcji',
   kontroler: 'Kontroler (kontrola odbiorcza)',
   magazyn: 'Magazyn (przyjęcia komponentów)',
+  operator: 'Operator produkcji (etapy, okucia, wypełnienia w karcie wyrobu)',
 }
 
 export const CONFIG_FORM_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'Wewnetrzne'] as const

@@ -29,6 +29,12 @@ alter table public.warehouse_components drop constraint if exists warehouse_comp
 alter table public.warehouse_components add constraint warehouse_components_zkp_critical_kind_check
   check (zkp_critical_kind is null or zkp_critical_kind in ('wklad', 'uszczelka', 'szklo', 'wypelnienie', 'okucie'));
 
+-- Rola ZKP „operator" (26.10, Tymek): wspólne konto hali wpisuje etapy z partiami,
+-- okucia i wypełnienia — bez części A/B (zakres), bez potwierdzeń i zwolnień.
+alter table public.profiles drop constraint if exists profiles_zkp_roles_check;
+alter table public.profiles add constraint profiles_zkp_roles_check
+  check (zkp_roles <@ array['pelnomocnik', 'zastepca', 'kierownik_produkcji', 'kontroler', 'magazyn', 'operator']::text[]);
+
 -- ── 1) Zakresy raportów + tabela K ───────────────────────────────────────
 create table if not exists public.zkp_ranges (
   code               text primary key,
@@ -246,7 +252,7 @@ as $$
   select coalesce((select coalesce(nullif(full_name, ''), nullif(initials, ''), '') from public.profiles where id = auth.uid()), '');
 $$;
 
--- kto wypełnia kartę (etapy, okucia, wypełnienia, część A/B): role ZKP produkcji albo kierownik
+-- kto wypełnia część A/B karty: PJ, Zastępca, KP, kontroler (role ZKP) albo kierownik
 create or replace function public.zkp_can_fill_card()
 returns boolean
 language sql
@@ -256,6 +262,17 @@ set search_path to 'public'
 as $$
   select public.current_user_has_zkp_role(array['pelnomocnik', 'zastepca', 'kierownik_produkcji', 'kontroler'])
          or public.current_user_is_manager();
+$$;
+
+-- kto wpisuje produkcję (etapy C, okucia D, wypełnienia E): jak wyżej + operator produkcji (konto hali)
+create or replace function public.zkp_can_record_card()
+returns boolean
+language sql
+stable
+security definer
+set search_path to 'public'
+as $$
+  select public.zkp_can_fill_card() or public.current_user_has_zkp_role(array['operator']);
 $$;
 
 -- minimalna liczba z progów [[h_max, n], …]; null = wysokość ponad ostatni próg
@@ -481,7 +498,7 @@ declare
   d      jsonb := coalesce(p_data, '{}'::jsonb);
 begin
   if not public.zkp_can_fill_card() then
-    raise exception 'Kartę wyrobu wypełnia Pełnomocnik, Zastępca, Kierownik Produkcji, kontroler (role ZKP) albo kierownik';
+    raise exception 'Część A/B karty (identyfikacja i zakres) wypełnia Pełnomocnik, Zastępca, Kierownik Produkcji, kontroler (role ZKP) albo kierownik — operator produkcji wpisuje tylko etapy, okucia i wypełnienia';
   end if;
   select * into v_con from public.alu_constructions where id = p_construction_id;
   if not found then
@@ -609,8 +626,8 @@ declare
   v_bad   text;
   v_id    bigint;
 begin
-  if not public.zkp_can_fill_card() then
-    raise exception 'Etapy karty wyrobu zapisuje kontroler / Kierownik Produkcji / PJ (role ZKP) albo kierownik';
+  if not public.zkp_can_record_card() then
+    raise exception 'Etapy karty wyrobu wpisuje operator produkcji / kontroler / Kierownik Produkcji / PJ (role ZKP) albo kierownik';
   end if;
   select * into v_card from public.zkp_product_cards where id = p_card_id for update;
   if not found then
@@ -683,8 +700,8 @@ declare
   v_card public.zkp_product_cards;
   v_id   bigint;
 begin
-  if not public.zkp_can_fill_card() then
-    raise exception 'Okucia w karcie wpisuje kontroler / Kierownik Produkcji / PJ (role ZKP) albo kierownik';
+  if not public.zkp_can_record_card() then
+    raise exception 'Okucia w karcie wpisuje operator produkcji / kontroler / Kierownik Produkcji / PJ (role ZKP) albo kierownik';
   end if;
   select * into v_card from public.zkp_product_cards where id = p_card_id for update;
   if not found or v_card.decision is not null then
@@ -716,8 +733,8 @@ declare
   v_range public.zkp_ranges;
   v_id    bigint;
 begin
-  if not public.zkp_can_fill_card() then
-    raise exception 'Wypełnienia w karcie wpisuje kontroler / Kierownik Produkcji / PJ (role ZKP) albo kierownik';
+  if not public.zkp_can_record_card() then
+    raise exception 'Wypełnienia w karcie wpisuje operator produkcji / kontroler / Kierownik Produkcji / PJ (role ZKP) albo kierownik';
   end if;
   select * into v_card from public.zkp_product_cards where id = p_card_id for update;
   if not found or v_card.decision is not null then
@@ -979,6 +996,7 @@ $$;
 -- ── 11) Uprawnienia ──────────────────────────────────────────────────────
 revoke all on function public.zkp_current_user_name() from public, anon;
 revoke all on function public.zkp_can_fill_card() from public, anon;
+revoke all on function public.zkp_can_record_card() from public, anon;
 revoke all on function public.zkp_step_min(jsonb, numeric) from public, anon;
 revoke all on function public.zkp_catalog_allowed(text, text) from public, anon;
 revoke all on function public.zkp_type_code(text, text, int, text, text) from public, anon;
@@ -997,6 +1015,7 @@ revoke all on function public.alu_dossier_status(bigint) from public, anon;
 
 grant execute on function public.zkp_current_user_name() to authenticated, service_role;
 grant execute on function public.zkp_can_fill_card() to authenticated, service_role;
+grant execute on function public.zkp_can_record_card() to authenticated, service_role;
 grant execute on function public.zkp_step_min(jsonb, numeric) to authenticated, service_role;
 grant execute on function public.zkp_catalog_allowed(text, text) to authenticated, service_role;
 grant execute on function public.zkp_type_code(text, text, int, text, text) to authenticated, service_role;

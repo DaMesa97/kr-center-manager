@@ -15,8 +15,8 @@ Karta otwiera się też z wyszukiwarki „od tabliczki" (przycisk przy konstrukc
 |---|---|---|---|
 | A | typ, skrzydła, kierunek, strona, zakres (EI30/EI30S/EI60/EI60S/S), ewakuacja, nad-/doświetle → **kod typu wyrobu** (6.8) | kontroler / KP / PJ / Zastępca / kierownik | kod liczy `zkp_type_code` |
 | B | wymiary skrzydeł, nad-/doświetla, masa, grubość G, zawiasy, trzpienie + 4 potwierdzenia (profile, próg, okucia, konstrukcja mocująca) | jw.; **potwierdza PJ / Zastępca / KP** | **tabela K** w `zkp_ranges`, `zkp_card_checks` — potwierdzenie tylko przy wszystkich „zgodne"; po potwierdzeniu A/B zablokowane (cofnięcie z powodem) |
-| C | 10 etapów (1–7 z wzoru) z nr kat., **partią**, wynikiem, operatorem (inicjały) | kontroler / KP / PJ / kierownik | dopiero po potwierdzeniu zakresu; etapy K z komponentem (wkłady, uszczelki 3a–3d) — partia **przyjęta** (6.24), właściwego rodzaju, nr kat. **z listy 6.10.5 dla zakresu** (inaczej odmowa: „spoza listy = KWARANTANNA"); regulacja — szczeliny A/B/C ≤ limit zakresu; n/d tylko 3b i 3d |
-| D | okucia (9 pozycji wzoru), producent/model, DWU, liczba, warunek, partia | jw. | partia okucia przyjęta |
+| C | 10 etapów (1–7 z wzoru) z nr kat., **partią**, wynikiem, operatorem (inicjały) | **operator produkcji** / kontroler / KP / PJ / kierownik | dopiero po potwierdzeniu zakresu; etapy K z komponentem (wkłady, uszczelki 3a–3d) — partia **przyjęta** (6.24), właściwego rodzaju, nr kat. **z listy 6.10.5 dla zakresu** (inaczej odmowa: „spoza listy = KWARANTANNA"); regulacja — szczeliny A/B/C ≤ limit zakresu; n/d tylko 3b i 3d |
+| D | okucia (9 pozycji wzoru), producent/model, DWU, liczba, warunek, partia | operator produkcji / kontroler / KP / PJ / kierownik | partia okucia przyjęta |
 | E | wypełnienia (czynne/bierne/nadświetle/doświetle), tabela/wiersz, produkt, grubość, wymiary, partia | jw. | grubość w limicie zakresu; partia szkła / wypełnienia przyjęta |
 | F | protokół 6.17.5 nr, decyzja, deklaracja KDWU/DWU, data wydania | **Pełnomocnik / Zastępca** | „zwolniony" tylko bez braków (`zkp_card_release_problems`: etapy OK/n-d, zawiasy i trzpienie wg tabeli K, zamek, wymagane wypełnienia); „niezgodny" wymaga nr rejestru 6.20; po decyzji karta zamknięta |
 
@@ -25,6 +25,13 @@ Kto/kiedy zawsze z serwera; operator to inicjały (konta na hali są wspólne).
 
 **Teczka:** pozycje „Karta wyrobu", „PZ", „RW / partie" = **jest**, gdy wszystkie aktywne konstrukcje zlecenia mają zwolnione
 karty (wcześniej „brak" — blokada wydania zlecenia ZKP działa dalej przez ten sam mechanizm).
+
+## Rola ZKP „Operator produkcji" (decyzja Tymka 26.10)
+
+Nadaje admin w Użytkownikach (sekcja ról ZKP) — np. wspólnemu kontu hali. Daje TYLKO wpisy produkcji: etapy C z partiami,
+okucia D, wypełnienia E (`zkp_can_record_card`). Bez części A/B, potwierdzenia zakresu, cofnięcia i zwolnienia. Konto widzi
+zakładkę ZKP (pozostałe podzakładki tylko do odczytu); okno karty otwiera się od razu na etapach, gdy zakres jest potwierdzony.
+Kto fizycznie wykonał etap — inicjały w polu „operator" (konto jest wspólne).
 
 ## Lista 6.10.5 per zakres
 
@@ -53,7 +60,6 @@ dokument jakości, skan). To odpowiedź na pytanie z inspekcji: tabliczka → 6.
 
 - Kod typu dla zakresu S: `AS75EI-W-S-S-1-–` (klasa „S", odmiana dymoszczelna „S") — 6.8 mówi tylko „w miejscu klasy S".
 - Okno techniczne w kodzie typu jako „W".
-- Kto ma rolę „kontroler" na wspólnym koncie hali — wtedy hala wpisuje etapy sama.
 
 ## Na później
 
