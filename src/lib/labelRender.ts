@@ -88,11 +88,18 @@ export const LABEL_FIELDS: { key: string; label: string; value: (o: Order) => st
 
 // Stolarka aluminiowa: etykieta per SZTUKA pozycji (pozycja z ilością 3 = 3 etykiety
 // „1/3, 2/3, 3/3”). Pola {{alu_*}} czytają pozycję; bez kontekstu alu dają „-”.
-export type AluLabelCtx = { position: AluPosition; piece: number }
+export type AluLabelCtx = {
+  position: AluPosition
+  piece: number
+  /** ZKP 5.9: numer konstrukcji RRRR/ZZ/PP tej sztuki ('' = zlecenie nieuruchomione) */
+  constructionNo?: string
+}
 
 export const ALU_LABEL_FIELDS: { key: string; label: string; value: (o: Order, c: AluLabelCtx) => string }[] = [
   { key: 'alu_poz',          label: 'Alu: nr pozycji',          value: (_o, c) => str(c.position.pos_no) },
   { key: 'alu_sztuka',       label: 'Alu: sztuka (np. 2/5)',     value: (_o, c) => `${c.piece}/${Math.max(1, Number(c.position.quantity) || 1)}` },
+  // ZKP 5.9 — numer nanoszony na elementy w toku produkcji
+  { key: 'alu_nr_konstrukcji', label: 'Alu: nr konstrukcji (RRRR/ZZ/PP)', value: (_o, c) => c.constructionNo ?? '' },
   { key: 'alu_opis',         label: 'Alu: opis pozycji',        value: (_o, c) => str(c.position.description) },
   { key: 'alu_typ',          label: 'Alu: typ konstrukcji',     value: (_o, c) => ALU_CONSTRUCTION_LABELS[c.position.construction_type] ?? str(c.position.construction_type) },
   { key: 'alu_system',       label: 'Alu: system',              value: (_o, c) => str(c.position.system) },

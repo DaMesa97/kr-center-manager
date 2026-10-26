@@ -28,6 +28,7 @@ const SAMPLE_ALU_ORDER = {
 } as unknown as Order
 const SAMPLE_ALU_CTX: AluLabelCtx = {
   piece: 1,
+  constructionNo: '2026/01/01',
   position: {
     id: 1, order_id: 9999, pos_no: 1, created_at: '', production_stages: {},
     description: 'AS75 - drzwi jednoskrzydłowe, otwierane do wewnątrz, lewe', construction_type: 'drzwi',

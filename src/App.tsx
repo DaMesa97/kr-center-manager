@@ -515,6 +515,9 @@ function App() {
   const {
     aluPositionsByOrder,
     documentsByOrder: aluDocumentsByOrder,
+    constructionsByOrder: aluConstructionsByOrder,
+    productionByOrder: aluProductionByOrder,
+    startAluProduction,
     aluLoading,
     fetchAluData,
     importAluOrder,
@@ -2539,6 +2542,9 @@ function App() {
             order={o}
             positions={aluPositionsByOrder[o.id!] ?? []}
             documents={aluDocumentsByOrder[o.id!] ?? []}
+            constructions={aluConstructionsByOrder[o.id!] ?? []}
+            production={aluProductionByOrder[o.id!] ?? null}
+            onStartProduction={() => startAluProduction(o.id!)}
             isManager={isManager}
             uploading={aluUploading}
             onClose={() => setAluDetailsOrderId(null)}

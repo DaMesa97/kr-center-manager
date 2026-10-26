@@ -1221,6 +1221,35 @@ export type AluPosition = Omit<AluLpPosition, 'warnings'> & {
   created_at: string
 }
 
+/** Wiersz alu_production_orders — zlecenie uruchomione do produkcji (ZKP 5.9) */
+export type AluProductionOrder = {
+  id: number
+  order_id: number
+  year: number
+  /** kolejny numer zlecenia aluminium w roku */
+  zz: number
+  started_at: string
+  started_by: string | null
+  started_by_name: string
+}
+
+/** Wiersz alu_constructions — jedna sztuka z numerem RRRR/ZZ/PP (ZKP 5.9) */
+export type AluConstruction = {
+  id: number
+  order_id: number
+  /** null = pozycja usunięta (konstrukcja zostaje jako anulowana) */
+  position_id: number | null
+  pos_no: number
+  piece_index: number
+  year: number
+  zz: number
+  pp: number
+  construction_no: string
+  status: 'aktywna' | 'anulowana'
+  status_reason: string | null
+  created_at: string
+}
+
 /** Pola zlecenia Aluminium trzymane w orders.extra_fields.alu */
 export type AluOrderExtra = {
   lp_number: string

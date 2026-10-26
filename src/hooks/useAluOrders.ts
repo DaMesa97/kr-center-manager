@@ -3,9 +3,11 @@ import { supabase } from '../supabaseClient'
 import { fetchAllPages } from '../lib/fetchPaged'
 import { ORDER_DOCUMENTS_BUCKET } from '../constants'
 import type {
+  AluConstruction,
   AluLpParseResult,
   AluLpPosition,
   AluPosition,
+  AluProductionOrder,
   AluRealizacja,
   OrderDocument,
   OrderDocumentKind,
@@ -110,6 +112,9 @@ export async function openExternalUrl(url: string): Promise<boolean> {
 export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
   const [aluPositionsByOrder, setAluPositionsByOrder] = useState<Record<number, AluPosition[]>>({})
   const [documentsByOrder, setDocumentsByOrder] = useState<Record<number, OrderDocument[]>>({})
+  // ZKP 5.9: numery konstrukcji (sztuki) i uruchomienie zlecenia (rok + ZZ)
+  const [constructionsByOrder, setConstructionsByOrder] = useState<Record<number, AluConstruction[]>>({})
+  const [productionByOrder, setProductionByOrder] = useState<Record<number, AluProductionOrder | null>>({})
   const [aluLoading, setAluLoading] = useState(false)
 
   /**
@@ -163,11 +168,51 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
         documents.push(...docRes.data)
       }
 
+      // Numery konstrukcji osobno i „miękko": błąd (np. migracja ZKP jeszcze
+      // nieuruchomiona) nie może zablokować pozycji i dokumentów.
+      const constructions: AluConstruction[] = []
+      const production: AluProductionOrder[] = []
+      if (!errMsg) {
+        for (const part of chunk(ids, ORDER_ID_CHUNK)) {
+          const [conRes, prodRes] = await Promise.all([
+            fetchAllPages<AluConstruction>((from, to) =>
+              supabase
+                .from('alu_constructions')
+                .select('*')
+                .in('order_id', part)
+                .order('pp', { ascending: true })
+                .range(from, to)
+                .overrideTypes<AluConstruction[], { merge: false }>(),
+            ),
+            supabase.from('alu_production_orders').select('*').in('order_id', part),
+          ])
+          if (conRes.error || prodRes.error) {
+            console.warn('Numery konstrukcji niedostępne:', conRes.error?.message ?? prodRes.error?.message)
+            break
+          }
+          constructions.push(...conRes.data)
+          production.push(...((prodRes.data ?? []) as AluProductionOrder[]))
+        }
+      }
+
       setAluLoading(false)
       if (errMsg) {
         pushToast(`Błąd wczytywania pozycji aluminium: ${errMsg}`, 'error')
         return
       }
+
+      setConstructionsByOrder((prev) => {
+        const next = { ...prev }
+        for (const id of ids) next[id] = []
+        for (const c of constructions) (next[c.order_id] ?? (next[c.order_id] = [])).push(c)
+        return next
+      })
+      setProductionByOrder((prev) => {
+        const next = { ...prev }
+        for (const id of ids) next[id] = null
+        for (const p of production) next[p.order_id] = p
+        return next
+      })
 
       setAluPositionsByOrder((prev) => {
         const next = { ...prev }
@@ -341,11 +386,42 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     [pushToast],
   )
 
+  /**
+   * Uruchomienie zlecenia do produkcji (ZKP 5.9): RPC nadaje kolejny ZZ w roku
+   * i numery RRRR/ZZ/PP każdej sztuce. Ponowne wywołanie zwraca istniejący numer.
+   */
+  const startAluProduction = useCallback(
+    async (orderId: number): Promise<boolean> => {
+      touchSession()
+      const { data, error } = await supabase.rpc('start_alu_production', { p_order_id: orderId })
+      if (error) {
+        pushToast(`Nie udało się uruchomić zlecenia: ${error.message}`, 'error')
+        return false
+      }
+      const row = (data as { r_year: number; r_zz: number; r_count: number; r_already_started: boolean }[] | null)?.[0]
+      if (row) {
+        const zz = row.r_zz < 10 ? `0${row.r_zz}` : String(row.r_zz)
+        pushToast(
+          row.r_already_started
+            ? `Zlecenie było już uruchomione (${row.r_year}/${zz})`
+            : `Uruchomiono do produkcji: ${row.r_year}/${zz} — nadano ${row.r_count} numerów konstrukcji`,
+          'success',
+        )
+      }
+      await fetchAluData([orderId])
+      return true
+    },
+    [pushToast, touchSession, fetchAluData],
+  )
+
   return {
     aluPositionsByOrder,
     setAluPositionsByOrder,
     documentsByOrder,
     setDocumentsByOrder,
+    constructionsByOrder,
+    productionByOrder,
+    startAluProduction,
     aluLoading,
     fetchAluData,
     importAluOrder,

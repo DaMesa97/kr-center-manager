@@ -5,7 +5,8 @@ import { supabase } from '../supabaseClient'
 import { labelPagesHtml, renderLabelBody, renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
 import { ALU_CATEGORY } from '../constants'
 import { formatAluDims } from '../lib/alu'
-import type { AluPosition, Order, ToastVariant } from '../types'
+import { constructionNoForPiece } from '../lib/aluConstructions'
+import type { AluConstruction, AluPosition, Order, ToastVariant } from '../types'
 
 // Etykiety stolarki aluminiowej: JEDNA etykieta na SZTUKĘ pozycji („SZT. 2/5”),
 // jak hala klika sztuki. Wszystkie wybrane sztuki idą jednym zadaniem druku
@@ -14,6 +15,8 @@ import type { AluPosition, Order, ToastVariant } from '../types'
 type Props = {
   order: Order
   positions: AluPosition[]
+  /** ZKP 5.9: numery konstrukcji do pola {{alu_nr_konstrukcji}} */
+  constructions: AluConstruction[]
   onClose: () => void
   pushToast: (message: string, variant: ToastVariant) => void
 }
@@ -24,7 +27,7 @@ const getIpc = (): IpcLike | undefined => (window as Window & { ipcRenderer?: Ip
 
 const PRINTER_LS_KEY = 'labelPrinterName'
 
-export default function AluLabelPrintModal({ order, positions, onClose, pushToast }: Props) {
+export default function AluLabelPrintModal({ order, positions, constructions, onClose, pushToast }: Props) {
   const [templates, setTemplates] = useState<LabelTemplate[]>([])
   const [printers, setPrinters] = useState<WinPrinter[]>([])
   const [templateId, setTemplateId] = useState<number | ''>('')
@@ -69,8 +72,14 @@ export default function AluLabelPrintModal({ order, positions, onClose, pushToas
     () =>
       sorted
         .filter((p) => selected.has(p.id))
-        .flatMap((p) => Array.from({ length: Math.max(1, Number(p.quantity) || 1) }, (_, i) => ({ position: p, piece: i + 1 }))),
-    [sorted, selected],
+        .flatMap((p) =>
+          Array.from({ length: Math.max(1, Number(p.quantity) || 1) }, (_, i) => ({
+            position: p,
+            piece: i + 1,
+            constructionNo: constructionNoForPiece(constructions, p.id, i + 1),
+          })),
+        ),
+    [sorted, selected, constructions],
   )
 
   useEffect(() => {
