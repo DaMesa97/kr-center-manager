@@ -292,6 +292,8 @@ export type CurrentUser = {
   role: string
   department: ProfileDepartment
   categories?: string[]
+  /** role ZKP (ZKP 5.3.2) — np. „nie dotyczy" w teczce tylko PJ/Zastępca/KP */
+  zkp_roles?: string[]
 }
 
 export type ConfigFormCategory = 'STA' | 'Disting' | 'ST' | 'Techniczne' | 'Bastion' | 'Wewnetrzne'
@@ -1262,8 +1264,11 @@ export type AluOrderExtra = {
   weight_kg: number | null
 }
 
-/** LP = lista produkcyjna, LC = lista cięcia (AluronCAD), ZM = zamówienie szyb ZM GLASS (LiczOkno) */
-export type OrderDocumentKind = 'LP' | 'LC' | 'ZM'
+/**
+ * LP = lista produkcyjna, LC = lista cięcia (AluronCAD), ZM = zamówienie szyb ZM GLASS (LiczOkno);
+ * teczka ZKP (5.9): ZK = zamówienie klienta, ZMAT = zamówienie materiałów, MONT = protokół montażu, INNE
+ */
+export type OrderDocumentKind = 'LP' | 'LC' | 'ZM' | 'ZK' | 'ZMAT' | 'MONT' | 'INNE'
 export type OrderDocument = {
   id: number
   order_id: number
@@ -1274,4 +1279,24 @@ export type OrderDocument = {
   file_name: string
   uploaded_by: string | null
   uploaded_at: string
+  /** ZKP 5.1.6: kolejna wersja zamiast nadpisania; bieżąca = najwyższa niewycofana */
+  version: number
+  uploaded_by_name?: string
+  /** wycofanie zamiast usunięcia (zał. 6.34) */
+  withdrawn_at?: string | null
+  withdraw_reason?: string | null
+}
+
+/** Wiersz alu_dossier_status — pozycja teczki zlecenia (ZKP 5.9) */
+export type AluDossierItem = {
+  r_sort: number
+  r_item_key: string
+  r_label: string
+  r_status: 'jest' | 'brak' | 'nie_dotyczy'
+  r_detail: string
+  r_document_id: number | null
+  r_na_id: number | null
+  r_at: string | null
+  r_by: string | null
+  r_na_allowed: boolean
 }

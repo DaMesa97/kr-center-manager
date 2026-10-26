@@ -81,6 +81,9 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
       categories: Array.isArray((data as { categories?: string[] }).categories)
         ? ((data as { categories?: string[] }).categories as string[])
         : [],
+      zkp_roles: Array.isArray((data as { zkp_roles?: string[] }).zkp_roles)
+        ? ((data as { zkp_roles?: string[] }).zkp_roles as string[])
+        : [],
     }
     setCurrentUser(profile)
     setSentryUserFromProfile(profile)

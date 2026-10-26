@@ -2,6 +2,7 @@ import { useMemo, type MutableRefObject } from 'react'
 import DataTable, { type DataTableColumn } from './DataTable'
 import { ALU_CONSTRUCTION_LABELS, ALU_REALIZACJA_LABELS } from '../constants'
 import { aluLoadingDate, aluOrderExtra, aluOrderProgress, formatPlDateWithDow, summarizeAluTypes } from '../lib/alu'
+import { currentDocuments } from '../lib/aluDossier'
 import { countCompletedStages, isReleaseDateEmpty } from '../utils'
 import type { AluPosition, Order, OrderDocument } from '../types'
 
@@ -45,7 +46,8 @@ function deadlineInfo(deadline: string): { label: string; daysLeft: number | nul
 export default function AluOrdersTable({ orders, positionsByOrder, documentsByOrder, loading, onShowDetails, tableWrapperRef }: Props) {
   const columns = useMemo<DataTableColumn<Order>[]>(() => {
     const posOf = (o: Order) => (o.id != null ? positionsByOrder[o.id] ?? [] : [])
-    const docsOf = (o: Order) => (o.id != null ? documentsByOrder[o.id] ?? [] : [])
+    // bieżące wersje (teczka trzyma wszystkie wersje i wycofane dokumenty, ZKP 5.9)
+    const docsOf = (o: Order) => (o.id != null ? currentDocuments(documentsByOrder[o.id] ?? []) : [])
     return [
       {
         key: 'order_number',

@@ -518,6 +518,11 @@ function App() {
     constructionsByOrder: aluConstructionsByOrder,
     productionByOrder: aluProductionByOrder,
     startAluProduction,
+    withdrawOrderDocument,
+    fetchAluDossier,
+    setAluOrderZkp,
+    setDossierNa,
+    revokeDossierNa,
     aluLoading,
     fetchAluData,
     importAluOrder,
@@ -2545,6 +2550,12 @@ function App() {
             constructions={aluConstructionsByOrder[o.id!] ?? []}
             production={aluProductionByOrder[o.id!] ?? null}
             onStartProduction={() => startAluProduction(o.id!)}
+            canDecideZkp={(currentUser?.zkp_roles ?? []).some((r) => ['pelnomocnik', 'zastepca', 'kierownik_produkcji'].includes(r))}
+            onWithdrawDocument={withdrawOrderDocument}
+            fetchDossier={fetchAluDossier}
+            onSetZkp={setAluOrderZkp}
+            onSetNa={setDossierNa}
+            onRevokeNa={revokeDossierNa}
             isManager={isManager}
             uploading={aluUploading}
             onClose={() => setAluDetailsOrderId(null)}

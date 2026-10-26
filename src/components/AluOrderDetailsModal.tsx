@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom'
 import { ALU_REALIZACJA_LABELS } from '../constants'
 import { aluLoadingDate, aluOrderExtra, aluOrderProgress, formatPlDateWithDow } from '../lib/alu'
 import { formatProductionOrderNo } from '../lib/aluConstructions'
+import { currentDocument } from '../lib/aluDossier'
+import AluDossierPanel from './AluDossierPanel'
 import { appConfirm } from '../lib/appDialogs'
 import { isReleaseDateEmpty } from '../utils'
 import AluPositionsTable from './AluPositionsTable'
 import AluLabelPrintModal from './AluLabelPrintModal'
 import type {
-  AluConstruction, AluPosition, AluProductionOrder, Order, OrderDocument, OrderDocumentKind, ToastVariant,
+  AluConstruction, AluDossierItem, AluPosition, AluProductionOrder, Order, OrderDocument, OrderDocumentKind, ToastVariant,
 } from '../types'
 
 // Szczegóły zlecenia aluminium: nagłówek z LP, PDF-y (LP + lista cięcia),
@@ -22,6 +24,13 @@ type Props = {
   constructions: AluConstruction[]
   production: AluProductionOrder | null
   onStartProduction: () => Promise<boolean>
+  /** ZKP 5.9 — teczka zlecenia (wersje dokumentów, kompletność, „nie dotyczy") */
+  canDecideZkp: boolean
+  onWithdrawDocument: (doc: OrderDocument, reason: string) => Promise<boolean>
+  fetchDossier: (orderId: number) => Promise<{ items: AluDossierItem[]; isZkp: boolean; zkpOverride: boolean | null } | null>
+  onSetZkp: (orderId: number, value: boolean | null) => Promise<boolean>
+  onSetNa: (orderId: number, itemKey: string, reason: string) => Promise<boolean>
+  onRevokeNa: (naId: number, reason: string) => Promise<boolean>
   isManager: boolean
   uploading: boolean
   onClose: () => void
@@ -42,15 +51,17 @@ function fmtDate(iso: string | null | undefined): string {
 }
 
 export default function AluOrderDetailsModal({
-  order, positions, documents, constructions, production, onStartProduction, isManager, uploading, onClose,
+  order, positions, documents, constructions, production, onStartProduction, canDecideZkp, onWithdrawDocument,
+  fetchDossier, onSetZkp, onSetNa, onRevokeNa, isManager, uploading, onClose,
   onOpenDocument, onUploadDocument, onReimport, onCancel, canPrintLabels, pushToast,
 }: Props) {
   const [labelsOpen, setLabelsOpen] = useState(false)
   const [starting, setStarting] = useState(false)
   const extra = aluOrderExtra(order)
-  const lp = documents.find((d) => d.kind === 'LP')
-  const lc = documents.find((d) => d.kind === 'LC')
-  const zm = documents.find((d) => d.kind === 'ZM')
+  // bieżące wersje — starsze i wycofane zostają w teczce (ZKP 5.1.6)
+  const lp = currentDocument(documents, 'LP')
+  const lc = currentDocument(documents, 'LC')
+  const zm = currentDocument(documents, 'ZM')
   const lcInputRef = useRef<HTMLInputElement>(null)
   const [pendingKind, setPendingKind] = useState<OrderDocumentKind | null>(null)
   const progress = aluOrderProgress(positions)
@@ -147,10 +158,10 @@ export default function AluOrderDetailsModal({
           {isManager && !cancelled && (
             <>
               <button type="button" className="btn btn-sm btn-primary" disabled={uploading} onClick={() => pickFile('LC')}>
-                {uploading && pendingKind === 'LC' ? 'Wgrywam…' : lc ? 'Zamień listę cięcia' : '+ Dodaj listę cięcia'}
+                {uploading && pendingKind === 'LC' ? 'Wgrywam…' : lc ? 'Nowa wersja listy cięcia' : '+ Dodaj listę cięcia'}
               </button>
               <button type="button" className="btn btn-sm btn-primary" disabled={uploading} onClick={() => pickFile('ZM')} title="Zamówienie szyb do szklarza generowane w LiczOkna">
-                {uploading && pendingKind === 'ZM' ? 'Wgrywam…' : zm ? 'Zamień ZM GLASS' : '+ Dodaj ZM GLASS'}
+                {uploading && pendingKind === 'ZM' ? 'Wgrywam…' : zm ? 'Nowa wersja ZM GLASS' : '+ Dodaj ZM GLASS'}
               </button>
               <button type="button" className="btn btn-sm btn-secondary" onClick={onReimport} title="Wgraj nową wersję listy produkcyjnej — pozycje zostaną nadpisane, oznaczone etapy zostają">
                 Nowa wersja LP…
@@ -188,6 +199,21 @@ export default function AluOrderDetailsModal({
             ))}
           </div>
         )}
+
+        <AluDossierPanel
+          order={order}
+          documents={documents}
+          isManager={isManager}
+          canDecideZkp={canDecideZkp}
+          uploading={uploading}
+          onOpenDocument={onOpenDocument}
+          onUploadDocument={onUploadDocument}
+          onWithdrawDocument={onWithdrawDocument}
+          fetchDossier={fetchDossier}
+          onSetZkp={onSetZkp}
+          onSetNa={onSetNa}
+          onRevokeNa={onRevokeNa}
+        />
         </div>
 
         <div className="order-form-actions">

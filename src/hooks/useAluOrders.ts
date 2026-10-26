@@ -4,6 +4,7 @@ import { fetchAllPages } from '../lib/fetchPaged'
 import { ORDER_DOCUMENTS_BUCKET } from '../constants'
 import type {
   AluConstruction,
+  AluDossierItem,
   AluLpParseResult,
   AluLpPosition,
   AluPosition,
@@ -280,8 +281,8 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
 
   /**
    * PDF do storage (`aluminium/<orderId>/<kind>_<timestamp>.pdf`), potem RPC
-   * attach_order_document (upsert po order_id+kind). Poprzedni plik tego
-   * rodzaju kasowany ze storage. Zwraca wiersz order_documents albo null.
+   * attach_order_document — dopisuje KOLEJNĄ WERSJĘ; poprzednie zostają
+   * (ZKP 5.1.6, teczka 5.9). Zwraca wiersz order_documents albo null.
    */
   const uploadOrderDocument = useCallback(
     async (
@@ -310,15 +311,9 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
       })
       const row = (data as AttachRpcRow[] | null)?.[0]
       if (error || !row) {
-        // plik już w storage, a wpisu brak — sprzątamy, żeby nie zostawiać sierot
-        void bucket.remove([path])
+        // plik bez wpisu w teczce zostaje w storage (usuwanie plików zablokowane, zał. 6.34)
         pushToast(`Nie udało się dopiąć dokumentu do zlecenia: ${error?.message ?? 'brak wyniku'}`, 'error')
         return null
-      }
-
-      if (row.r_replaced_storage_path) {
-        const { error: rmErr } = await bucket.remove([row.r_replaced_storage_path])
-        if (rmErr) pushToast(`Nowy plik zapisany, ale poprzedni nie został usunięty ze storage: ${rmErr.message}`, 'info')
       }
 
       const { data: docs, error: docErr } = await supabase
@@ -337,12 +332,14 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
         file_name: fileName,
         uploaded_by: null,
         uploaded_at: new Date().toISOString(),
+        version: 0,
       }
       if (docErr || !docs) {
-        setDocumentsByOrder((prev) => ({
-          ...prev,
-          [orderId]: [...(prev[orderId] ?? []).filter((d) => d.kind !== kind), fallback],
-        }))
+        setDocumentsByOrder((prev) => {
+          const list = prev[orderId] ?? []
+          const version = Math.max(0, ...list.filter((d) => d.kind === kind).map((d) => d.version ?? 1)) + 1
+          return { ...prev, [orderId]: [...list, { ...fallback, version }] }
+        })
         return fallback
       }
       setDocumentsByOrder((prev) => ({ ...prev, [orderId]: docs }))
@@ -386,6 +383,89 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     [pushToast],
   )
 
+  /** Wycofanie dokumentu z powodem (zamiast usunięcia, zał. 6.34). */
+  const withdrawOrderDocument = useCallback(
+    async (doc: OrderDocument, reason: string): Promise<boolean> => {
+      touchSession()
+      const { error } = await supabase.rpc('withdraw_order_document', { p_document_id: doc.id, p_reason: reason })
+      if (error) {
+        pushToast(`Nie udało się wycofać dokumentu: ${error.message}`, 'error')
+        return false
+      }
+      pushToast(`Wycofano ${doc.file_name}`, 'success')
+      await fetchAluData([doc.order_id])
+      return true
+    },
+    [pushToast, touchSession, fetchAluData],
+  )
+
+  /**
+   * Stan teczki (ZKP 5.9) + czy zlecenie podlega ZKP (AS 75EI) i czy to ręczne
+   * oznaczenie. null = błąd (toast) — np. migracja teczki nieuruchomiona.
+   */
+  const fetchAluDossier = useCallback(
+    async (orderId: number): Promise<{ items: AluDossierItem[]; isZkp: boolean; zkpOverride: boolean | null } | null> => {
+      touchSession()
+      const [stRes, zkpRes, ovRes] = await Promise.all([
+        supabase.rpc('alu_dossier_status', { p_order_id: orderId }),
+        supabase.rpc('alu_order_is_zkp', { p_order_id: orderId }),
+        supabase.from('alu_zkp_override').select('is_zkp').eq('order_id', orderId).maybeSingle(),
+      ])
+      const err = stRes.error ?? zkpRes.error ?? ovRes.error
+      if (err) {
+        pushToast(`Nie udało się wczytać teczki zlecenia: ${err.message}`, 'error')
+        return null
+      }
+      return {
+        items: (stRes.data ?? []) as AluDossierItem[],
+        isZkp: zkpRes.data === true,
+        zkpOverride: (ovRes.data as { is_zkp: boolean } | null)?.is_zkp ?? null,
+      }
+    },
+    [pushToast, touchSession],
+  )
+
+  /** Ręczne oznaczenie zlecenia jako ZKP / nie-ZKP; null = rozpoznanie automatyczne. */
+  const setAluOrderZkp = useCallback(
+    async (orderId: number, value: boolean | null): Promise<boolean> => {
+      touchSession()
+      const { error } = await supabase.rpc('set_alu_order_zkp', { p_order_id: orderId, p_is_zkp: value })
+      if (error) {
+        pushToast(`Nie udało się zmienić oznaczenia ZKP: ${error.message}`, 'error')
+        return false
+      }
+      return true
+    },
+    [pushToast, touchSession],
+  )
+
+  /** „Nie dotyczy" w teczce (PJ / Zastępca / KP, ZKP 5.3.2) — z powodem. */
+  const setDossierNa = useCallback(
+    async (orderId: number, itemKey: string, reason: string): Promise<boolean> => {
+      touchSession()
+      const { error } = await supabase.rpc('set_dossier_na', { p_order_id: orderId, p_item_key: itemKey, p_reason: reason })
+      if (error) {
+        pushToast(`Nie udało się oznaczyć „nie dotyczy": ${error.message}`, 'error')
+        return false
+      }
+      return true
+    },
+    [pushToast, touchSession],
+  )
+
+  const revokeDossierNa = useCallback(
+    async (naId: number, reason: string): Promise<boolean> => {
+      touchSession()
+      const { error } = await supabase.rpc('revoke_dossier_na', { p_na_id: naId, p_reason: reason })
+      if (error) {
+        pushToast(`Nie udało się cofnąć „nie dotyczy": ${error.message}`, 'error')
+        return false
+      }
+      return true
+    },
+    [pushToast, touchSession],
+  )
+
   /**
    * Uruchomienie zlecenia do produkcji (ZKP 5.9): RPC nadaje kolejny ZZ w roku
    * i numery RRRR/ZZ/PP każdej sztuce. Ponowne wywołanie zwraca istniejący numer.
@@ -422,6 +502,11 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     constructionsByOrder,
     productionByOrder,
     startAluProduction,
+    withdrawOrderDocument,
+    fetchAluDossier,
+    setAluOrderZkp,
+    setDossierNa,
+    revokeDossierNa,
     aluLoading,
     fetchAluData,
     importAluOrder,
