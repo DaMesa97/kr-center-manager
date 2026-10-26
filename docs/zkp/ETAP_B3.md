@@ -24,11 +24,11 @@
 uruchomienie, wersje, wycofanie, nowe rodzaje, zdjęte polityki, rozpoznanie ZKP,
 „nie dotyczy" z rolami, stan teczki, blokada wydania).
 
-⏳ **Do wgrania** (konektor zablokowany przez klasyfikator uprawnień — decyzja właściciela).
-Migracja jest bezpieczna dla już zainstalowanych wersji aplikacji: stare wersje dostają
-od bazy pustą „starą ścieżkę", więc przestają kasować poprzednie pliki.
-
-⚠️ **Najpierw migracja, potem wydanie aplikacji** — nowa wersja woła funkcje teczki.
+✅ **Wgrana 26.10.2026 przez konektor** (na polecenie właściciela). Kontrola: istniejące
+dokumenty dostały v1 + autora, zostały tylko polityki odczytu i wgrywania, tabele i triggery
+na miejscu, testowe OF341 (AS75, nie EI) poprawnie nie jest zleceniem ZKP.
+Stare wersje aplikacji dostają od bazy pustą „starą ścieżkę", więc przestały kasować pliki.
+Wydanie aplikacji z panelem teczki jest już bezpieczne.
 
 ## 3. Test dla właściciela (po migracji i wydaniu)
 
