@@ -3005,6 +3005,7 @@ function App() {
             onFormChange={(patch) => setUserForm((p) => ({ ...p, ...patch }))}
             onSave={() => void handleSaveUser()}
             submitOnEnterInInput={submitOnEnterInInput}
+            canEditZkpRoles={isAdminRole(currentUser?.role)}
           />
         )}
 

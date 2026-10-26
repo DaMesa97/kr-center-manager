@@ -245,6 +245,8 @@ export type DbProfileRow = {
   role: string
   department: string
   categories?: string[]
+  /** role w Zakładowej Kontroli Produkcji (ZKP 5.3.2) — niezależne od `role` */
+  zkp_roles?: string[]
 }
 
 export type Profile = DbProfileRow
@@ -279,6 +281,7 @@ export type UserFormState = {
   role: string
   department: 'all' | 'bastion' | 'stalowe' | 'magazyn'
   categories: string[]
+  zkp_roles: string[]
 }
 
 export type CurrentUser = {

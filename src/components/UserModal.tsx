@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import type { UserFormState } from '../types'
 import { ROLE_LABELS, isCategoryScoped } from '../lib/permissions'
+import { ZKP_ROLE_LABELS } from '../constants'
 
 // 'kierownik_firmowy' scalony z 'kierownik_produkcji' (identyczne uprawnienia)
 // — nie przydzielamy go już; w kodzie zostaje dla zgodności wstecznej
@@ -19,6 +20,8 @@ type UserModalProps = {
   onFormChange: (patch: Partial<UserFormState>) => void
   onSave: () => void
   submitOnEnterInInput: (e: React.KeyboardEvent<HTMLElement>, action: () => void) => void
+  /** role ZKP zmienia tylko admin (trigger protect_profile_privileges) */
+  canEditZkpRoles: boolean
 }
 
 export default function UserModal({
@@ -30,6 +33,7 @@ export default function UserModal({
   onFormChange,
   onSave,
   submitOnEnterInInput,
+  canEditZkpRoles,
 }: UserModalProps) {
   if (!open) return null
 
@@ -137,6 +141,37 @@ export default function UserModal({
               Ta rola ma dostęp do wszystkich kategorii (kierownicy/admin) lub bez kategorii (magazynier/obsługa).
             </p>
           )}
+          {/* ZKP 5.3.2 — role w kontroli produkcji AS 75EI, niezależne od roli w aplikacji */}
+          <label className="order-field-full">
+            <span className="order-field-label-text">Role ZKP (AS 75EI)</span>
+            <div className="user-cat-picker">
+              {Object.entries(ZKP_ROLE_LABELS).map(([key, label]) => {
+                const checked = userForm.zkp_roles.includes(key)
+                return (
+                  <label key={key} className={`user-cat-chip ${checked ? 'user-cat-chip--on' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={userModalSaving || !canEditZkpRoles}
+                      onChange={(e) =>
+                        onFormChange({
+                          zkp_roles: e.target.checked
+                            ? [...userForm.zkp_roles, key]
+                            : userForm.zkp_roles.filter((x) => x !== key),
+                        })
+                      }
+                    />
+                    {label}
+                  </label>
+                )
+              })}
+            </div>
+            <span className="user-modal-hint">
+              {canEditZkpRoles
+                ? 'Uprawnienia do zatwierdzeń w zapisach ZKP stolarki AS 75EI.'
+                : 'Role ZKP może zmieniać tylko administrator.'}
+            </span>
+          </label>
         </div>
         <div className="order-form-actions">
           <button

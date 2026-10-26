@@ -265,6 +265,17 @@ export const INITIAL_USER_FORM: UserFormState = {
   role: 'pracownik_produkcji',
   department: 'all',
   categories: [],
+  zkp_roles: [],
+}
+
+// Role w Zakładowej Kontroli Produkcji AS 75EI (ZKP 5.3.2, pkt 10.2 briefu).
+// Klucze = CHECK profiles_zkp_roles_check (migrate/zkp_00_fundament.sql).
+export const ZKP_ROLE_LABELS: Record<string, string> = {
+  pelnomocnik: 'Pełnomocnik ZKP',
+  zastepca: 'Zastępca Pełnomocnika',
+  kierownik_produkcji: 'Kierownik Produkcji',
+  kontroler: 'Kontroler (kontrola odbiorcza)',
+  magazyn: 'Magazyn (przyjęcia komponentów)',
 }
 
 export const CONFIG_FORM_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'Wewnetrzne'] as const
