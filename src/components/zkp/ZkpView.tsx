@@ -5,13 +5,15 @@ import { zkpCanDecide, zkpCanReceive } from '../../lib/zkp'
 import ZkpReceiptsPanel from './ZkpReceiptsPanel'
 import ZkpSuppliersPanel from './ZkpSuppliersPanel'
 import ZkpCriticalPanel from './ZkpCriticalPanel'
+import ZkpTracePanel from './ZkpTracePanel'
 import type { CurrentUser, ToastVariant } from '../../types'
 
 // Zakładka ZKP AS 75EI — etap F: przyjęcia komponentów krytycznych z partiami
 // (zał. 6.24), wykaz dostawców kwalifikowanych (6.31), lista komponentów
 // krytycznych (6.10.5). Zapis wyłącznie funkcjami bazy (role ZKP na koncie).
+// Pierwsza podzakładka: wyszukiwarka „od tabliczki” + eksport teczki (tylko odczyt).
 
-type Sub = 'przyjecia' | 'dostawcy' | 'komponenty'
+type Sub = 'tabliczka' | 'przyjecia' | 'dostawcy' | 'komponenty'
 
 type Props = {
   currentUser: CurrentUser | null
@@ -19,7 +21,7 @@ type Props = {
 }
 
 export default function ZkpView({ currentUser, pushToast }: Props) {
-  const [sub, setSub] = useState<Sub>('przyjecia')
+  const [sub, setSub] = useState<Sub>('tabliczka')
   const zkp = useZkp(pushToast, true)
   const roles = currentUser?.zkp_roles ?? []
   const canReceive = zkpCanReceive(roles)
@@ -42,6 +44,7 @@ export default function ZkpView({ currentUser, pushToast }: Props) {
     <div className="zkp-view">
       <div className="zkp-view-head">
         <div className="subtab-bar" role="tablist" aria-label="ZKP — sekcje">
+          {tab('tabliczka', 'Szukaj po tabliczce')}
           {tab('przyjecia', `Przyjęcia i partie (6.24)${quarantine ? ` · kwarantanna ${quarantine}` : ''}`)}
           {tab('dostawcy', 'Dostawcy kwalifikowani (6.31)')}
           {tab('komponenty', 'Komponenty krytyczne (6.10.5)')}
@@ -52,6 +55,7 @@ export default function ZkpView({ currentUser, pushToast }: Props) {
         </span>
       </div>
 
+      {sub === 'tabliczka' && <ZkpTracePanel pushToast={pushToast} />}
       {sub === 'przyjecia' && <ZkpReceiptsPanel zkp={zkp} canReceive={canReceive} canDecide={canDecide} onGoTo={setSub} />}
       {sub === 'dostawcy' && <ZkpSuppliersPanel zkp={zkp} canEdit={canDecide} />}
       {sub === 'komponenty' && <ZkpCriticalPanel zkp={zkp} canEdit={canDecide} />}

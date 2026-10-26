@@ -8241,3 +8241,11 @@ html, body, #root {
 .zkp-history { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .zkp-history th, .zkp-history td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #e2e8f0; }
 .zkp-history th { color: #64748b; font-weight: 600; }
+/* ZKP — wyszukiwarka „od tabliczki" */
+.zkp-trace-input { flex: 1 1 320px; max-width: 520px; padding: 8px 12px; font-size: 1rem; border: 1px solid #cbd5e1; border-radius: 8px; }
+.zkp-trace-result { display: flex; flex-direction: column; gap: 6px; }
+.zkp-trace-hero { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.zkp-trace-no { font-size: 1.6rem; font-weight: 800; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.zkp-trace-h { font-size: 0.95rem; margin: 14px 0 4px; color: #1e293b; }
+.zkp-trace-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.zkp-trace-chip { border: none; cursor: pointer; font-variant-numeric: tabular-nums; }

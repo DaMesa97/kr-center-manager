@@ -228,6 +228,7 @@ export default function AluOrderDetailsModal({
           onSetZkp={onSetZkp}
           onSetNa={onSetNa}
           onRevokeNa={onRevokeNa}
+          pushToast={pushToast}
         />
         </div>
 

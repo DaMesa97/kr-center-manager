@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { appAlert, appPrompt } from '../lib/appDialogs'
 import { DOC_KIND_LABELS, DOSSIER_UPLOAD_KINDS, documentVersions } from '../lib/aluDossier'
-import type { AluDossierItem, Order, OrderDocument, OrderDocumentKind } from '../types'
+import DossierExportButton from './DossierExportButton'
+import type { AluDossierItem, Order, OrderDocument, OrderDocumentKind, ToastVariant } from '../types'
 
 // Teczka zlecenia aluminium (ZKP 5.9): lista dokumentów „jest / brak / nie dotyczy"
 // (tylko dla zleceń ZKP = AS 75EI) i historia WSZYSTKICH wersji dokumentów —
@@ -24,6 +25,8 @@ type Props = {
   onSetZkp: (orderId: number, value: boolean | null) => Promise<boolean>
   onSetNa: (orderId: number, itemKey: string, reason: string) => Promise<boolean>
   onRevokeNa: (naId: number, reason: string) => Promise<boolean>
+  /** eksport teczki (ZIP dla audytora) — brak = bez przycisku */
+  pushToast?: (message: string, variant: ToastVariant) => void
 }
 
 const STATUS_LABELS: Record<AluDossierItem['r_status'], string> = {
@@ -45,7 +48,7 @@ function fmt(iso: string | null | undefined): string {
 
 export default function AluDossierPanel({
   order, documents, isManager, canDecideZkp, uploading, onOpenDocument, onUploadDocument, onWithdrawDocument,
-  fetchDossier, onSetZkp, onSetNa, onRevokeNa,
+  fetchDossier, onSetZkp, onSetNa, onRevokeNa, pushToast,
 }: Props) {
   const orderId = order.id!
   const [data, setData] = useState<DossierData | null>(null)
@@ -136,6 +139,7 @@ export default function AluDossierPanel({
             <option value="nie">ZKP: nie</option>
           </select>
         )}
+        {pushToast && documents.length > 0 && <DossierExportButton orderId={orderId} pushToast={pushToast} />}
       </div>
 
       {data?.isZkp && (
