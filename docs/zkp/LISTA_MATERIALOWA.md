@@ -25,5 +25,13 @@ pozycje, pozycja bez kodu, ilość jako tekst, zlecenie spoza aluminium → bł�
 nie zostawia dokumentu; v1/v2 z pozycjami; teczka LM przed LP, po wycofaniu v2 → v1; audyt
 i retencja.
 
+Wdrożenie 26.10.2026 (przez konektor, na polecenie właściciela „wgraj zkp_03 i 04”):
+przed wgraniem sprawdzone, że ostatnią migracją w bazie jest zkp_02 i że nadpisywane funkcje
+(`attach_order_document`, `alu_dossier_status`, `cleanup_old_logs`) mają logikę z zkp_02.
+Po wgraniu: tabele zkp_* z RLS tylko do odczytu, triggery audytu, funkcje bez dostępu dla
+anon, rodzaj LM w CHECK, bucket przyjmuje xls/xlsx, pozycja 4 teczki z nową etykietą.
+Advisor bezpieczeństwa — tylko standardowe ostrzeżenie o funkcjach SECURITY DEFINER
+wywoływalnych przez zalogowanych (uprawnienia sprawdzane wewnątrz funkcji).
+
 Dalej: przyjęcia komponentów krytycznych (etap F) podpowiadają pozycje z bieżącej listy
 materiałowej zlecenia.
