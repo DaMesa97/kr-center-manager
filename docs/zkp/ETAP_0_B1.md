@@ -18,18 +18,24 @@
 | Uruchomionego zlecenia nie da się skasować (klucz obcy RESTRICT) | ZKP 5.9, pkt 10.4 |
 | Pole etykiety `{{alu_nr_konstrukcji}}` na etykiecie sztuki | ZKP 5.9 (numer na elementach w toku) |
 
-## 2. Migracje — uruchom w tej kolejności (SQL Editor)
+## 2. Migracje
+
+✅ **Wykonane 26.10.2026 przez konektor Supabase** (na polecenie właściciela), w kolejności:
 
 1. `migrate/zkp_00_fundament.sql`
 2. `migrate/zkp_01_numer_konstrukcji.sql`
+
+Kontrola po wdrożeniu: 3 tabele, `profiles.zkp_roles`, 7 triggerów, 3 funkcje, polityki
+tylko do odczytu, archiwizacja i retencja pomijają aluminium; doradca bezpieczeństwa
+Supabase bez nowych uwag. Istniejące zlecenie testowe nietknięte (nieuruchomione).
 
 Obie są bezpieczne do ponownego uruchomienia; na końcu każdej jest zapytanie kontrolne.
 Przetestowane na lokalnym, jednorazowym Postgresie 18 (atrapy tabel produkcyjnych):
 kryterium odbioru z briefu, zmiany ilości, usuwanie pozycji, anulowanie/przywracanie,
 brak uprawnień, próba skasowania, archiwizacja, retencja, role ZKP — wszystko zgodne.
 
-⚠️ **Najpierw migracje, potem wydanie aplikacji.** Nowa wersja zapisuje `zkp_roles`
-przy edycji użytkownika — bez kolumny w bazie zapis profilu by się wywalił.
+Migracje są w bazie, więc wydanie aplikacji (UI ról ZKP, przycisk uruchomienia,
+numery w szczegółach, pole etykiety) jest już bezpieczne.
 
 ⚠️ **Czyszczenie bazy przed startem:** licznik ZZ to tabela `alu_order_counters`.
 Jeśli testowo uruchomisz zlecenie teraz, dostanie `2026/01`. Przy czyszczeniu bazy
