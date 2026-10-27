@@ -14,6 +14,7 @@ import {
   type ZkpSupplierAssessment,
   type ZkpSupplierQualification,
 } from '../lib/zkp'
+import type { ZkpCompetency, ZkpOperation, ZkpPerson } from '../lib/zkpCard'
 import type { ToastVariant } from '../types'
 
 // Dane etapu F ZKP. Odczyt — tabele (RLS: odczyt dla zalogowanych), zapis — WYŁĄCZNIE
@@ -47,11 +48,14 @@ export function useZkp(pushToast: (message: string, variant: ToastVariant) => vo
   const [qualifications, setQualifications] = useState<ZkpSupplierQualification[]>([])
   const [assessments, setAssessments] = useState<ZkpSupplierAssessment[]>([])
   const [lots, setLots] = useState<ZkpMaterialLot[]>([])
+  // zał. 6.1 / 6.27: osoby (profile z inicjałami) i ich uprawnienia do operacji
+  const [people, setPeople] = useState<ZkpPerson[]>([])
+  const [competencies, setCompetencies] = useState<ZkpCompetency[]>([])
   const mountedRef = useRef(true)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [compRes, supRes, qualRes, assRes, lotRes] = await Promise.all([
+    const [compRes, supRes, qualRes, assRes, lotRes, peopleRes, cmpRes] = await Promise.all([
       fetchAllPages<ZkpComponent>((from, to) =>
         supabase
           .from('warehouse_components')
@@ -82,15 +86,23 @@ export function useZkp(pushToast: (message: string, variant: ToastVariant) => vo
           .order('id', { ascending: false })
           .range(from, to),
       ),
+      fetchAllPages<ZkpPerson>((from, to) =>
+        supabase.from('profiles').select('id, initials, full_name, zkp_position').order('initials').range(from, to),
+      ),
+      fetchAllPages<ZkpCompetency>((from, to) =>
+        supabase.from('zkp_competencies').select('*').order('id').range(from, to),
+      ),
     ])
     if (!mountedRef.current) return
-    const err = compRes.error ?? supRes.error ?? qualRes.error ?? assRes.error ?? lotRes.error
+    const err = compRes.error ?? supRes.error ?? qualRes.error ?? assRes.error ?? lotRes.error ?? peopleRes.error ?? cmpRes.error
     if (err) pushToast(`Nie wczytano danych ZKP: ${err.message}`, 'error')
     setComponents(compRes.data)
     setSuppliers(supRes.data)
     setQualifications(qualRes.data)
     setAssessments(assRes.data)
     setLots(lotRes.data.map((l) => ({ ...l, quantity: Number(l.quantity), qty_issued: Number(l.qty_issued) })))
+    setPeople(peopleRes.data.filter((p) => (p.initials ?? '').trim() !== '').map((p) => ({ ...p, full_name: p.full_name ?? '' })))
+    setCompetencies(cmpRes.data)
     setLoading(false)
   }, [pushToast])
 
@@ -284,6 +296,26 @@ export function useZkp(pushToast: (message: string, variant: ToastVariant) => vo
     [run],
   )
 
+  /** Matryca kompetencji 6.27 — nadanie uprawnienia (Pełnomocnik / Zastępca). */
+  const grantCompetency = useCallback(
+    async (profileId: string, operation: ZkpOperation, grantedOn: string, basis: string): Promise<boolean> => {
+      const res = await run(
+        () => supabase.rpc('zkp_grant_competency', { p_profile_id: profileId, p_operation: operation, p_granted_on: grantedOn, p_basis: basis }),
+        'Uprawnienie nadane (zał. 6.27)',
+      )
+      return res !== false
+    },
+    [run],
+  )
+
+  const withdrawCompetency = useCallback(
+    async (id: number, reason: string): Promise<boolean> => {
+      const res = await run(() => supabase.rpc('zkp_withdraw_competency', { p_id: id, p_reason: reason }), 'Uprawnienie wycofane')
+      return res !== false
+    },
+    [run],
+  )
+
   return {
     loading,
     saving,
@@ -292,6 +324,10 @@ export function useZkp(pushToast: (message: string, variant: ToastVariant) => vo
     qualifications,
     assessments,
     lots,
+    people,
+    competencies,
+    grantCompetency,
+    withdrawCompetency,
     reload: load,
     openScan,
     registerReceipt,

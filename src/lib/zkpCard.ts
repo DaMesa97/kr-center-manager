@@ -7,7 +7,8 @@
 import type { ZkpCriticalKind, ZkpMaterialLot, ZkpComponent } from './zkp'
 
 export type ZkpRangeCode = 'EI30' | 'EI30S' | 'EI60' | 'EI60S' | 'S'
-export type ZkpProductType = 'drzwi_wewn' | 'drzwi_zewn' | 'okno'
+/** okna techniczne poza zakresem ZKP (brief pkt 5) */
+export type ZkpProductType = 'drzwi_wewn' | 'drzwi_zewn'
 export type ZkpOpening = 'do_wewnatrz' | 'na_zewnatrz'
 export type ZkpEvacuation = 'nie' | 'EN179' | 'EN1125'
 export type ZkpLight = 'brak' | 'nadswietle' | 'doswietle_L' | 'doswietle_P'
@@ -179,7 +180,6 @@ export type ZkpRegisterRow = {
 export const ZKP_PRODUCT_TYPE_LABELS: Record<ZkpProductType, string> = {
   drzwi_wewn: 'Drzwi wewnętrzne',
   drzwi_zewn: 'Drzwi zewnętrzne',
-  okno: 'Okno techniczne',
 }
 export const ZKP_OPENING_LABELS: Record<ZkpOpening, string> = { do_wewnatrz: 'do wewnątrz', na_zewnatrz: 'na zewnątrz' }
 export const ZKP_EVACUATION_LABELS: Record<ZkpEvacuation, string> = { nie: 'nie', EN179: 'PN-EN 179', EN1125: 'PN-EN 1125' }
@@ -194,10 +194,68 @@ export type ZkpStageKey =
   | 'ciecie' | 'wklady' | 'usz_skrzydlo' | 'usz_prog' | 'usz_wypelnienie' | 'usz_styk'
   | 'laczenie' | 'okucia' | 'szklenie' | 'regulacja'
 
+/** Operacje z matrycy kompetencji (zał. 6.27) — instrukcje stanowiskowe, kontrola odbiorcza, montaż */
+export type ZkpOperation = 'IS-01' | 'IS-02' | 'IS-03' | 'IS-04' | 'IS-05' | 'IS-06' | 'kontrola_odbiorcza' | 'montaz'
+
+export const ZKP_OPERATIONS: Array<{ key: ZkpOperation; label: string; short: string }> = [
+  { key: 'IS-01', label: 'IS-01 Cięcie i obróbka (CNC, piła)', short: 'IS-01' },
+  { key: 'IS-02', label: 'IS-02 Wkłady ogniochronne', short: 'IS-02' },
+  { key: 'IS-03', label: 'IS-03 Uszczelki pęczniejące, łączenie', short: 'IS-03' },
+  { key: 'IS-04', label: 'IS-04 Okucia', short: 'IS-04' },
+  { key: 'IS-05', label: 'IS-05 Szklenie / wypełnienia', short: 'IS-05' },
+  { key: 'IS-06', label: 'IS-06 Regulacja', short: 'IS-06' },
+  { key: 'kontrola_odbiorcza', label: 'Kontrola odbiorcza (6.17.5)', short: 'Kontrola' },
+  { key: 'montaz', label: 'Montaż (6.28)', short: 'Montaż' },
+]
+
+/** Stanowiska wg zał. 6.1 (skład zakładu) */
+export type ZkpPosition = 'wlasciciel' | 'pelnomocnik_kp' | 'zastepca' | 'operator_cnc' | 'monter' | 'pomocnik'
+export const ZKP_POSITION_LABELS: Record<ZkpPosition, string> = {
+  wlasciciel: 'Właściciel',
+  pelnomocnik_kp: 'Pełnomocnik ZKP / Kierownik Produkcji',
+  zastepca: 'Zastępca Pełnomocnika',
+  operator_cnc: 'Operator CNC i piły',
+  monter: 'Monter',
+  pomocnik: 'Pomocnik montera',
+}
+
+export type ZkpCompetency = {
+  id: number
+  profile_id: string
+  operation: ZkpOperation
+  granted_on: string
+  basis: string
+  granted_by_name: string
+  created_at: string
+  withdrawn_at: string | null
+  withdrawn_by_name: string
+  withdraw_reason: string | null
+}
+
+export type ZkpPerson = { id: string; initials: string; full_name: string; zkp_position: ZkpPosition | null }
+
+/** Osoby z aktywnym uprawnieniem do operacji (podpis etapu — zał. 6.27). */
+export function peopleWithCompetency(people: ZkpPerson[], competencies: ZkpCompetency[], operation: ZkpOperation): ZkpPerson[] {
+  const ids = new Set(competencies.filter((c) => c.operation === operation && !c.withdrawn_at).map((c) => c.profile_id))
+  return people.filter((p) => ids.has(p.id)).sort((a, b) => a.initials.localeCompare(b.initials, 'pl'))
+}
+
+const POSITION_ORDER: Record<string, number> = { wlasciciel: 0, pelnomocnik_kp: 1, zastepca: 2, operator_cnc: 3, monter: 4, pomocnik: 5 }
+
+/** Wiersze matrycy 6.27: osoby ze stanowiskiem ZKP albo z jakimkolwiek uprawnieniem (reszta po zaznaczeniu „wszyscy"). */
+export function matrixPeople(people: ZkpPerson[], competencies: ZkpCompetency[], all: boolean): ZkpPerson[] {
+  const withAny = new Set(competencies.map((c) => c.profile_id))
+  return people
+    .filter((p) => all || p.zkp_position || withAny.has(p.id))
+    .sort((a, b) => (POSITION_ORDER[a.zkp_position ?? ''] ?? 9) - (POSITION_ORDER[b.zkp_position ?? ''] ?? 9) || a.initials.localeCompare(b.initials, 'pl'))
+}
+
 export type ZkpStageDef = {
   key: ZkpStageKey
   no: string
   label: string
+  /** operacja z matrycy 6.27, którą podpisuje operator etapu — lustro zkp_stage_operation */
+  operation: ZkpOperation
   /** etap krytyczny (K) — oznaczenie z zał. 6.25 */
   critical: boolean
   /** rodzaj komponentu partii — partia obowiązkowa przy OK, nr katalogowy z listy 6.10.5 zakresu */
@@ -207,16 +265,16 @@ export type ZkpStageDef = {
 }
 
 export const ZKP_STAGES: ZkpStageDef[] = [
-  { key: 'ciecie', no: '1', label: 'Cięcie i obróbka (IS-01)', critical: false, lotKind: null, allowNa: false },
-  { key: 'wklady', no: '2', label: 'Wkłady ogniochronne (IS-02) — wg 6.10.5 B.5', critical: true, lotKind: 'wklad', allowNa: false },
-  { key: 'usz_skrzydlo', no: '3a', label: 'Uszczelki pęczniejące — obwiednia skrzydła (IS-03)', critical: true, lotKind: 'uszczelka', allowNa: false },
-  { key: 'usz_prog', no: '3b', label: 'Uszczelki pęczniejące — ramiak progowy / próg (IS-03)', critical: true, lotKind: 'uszczelka', allowNa: true },
-  { key: 'usz_wypelnienie', no: '3c', label: 'Uszczelki pęczniejące — obwiednia wypełnienia (IS-03)', critical: true, lotKind: 'uszczelka', allowNa: false },
-  { key: 'usz_styk', no: '3d', label: 'Uszczelki pęczniejące — styk z profilem odwracającym / ścianą (IS-03)', critical: true, lotKind: 'uszczelka', allowNa: true },
-  { key: 'laczenie', no: '4', label: 'Łączenie profili, uszczelki przymykowe, narożniki, próg (IS-03)', critical: false, lotKind: null, allowNa: false },
-  { key: 'okucia', no: '5', label: 'Okucia (IS-04) — wg cz. D', critical: true, lotKind: null, allowNa: false },
-  { key: 'szklenie', no: '6', label: 'Szklenie / wypełnienie (IS-05) — wg cz. E', critical: true, lotKind: null, allowNa: false },
-  { key: 'regulacja', no: '7', label: 'Regulacja (IS-06) — szczeliny A/B/C', critical: true, lotKind: null, allowNa: false },
+  { key: 'ciecie', no: '1', label: 'Cięcie i obróbka (IS-01)', operation: 'IS-01', critical: false, lotKind: null, allowNa: false },
+  { key: 'wklady', no: '2', label: 'Wkłady ogniochronne (IS-02) — wg 6.10.5 B.5', operation: 'IS-02', critical: true, lotKind: 'wklad', allowNa: false },
+  { key: 'usz_skrzydlo', no: '3a', label: 'Uszczelki pęczniejące — obwiednia skrzydła (IS-03)', operation: 'IS-03', critical: true, lotKind: 'uszczelka', allowNa: false },
+  { key: 'usz_prog', no: '3b', label: 'Uszczelki pęczniejące — ramiak progowy / próg (IS-03)', operation: 'IS-03', critical: true, lotKind: 'uszczelka', allowNa: true },
+  { key: 'usz_wypelnienie', no: '3c', label: 'Uszczelki pęczniejące — obwiednia wypełnienia (IS-03)', operation: 'IS-03', critical: true, lotKind: 'uszczelka', allowNa: false },
+  { key: 'usz_styk', no: '3d', label: 'Uszczelki pęczniejące — styk z profilem odwracającym / ścianą (IS-03)', operation: 'IS-03', critical: true, lotKind: 'uszczelka', allowNa: true },
+  { key: 'laczenie', no: '4', label: 'Łączenie profili, uszczelki przymykowe, narożniki, próg (IS-03)', operation: 'IS-03', critical: false, lotKind: null, allowNa: false },
+  { key: 'okucia', no: '5', label: 'Okucia (IS-04) — wg cz. D', operation: 'IS-04', critical: true, lotKind: null, allowNa: false },
+  { key: 'szklenie', no: '6', label: 'Szklenie / wypełnienie (IS-05) — wg cz. E', operation: 'IS-05', critical: true, lotKind: null, allowNa: false },
+  { key: 'regulacja', no: '7', label: 'Regulacja (IS-06) — szczeliny A/B/C', operation: 'IS-06', critical: true, lotKind: null, allowNa: false },
 ]
 
 export type ZkpHardwareSlot =
@@ -319,12 +377,12 @@ export function cardStatus(row: { card_id: number | null; range_confirmed: boole
   return row.range_confirmed ? 'zakres' : 'szkic'
 }
 
-/** Formularz A/B z karty (albo pusty, z podpowiedziami z pozycji LP). */
-export function cardToForm(card: ZkpProductCard | null, hint?: { construction_type?: string; width_mm?: number | null; height_mm?: number | null }): ZkpCardForm {
+/** Formularz A/B z karty (albo pusty). Typ zawsze wybiera człowiek — okna techniczne są poza ZKP. */
+export function cardToForm(card: ZkpProductCard | null): ZkpCardForm {
   const n = (v: number | null | undefined) => (v == null ? '' : String(v))
   if (!card) {
     return {
-      product_type: hint?.construction_type === 'okno' ? 'okno' : '',
+      product_type: '',
       leaves: '', opening: '', hand: '', range_code: '', evacuation: 'nie', light: 'brak',
       active_w: '', active_h: '', passive_w: '', passive_h: '', light_w: '', light_h: '',
       leaf_mass_kg: '', fill_thickness_mm: '', hinges_count: '', pins_count: '',

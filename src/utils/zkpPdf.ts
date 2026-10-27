@@ -2,13 +2,14 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import type { TDocumentDefinitions } from 'pdfmake/interfaces'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import {
+  buildMatrix627Definition,
   buildProductCardDefinition,
   buildRegister624Definition,
   buildRegister633Definition,
   type Register624Input,
 } from '../lib/zkpPrint'
 import type { ZkpCardData } from '../hooks/useZkpCards'
-import type { ZkpRange, ZkpRegisterRow } from '../lib/zkpCard'
+import type { ZkpCompetency, ZkpPerson, ZkpRange, ZkpRegisterRow } from '../lib/zkpCard'
 import type { ZkpCardTarget } from '../components/zkp/ZkpCardModal'
 import type { ZkpData } from '../components/zkp/ZkpView'
 
@@ -41,6 +42,10 @@ export function printProductCardPdf(target: ZkpCardTarget, data: ZkpCardData, ra
 
 export function printRegister633Pdf(rows: ZkpRegisterRow[], title: string) {
   pdfMakeRuntime.createPdf(buildRegister633Definition(rows, title, new Date())).download(`Rejestr_wyrobow_6.33_${new Date().toLocaleDateString('sv-SE')}.pdf`)
+}
+
+export function printMatrix627Pdf(people: ZkpPerson[], competencies: ZkpCompetency[]) {
+  pdfMakeRuntime.createPdf(buildMatrix627Definition(people, competencies, new Date())).download(`Matryca_kompetencji_6.27_${new Date().toLocaleDateString('sv-SE')}.pdf`)
 }
 
 export function printRegister624Pdf(input: Register624Input) {

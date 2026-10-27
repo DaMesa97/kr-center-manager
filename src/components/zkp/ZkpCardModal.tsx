@@ -14,6 +14,7 @@ import {
   cardToForm,
   latestBy,
   lotsForStage,
+  peopleWithCompetency,
   requiredFillingFields,
   zkpTypeCode,
   type ZkpCardForm,
@@ -169,9 +170,9 @@ function SectionAB({ api, target, canFill, canConfirm, onChanged }: {
 }) {
   const card = api.data?.card ?? null
   const confirmed = !!card?.range_confirmed_at
-  const [f, setF] = useState<ZkpCardForm>(() => cardToForm(card, target.position ?? undefined))
+  const [f, setF] = useState<ZkpCardForm>(() => cardToForm(card))
   useEffect(() => {
-    setF(cardToForm(card, target.position ?? undefined))
+    setF(cardToForm(card))
   }, [card, target.position])
   const set = <K extends keyof ZkpCardForm>(k: K, v: ZkpCardForm[K]) => setF((p) => ({ ...p, [k]: v }))
   const editable = canFill && !confirmed
@@ -415,6 +416,8 @@ function StageEditor({ def, api, zkp, onCancel, onSave }: {
   const [gaps, setGaps] = useState<ZkpGaps>(emptyGaps)
   const [notes, setNotes] = useState('')
   const [operator, setOperator] = useState('')
+  // zał. 6.27: etap podpisuje tylko osoba z aktywnym uprawnieniem do operacji — baza sprawdza to samo
+  const signers = useMemo(() => peopleWithCompetency(zkp.people, zkp.competencies, def.operation), [zkp.people, zkp.competencies, def.operation])
   const pickLot = (id: string) => {
     setLotId(id)
     const l = lots.find((x) => String(x.id) === id)
@@ -424,7 +427,8 @@ function StageEditor({ def, api, zkp, onCancel, onSave }: {
     ? (['A', 'B', 'C'] as const).flatMap((g) => ZKP_GAP_SIDES.filter((s) => (gaps[g][s.key] ?? 0) > range.gaps[g][s.key]).map((s) => `${g} ${s.label}`))
     : []
   const problems = [
-    !operator.trim() && 'Podaj operatora (inicjały).',
+    signers.length === 0 && `Nikt nie ma uprawnienia do ${def.operation} w matrycy kompetencji (6.27) — nadaje Pełnomocnik ZKP.`,
+    signers.length > 0 && !operator && 'Wybierz operatora.',
     def.lotKind && result === 'OK' && !lotId && 'Wybierz partię.',
     def.key === 'regulacja' && result === 'OK' && (['A', 'B', 'C'] as const).some((g) => ZKP_GAP_SIDES.some((s) => gaps[g][s.key] == null)) && 'Wpisz wszystkie szczeliny.',
     overLimit.length > 0 && result === 'OK' && `Szczeliny ponad limit: ${overLimit.join(', ')} — wynik NOK.`,
@@ -453,8 +457,13 @@ function StageEditor({ def, api, zkp, onCancel, onSave }: {
           <input value={catalog} onChange={(e) => setCatalog(e.target.value)} placeholder={def.key === 'ciecie' ? 'profile: P2423XX…' : ''} />
         </label>
         <label>
-          <span className="order-field-label-text">Operator (inicjały) *</span>
-          <input value={operator} onChange={(e) => setOperator(e.target.value)} maxLength={20} />
+          <span className="order-field-label-text">Operator (uprawniony do {def.operation}, zał. 6.27) *</span>
+          <select value={operator} onChange={(e) => setOperator(e.target.value)}>
+            <option value="">— wybierz osobę —</option>
+            {signers.map((p) => (
+              <option key={p.id} value={p.initials}>{p.initials} · {p.full_name || p.initials}</option>
+            ))}
+          </select>
         </label>
         <label style={{ gridColumn: 'span 2' }}>
           <span className="order-field-label-text">Uwagi</span>

@@ -59,7 +59,8 @@ dokument jakości, skan). To odpowiedź na pytanie z inspekcji: tabliczka → 6.
 ## Do potwierdzenia z Tymkiem / PJ
 
 - Kod typu dla zakresu S: `AS75EI-W-S-S-1-–` (klasa „S", odmiana dymoszczelna „S") — 6.8 mówi tylko „w miejscu klasy S".
-- Okno techniczne w kodzie typu jako „W".
+- ~~Okno techniczne w kodzie typu jako „W"~~ — brief v2 (27.10): okna techniczne poza zakresem ZKP; typ usunięty (zkp_06).
+- Podpis etapu (cz. C) od zkp_06 sprawdzany w matrycy kompetencji 6.27 — `docs/zkp/MATRYCA_6_27.md`.
 
 ## Na później
 

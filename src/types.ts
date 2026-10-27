@@ -247,6 +247,8 @@ export type DbProfileRow = {
   categories?: string[]
   /** role w Zakładowej Kontroli Produkcji (ZKP 5.3.2) — niezależne od `role` */
   zkp_roles?: string[]
+  /** stanowisko wg zał. 6.1 (skład zakładu) — matryca kompetencji 6.27 */
+  zkp_position?: string | null
 }
 
 export type Profile = DbProfileRow
@@ -282,6 +284,8 @@ export type UserFormState = {
   department: 'all' | 'bastion' | 'stalowe' | 'magazyn'
   categories: string[]
   zkp_roles: string[]
+  /** '' = bez stanowiska ZKP */
+  zkp_position: string
 }
 
 export type CurrentUser = {

@@ -5,6 +5,7 @@ import { zkpCanDecide, zkpCanReceive } from '../../lib/zkp'
 import ZkpReceiptsPanel from './ZkpReceiptsPanel'
 import ZkpSuppliersPanel from './ZkpSuppliersPanel'
 import ZkpCriticalPanel from './ZkpCriticalPanel'
+import ZkpCompetencyPanel from './ZkpCompetencyPanel'
 import ZkpTracePanel from './ZkpTracePanel'
 import ZkpProductsPanel from './ZkpProductsPanel'
 import type { CurrentUser, ToastVariant } from '../../types'
@@ -15,7 +16,7 @@ import type { CurrentUser, ToastVariant } from '../../types'
 // Pierwsza podzakładka: wyszukiwarka „od tabliczki” + eksport teczki (tylko odczyt);
 // „Wyroby i karty”: rejestr wyrobów 6.33 i karty wyrobu 6.25 (etap C).
 
-type Sub = 'tabliczka' | 'wyroby' | 'przyjecia' | 'dostawcy' | 'komponenty'
+type Sub = 'tabliczka' | 'wyroby' | 'przyjecia' | 'dostawcy' | 'komponenty' | 'kompetencje'
 
 type Props = {
   currentUser: CurrentUser | null
@@ -52,6 +53,7 @@ export default function ZkpView({ currentUser, isManager, pushToast }: Props) {
           {tab('przyjecia', `Przyjęcia i partie (6.24)${quarantine ? ` · kwarantanna ${quarantine}` : ''}`)}
           {tab('dostawcy', 'Dostawcy kwalifikowani (6.31)')}
           {tab('komponenty', 'Komponenty krytyczne (6.10.5)')}
+          {tab('kompetencje', 'Matryca kompetencji (6.27)')}
         </div>
         <span className="zkp-roles" title="Role ZKP nadaje admin w Użytkownikach">
           Twoje role ZKP:{' '}
@@ -64,6 +66,7 @@ export default function ZkpView({ currentUser, isManager, pushToast }: Props) {
       {sub === 'przyjecia' && <ZkpReceiptsPanel zkp={zkp} canReceive={canReceive} canDecide={canDecide} onGoTo={setSub} />}
       {sub === 'dostawcy' && <ZkpSuppliersPanel zkp={zkp} canEdit={canDecide} />}
       {sub === 'komponenty' && <ZkpCriticalPanel zkp={zkp} canEdit={canDecide} />}
+      {sub === 'kompetencje' && <ZkpCompetencyPanel zkp={zkp} canEdit={canDecide} />}
     </div>
   )
 }

@@ -80,6 +80,7 @@ export function useUsers({
           zkp_roles: Array.isArray((r as { zkp_roles?: string[] }).zkp_roles)
             ? ((r as { zkp_roles?: string[] }).zkp_roles as string[])
             : [],
+          zkp_position: (r as { zkp_position?: string | null }).zkp_position ?? null,
         })),
       )
     }
@@ -111,6 +112,7 @@ export function useUsers({
         ? ((row as { categories?: string[] }).categories as string[])
         : [],
       zkp_roles: Array.isArray(row.zkp_roles) ? row.zkp_roles : [],
+      zkp_position: row.zkp_position ?? '',
     })
     setUserModalOpen(true)
   }
@@ -174,6 +176,7 @@ export function useUsers({
         department: 'all',
         categories: userForm.categories ?? [],
         zkp_roles: userForm.zkp_roles ?? [],
+        zkp_position: userForm.zkp_position || null,
       })
       if (insertError) {
         await supabase.functions.invoke('manage-users', {
@@ -202,6 +205,7 @@ export function useUsers({
         department: userForm.department || 'all',
         categories: userForm.categories ?? [],
         zkp_roles: userForm.zkp_roles ?? [],
+        zkp_position: userForm.zkp_position || null,
       })
       .eq('id', editingProfileId)
     setUserModalSaving(false)

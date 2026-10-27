@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import type { UserFormState } from '../types'
 import { ROLE_LABELS, isCategoryScoped } from '../lib/permissions'
 import { ZKP_ROLE_LABELS } from '../constants'
+import { ZKP_POSITION_LABELS, type ZkpPosition } from '../lib/zkpCard'
 
 // 'kierownik_firmowy' scalony z 'kierownik_produkcji' (identyczne uprawnienia)
 // — nie przydzielamy go już; w kodzie zostaje dla zgodności wstecznej
@@ -170,6 +171,23 @@ export default function UserModal({
               {canEditZkpRoles
                 ? 'Uprawnienia do zatwierdzeń w zapisach ZKP stolarki AS 75EI.'
                 : 'Role ZKP może zmieniać tylko administrator.'}
+            </span>
+          </label>
+          {/* zał. 6.1 — skład zakładu; uprawnienia do operacji nadaje osobno matryca 6.27 */}
+          <label className="order-field-full">
+            <span className="order-field-label-text">Stanowisko ZKP (zał. 6.1)</span>
+            <select
+              value={userForm.zkp_position}
+              onChange={(e) => onFormChange({ zkp_position: e.target.value })}
+              disabled={userModalSaving || !canEditZkpRoles}
+            >
+              <option value="">— brak (poza ZKP AS 75EI) —</option>
+              {(Object.keys(ZKP_POSITION_LABELS) as ZkpPosition[]).map((k) => (
+                <option key={k} value={k}>{ZKP_POSITION_LABELS[k]}</option>
+              ))}
+            </select>
+            <span className="user-modal-hint">
+              Kto może podpisać którą operację (IS-01…IS-06, kontrola odbiorcza, montaż) wynika z matrycy kompetencji w zakładce ZKP.
             </span>
           </label>
         </div>

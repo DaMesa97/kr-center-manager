@@ -267,6 +267,7 @@ export const INITIAL_USER_FORM: UserFormState = {
   department: 'all',
   categories: [],
   zkp_roles: [],
+  zkp_position: '',
 }
 
 // Role w Zakładowej Kontroli Produkcji AS 75EI (ZKP 5.3.2, pkt 10.2 briefu).

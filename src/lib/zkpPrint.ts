@@ -7,11 +7,15 @@ import {
   ZKP_HARDWARE_SLOTS,
   ZKP_LIGHT_LABELS,
   ZKP_OPENING_LABELS,
+  ZKP_OPERATIONS,
+  ZKP_POSITION_LABELS,
   ZKP_PRODUCT_TYPE_LABELS,
   ZKP_STAGES,
   cardStatus,
   latestBy,
   type ZkpCardCheck,
+  type ZkpCompetency,
+  type ZkpPerson,
   type ZkpFillingRecord,
   type ZkpHardwareRecord,
   type ZkpProductCard,
@@ -308,4 +312,38 @@ export function buildRegister624Definition(inp: Register624Input, printedAt: Dat
     { text: 'Brak nr partii lub dokumentu jakości = kwarantanna; zwolnienie z kwarantanny tylko decyzją Pełnomocnika / Zastępcy.', style: 'small', margin: [0, 6, 0, 0] },
   ]
   return base('Załącznik 6.24 – Rejestr przyjęć komponentów krytycznych AS 75EI', true, content, printedAt)
+}
+
+// ── Matryca kompetencji 6.27 ─────────────────────────────────────────────
+export function buildMatrix627Definition(people: ZkpPerson[], competencies: ZkpCompetency[], printedAt: Date): TDocumentDefinitions {
+  const active = new Map<string, ZkpCompetency>()
+  for (const c of competencies) if (!c.withdrawn_at) active.set(`${c.profile_id}|${c.operation}`, c)
+  const body = people.map((p) => [
+    `${p.initials} ${p.full_name}`.trim(),
+    p.zkp_position ? ZKP_POSITION_LABELS[p.zkp_position] : '',
+    ...ZKP_OPERATIONS.map((o) => {
+      const c = active.get(`${p.id}|${o.key}`)
+      return c ? { text: `[X]\n${c.granted_on.slice(0, 10).split('-').reverse().join('.')}`, alignment: 'center' as const } : { text: '[ ]', alignment: 'center' as const }
+    }),
+  ])
+  const content: Content[] = [
+    { text: 'Matryca kompetencji — produkcja drzwi ALURON AS 75EI', style: 'h1' },
+    { text: `Stan na ${fmt(printedAt.toISOString())} · osób: ${people.length}`, style: 'small', margin: [0, 0, 0, 6] },
+    {
+      table: {
+        headerRows: 1,
+        widths: ['*', 110, ...ZKP_OPERATIONS.map(() => 50)],
+        body: [[th('Osoba'), th('Stanowisko (zał. 6.1)'), ...ZKP_OPERATIONS.map((o) => th(o.short))], ...body],
+      },
+      layout: GRID,
+    },
+    { text: ZKP_OPERATIONS.map((o) => o.label).join(' · '), style: 'small', margin: [0, 6, 0, 0] },
+    {
+      text: '[X] = aktywne uprawnienie (data nadania). Uprawnienia nadaje i wycofuje Pełnomocnik ZKP / Zastępca; wycofane zostają w historii programu z powodem. ' +
+        'Podpis każdej operacji w karcie wyrobu (6.25) jest sprawdzany w tej matrycy (ZKP 5.3.2).',
+      style: 'small',
+      margin: [0, 4, 0, 0],
+    },
+  ]
+  return base('Załącznik 6.27 – Matryca kompetencji', true, content, printedAt)
 }

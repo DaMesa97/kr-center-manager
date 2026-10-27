@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ZKP_STAGES,
   catalogAllowed,
   catalogToken,
   cardStatus,
@@ -7,6 +8,8 @@ import {
   formToPayload,
   latestBy,
   lotsForStage,
+  matrixPeople,
+  peopleWithCompetency,
   requiredFillingFields,
   zkpTypeCode,
 } from '../lib/zkpCard'
@@ -74,11 +77,34 @@ describe('karta — pomocnicze', () => {
     expect(cardStatus({ card_id: 1, range_confirmed: true, decision: null })).toBe('zakres')
     expect(cardStatus({ card_id: 1, range_confirmed: true, decision: 'zwolniony' })).toBe('zwolniony')
   })
-  it('formularz: podpowiedź okna z LP, przecinek dziesiętny', () => {
-    expect(cardToForm(null, { construction_type: 'okno' }).product_type).toBe('okno')
+  it('formularz: pusty typ (okna techniczne poza ZKP), przecinek dziesiętny', () => {
+    expect(cardToForm(null).product_type).toBe('')
     const p = formToPayload({ ...cardToForm(null), leaf_mass_kg: ' 82,5 ', fill_thickness_mm: '20,0' })
     expect(p.leaf_mass_kg).toBe('82.5')
     expect(p.fill_thickness_mm).toBe('20.0')
+  })
+})
+
+describe('matryca kompetencji 6.27', () => {
+  const people = [
+    { id: 'a', initials: 'TW', full_name: 'T. W.', zkp_position: 'pelnomocnik_kp' as const },
+    { id: 'b', initials: 'JK', full_name: 'J. K.', zkp_position: 'monter' as const },
+    { id: 'c', initials: 'AB', full_name: '', zkp_position: null },
+  ]
+  const comp = (id: number, profile_id: string, operation: 'IS-01' | 'IS-03', withdrawn_at: string | null) => ({
+    id, profile_id, operation, granted_on: '2026-10-27', basis: '', granted_by_name: 'TW', created_at: '', withdrawn_at, withdrawn_by_name: '', withdraw_reason: null,
+  })
+  it('podpisać etap może tylko osoba z aktywnym uprawnieniem do operacji etapu', () => {
+    const cs = [comp(1, 'b', 'IS-03', null), comp(2, 'c', 'IS-03', '2026-10-27T10:00:00Z'), comp(3, 'a', 'IS-01', null)]
+    expect(peopleWithCompetency(people, cs, 'IS-03').map((p) => p.initials)).toEqual(['JK'])
+    expect(peopleWithCompetency(people, cs, 'IS-02')).toEqual([])
+    expect(ZKP_STAGES.find((s) => s.key === 'usz_prog')?.operation).toBe('IS-03')
+  })
+  it('wiersze matrycy: stanowisko albo jakiekolwiek uprawnienie; „wszyscy" pokazuje resztę', () => {
+    const cs = [comp(2, 'c', 'IS-03', '2026-10-27T10:00:00Z')]
+    expect(matrixPeople(people, cs, false).map((p) => p.initials)).toEqual(['TW', 'JK', 'AB'])
+    expect(matrixPeople(people, [], false).map((p) => p.initials)).toEqual(['TW', 'JK'])
+    expect(matrixPeople(people, [], true)).toHaveLength(3)
   })
 })
 
