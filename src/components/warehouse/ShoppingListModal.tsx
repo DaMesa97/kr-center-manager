@@ -70,6 +70,8 @@ export default function ShoppingListModal({
   const [suggestedQuantities, setSuggestedQuantities] = useState<Record<number, number>>({})
   const [quickSearch, setQuickSearch] = useState('')
   const [quickQty, setQuickQty] = useState<Record<number, string>>({})
+  // Szukajka w podpowiedziach „dorzuć od dostawcy" — osobna per dostawca
+  const [candidateSearch, setCandidateSearch] = useState<Record<number, string>>({})
 
   const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers])
 
@@ -79,9 +81,16 @@ export default function ShoppingListModal({
     return components
       .filter((c) => c.is_active)
       .filter((c) => !shoppingList.some((s) => s.component_id === c.id))
-      .filter((c) => c.name.toLowerCase().includes(q) || (c.code ?? '').toLowerCase().includes(q))
-      .slice(0, 8)
-  }, [quickSearch, components, shoppingList])
+      .filter((c) => {
+        const supplierName = c.supplier_id ? supplierById.get(c.supplier_id)?.name ?? '' : ''
+        return (
+          c.name.toLowerCase().includes(q) ||
+          (c.code ?? '').toLowerCase().includes(q) ||
+          supplierName.toLowerCase().includes(q)
+        )
+      })
+      .slice(0, 15)
+  }, [quickSearch, components, shoppingList, supplierById])
   const stockByComponentId = useMemo(() => {
     const map = new Map<number, number>()
     for (const s of stock) {
@@ -115,6 +124,10 @@ export default function ShoppingListModal({
   }, [shoppingList, supplierById])
 
   const sectionStats = (group: Group) => {
+    // zapełnienie TIRa da się policzyć tylko, gdy pozycje mają szt/paletę i palet/TIR
+    const hasTirData = group.items.some(
+      (item) => (item.units_per_pallet ?? 0) > 0 && (item.pallets_per_full_tir ?? 0) > 0,
+    )
     const pallets = group.items.reduce((sum, item) => {
       if (!item.units_per_pallet || item.units_per_pallet <= 0) return sum
       return sum + Math.ceil(item.quantity / item.units_per_pallet)
@@ -124,29 +137,41 @@ export default function ShoppingListModal({
       if (!item.pallets_per_full_tir || item.pallets_per_full_tir <= 0) return sum
       return sum + Math.ceil(item.quantity / item.units_per_pallet) / item.pallets_per_full_tir
     }, 0)
-    return { pallets, fillness }
+    return { pallets, fillness, hasTirData }
   }
 
-  const calculateRunwayLabel = (proximityToMin: number): string => {
+  const calculateRunwayLabel = (proximityToMin: number | null): string => {
+    if (proximityToMin == null) return 'brak progu'
     if (proximityToMin <= 0) return '⚠️ Krytyczny'
     if (proximityToMin < 5) return `${proximityToMin} szt do min`
     return 'OK'
   }
 
-  const getCandidatesForSupplier = (supplierId: number) => {
+  // Inne SKU tego dostawcy do dorzucenia do tej samej dostawy. Najpierw te
+  // najbliżej progu min, potem bez progu alfabetycznie; dane o paletach nie są
+  // wymagane (bez nich nie ma tylko kolumny palet i zapełnienia TIRa).
+  const getCandidatesForSupplier = (supplierId: number, search: string) => {
+    const q = search.trim().toLowerCase()
     return components
       .filter((c) => c.supplier_id === supplierId)
       .filter((c) => c.is_active)
       .filter((c) => !shoppingList.some((s) => s.component_id === c.id))
-      .filter((c) => Boolean(c.units_per_pallet && c.units_per_pallet > 0 && c.pallets_per_full_tir && c.pallets_per_full_tir > 0))
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.code ?? '').toLowerCase().includes(q))
       .map((component) => {
         const currentStock = stockByComponentId.get(component.id) ?? 0
-        const minLevel = component.min_stock_level ?? 0
-        const proximityToMin = currentStock - minLevel
+        const proximityToMin =
+          component.min_stock_level == null ? null : currentStock - component.min_stock_level
         return { component, currentStock, proximityToMin }
       })
-      .sort((a, b) => a.proximityToMin - b.proximityToMin)
-      .slice(0, 8)
+      .sort((a, b) => {
+        if (a.proximityToMin == null && b.proximityToMin == null) {
+          return a.component.name.localeCompare(b.component.name, 'pl')
+        }
+        if (a.proximityToMin == null) return 1
+        if (b.proximityToMin == null) return -1
+        return a.proximityToMin - b.proximityToMin
+      })
+      .slice(0, 10)
   }
 
   const getSuggestedQty = (component: WarehouseComponent) => {
@@ -433,7 +458,7 @@ export default function ShoppingListModal({
                   />
                   <div className="reorder-row-meta">
                     Suma pozycji: {group.items.length}
-                    {group.supplier.requires_full_tir && (
+                    {group.supplier.requires_full_tir && stats.hasTirData && (
                       <>
                         {' | '}
                         {stats.pallets} palet ({fillPercent.toFixed(1)}%) {' — '}
@@ -444,27 +469,40 @@ export default function ShoppingListModal({
                             : `🟡 Przeładowanie ${(fillPercent - 100).toFixed(1)}% — sprawdź`}
                       </>
                     )}
+                    {group.supplier.requires_full_tir && !stats.hasTirData && (
+                      <> | Wymaga pełnego TIR — zapełnienie policzę, gdy pozycje będą miały szt/paletę i palet/TIR (Komponenty)</>
+                    )}
                   </div>
-                  {group.supplier.requires_full_tir && stats.fillness < 0.95 && (
-                    <div
-                      className="shopping-list-suggestions"
-                      style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginTop: 10 }}
-                    >
-                      <div className="shopping-list-suggestions-info" style={{ marginBottom: 8, color: '#4b5563' }}>
-                        ℹ️ System sugeruje SKU od tego dostawcy posortowane po tym jak szybko zostaną wyczerpane.
-                        Dorzucanie tych pozycji do bieżącego zamówienia pozwala zapełnić TIR i unikać dodatkowych
-                        dostaw.
-                      </div>
-                      <div className="shopping-list-suggestions-header" style={{ fontWeight: 600, marginBottom: 8 }}>
-                        💡 Brakuje {(100 - stats.fillness * 100).toFixed(0)}% do pełnego TIRa. Dorzuć z dostępnych SKU u
-                        dostawcy:
-                      </div>
-                      {(() => {
-                        const candidates = getCandidatesForSupplier(group.supplier.id)
+                  <div
+                    className="shopping-list-suggestions"
+                    style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginTop: 10 }}
+                  >
+                    <div className="shopping-list-suggestions-header" style={{ fontWeight: 600, marginBottom: 8 }}>
+                      {group.supplier.requires_full_tir && stats.hasTirData && stats.fillness < 0.95
+                        ? `💡 Brakuje ${(100 - stats.fillness * 100).toFixed(0)}% do pełnego TIRa. Dorzuć z SKU tego dostawcy:`
+                        : '💡 Dorzuć inne SKU tego dostawcy do tej samej dostawy:'}
+                    </div>
+                    <input
+                      type="text"
+                      className="search-input"
+                      placeholder="Szukaj w SKU tego dostawcy (nazwa lub kod)…"
+                      value={candidateSearch[group.supplier.id] ?? ''}
+                      onChange={(e) =>
+                        setCandidateSearch((prev) => ({ ...prev, [group.supplier.id]: e.target.value }))
+                      }
+                      style={{ marginBottom: 8 }}
+                    />
+                    {(() => {
+                        const candidates = getCandidatesForSupplier(
+                          group.supplier.id,
+                          candidateSearch[group.supplier.id] ?? '',
+                        )
                         if (candidates.length === 0) {
                           return (
                             <p className="no-results" style={{ margin: 0 }}>
-                              Brak dodatkowych SKU u tego dostawcy do dorzucenia.
+                              {candidateSearch[group.supplier.id]?.trim()
+                                ? 'Nic nie pasuje u tego dostawcy.'
+                                : 'Brak dodatkowych SKU u tego dostawcy do dorzucenia.'}
                             </p>
                           )
                         }
@@ -481,7 +519,7 @@ export default function ShoppingListModal({
                                 render: ({ component, currentStock, proximityToMin }) => (
                                   <>
                                     {currentStock} / {component.min_stock_level ?? '—'}{' '}
-                                    {proximityToMin <= 0 && (
+                                    {proximityToMin != null && proximityToMin <= 0 && (
                                       <span className="subtab-badge subtab-badge--alert">PONIŻEJ MIN</span>
                                     )}
                                   </>
@@ -515,7 +553,9 @@ export default function ShoppingListModal({
                                 key: 'pallets',
                                 label: 'Palety',
                                 render: ({ component }) =>
-                                  Math.ceil(getSuggestedQty(component) / Math.max(component.units_per_pallet ?? 1, 1)),
+                                  component.units_per_pallet && component.units_per_pallet > 0
+                                    ? Math.ceil(getSuggestedQty(component) / component.units_per_pallet)
+                                    : '—',
                               },
                               {
                                 key: 'action',
@@ -534,8 +574,7 @@ export default function ShoppingListModal({
                           />
                         )
                       })()}
-                    </div>
-                  )}
+                  </div>
                   <label className="order-field-full">
                     <span className="order-field-label-text">Notatki do zamówienia</span>
                     <textarea

@@ -74,10 +74,26 @@ export default function ReorderDashboardView({
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'raw' | 'doors_internal'>('all')
   const [showNoThreshold, setShowNoThreshold] = useState(false)
   const [showOk, setShowOk] = useState(false)
+  // Szukanie po nazwie/kodzie/dostawcy i filtr dostawcy — bez progów min
+  // wszystko ląduje w zwiniętym „Brak progu", więc bez tego nie da się
+  // niczego znaleźć ani zamówić po dostawcy
+  const [query, setQuery] = useState('')
+  const [supplierFilter, setSupplierFilter] = useState<number | ''>('')
+  const filterActive = query.trim() !== '' || supplierFilter !== ''
   // Niestandardowe ilości dla sekcji OK i brak progu
   const [customQty, setCustomQty] = useState<Record<number, string>>({})
 
   const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers])
+  const supplierOptions = useMemo(() => {
+    const counts = new Map<number, number>()
+    for (const c of components) {
+      if (c.is_active && c.supplier_id) counts.set(c.supplier_id, (counts.get(c.supplier_id) ?? 0) + 1)
+    }
+    return suppliers
+      .filter((s) => s.is_active || counts.has(s.id))
+      .map((s) => ({ supplier: s, count: counts.get(s.id) ?? 0 }))
+      .sort((a, b) => a.supplier.name.localeCompare(b.supplier.name, 'pl'))
+  }, [components, suppliers])
   const shoppingIds = useMemo(() => new Set(shoppingList.map((s) => s.component_id)), [shoppingList])
   const smartRopByComponentId = useMemo(
     () => new Map(smartRopData.map((row) => [row.component_id, row])),
@@ -90,10 +106,20 @@ export default function ReorderDashboardView({
       stockSumByComponent.set(s.component_id, (stockSumByComponent.get(s.component_id) ?? 0) + Number(s.quantity || 0))
     }
 
+    const q = query.trim().toLowerCase()
     const source = components.filter((c) => {
-      if (categoryFilter === 'all') return true
-      if (categoryFilter === 'raw') return c.product_category === 'raw' || c.product_category == null
-      return isDoorsInternal(c.product_category)
+      if (categoryFilter === 'raw' && !(c.product_category === 'raw' || c.product_category == null)) return false
+      if (categoryFilter === 'doors_internal' && !isDoorsInternal(c.product_category)) return false
+      if (supplierFilter !== '' && c.supplier_id !== supplierFilter) return false
+      if (q) {
+        const supplierName = c.supplier_id ? supplierById.get(c.supplier_id)?.name ?? '' : ''
+        return (
+          c.name.toLowerCase().includes(q) ||
+          (c.code ?? '').toLowerCase().includes(q) ||
+          supplierName.toLowerCase().includes(q)
+        )
+      }
+      return true
     })
 
     return source.map((component) => {
@@ -145,7 +171,7 @@ export default function ReorderDashboardView({
         suggested_qty: suggested,
       } as Row
     })
-  }, [components, stock, supplierById, categoryFilter, smartRopByComponentId])
+  }, [components, stock, supplierById, categoryFilter, smartRopByComponentId, query, supplierFilter])
 
   const noThresholdSkus = useMemo(
     () => rows.filter((r) => r.status === 'no_threshold').sort((a, b) => a.component.name.localeCompare(b.component.name, 'pl')),
@@ -364,6 +390,41 @@ export default function ReorderDashboardView({
         )}
       </div>
 
+      <div className="reorder-toolbar">
+        <input
+          type="text"
+          className="search-input"
+          placeholder="🔍 Szukaj: nazwa, kod lub dostawca…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <select
+          value={supplierFilter}
+          onChange={(e) => setSupplierFilter(e.target.value === '' ? '' : Number(e.target.value))}
+          title="Pokaż tylko SKU tego dostawcy"
+        >
+          <option value="">Wszyscy dostawcy</option>
+          {supplierOptions.map(({ supplier, count }) => (
+            <option key={supplier.id} value={supplier.id}>
+              {supplier.name} ({count}){supplier.is_active ? '' : ' — nieaktywny'}
+            </option>
+          ))}
+        </select>
+        {filterActive && (
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost"
+            onClick={() => {
+              setQuery('')
+              setSupplierFilter('')
+            }}
+          >
+            ✕ Wyczyść
+          </button>
+        )}
+        <span className="reorder-row-meta">{rows.length} SKU</span>
+      </div>
+
       {/* Pilnie zamów */}
       {criticalSkus.length > 0 && (
         <section className="reorder-section reorder-section--critical">
@@ -400,9 +461,9 @@ export default function ReorderDashboardView({
             aria-expanded={showOk}
           >
             <span>🟢 Wszystko OK ({okSkus.length}) — kliknij aby zamówić z wyprzedzeniem</span>
-            {showOk ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {showOk || filterActive ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
-          {showOk && okSkus.map((row) => renderSimpleCard(row))}
+          {(showOk || filterActive) && okSkus.map((row) => renderSimpleCard(row))}
         </section>
       )}
 
@@ -416,9 +477,9 @@ export default function ReorderDashboardView({
             aria-expanded={showNoThreshold}
           >
             <span>⚪ Brak progu ({noThresholdSkus.length})</span>
-            {showNoThreshold ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {showNoThreshold || filterActive ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
-          {showNoThreshold && (
+          {(showNoThreshold || filterActive) && (
             <>
               <p className="reorder-section-caption">
                 SKU bez ustawionego progu min — system nie może automatycznie wskazać kiedy zamówić.
@@ -430,8 +491,12 @@ export default function ReorderDashboardView({
         </section>
       )}
 
-      {criticalSkus.length === 0 && observeSkus.length === 0 && noThresholdSkus.length === 0 && (
-        <p className="no-results">🎉 Wszystkie zapasy w normie!</p>
+      {rows.length === 0 && filterActive ? (
+        <p className="no-results">Żaden SKU nie pasuje do filtra.</p>
+      ) : (
+        criticalSkus.length === 0 &&
+        observeSkus.length === 0 &&
+        noThresholdSkus.length === 0 && <p className="no-results">🎉 Wszystkie zapasy w normie!</p>
       )}
     </div>
   )

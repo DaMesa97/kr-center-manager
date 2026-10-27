@@ -5489,6 +5489,22 @@ html, body, #root {
   background: rgba(239, 68, 68, 0.24);
 }
 
+.reorder-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reorder-toolbar .search-input {
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+
+.reorder-toolbar select {
+  max-width: 320px;
+}
+
 .reorder-info-banner {
   background: #f8fafc;
   border: 1px solid #cbd5e1;
