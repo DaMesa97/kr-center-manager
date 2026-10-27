@@ -8313,5 +8313,5 @@ html, body, #root {
 .shopping-quick-bar select { max-width: 320px; }
 .shopping-browse { margin: 0.75rem 1rem 0; }
 /* tabela kandydatów w liście zakupowej: własny scroll (max ok. 11 wierszy), nagłówek przyklejony */
-.shopping-list-suggestions-table { max-height: 420px; }
+.table-wrapper.shopping-list-suggestions-table { max-height: 420px; overflow-y: auto; }
 .shopping-list-suggestions-table thead th { position: sticky; top: 0; z-index: 2; background: #f8fafc; }
