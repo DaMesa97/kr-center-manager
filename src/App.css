@@ -8307,3 +8307,8 @@ html, body, #root {
 .zkp-stage-editor { margin-top: 10px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; display: flex; flex-direction: column; gap: 8px; }
 .zkp-input--nok { border-color: #dc2626 !important; background: #fef2f2; }
 .zkp-register tbody tr:hover td { background: #f1f5f9; }
+/* Lista zakupowa — zamawianie „od dostawcy" */
+.shopping-quick-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.shopping-quick-bar .search-input { flex: 1 1 280px; }
+.shopping-quick-bar select { max-width: 320px; }
+.shopping-browse { margin: 0.75rem 1rem 0; }

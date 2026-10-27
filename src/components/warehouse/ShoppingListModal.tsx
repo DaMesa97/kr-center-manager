@@ -69,17 +69,32 @@ export default function ShoppingListModal({
   }, [open])
   const [suggestedQuantities, setSuggestedQuantities] = useState<Record<number, number>>({})
   const [quickSearch, setQuickSearch] = useState('')
+  // Zamawianie „od dostawcy": wybór dostawcy na górze pokazuje jego SKU do
+  // dorzucenia, zanim cokolwiek jest na liście (wcześniej podpowiedzi były
+  // tylko przy sekcji dostawcy, więc przy pustej liście nie było od czego zacząć)
+  const [browseSupplierId, setBrowseSupplierId] = useState<number | ''>('')
   const [quickQty, setQuickQty] = useState<Record<number, string>>({})
   // Szukajka w podpowiedziach „dorzuć od dostawcy" — osobna per dostawca
   const [candidateSearch, setCandidateSearch] = useState<Record<number, string>>({})
 
   const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers])
+  const supplierOptions = useMemo(() => {
+    const counts = new Map<number, number>()
+    for (const c of components) {
+      if (c.is_active && c.supplier_id) counts.set(c.supplier_id, (counts.get(c.supplier_id) ?? 0) + 1)
+    }
+    return suppliers
+      .filter((s) => s.is_active && counts.has(s.id))
+      .map((s) => ({ supplier: s, count: counts.get(s.id) ?? 0 }))
+      .sort((a, b) => a.supplier.name.localeCompare(b.supplier.name, 'pl'))
+  }, [components, suppliers])
 
   const quickResults = useMemo(() => {
     const q = quickSearch.trim().toLowerCase()
     if (!q) return []
     return components
       .filter((c) => c.is_active)
+      .filter((c) => browseSupplierId === '' || c.supplier_id === browseSupplierId)
       .filter((c) => !shoppingList.some((s) => s.component_id === c.id))
       .filter((c) => {
         const supplierName = c.supplier_id ? supplierById.get(c.supplier_id)?.name ?? '' : ''
@@ -90,7 +105,7 @@ export default function ShoppingListModal({
         )
       })
       .slice(0, 15)
-  }, [quickSearch, components, shoppingList, supplierById])
+  }, [quickSearch, components, shoppingList, supplierById, browseSupplierId])
   const stockByComponentId = useMemo(() => {
     const map = new Map<number, number>()
     for (const s of stock) {
@@ -221,6 +236,93 @@ export default function ShoppingListModal({
     setQuickQty((prev) => ({ ...prev, [component.id]: '' }))
   }
 
+  const renderCandidates = (supplierId: number) => {
+    const candidates = getCandidatesForSupplier(supplierId, candidateSearch[supplierId] ?? '')
+    return (
+      <>
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Szukaj w SKU tego dostawcy (nazwa lub kod)…"
+          value={candidateSearch[supplierId] ?? ''}
+          onChange={(e) => setCandidateSearch((prev) => ({ ...prev, [supplierId]: e.target.value }))}
+          style={{ marginBottom: 8 }}
+        />
+        {candidates.length === 0 ? (
+          <p className="no-results" style={{ margin: 0 }}>
+            {candidateSearch[supplierId]?.trim() ? 'Nic nie pasuje u tego dostawcy.' : 'Brak dodatkowych SKU u tego dostawcy do dorzucenia.'}
+          </p>
+        ) : (
+          <DataTable
+            rows={candidates}
+            rowKey={(c) => c.component.id}
+            wrapperClassName="shopping-list-suggestions-table"
+            columns={[
+              { key: 'sku', label: 'SKU', render: ({ component }) => component.name },
+              {
+                key: 'stock',
+                label: 'Stock / Min',
+                render: ({ component, currentStock, proximityToMin }) => (
+                  <>
+                    {currentStock} / {component.min_stock_level ?? '—'}{' '}
+                    {proximityToMin != null && proximityToMin <= 0 && (
+                      <span className="subtab-badge subtab-badge--alert">PONIŻEJ MIN</span>
+                    )}
+                  </>
+                ),
+              },
+              {
+                key: 'runway',
+                label: 'Runway',
+                render: ({ proximityToMin }) => calculateRunwayLabel(proximityToMin),
+              },
+              {
+                key: 'qty',
+                label: 'Sugerowana ilość',
+                render: ({ component }) => (
+                  <input
+                    type="number"
+                    min={1}
+                    step={Math.max(component.units_per_pallet ?? 1, 1)}
+                    className="extension-qty-input"
+                    value={getSuggestedQty(component)}
+                    onChange={(e) =>
+                      setSuggestedQuantities((prev) => ({
+                        ...prev,
+                        [component.id]: Math.max(1, Number(e.target.value) || 1),
+                      }))
+                    }
+                  />
+                ),
+              },
+              {
+                key: 'pallets',
+                label: 'Palety',
+                render: ({ component }) =>
+                  component.units_per_pallet && component.units_per_pallet > 0
+                    ? Math.ceil(getSuggestedQty(component) / component.units_per_pallet)
+                    : '—',
+              },
+              {
+                key: 'action',
+                label: 'Akcja',
+                render: ({ component, currentStock }) => (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary suggestion-add-btn"
+                    onClick={() => handleAddSuggestion(component, currentStock, getSuggestedQty(component))}
+                  >
+                    + Dorzuć
+                  </button>
+                ),
+              },
+            ]}
+          />
+        )}
+      </>
+    )
+  }
+
   const generateForGroup = async (group: Group) => {
     if (targetWarehouseId === '') {
       pushToast('Wybierz magazyn docelowy dostawy', 'error')
@@ -335,13 +437,28 @@ export default function ShoppingListModal({
         <div className="order-modal-body">
         {/* Szybkie dodawanie */}
         <div className="shopping-quick-add">
-          <input
-            type="text"
-            className="search-input"
-            placeholder="🔍 Szybkie dodawanie — wpisz nazwę komponentu..."
-            value={quickSearch}
-            onChange={(e) => setQuickSearch(e.target.value)}
-          />
+          <div className="shopping-quick-bar">
+            <select
+              className="day-filter"
+              value={browseSupplierId}
+              onChange={(e) => setBrowseSupplierId(e.target.value === '' ? '' : Number(e.target.value))}
+              title="Zamawiaj od dostawcy: pokaż jego SKU do dorzucenia i zawęź szybkie dodawanie"
+            >
+              <option value="">Dostawca: wszyscy</option>
+              {supplierOptions.map(({ supplier, count }) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.name} ({count})
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              className="search-input"
+              placeholder={browseSupplierId === '' ? '🔍 Szybkie dodawanie — nazwa, kod lub dostawca…' : '🔍 Szybkie dodawanie — w SKU tego dostawcy…'}
+              value={quickSearch}
+              onChange={(e) => setQuickSearch(e.target.value)}
+            />
+          </div>
           {quickResults.length > 0 && (
             <div className="shopping-quick-results">
               {quickResults.map((c) => {
@@ -381,6 +498,35 @@ export default function ShoppingListModal({
           )}
         </div>
 
+        {browseSupplierId !== '' && (() => {
+          const supplier = supplierById.get(browseSupplierId)
+          if (!supplier) return null
+          const onList = shoppingList.filter((i) => i.supplier_id === supplier.id).length
+          return (
+            <section className="reorder-section shopping-browse">
+              <div className="reorder-row" style={{ alignItems: 'center' }}>
+                <div>
+                  <strong>{supplier.name}</strong>{' '}
+                  <span className="reorder-row-meta">• Czas realizacji: {supplier.lead_time_days ?? '—'} dni</span>
+                  {supplier.requires_full_tir && (
+                    <span className="supplier-badge supplier-badge--yes" style={{ marginLeft: 8 }}>Wymaga pełnego TIR</span>
+                  )}
+                  <span className="reorder-row-meta" style={{ marginLeft: 8 }}>
+                    {onList > 0 ? `· na liście: ${onList}` : '· nic jeszcze na liście'}
+                  </span>
+                </div>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setBrowseSupplierId('')}>✕ Zamknij</button>
+              </div>
+              <div className="shopping-list-suggestions" style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12 }}>
+                <div className="shopping-list-suggestions-header" style={{ fontWeight: 600, marginBottom: 8 }}>
+                  💡 SKU tego dostawcy — najpierw najbliżej progu min:
+                </div>
+                {renderCandidates(supplier.id)}
+              </div>
+            </section>
+          )
+        })()}
+
         {orphanItems.length > 0 && (
           <div className="reorder-info-banner" style={{ marginBottom: 10 }}>
             ℹ️ {orphanItems.length} pozycji bez przypisanego dostawcy zostało pominiętych. Wróć do dashboardu i
@@ -389,7 +535,10 @@ export default function ShoppingListModal({
         )}
 
         {groups.length === 0 ? (
-          <p className="no-results">Brak pozycji z przypisanym dostawcą.</p>
+          <p className="no-results">
+            Lista jest pusta. Wybierz dostawcę u góry albo wpisz nazwę w szybkim dodawaniu — dorzucone pozycje
+            pogrupują się po dostawcach, a z każdej grupy wygenerujesz zamówienie.
+          </p>
         ) : (
           <div className="shopping-groups-wrap">
             {groups.map((group) => {
@@ -482,98 +631,7 @@ export default function ShoppingListModal({
                         ? `💡 Brakuje ${(100 - stats.fillness * 100).toFixed(0)}% do pełnego TIRa. Dorzuć z SKU tego dostawcy:`
                         : '💡 Dorzuć inne SKU tego dostawcy do tej samej dostawy:'}
                     </div>
-                    <input
-                      type="text"
-                      className="search-input"
-                      placeholder="Szukaj w SKU tego dostawcy (nazwa lub kod)…"
-                      value={candidateSearch[group.supplier.id] ?? ''}
-                      onChange={(e) =>
-                        setCandidateSearch((prev) => ({ ...prev, [group.supplier.id]: e.target.value }))
-                      }
-                      style={{ marginBottom: 8 }}
-                    />
-                    {(() => {
-                        const candidates = getCandidatesForSupplier(
-                          group.supplier.id,
-                          candidateSearch[group.supplier.id] ?? '',
-                        )
-                        if (candidates.length === 0) {
-                          return (
-                            <p className="no-results" style={{ margin: 0 }}>
-                              {candidateSearch[group.supplier.id]?.trim()
-                                ? 'Nic nie pasuje u tego dostawcy.'
-                                : 'Brak dodatkowych SKU u tego dostawcy do dorzucenia.'}
-                            </p>
-                          )
-                        }
-                        return (
-                          <DataTable
-                            rows={candidates}
-                            rowKey={(c) => c.component.id}
-                            wrapperClassName="shopping-list-suggestions-table"
-                            columns={[
-                              { key: 'sku', label: 'SKU', render: ({ component }) => component.name },
-                              {
-                                key: 'stock',
-                                label: 'Stock / Min',
-                                render: ({ component, currentStock, proximityToMin }) => (
-                                  <>
-                                    {currentStock} / {component.min_stock_level ?? '—'}{' '}
-                                    {proximityToMin != null && proximityToMin <= 0 && (
-                                      <span className="subtab-badge subtab-badge--alert">PONIŻEJ MIN</span>
-                                    )}
-                                  </>
-                                ),
-                              },
-                              {
-                                key: 'runway',
-                                label: 'Runway',
-                                render: ({ proximityToMin }) => calculateRunwayLabel(proximityToMin),
-                              },
-                              {
-                                key: 'qty',
-                                label: 'Sugerowana ilość',
-                                render: ({ component }) => (
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    step={Math.max(component.units_per_pallet ?? 1, 1)}
-                                    className="extension-qty-input"
-                                    value={getSuggestedQty(component)}
-                                    onChange={(e) =>
-                                      setSuggestedQuantities((prev) => ({
-                                        ...prev,
-                                        [component.id]: Math.max(1, Number(e.target.value) || 1),
-                                      }))
-                                    }
-                                  />
-                                ),
-                              },
-                              {
-                                key: 'pallets',
-                                label: 'Palety',
-                                render: ({ component }) =>
-                                  component.units_per_pallet && component.units_per_pallet > 0
-                                    ? Math.ceil(getSuggestedQty(component) / component.units_per_pallet)
-                                    : '—',
-                              },
-                              {
-                                key: 'action',
-                                label: 'Akcja',
-                                render: ({ component, currentStock }) => (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-primary suggestion-add-btn"
-                                    onClick={() => handleAddSuggestion(component, currentStock, getSuggestedQty(component))}
-                                  >
-                                    + Dorzuć
-                                  </button>
-                                ),
-                              },
-                            ]}
-                          />
-                        )
-                      })()}
+                    {renderCandidates(group.supplier.id)}
                   </div>
                   <label className="order-field-full">
                     <span className="order-field-label-text">Notatki do zamówienia</span>
