@@ -305,6 +305,9 @@ export default function ShoppingListModal({
           </div>
         </div>
 
+        {/* Środek modala przewija się osobno — .order-modal ma overflow hidden,
+            więc bez tego kontenera długa lista była ucięta i nie dało się jej przewinąć */}
+        <div className="shopping-list-body">
         {/* Szybkie dodawanie */}
         <div className="shopping-quick-add">
           <input
@@ -556,6 +559,7 @@ export default function ShoppingListModal({
             })}
           </div>
         )}
+        </div>
 
         <div className="order-form-actions">
           <button

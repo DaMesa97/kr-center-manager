@@ -6757,6 +6757,29 @@ html, body, #root {
   border-color: #3b82f6;
 }
 
+/* Lista zakupowa: nagłówek i przyciski na stałe, środek przewijany
+   (.order-modal ma overflow: hidden i max-height: 90vh) */
+.shopping-list-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.shopping-list-body > .reorder-info-banner {
+  margin: 0.75rem 1rem 0;
+}
+
+.shopping-list-body > .no-results {
+  padding: 1rem;
+}
+
+.shopping-groups-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0.75rem 1rem;
+}
+
 .shopping-quick-add {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border, #e2e8f0);
