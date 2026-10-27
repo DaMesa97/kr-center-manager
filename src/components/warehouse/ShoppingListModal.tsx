@@ -165,9 +165,9 @@ export default function ShoppingListModal({
   // Inne SKU tego dostawcy do dorzucenia do tej samej dostawy. Najpierw te
   // najbliżej progu min, potem bez progu alfabetycznie; dane o paletach nie są
   // wymagane (bez nich nie ma tylko kolumny palet i zapełnienia TIRa).
-  const getCandidatesForSupplier = (supplierId: number, search: string) => {
+  const getCandidatesForSupplier = (supplierId: number, search: string, limit: number) => {
     const q = search.trim().toLowerCase()
-    return components
+    const all = components
       .filter((c) => c.supplier_id === supplierId)
       .filter((c) => c.is_active)
       .filter((c) => !shoppingList.some((s) => s.component_id === c.id))
@@ -186,7 +186,7 @@ export default function ShoppingListModal({
         if (b.proximityToMin == null) return -1
         return a.proximityToMin - b.proximityToMin
       })
-      .slice(0, 10)
+    return { rows: all.slice(0, limit), total: all.length }
   }
 
   const getSuggestedQty = (component: WarehouseComponent) => {
@@ -236,8 +236,9 @@ export default function ShoppingListModal({
     setQuickQty((prev) => ({ ...prev, [component.id]: '' }))
   }
 
-  const renderCandidates = (supplierId: number) => {
-    const candidates = getCandidatesForSupplier(supplierId, candidateSearch[supplierId] ?? '')
+  // pod sekcją dostawcy — krótka podpowiedź (10); przeglądanie dostawcy — do 50 z licznikiem
+  const renderCandidates = (supplierId: number, limit = 10) => {
+    const { rows: candidates, total } = getCandidatesForSupplier(supplierId, candidateSearch[supplierId] ?? '', limit)
     return (
       <>
         <input
@@ -248,6 +249,11 @@ export default function ShoppingListModal({
           onChange={(e) => setCandidateSearch((prev) => ({ ...prev, [supplierId]: e.target.value }))}
           style={{ marginBottom: 8 }}
         />
+        {total > candidates.length && (
+          <p className="reorder-row-meta" style={{ margin: '0 0 6px' }}>
+            Pokazuję {candidates.length} z {total} SKU — zawęź szukajką, żeby zobaczyć pozostałe.
+          </p>
+        )}
         {candidates.length === 0 ? (
           <p className="no-results" style={{ margin: 0 }}>
             {candidateSearch[supplierId]?.trim() ? 'Nic nie pasuje u tego dostawcy.' : 'Brak dodatkowych SKU u tego dostawcy do dorzucenia.'}
@@ -521,7 +527,7 @@ export default function ShoppingListModal({
                 <div className="shopping-list-suggestions-header" style={{ fontWeight: 600, marginBottom: 8 }}>
                   💡 SKU tego dostawcy — najpierw najbliżej progu min:
                 </div>
-                {renderCandidates(supplier.id)}
+                {renderCandidates(supplier.id, 50)}
               </div>
             </section>
           )

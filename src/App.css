@@ -8312,3 +8312,6 @@ html, body, #root {
 .shopping-quick-bar .search-input { flex: 1 1 280px; }
 .shopping-quick-bar select { max-width: 320px; }
 .shopping-browse { margin: 0.75rem 1rem 0; }
+/* tabela kandydatów w liście zakupowej: własny scroll (max ok. 11 wierszy), nagłówek przyklejony */
+.shopping-list-suggestions-table { max-height: 420px; }
+.shopping-list-suggestions-table thead th { position: sticky; top: 0; z-index: 2; background: #f8fafc; }
