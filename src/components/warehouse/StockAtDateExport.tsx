@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../supabaseClient'
 import type { ToastVariant, Warehouse } from '../../types'
-import { appConfirm } from '../../lib/appDialogs'
+import { appAlert } from '../../lib/appDialogs'
 import { STOCK_HISTORY_RELIABLE_FROM, buildStockAtDateCsv, type StockAtDateRow } from '../../lib/stockAtDateCsv'
 
 type Props = {
@@ -24,13 +24,14 @@ export default function StockAtDateExport({ warehouses, warehouseId, pushToast }
 
   const handleExport = async () => {
     if (!date) return
-    if (
-      date < STOCK_HISTORY_RELIABLE_FROM &&
-      !(await appConfirm(
-        `Historia ruchów jest kompletna od ${STOCK_HISTORY_RELIABLE_FROM}. Stan na wcześniejszy dzień może się nie zgadzać. Eksportować mimo to?`,
-        { title: 'Stan na dzień', confirmLabel: 'Eksportuj' },
-      ))
-    ) {
+    // Przed tą datą stany wyzerowano bez ruchu korygującego — „dziś minus ruchy" daje wtedy
+    // wartości z sufitu (zgłoszenie: data z marca pokazała stan komponentów, których nie było).
+    // Blokada zamiast ostrzeżenia; RPC też odrzuca.
+    if (date < STOCK_HISTORY_RELIABLE_FROM) {
+      await appAlert(
+        `Stan na dzień da się odtworzyć od ${STOCK_HISTORY_RELIABLE_FROM} — wcześniej historia ruchów jest niekompletna (stany wyzerowano bez dokumentu), więc wynik byłby nieprawdziwy.`,
+        { title: 'Stan na dzień' },
+      )
       return
     }
     setBusy(true)
@@ -66,9 +67,10 @@ export default function StockAtDateExport({ warehouses, warehouseId, pushToast }
         type="date"
         className="day-filter"
         value={date}
+        min={STOCK_HISTORY_RELIABLE_FROM}
         max={todayLocal()}
         onChange={(e) => setDate(e.target.value)}
-        title="Dzień, na którego koniec liczony jest stan"
+        title={`Dzień, na którego koniec liczony jest stan (historia kompletna od ${STOCK_HISTORY_RELIABLE_FROM})`}
       />
       <button
         type="button"
