@@ -291,6 +291,8 @@ export default function PurchaseOrderDetailsModal({
             X
           </button>
         </div>
+        {/* środek przewijany osobno — ZD z wieloma pozycjami nie mieścił się w modalu */}
+        <div className="order-modal-body">
         <p className="reorder-row-meta">
           Data utworzenia: {purchaseOrder.created_at.slice(0, 10)} | Wystawił:{' '}
           {resolveUserLabel(purchaseOrder.created_by)}{' '}
@@ -309,6 +311,7 @@ export default function PurchaseOrderDetailsModal({
           </div>
         )}
         <DataTable rows={items} rowKey={(item) => item.id} columns={itemColumns} emptyText="Brak pozycji." />
+        </div>
 
         <div className="order-form-actions">
           {purchaseOrder.status === 'draft' && canOperate && (
