@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { Activity } from 'lucide-react'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
 import type {
+  SmartRopRow,
   Supplier,
   Warehouse,
   WarehouseComponent,
@@ -47,6 +48,8 @@ type ComponentsViewProps = {
   onEditDoorComponent: (component: WarehouseComponent) => void
   onShowHistory: (component: WarehouseComponent) => void
   suppliers: Supplier[]
+  /** Smart ROP (get_all_smart_rop) — progi liczone z historii WZ; Zamawianie używa tych samych */
+  smartRopData?: SmartRopRow[]
   editRequestComponent?: WarehouseComponent | null
   onEditRequestHandled?: () => void
 }
@@ -81,9 +84,11 @@ function ComponentsView({
   onEditDoorComponent,
   onShowHistory,
   suppliers,
+  smartRopData = [],
   editRequestComponent,
   onEditRequestHandled,
 }: ComponentsViewProps) {
+  const smartById = useMemo(() => new Map(smartRopData.map((r) => [r.component_id, r])), [smartRopData])
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<ModalMode>('create')
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -383,12 +388,28 @@ function ComponentsView({
 
     cols.push(
       { ...col('unit', 'JEDNOSTKA', (c) => c.unit, (c) => c.unit), stackUnder: 'min' },
-      col('min', 'MIN / TARGET', (c) => c.min_stock_level, (row) => (
-        <>
-          {row.min_stock_level != null ? row.min_stock_level : '—'} /{' '}
-          {row.target_stock_level != null ? row.target_stock_level : '—'}
-        </>
-      )),
+      // te same progi co w Zamawianiu: smart (z historii WZ) nadpisuje ręczne
+      col('min', 'MIN / TARGET', (c) => smartById.get(c.id)?.effective_min_stock ?? c.min_stock_level, (row) => {
+        const smart = smartById.get(row.id)
+        const isSmart = smart?.smart_status === 'smart'
+        const min = isSmart ? smart.effective_min_stock : row.min_stock_level
+        const target = isSmart ? smart.effective_target_stock : row.target_stock_level
+        const manual = `${row.min_stock_level ?? '—'} / ${row.target_stock_level ?? '—'}`
+        return (
+          <>
+            {min != null ? min : '—'} / {target != null ? target : '—'}
+            {isSmart && (
+              <span
+                className="smart-badge smart-badge--smart"
+                style={{ marginLeft: 6 }}
+                title={`Smart: ${smart.weeks_of_history ?? 0} tyg historii, avg ${smart.daily_avg?.toFixed(1) ?? '0'} szt/dzień · ręczne: ${manual}`}
+              >
+                🤖
+              </span>
+            )}
+          </>
+        )
+      }),
     )
     if (categoryFilter === 'all' || categoryFilter === 'raw' || categoryFilter.startsWith('cat:')) {
       cols.push({ ...col('notes', 'UWAGI', (c) => c.notes, (row) => (row.notes?.trim() ? row.notes : '—')), stackUnder: 'name' })
@@ -421,7 +442,7 @@ function ComponentsView({
       ),
     })
     return cols
-  }, [categoryFilter, suppliersById, isManager, onShowHistory, handleEdit, handleDeleteRow])
+  }, [categoryFilter, suppliersById, smartById, isManager, onShowHistory, handleEdit, handleDeleteRow])
 
   useEffect(() => {
     if (!editRequestComponent) return
@@ -628,6 +649,7 @@ function ComponentsView({
                   targetStockLevel={form.target_stock_level}
                   setTargetStockLevel={(n) => setForm((p) => ({ ...p, target_stock_level: n }))}
                   suppliers={suppliers}
+                  smart={editingId != null ? smartById.get(editingId) ?? null : null}
                 />
                 <div className="order-field-full">
                   <span className="order-field-label-text">Magazyny</span>

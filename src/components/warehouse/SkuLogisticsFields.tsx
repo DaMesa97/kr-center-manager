@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Supplier } from '../../types'
+import type { SmartRopRow, Supplier } from '../../types'
 
 type Props = {
   supplierId: number | null
@@ -13,6 +13,8 @@ type Props = {
   targetStockLevel: number | ''
   setTargetStockLevel: (n: number | '') => void
   suppliers: Supplier[]
+  /** wynik smart ROP dla edytowanego SKU — pokazujemy, skąd Zamawianie bierze progi */
+  smart?: SmartRopRow | null
 }
 
 export default function SkuLogisticsFields({
@@ -27,6 +29,7 @@ export default function SkuLogisticsFields({
   targetStockLevel,
   setTargetStockLevel,
   suppliers,
+  smart = null,
 }: Props) {
   const activeSuppliers = useMemo(
     () =>
@@ -44,6 +47,14 @@ export default function SkuLogisticsFields({
   return (
     <div className="order-field-full sku-logistics-section">
       <h3>Logistyka i zamawianie</h3>
+      {smart?.smart_status === 'smart' && (
+        <p className="sku-smart-hint">
+          🤖 Smart logic liczy dla tego SKU z historii WZ: <strong>min {smart.effective_min_stock ?? '—'}</strong> /{' '}
+          <strong>target {smart.effective_target_stock ?? '—'}</strong> ({smart.weeks_of_history ?? 0} tyg, śr.{' '}
+          {smart.daily_avg?.toFixed(1) ?? '0'} szt/dzień). Zamawianie używa tych wartości, dopóki pola poniżej są puste —
+          wpisane ręcznie progi mają pierwszeństwo.
+        </p>
+      )}
       <div className="order-form-grid order-form-grid--sta">
         <label className="order-field-full">
           <span className="order-field-label-text">Dostawca</span>

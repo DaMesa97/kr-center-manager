@@ -237,6 +237,7 @@ function WarehouseView({
           onEditDoorComponent={onEditDoorComponent}
           onShowHistory={onShowHistory}
           suppliers={suppliers}
+          smartRopData={smartRopData}
           editRequestComponent={editRequestComponent}
           onEditRequestHandled={onEditRequestHandled}
         />
