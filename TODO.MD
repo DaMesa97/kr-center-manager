@@ -96,6 +96,12 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [ ] ~~Import LP z maila przez Make → API~~ — Tymek 23.10: na razie NIE.
 - [x] **Etykiety dla aluminium (23.10)**: JEDNA etykieta na SZTUKĘ pozycji (poz. z ilością 5 = 5 etykiet „1/5…5/5”), 100×150 jak STA. Szczegóły zlecenia alu → „🏷 Etykiety (N)” → wybór pozycji, podgląd, jeden wydruk wielostronicowy. Szablon „Aluminium — sztuka” w bazie (domyślny), edytowalny w Etykiety → Szablony → Aluminium; pola `{{alu_*}}` (sztuka, wymiar, typ, kolory, szkło, okucia, próg, termin, załadunek, realizacja). DoP nadal z LiczOkna. **Sprawdź:** wydruk testowy na drukarce etykiet.
 
+## 🧪 DO SPRAWDZENIA — przegląd smart ROP 27.10 (Claude, migracja `smart_rop_poprawki.sql` WGRANA)
+- [ ] **Zamawianie:** blacha montażowa 32×200 — Min 85 / Target 143 (było 81/89), sugerowane ~153; pozostałe 7 smart-SKU wg nowych progów. Progi liczone z rzeczywistych dni historii (53, nie 84), netto z ZWR, bez podwójnego sezonu; target = próg + zużycie przez czas dostawy.
+- [ ] **W drodze:** wygeneruj ZD z listy zakupowej (status „wysłane”) → w Zamawianiu karta pokazuje „Stock: −10 + w drodze: 153 (ETA …)” i SKU **spada z PILNE**, zamiast świecić dalej przez 42 dni. Rezerwacje pokazane informacyjnie („zarezerwowane pod zlecenia: 1750”), NIE wchodzą do pozycji — obejmują cały portfel zleceń, nie horyzont dostawy.
+- [ ] **Alerty:** dla 8 smart-SKU dzienne zużycie i „sugerowane” liczone z tego samego silnika co Zamawianie (dotąd osobny baseline miesięczny). Uwaga: Alerty nadal liczą „dostępne” = stan − WSZYSTKIE rezerwacje (stąd 278 krytycznych) — do decyzji, czy ograniczyć do rezerwacji z terminem w horyzoncie dostawy.
+- [ ] **Decyzja:** próg włączenia smart zostaje na 4 różnych dniach z WZ w 12 tyg. (jak w briefie z pracy); alternatywa — 4 różne tygodnie.
+
 ## 🧪 DO SPRAWDZENIA — ZKP 26.10 wieczór (Claude, na `clean`, bez nowej bety)
 - [ ] **Najpierw role:** Użytkownicy → swoje konto → role ZKP: Pełnomocnik (+ Magazyn do przyjęć). Bez tego zakładka ZKP to tylko podgląd.
 - [ ] **Szukaj po tabliczce** (ZKP → pierwsza podzakładka): wpisz `OF…/2026` zlecenia aluminium albo `2026/01/01` po „Uruchom do produkcji” → zlecenie, pozycja, teczka, konstrukcje; „📦 Eksport teczki (ZIP)” → otwórz ZIP: `00_Spis_tresci.pdf` + `dokumenty/…`.

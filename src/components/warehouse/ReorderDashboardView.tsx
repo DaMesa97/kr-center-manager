@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type {
+  IncomingStockRow,
   ShoppingListItem,
   SmartRopRow,
   Supplier,
@@ -8,8 +9,7 @@ import type {
   WarehouseStockRow,
 } from '../../types'
 import Spinner from '../Spinner'
-
-type ReorderStatus = 'no_threshold' | 'critical' | 'observe' | 'ok'
+import { computeReorder, type ReorderStatus } from '../../lib/reorder'
 
 type Row = {
   component: WarehouseComponent
@@ -17,6 +17,10 @@ type Row = {
   effective_min_stock: number | null
   effective_target_stock: number | null
   current_stock: number
+  /** zarezerwowane pod zlecenia (informacyjnie — nie wchodzi do pozycji) */
+  reserved: number
+  /** w drodze z otwartych ZD — wchodzi do pozycji zapasu */
+  incoming: IncomingStockRow | null
   supplier: Supplier | null
   lead_time_days: number | null
   status: ReorderStatus
@@ -27,6 +31,8 @@ type Props = {
   components: WarehouseComponent[]
   suppliers: Supplier[]
   stock: WarehouseStockRow[]
+  /** niedostarczone pozycje wysłanych ZD (get_incoming_stock_per_component) */
+  incoming?: IncomingStockRow[]
   componentsLoading?: boolean
   stockLoading?: boolean
   smartRopData: SmartRopRow[]
@@ -48,6 +54,11 @@ function getCategoryFilterLabel(filter: 'all' | 'raw' | 'doors_internal'): strin
   return 'Wszystkie kategorie'
 }
 
+function fmtEta(ymd: string): string {
+  const [y, m, d] = ymd.slice(0, 10).split('-')
+  return `${d}.${m}.${y}`
+}
+
 function sortByLeadAndStock(a: Row, b: Row): number {
   const aLead = a.lead_time_days
   const bLead = b.lead_time_days
@@ -61,6 +72,7 @@ export default function ReorderDashboardView({
   components,
   suppliers,
   stock,
+  incoming = [],
   componentsLoading = false,
   stockLoading = false,
   smartRopData,
@@ -100,10 +112,14 @@ export default function ReorderDashboardView({
     [smartRopData],
   )
 
+  const incomingByComponent = useMemo(() => new Map(incoming.map((i) => [i.component_id, i])), [incoming])
+
   const rows = useMemo(() => {
     const stockSumByComponent = new Map<number, number>()
+    const reservedByComponent = new Map<number, number>()
     for (const s of stock) {
       stockSumByComponent.set(s.component_id, (stockSumByComponent.get(s.component_id) ?? 0) + Number(s.quantity || 0))
+      reservedByComponent.set(s.component_id, (reservedByComponent.get(s.component_id) ?? 0) + Number(s.reserved_quantity || 0))
     }
 
     const q = query.trim().toLowerCase()
@@ -129,35 +145,15 @@ export default function ReorderDashboardView({
       const smartRow = smartRopByComponentId.get(component.id) ?? null
       const effectiveMin = smartRow?.effective_min_stock ?? component.min_stock_level ?? null
       const effectiveTarget = smartRow?.effective_target_stock ?? component.target_stock_level ?? null
-      let status: ReorderStatus = 'ok'
-      if (effectiveMin == null) {
-        status = 'no_threshold'
-      } else if (currentStock <= effectiveMin) {
-        status = 'critical'
-      } else if (currentStock <= effectiveMin * 1.5) {
-        status = 'observe'
-      }
-
-      let suggested: number | null = null
-      if (status === 'critical' || status === 'observe') {
-        const fallbackTarget = effectiveMin == null ? null : effectiveMin * 4
-        const rawQty = Math.max((effectiveTarget ?? fallbackTarget ?? 0) - currentStock, 1)
-        if (component.units_per_pallet != null && component.units_per_pallet > 0) {
-          suggested = Math.max(Math.ceil(rawQty / component.units_per_pallet) * component.units_per_pallet, 1)
-        } else {
-          suggested = Math.max(rawQty, 1)
-        }
-      } else if (status === 'ok' && effectiveTarget != null) {
-        // Dla OK: sugeruj uzupełnienie do target (jeśli target - stock > 0)
-        const rawQty = (effectiveTarget ?? 0) - currentStock
-        if (rawQty > 0) {
-          if (component.units_per_pallet != null && component.units_per_pallet > 0) {
-            suggested = Math.ceil(rawQty / component.units_per_pallet) * component.units_per_pallet
-          } else {
-            suggested = rawQty
-          }
-        }
-      }
+      const inc = incomingByComponent.get(component.id) ?? null
+      // pozycja = stan + w drodze; status i ilość liczy lib/reorder (wspólna arytmetyka)
+      const { status, suggested } = computeReorder({
+        stock: currentStock,
+        incoming: inc?.incoming_qty ?? 0,
+        min: effectiveMin,
+        target: effectiveTarget,
+        unitsPerPallet: component.units_per_pallet ?? null,
+      })
 
       return {
         component,
@@ -165,13 +161,15 @@ export default function ReorderDashboardView({
         effective_min_stock: effectiveMin,
         effective_target_stock: effectiveTarget,
         current_stock: currentStock,
+        reserved: reservedByComponent.get(component.id) ?? 0,
+        incoming: inc,
         supplier,
         lead_time_days: leadTime,
         status,
         suggested_qty: suggested,
       } as Row
     })
-  }, [components, stock, supplierById, categoryFilter, smartRopByComponentId, query, supplierFilter])
+  }, [components, stock, supplierById, categoryFilter, smartRopByComponentId, query, supplierFilter, incomingByComponent])
 
   const noThresholdSkus = useMemo(
     () => rows.filter((r) => r.status === 'no_threshold').sort((a, b) => a.component.name.localeCompare(b.component.name, 'pl')),
@@ -265,7 +263,15 @@ export default function ReorderDashboardView({
             )}
           </div>
           <div className="reorder-row-meta">
-            Stock: <strong>{row.current_stock}</strong> | Min: {row.effective_min_stock ?? '—'} | Target: {row.effective_target_stock ?? '—'}
+            Stock: <strong>{row.current_stock}</strong>
+            {row.incoming && row.incoming.incoming_qty > 0 && (
+              <>
+                {' '}+ w drodze: <strong>{row.incoming.incoming_qty}</strong>
+                {row.incoming.earliest_eta ? ` (ETA ${fmtEta(row.incoming.earliest_eta)})` : ''}
+              </>
+            )}
+            {' '}| Min: {row.effective_min_stock ?? '—'} | Target: {row.effective_target_stock ?? '—'}
+            {row.reserved > 0 && <> | zarezerwowane pod zlecenia: {row.reserved}</>}
           </div>
           <div className="reorder-row-meta">
             Sugerowane: <strong>{row.suggested_qty ?? '—'} szt</strong>
@@ -299,6 +305,9 @@ export default function ReorderDashboardView({
           <div className="reorder-row-title">{c.name}</div>
           <div className="reorder-row-meta">
             Stock: <strong>{row.current_stock}</strong>
+            {row.incoming && row.incoming.incoming_qty > 0 && (
+              <> + w drodze: {row.incoming.incoming_qty}{row.incoming.earliest_eta ? ` (ETA ${fmtEta(row.incoming.earliest_eta)})` : ''}</>
+            )}
             {row.effective_min_stock != null && <> | Min: {row.effective_min_stock}</>}
             {row.effective_target_stock != null && <> | Target: {row.effective_target_stock}</>}
             {supplier && <> · {supplier.name}</>}

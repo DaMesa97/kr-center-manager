@@ -2121,8 +2121,10 @@ function App() {
   useEffect(() => {
     if (isWarehouseDataTab) {
       void fetchSmartRop()
+      // „w drodze" wchodzi do pozycji zapasu w Zamawianiu (po wygenerowaniu ZD SKU nie jest już PILNE)
+      void fetchIncomingStock()
     }
-  }, [isWarehouseDataTab, fetchSmartRop])
+  }, [isWarehouseDataTab, fetchSmartRop, fetchIncomingStock])
 
   useEffect(() => {
     if (isWarehouseTab) {
