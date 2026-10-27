@@ -139,42 +139,86 @@ export default function DataTable<T>({
     if (tableRef.current) applySavedColumnWidths(tableRef.current, tableKey)
   })
 
-  // Piętrowanie „na miarę ekranu”: najpierw rysujemy szeroko i mierzymy; jak tabela
-  // nie mieści się w kontenerze — kolumny ze stackUnder chowamy pod matki. Szerokość
-  // wersji rozłożonej zapamiętana, żeby po poszerzeniu okna wrócić do osobnych kolumn.
+  // Piętrowanie „na miarę ekranu”, STOPNIOWE: rysujemy szeroko i mierzymy kolumny;
+  // jak tabela nie mieści się w kontenerze — chowamy pod matki tylko tyle kolumn ze
+  // stackUnder (w kolejności deklaracji), ile trzeba. Wcześniej było „wszystko albo
+  // nic” i na szerokim ekranie tabela składała się cała, zostawiając pół ekranu pustki.
+  // Gdy po spiętrowaniu nadal nie wchodzi (pod-wiersz poszerzył matkę) — dokładamy
+  // kolejną; gdy okno urośnie — rozkładamy z powrotem (z histerezą 24 px).
   const hasStack = columns.some((c) => c.stackUnder)
-  const [stacked, setStacked] = useState(false)
-  const wideWidthRef = useRef(0)
+  const stackableKeys = useMemo(() => {
+    const keys = new Set(columns.map((c) => c.key))
+    return columns.filter((c) => c.stackUnder && keys.has(c.stackUnder)).map((c) => c.key)
+  }, [columns])
+  const [stackedKeys, setStackedKeys] = useState<string[]>([])
+  const wideWidthsRef = useRef<Map<string, number> | null>(null)
+  const noUnstackBelowRef = useRef(0)
   useLayoutEffect(() => {
     const table = tableRef.current
     const box = table?.parentElement
     if (!hasStack || !table || !box) return
+    const headerRow = () => {
+      const rows = table.tHead?.rows
+      return rows && rows.length ? Array.from(rows[rows.length - 1].cells) : []
+    }
+    // ile kolumn (od początku listy) trzeba schować, żeby zejść z `total` do `avail`
+    const pick = (total: number, avail: number): string[] => {
+      const widths = wideWidthsRef.current
+      const out: string[] = []
+      let w = total
+      for (const k of stackableKeys) {
+        if (w <= avail + 2) break
+        out.push(k)
+        w -= widths?.get(k) ?? 0
+      }
+      return out
+    }
     const check = () => {
       const avail = box.clientWidth
-      if (!stacked) {
-        wideWidthRef.current = table.scrollWidth
-        if (table.scrollWidth > avail + 2) setStacked(true)
-      } else if (wideWidthRef.current > 0 && wideWidthRef.current <= avail) {
-        setStacked(false)
+      const overflow = table.scrollWidth > avail + 2
+      if (stackedKeys.length === 0) {
+        if (!overflow) return
+        // tabela rozłożona i za szeroka — teraz pomiar kolumn jest wiarygodny
+        const m = new Map<string, number>()
+        for (const th of headerRow()) if (th.dataset.colKey) m.set(th.dataset.colKey, th.getBoundingClientRect().width)
+        wideWidthsRef.current = m
+        const next = pick(table.scrollWidth, avail)
+        if (next.length) setStackedKeys(next)
+        return
       }
+      if (overflow) {
+        const next = stackableKeys.find((k) => !stackedKeys.includes(k))
+        if (next) {
+          noUnstackBelowRef.current = avail
+          setStackedKeys([...stackedKeys, next])
+        }
+        return
+      }
+      // mieści się — po poszerzeniu okna spróbuj rozłożyć część kolumn
+      const widths = wideWidthsRef.current
+      if (!widths || avail <= noUnstackBelowRef.current + 24) return
+      let total = 0
+      for (const v of widths.values()) total += v
+      const target = pick(total, avail)
+      if (target.length < stackedKeys.length) setStackedKeys(target)
     }
     check()
     const ro = new ResizeObserver(check)
     ro.observe(box)
     return () => ro.disconnect()
-  }, [hasStack, stacked, columns, rows])
+  }, [hasStack, stackableKeys, stackedKeys, columns, rows])
 
   const visible = useMemo<VisibleColumn<T>[]>(() => {
-    if (!stacked) return columns.map((col) => ({ col, subs: [] }))
-    const keys = new Set(columns.map((c) => c.key))
+    if (stackedKeys.length === 0) return columns.map((col) => ({ col, subs: [] }))
+    const hidden = new Set(stackedKeys)
     const subsBy = new Map<string, DataTableColumn<T>[]>()
     for (const c of columns) {
-      if (c.stackUnder && keys.has(c.stackUnder)) subsBy.set(c.stackUnder, [...(subsBy.get(c.stackUnder) ?? []), c])
+      if (c.stackUnder && hidden.has(c.key)) subsBy.set(c.stackUnder, [...(subsBy.get(c.stackUnder) ?? []), c])
     }
     return columns
-      .filter((c) => !(c.stackUnder && keys.has(c.stackUnder)))
+      .filter((c) => !hidden.has(c.key))
       .map((col) => ({ col, subs: subsBy.get(col.key) ?? [] }))
-  }, [columns, stacked])
+  }, [columns, stackedKeys])
 
   const [sortInner, setSortInner] = useState<SortState>(defaultSort)
   const controlled = sortProp !== undefined
@@ -372,7 +416,7 @@ export default function DataTable<T>({
   )
 
   const table = (
-    <table ref={tableRef} className={`orders-table ${className ?? ''}`.trim()} style={tableStyle}>
+    <table ref={tableRef} className={`orders-table dt-table ${className ?? ''}`.trim()} style={tableStyle}>
       {colgroup}
       {header}
       <tbody>
