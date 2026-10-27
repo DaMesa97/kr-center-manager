@@ -30,7 +30,6 @@ export default function StockAtDateExport({ warehouses, warehouseId, pushToast }
     if (date < STOCK_HISTORY_RELIABLE_FROM) {
       await appAlert(
         `Stan na dzień da się odtworzyć od ${STOCK_HISTORY_RELIABLE_FROM} — wcześniej historia ruchów jest niekompletna (stany wyzerowano bez dokumentu), więc wynik byłby nieprawdziwy.`,
-        { title: 'Stan na dzień' },
       )
       return
     }
