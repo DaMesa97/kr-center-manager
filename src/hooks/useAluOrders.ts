@@ -57,6 +57,7 @@ export type AluFoundOrder = {
 type ImportRpcRow = { r_order_id: number; r_result: string; r_order_number: string }
 type AttachRpcRow = { r_document_id: number; r_replaced_storage_path: string | null }
 type FindRpcRow = { r_order_id: number; r_order_number: string; r_company: string | null; r_release_date: string | null }
+export type AluCancelledOrder = { id: number; order_number: string; company: string; cancelled_at: string | null; cancelled_by: string }
 
 /** Ile id zleceń na jedno zapytanie `.in('order_id', …)` (długość URL PostgREST) */
 const ORDER_ID_CHUNK = 200
@@ -386,6 +387,58 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     [pushToast],
   )
 
+  /**
+   * Anulowane zlecenie Aluminium o tym numerze (find_alu_order ich nie widzi,
+   * a indeks unikalny tak — import „jako nowe" wywalał się błędem z bazy).
+   */
+  const findCancelledAluOrder = useCallback(
+    async (orderNumber: string): Promise<AluCancelledOrder | null> => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, order_number, company, extra_fields')
+        .eq('category', 'Aluminium')
+        .eq('order_number', orderNumber.trim())
+        .order('id', { ascending: false })
+      if (error) {
+        pushToast(`Błąd szukania zlecenia ${orderNumber}: ${error.message}`, 'error')
+        return null
+      }
+      const row = ((data ?? []) as Array<{ id: number; order_number: string; company: string | null; extra_fields: Record<string, unknown> | null }>)
+        .find((r) => r.extra_fields?.cancelled === true)
+      if (!row) return null
+      return {
+        id: row.id,
+        order_number: row.order_number,
+        company: row.company ?? '',
+        cancelled_at: typeof row.extra_fields?.cancelled_at === 'string' ? row.extra_fields.cancelled_at : null,
+        cancelled_by: typeof row.extra_fields?.cancelled_by === 'string' ? row.extra_fields.cancelled_by : '',
+      }
+    },
+    [pushToast],
+  )
+
+  /**
+   * Przywrócenie anulowanego zlecenia Aluminium do realizacji. Merge po stronie
+   * bazy (jak handleRestoreOrder w innych kategoriach); aluminium nie ma
+   * rezerwacji magazynowych, więc nic więcej nie trzeba odwracać.
+   */
+  const restoreAluOrder = useCallback(
+    async (orderId: number): Promise<boolean> => {
+      touchSession()
+      const { error } = await supabase.rpc('merge_order_extra_fields', {
+        p_order_id: orderId,
+        p_patch: { cancelled: false, cancelled_at: '', cancelled_by: '' },
+      })
+      if (error) {
+        pushToast(`Nie udało się przywrócić zlecenia: ${error.message}`, 'error')
+        return false
+      }
+      pushToast('Zlecenie przywrócone do realizacji', 'success')
+      return true
+    },
+    [pushToast, touchSession],
+  )
+
   /** Wycofanie dokumentu z powodem (zamiast usunięcia, zał. 6.34). */
   const withdrawOrderDocument = useCallback(
     async (doc: OrderDocument, reason: string): Promise<boolean> => {
@@ -589,5 +642,7 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     uploadOrderDocument,
     openOrderDocument,
     findAluOrderByNumber,
+    findCancelledAluOrder,
+    restoreAluOrder,
   }
 }

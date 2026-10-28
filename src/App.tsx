@@ -532,6 +532,8 @@ function App() {
     uploadOrderDocument,
     openOrderDocument,
     findAluOrderByNumber,
+    findCancelledAluOrder,
+    restoreAluOrder,
   } = useAluOrders({ pushToast, touchSession })
   const [aluImportOpen, setAluImportOpen] = useState(false)
   const [aluReimportNumber, setAluReimportNumber] = useState<string | null>(null)
@@ -2544,6 +2546,8 @@ function App() {
         onImport={handleAluImport}
         onUploadDocument={handleAluUploadDocument}
         onFindOrder={handleAluFindOrder}
+        onFindCancelledOrder={findCancelledAluOrder}
+        onRestoreOrder={restoreAluOrder}
         onDone={() => { fetchOrders() }}
         pushToast={pushToast}
       />
@@ -2573,6 +2577,10 @@ function App() {
             onUploadDocument={async (kind, file) => { await handleAluUploadDocument(o.id!, kind, null, file) }}
             onReimport={() => { setAluReimportNumber(o.order_number); setAluDetailsOrderId(null); setAluImportOpen(true) }}
             onCancel={() => { setAluDetailsOrderId(null); handleCancelOrderClick(o) }}
+            onRestore={() => {
+              setAluDetailsOrderId(null)
+              void restoreAluOrder(o.id!).then((ok) => { if (ok) fetchOrders() })
+            }}
             canPrintLabels={can(currentUser?.role, 'labels.print')}
             pushToast={pushToast}
           />

@@ -6,6 +6,7 @@ import { defaultAluDeadline, formatAluGlass, formatAluNotes, formatPlDateWithDow
 import { extractPdfTextPages } from '../lib/pdfText'
 import { parseAluDocument } from '../lib/aluLpParser'
 import { appConfirm } from '../lib/appDialogs'
+import type { AluCancelledOrder } from '../hooks/useAluOrders'
 import type {
   AluConstructionType, AluLcParseResult, AluLpParseResult, AluLpPosition, AluProductionNotes, AluRealizacja,
   AluZmParseResult, OrderDocumentKind, ToastVariant,
@@ -30,6 +31,9 @@ type Props = {
   onImport: (parsed: AluLpParseResult, opts: AluImportOpts) => Promise<AluImportResult | null>
   onUploadDocument: (orderId: number, kind: OrderDocumentKind, number: string | null, file: File) => Promise<boolean>
   onFindOrder: (orderNumber: string) => Promise<Array<{ id: number; order_number: string; company: string }>>
+  /** anulowane zlecenie o tym numerze — import pyta: przywrócić, czy dodać jako nowe */
+  onFindCancelledOrder: (orderNumber: string) => Promise<AluCancelledOrder | null>
+  onRestoreOrder: (orderId: number) => Promise<boolean>
   onDone: (orderId: number) => void
   pushToast: (msg: string, variant: ToastVariant) => void
 }
@@ -51,7 +55,8 @@ async function parseFile(file: File) {
 }
 
 export default function AluImportModal({
-  open, companies, reimportOrderNumber, onClose, onImport, onUploadDocument, onFindOrder, onDone, pushToast,
+  open, companies, reimportOrderNumber, onClose, onImport, onUploadDocument, onFindOrder, onFindCancelledOrder,
+  onRestoreOrder, onDone, pushToast,
 }: Props) {
   const [picked, setPicked] = useState<Picked>({ lp: null, lc: null, zm: null })
   const [parsing, setParsing] = useState(false)
@@ -66,12 +71,15 @@ export default function AluImportModal({
   const [notesOpen, setNotesOpen] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [existsPanel, setExistsPanel] = useState<AluImportResult | null>(null)
+  // numer OF zajęty przez ANULOWANE zlecenie — baza odrzuca zwykły import,
+  // więc pytamy wcześniej: przywrócić i wczytać z pliku, czy dodać jako nowe
+  const [cancelledPanel, setCancelledPanel] = useState<AluCancelledOrder | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
-    setPicked({ lp: null, lc: null, zm: null }); setLp(null); setLc(null); setZm(null); setPositions([]); setExistsPanel(null)
+    setPicked({ lp: null, lc: null, zm: null }); setLp(null); setLc(null); setZm(null); setPositions([]); setExistsPanel(null); setCancelledPanel(null)
     setOrderNumber(''); setCompany(''); setDeadline(defaultAluDeadline()); setRealizacja('wysylka'); setNotesOpen(null)
   }, [open])
 
@@ -238,6 +246,17 @@ export default function AluImportModal({
     }
     setSaving(true)
     try {
+      if (mode === 'check') {
+        const found = await onFindOrder(orderNumber.trim())
+        if (found.length === 0) {
+          const cancelledOrder = await onFindCancelledOrder(orderNumber.trim())
+          if (cancelledOrder) {
+            setCancelledPanel(cancelledOrder)
+            return
+          }
+        }
+      }
+      setCancelledPanel(null)
       const parsed: AluLpParseResult = {
         ...lp,
         header: { ...lp.header, order_number: orderNumber.trim(), client: company.trim() },
@@ -537,6 +556,40 @@ export default function AluImportModal({
               }
             />
 
+            {cancelledPanel && (
+              <div className="alu-exists-panel" role="alert">
+                <div>
+                  Zlecenie <strong>{cancelledPanel.order_number}</strong> jest w programie jako <strong>anulowane</strong>
+                  {cancelledPanel.cancelled_at ? ` (${new Date(cancelledPanel.cancelled_at).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}` : ''}
+                  {cancelledPanel.cancelled_by ? `${cancelledPanel.cancelled_at ? ', ' : ' ('}${cancelledPanel.cancelled_by})` : cancelledPanel.cancelled_at ? ')' : ''}
+                  . Co zrobić?
+                </div>
+                <div className="alu-exists-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={saving}
+                    onClick={async () => {
+                      setSaving(true)
+                      const ok = await onRestoreOrder(cancelledPanel.id)
+                      setSaving(false)
+                      if (!ok) return
+                      setCancelledPanel(null)
+                      await save('overwrite')
+                    }}
+                  >
+                    Przywróć do realizacji i wczytaj pozycje z pliku
+                  </button>
+                  <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => { setCancelledPanel(null); void save('duplicate') }}>
+                    Dodaj jako nowe zlecenie ({cancelledPanel.order_number} (2))
+                  </button>
+                  <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => setCancelledPanel(null)}>
+                    Anuluj
+                  </button>
+                </div>
+              </div>
+            )}
+
             {existsPanel && (
               <div className="alu-exists-panel" role="alert">
                 <div>
@@ -561,7 +614,7 @@ export default function AluImportModal({
 
         <div className="order-form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving || parsing}>Anuluj</button>
-          {lp && !existsPanel && (
+          {lp && !existsPanel && !cancelledPanel && (
             <button type="button" className="btn btn-success" disabled={saving || parsing || problems.length > 0} onClick={() => void save('check')} title={problems[0]}>
               {saving ? 'Zapisuję…' : `Zapisz zlecenie (${positions.length} poz.)`}
             </button>

@@ -45,6 +45,8 @@ type Props = {
   onReimport: () => void
   /** Anulowanie zlecenia (kierownik, tylko otwarte) — wspólny flow z innymi kategoriami */
   onCancel?: () => void
+  /** Przywrócenie anulowanego zlecenia do realizacji (kierownik) */
+  onRestore?: () => void
   /** druk etykiet (etykieta na sztukę) — brak = bez przycisku */
   canPrintLabels?: boolean
   pushToast?: (message: string, variant: ToastVariant) => void
@@ -59,7 +61,7 @@ function fmtDate(iso: string | null | undefined): string {
 export default function AluOrderDetailsModal({
   order, positions, documents, constructions, production, onStartProduction, canDecideZkp, onWithdrawDocument,
   fetchDossier, onSetZkp, onSetNa, onRevokeNa, onImportMaterialList, fetchMaterialList, isManager, uploading, onClose,
-  onOpenDocument, onUploadDocument, onReimport, onCancel, canPrintLabels, pushToast,
+  onOpenDocument, onUploadDocument, onReimport, onCancel, onRestore, canPrintLabels, pushToast,
 }: Props) {
   const [labelsOpen, setLabelsOpen] = useState(false)
   const [starting, setStarting] = useState(false)
@@ -236,6 +238,11 @@ export default function AluOrderDetailsModal({
           {isManager && !cancelled && !released && onCancel && (
             <button type="button" className="btn btn-danger" onClick={onCancel} style={{ marginRight: 'auto' }}>
               Anuluj zlecenie
+            </button>
+          )}
+          {isManager && cancelled && onRestore && (
+            <button type="button" className="btn btn-primary" onClick={onRestore} style={{ marginRight: 'auto' }}>
+              Przywróć do realizacji
             </button>
           )}
           {isManager && !cancelled && !released && !production && positions.length > 0 && (
