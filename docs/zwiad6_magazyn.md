@@ -28,11 +28,12 @@ Test: `scratchpad/p1/test_p1.sql` (transakcja z rollback) — wszystkie scenariu
 - Stany pokazują próg MIN ze smart (🤖) i liczą status od tego samego progu co Komponenty / Zamawianie.
 - Alerty: propozycja zamówienia raz na SKU (61 SKU miało ją na 2 półkach; suma 51 118 → 51 050), liczniki pigułek po SKU.
 
+- Prognozy: historia zużycia przy < 3 WZ pokazuje prawdziwe ruchy (flaga „za mało danych" i prognoza 0 zostają) — `migrate/zwiad6_p2b_prognozy.sql`.
+
 ## P2 — do zrobienia
 
 - Draft ZD nie liczy się do „w drodze" → Zamawianie proponuje zamówić drugi raz to, co już jest w szkicu (decyzja: pokazywać szkice osobno jako „w szkicu"?).
-- Prognozy pokazują zero historii przy < 3 WZ.
-- Receptura 520: kryterium powinno być 80N (do potwierdzenia z Tymkiem).
+- Receptura 520 (ST / Skrzydło / ST68 TERMO / ANTRACYT): komponent to skrzydło 80P, a kryterium i nazwa mówią „90E / PRAWE" (duplikat 522) → powinno być 80N. 3 otwarte zlecenia 80N PRAWE są w `no_recipe`. Gotowy skrypt naprawczy (kryterium + nazwa + rezerwacja tych 3 zleceń) czeka na uruchomienie przez Tymka: `migrate/fix_recipe_520_data.sql` (albo ręcznie w Recepturach: szerokość 90E → 80N i „Przelicz rezerwacje ST").
 - Pola „policzono" edytowalne dla wszystkich, RPC tylko kierownik (decyzja: magazynier spisuje?).
 - Brak UI do `undo_damage_report`.
 - Oczekiwane części receptur `wing/frame/hardware` na sztywno (757 zleceń Disting w `partial_recipe`) — decyzja per kategoria.
