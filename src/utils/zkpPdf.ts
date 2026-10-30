@@ -8,6 +8,14 @@ import {
   buildRegister633Definition,
   type Register624Input,
 } from '../lib/zkpPrint'
+import {
+  buildDeclarationDefinition,
+  buildMarkingDefinition,
+  buildProtocolDefinition,
+  type DeclarationPrintInput,
+  type MarkingItem,
+  type ProtocolPrintInput,
+} from '../lib/zkpPrintDocs'
 import type { ZkpCardData } from '../hooks/useZkpCards'
 import type { ZkpCompetency, ZkpPerson, ZkpRange, ZkpRegisterRow } from '../lib/zkpCard'
 import type { ZkpCardTarget } from '../components/zkp/ZkpCardModal'
@@ -50,4 +58,18 @@ export function printMatrix627Pdf(people: ZkpPerson[], competencies: ZkpCompeten
 
 export function printRegister624Pdf(input: Register624Input) {
   pdfMakeRuntime.createPdf(buildRegister624Definition(input, new Date())).download(`Rejestr_przyjec_6.24_${input.from}_${input.to}.pdf`)
+}
+
+// ── etap D+E: protokół 6.17.5, deklaracja 6.9, tabliczka 6.26 / etykieta 6.8 ──
+export function printProtocolPdf(inp: Omit<ProtocolPrintInput, 'printedAt'>) {
+  pdfMakeRuntime.createPdf(buildProtocolDefinition({ ...inp, printedAt: new Date() })).download(`Protokol_6.17.5_${safe(inp.protocol.protocol_no)}.pdf`)
+}
+
+export function printDeclarationPdf(inp: Omit<DeclarationPrintInput, 'printedAt'>) {
+  pdfMakeRuntime.createPdf(buildDeclarationDefinition({ ...inp, printedAt: new Date() })).download(`${safe(inp.declaration.number)}.pdf`)
+}
+
+export function printMarkingPdf(items: MarkingItem[]) {
+  const name = items.length === 1 ? `Tabliczka_${safe(items[0].constructionNo)}` : `Tabliczki_${items.length}_szt`
+  pdfMakeRuntime.createPdf(buildMarkingDefinition(items, new Date())).download(`${name}.pdf`)
 }

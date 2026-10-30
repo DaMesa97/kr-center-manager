@@ -24,14 +24,16 @@ import {
   type ZkpStageDef,
   type ZkpStageResult,
 } from '../../lib/zkpCard'
-import { printProductCardPdf } from '../../utils/zkpPdf'
+import { printProductCardPdf, printProtocolPdf } from '../../utils/zkpPdf'
+import ZkpProtocolSection from './ZkpProtocolSection'
 import type { ZkpData } from './ZkpView'
 import type { ToastVariant } from '../../types'
 
 // Karta wyrobu AS 75EI (zał. 6.25) jednej konstrukcji. Sekcje jak na wzorze:
 // A+B identyfikacja i sprawdzenie zakresu (tabela K, liczy baza), C etapy z partiami,
-// D okucia, E wypełnienia, F zwolnienie. Każda reguła jest też w bazie — okno
-// tylko podpowiada i pokazuje odpowiedź bazy.
+// D okucia, E wypełnienia, F zwolnienie, G protokół badań 6.17.5 (zwolnienie idzie
+// przez protokół). Każda reguła jest też w bazie — okno tylko podpowiada i pokazuje
+// odpowiedź bazy.
 
 export type ZkpCardTarget = {
   constructionId: number
@@ -52,7 +54,7 @@ type Props = {
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-type Section = 'ab' | 'c' | 'd' | 'e' | 'f'
+type Section = 'ab' | 'c' | 'd' | 'e' | 'g' | 'f'
 
 const hasAny = (roles: string[], wanted: string[]) => roles.some((r) => wanted.includes(r))
 
@@ -144,6 +146,7 @@ export default function ZkpCardModal({ target, zkp, roles, isManager, onClose, o
         {tab('c', 'C. Etapy i partie', !confirmed)}
         {tab('d', 'D. Okucia', !card)}
         {tab('e', 'E. Wypełnienia', !card)}
+        {tab('g', `G. Protokół 6.17.5${(api.data?.protocols.length ?? 0) ? ` (${api.data?.protocols.length})` : ''}`, !confirmed)}
         {tab('f', 'F. Zwolnienie', !card)}
       </div>
 
@@ -157,8 +160,10 @@ export default function ZkpCardModal({ target, zkp, roles, isManager, onClose, o
         <SectionD api={api} zkp={zkp} canFill={canRecord && !closed} save={wrap(api.saveHardware)} />
       ) : section === 'e' ? (
         <SectionE api={api} zkp={zkp} canFill={canRecord && !closed} save={wrap(api.saveFilling)} />
+      ) : section === 'g' ? (
+        <ZkpProtocolSection api={api} zkp={zkp} target={target} canFill={canFill} canDecide={canDecide} />
       ) : (
-        <SectionF api={api} canDecide={canDecide && !closed} save={wrap(api.decide)} />
+        <SectionF api={api} target={target} canDecide={canDecide && !closed} save={wrap(api.decide)} onGoProtocol={() => setSection('g')} />
       )}
     </ZkpModal>
   )
@@ -709,17 +714,28 @@ function SectionE({ api, zkp, canFill, save }: { api: ZkpCardApi; zkp: ZkpData; 
 }
 
 // ── F. Zwolnienie ───────────────────────────────────────────────────────
-function SectionF({ api, canDecide, save }: { api: ZkpCardApi; canDecide: boolean; save: ZkpCardApi['decide'] }) {
+function SectionF({ api, target, canDecide, save, onGoProtocol }: {
+  api: ZkpCardApi; target: ZkpCardTarget; canDecide: boolean; save: ZkpCardApi['decide']; onGoProtocol: () => void
+}) {
   const card = api.data?.card
   const problems = api.data?.problems ?? []
+  const released = (api.data?.protocols ?? []).find((p) => p.decision === 'zwolniony') ?? null
   const [f, setF] = useState({ protocol: '', declaration: '', released_on: '', nc: '', notes: '' })
   if (!card) return null
+  const range = api.ranges.find((r) => r.code === card.range_code) ?? null
 
   if (card.decision) {
     return (
       <div className="alu-details-grid">
         <div><span className="alu-details-label">Decyzja</span><b>{card.decision === 'zwolniony' ? 'ZWOLNIONY' : 'NIEZGODNY'}</b></div>
-        <div><span className="alu-details-label">Protokół badań 6.17.5 nr</span>{card.test_protocol_no || '—'}</div>
+        <div>
+          <span className="alu-details-label">Protokół badań 6.17.5 nr</span>{card.test_protocol_no || '—'}
+          {released && (
+            <button type="button" className="zkp-link" style={{ marginLeft: 6 }} onClick={() => printProtocolPdf({ protocol: released, card, range, constructionNo: target.constructionNo, orderNumber: target.orderNumber, company: target.company })}>
+              🖨 PDF
+            </button>
+          )}
+        </div>
         <div><span className="alu-details-label">Deklaracja (KDWU / DWU)</span>{card.declaration_no || '—'}</div>
         <div><span className="alu-details-label">Data wydania</span>{card.released_on || '—'}</div>
         {card.nonconformity_ref && <div><span className="alu-details-label">Rejestr 6.20 nr</span>{card.nonconformity_ref}</div>}
@@ -729,14 +745,13 @@ function SectionF({ api, canDecide, save }: { api: ZkpCardApi; canDecide: boolea
     )
   }
 
-  const decide = async (decision: 'zwolniony' | 'niezgodny') => {
+  // zwolnienie idzie przez protokół 6.17.5 (cz. G) — tu zostaje tylko odrzucenie bez protokołu (np. złom)
+  const decide = async () => {
     const ok = await appConfirm(
-      decision === 'zwolniony'
-        ? `Zwolnić konstrukcję? Karta zostanie zamknięta (bez dalszych zmian), podpis i data z serwera.`
-        : `Oznaczyć konstrukcję jako NIEZGODNĄ (rejestr 6.20 nr ${f.nc})? Karta zostanie zamknięta.`,
-      { title: 'Zwolnienie — zał. 6.25 cz. F', confirmLabel: decision === 'zwolniony' ? 'Zwalniam' : 'Niezgodna' },
+      `Oznaczyć konstrukcję jako NIEZGODNĄ (rejestr 6.20 nr ${f.nc})? Karta zostanie zamknięta bez zwolnienia.`,
+      { title: 'Zwolnienie — zał. 6.25 cz. F', confirmLabel: 'Niezgodna' },
     )
-    if (ok) await save(decision, f.protocol, f.declaration, f.released_on || null, f.nc, f.notes)
+    if (ok) await save('niezgodny', f.protocol, f.declaration, f.released_on || null, f.nc, f.notes)
   }
 
   return (
@@ -747,21 +762,13 @@ function SectionF({ api, canDecide, save }: { api: ZkpCardApi; canDecide: boolea
           <ul style={{ margin: '4px 0 0 18px' }}>{problems.map((p) => <li key={p}>{p}</li>)}</ul>
         </div>
       ) : (
-        <div className="zkp-info">Karta kompletna — można zwolnić.</div>
+        <div className="zkp-info">
+          Karta kompletna. Zwolnienie (ZWOLNIONY) następuje przez <b>protokół badań 6.17.5</b> — część G:{' '}
+          <button type="button" className="zkp-link" onClick={onGoProtocol}>przejdź do protokołu →</button>
+        </div>
       )}
+      <p className="zkp-hint">Numer deklaracji KDWU / DWU nadaje zakładka „Deklaracje (6.9)” po zwolnieniu i wraca tu sam.</p>
       <div className="order-form-grid zkp-form-grid">
-        <label>
-          <span className="order-field-label-text">Protokół badań 6.17.5 nr</span>
-          <input disabled={!canDecide} value={f.protocol} onChange={(e) => setF((p) => ({ ...p, protocol: e.target.value }))} />
-        </label>
-        <label>
-          <span className="order-field-label-text">Numer deklaracji (KDWU / DWU)</span>
-          <input disabled={!canDecide} value={f.declaration} onChange={(e) => setF((p) => ({ ...p, declaration: e.target.value }))} placeholder="KDWU/RR/NNNN" />
-        </label>
-        <label>
-          <span className="order-field-label-text">Data wydania</span>
-          <input type="date" disabled={!canDecide} value={f.released_on} onChange={(e) => setF((p) => ({ ...p, released_on: e.target.value }))} />
-        </label>
         <label>
           <span className="order-field-label-text">Niezgodność — rejestr 6.20 nr</span>
           <input disabled={!canDecide} value={f.nc} onChange={(e) => setF((p) => ({ ...p, nc: e.target.value }))} />
@@ -773,11 +780,8 @@ function SectionF({ api, canDecide, save }: { api: ZkpCardApi; canDecide: boolea
       </div>
       {canDecide ? (
         <div className="zkp-actions">
-          <button type="button" className="btn btn-primary" disabled={api.saving || problems.length > 0} onClick={() => void decide('zwolniony')}>
-            ✔ ZWOLNIONY
-          </button>
-          <button type="button" className="btn btn-danger" disabled={api.saving || !f.nc.trim()} onClick={() => void decide('niezgodny')}>
-            NIEZGODNY
+          <button type="button" className="btn btn-danger" disabled={api.saving || !f.nc.trim()} onClick={() => void decide()} title="Zamknięcie karty bez zwolnienia (np. konstrukcja do złomowania) — z wpisem w rejestrze 6.20">
+            NIEZGODNY — zamknij bez zwolnienia
           </button>
         </div>
       ) : (

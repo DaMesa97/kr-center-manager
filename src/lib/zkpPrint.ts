@@ -347,3 +347,6 @@ export function buildMatrix627Definition(people: ZkpPerson[], competencies: ZkpC
   ]
   return base('Załącznik 6.27 – Matryca kompetencji', true, content, printedAt)
 }
+
+// wspólne kawałki dla zkpPrintDocs.ts (protokół 6.17.5, deklaracje 6.9, tabliczka 6.26)
+export { base as zkpPdfBase, GRID as ZKP_GRID, th as zkpTh, h2 as zkpH2, box as zkpBox, fmt as zkpFmt, PRODUCER as ZKP_PRODUCER }

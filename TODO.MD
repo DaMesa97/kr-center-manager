@@ -96,6 +96,13 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [ ] ~~Import LP z maila przez Make → API~~ — Tymek 23.10: na razie NIE.
 - [x] **Etykiety dla aluminium (23.10)**: JEDNA etykieta na SZTUKĘ pozycji (poz. z ilością 5 = 5 etykiet „1/5…5/5”), 100×150 jak STA. Szczegóły zlecenia alu → „🏷 Etykiety (N)” → wybór pozycji, podgląd, jeden wydruk wielostronicowy. Szablon „Aluminium — sztuka” w bazie (domyślny), edytowalny w Etykiety → Szablony → Aluminium; pola `{{alu_*}}` (sztuka, wymiar, typ, kolory, szkło, okucia, próg, termin, załadunek, realizacja). DoP nadal z LiczOkna. **Sprawdź:** wydruk testowy na drukarce etykiet.
 
+## 🧪 DO SPRAWDZENIA — ZKP protokół 6.17.5 + deklaracje 30.10 (Claude, migracja `zkp_07` WGRANA, bez bety)
+- [ ] **Matryca:** komuś (sobie) nadać „Kontrola odbiorcza (6.17.5)” w ZKP → Matryca kompetencji — bez tego protokołu nie da się zapisać.
+- [ ] **Protokół:** karta wyrobu z potwierdzonym zakresem → część **G. Protokół 6.17.5** → kontroler (inicjały), B/D/E/F, pomiary C (ościeżnica z nominałem, skrzydło, szczeliny A/B/C na 3 krawędziach, masa) → „Zapisz i przelicz” → baza wstawia OK/NOK przy pomiarach; wpisz szczelinę A zawiasową 8 przy EI30 = NOK → ZWOLNIONY zablokowany → WSTRZYMANY → nowy protokół `/2` → ZWOLNIONY → karta zamknięta (cz. F pokazuje nr protokołu + 🖨 PDF).
+- [ ] **Cz. F** nie ma już przycisku ZWOLNIONY (tylko przez protokół); został „NIEZGODNY — zamknij bez zwolnienia”.
+- [ ] **Deklaracje (6.9):** ⚙ Certyfikaty i podpis (wpisz choć podpisującego) → „+ Wystaw deklarację” → grupa zlecenie × kod typu → numer KDWU/26/0001 → PDF otwiera się sam; „🏷 tabliczki” = tabliczka 6.26 + etykieta B/CE na konstrukcję (A5); numer widać w karcie, rejestrze 6.33 i teczce (poz. 9–10 „jest”, gdy wszystkie konstrukcje mają).
+- [ ] **Decyzje PJ:** nominał ościeżnicy z LP do ±2 mm; układ tabliczki vs DWG systemodawcy; UD / uderzenie = NPD do czasu dokumentów ALURON.
+
 ## 🧪 DO SPRAWDZENIA — przegląd smart ROP 27.10 (Claude, migracja `smart_rop_poprawki.sql` WGRANA)
 - [ ] **Zamawianie:** blacha montażowa 32×200 — Min 85 / Target 143 (było 81/89), sugerowane ~153; pozostałe 7 smart-SKU wg nowych progów. Progi liczone z rzeczywistych dni historii (53, nie 84), netto z ZWR, bez podwójnego sezonu; target = próg + zużycie przez czas dostawy.
 - [ ] **W drodze:** wygeneruj ZD z listy zakupowej (status „wysłane”) → w Zamawianiu karta pokazuje „Stock: −10 + w drodze: 153 (ETA …)” i SKU **spada z PILNE**, zamiast świecić dalej przez 42 dni. Rezerwacje pokazane informacyjnie („zarezerwowane pod zlecenia: 1750”), NIE wchodzą do pozycji — obejmują cały portfel zleceń, nie horyzont dostawy.

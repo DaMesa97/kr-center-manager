@@ -8318,3 +8318,11 @@ html, body, #root {
 .sku-smart-hint { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 0.85rem; }
 /* Tabele DataTable wypełniają kontener: gdy treść jest węższa niż ekran, kolumny rozchodzą się na całą szerokość zamiast zostawiać pustkę po prawej (piętrowanie mierzy przepełnienie, więc min-width mu nie przeszkadza) */
 .orders-table.dt-table { min-width: 100%; }
+/* ZKP — protokół 6.17.5 i deklaracje */
+.zkp-result-pick label { padding: 1px 6px; border-radius: 6px; }
+.zkp-result-pick label.zkp-result--OK { background: #dcfce7; }
+.zkp-result-pick label.zkp-result--NOK { background: #fee2e2; }
+.zkp-result-pick label.zkp-result--nd { background: #f1f5f9; }
+.zkp-measure td { vertical-align: top; }
+.zkp-measure-inputs { display: inline-flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.zkp-measure-inputs label { display: inline-flex; flex-direction: column; gap: 2px; font-size: 0.75rem; color: #64748b; }

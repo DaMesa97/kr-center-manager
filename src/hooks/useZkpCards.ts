@@ -18,6 +18,13 @@ import {
   type ZkpStageRecord,
   type ZkpStageResult,
 } from '../lib/zkpCard'
+import type {
+  ZkpDeclaration,
+  ZkpDeclarationCandidate,
+  ZkpProtocolForm,
+  ZkpSetting,
+  ZkpTestProtocol,
+} from '../lib/zkpProtocol'
 import type { ToastVariant } from '../types'
 
 // Karta wyrobu (zał. 6.25) i rejestr wyrobów (6.33). Odczyt — tabele i funkcje
@@ -57,6 +64,8 @@ export type ZkpCardData = {
   hardware: ZkpHardwareRecord[]
   fillings: ZkpFillingRecord[]
   problems: string[]
+  /** protokoły 6.17.5 karty — otwarty (decision null) + zamknięte, po attempt */
+  protocols: ZkpTestProtocol[]
 }
 
 /** Jedna karta (po konstrukcji) + słownik zakresów i lista 6.10.5 dla zakresu karty. */
@@ -78,17 +87,18 @@ export function useZkpCard(constructionId: number, pushToast: Toast) {
       return
     }
     if (!card) {
-      if (mounted.current) setData({ card: null, checks: [], stages: [], hardware: [], fillings: [], problems: [] })
+      if (mounted.current) setData({ card: null, checks: [], stages: [], hardware: [], fillings: [], problems: [], protocols: [] })
       return
     }
-    const [chk, st, hw, fl, pr] = await Promise.all([
+    const [chk, st, hw, fl, pr, pt] = await Promise.all([
       supabase.rpc('zkp_card_checks', { p_card_id: card.id }),
       supabase.from('zkp_card_stage_records').select('*').eq('card_id', card.id).order('id'),
       supabase.from('zkp_card_hardware').select('*').eq('card_id', card.id).order('id'),
       supabase.from('zkp_card_fillings').select('*').eq('card_id', card.id).order('id'),
       supabase.rpc('zkp_card_release_problems', { p_card_id: card.id }),
+      supabase.from('zkp_test_protocols').select('*').eq('card_id', card.id).order('attempt'),
     ])
-    const err = chk.error ?? st.error ?? hw.error ?? fl.error ?? pr.error
+    const err = chk.error ?? st.error ?? hw.error ?? fl.error ?? pr.error ?? pt.error
     if (err) pushToast(`Nie wczytano całej karty: ${err.message}`, 'error')
     if (!mounted.current) return
     setData({
@@ -98,6 +108,7 @@ export function useZkpCard(constructionId: number, pushToast: Toast) {
       hardware: (hw.data ?? []) as ZkpHardwareRecord[],
       fillings: (fl.data ?? []) as ZkpFillingRecord[],
       problems: ((pr.data ?? []) as Array<{ r_problem: string }>).map((p) => p.r_problem),
+      protocols: (pt.data ?? []) as ZkpTestProtocol[],
     })
   }, [constructionId, pushToast])
 
@@ -218,7 +229,119 @@ export function useZkpCard(constructionId: number, pushToast: Toast) {
           }),
         decision === 'zwolniony' ? 'Konstrukcja zwolniona' : 'Konstrukcja oznaczona jako niezgodna',
       ),
+    // protokół 6.17.5: zapis otwartego (kontroler z matrycy), zamknięcie (PJ / Zastępca)
+    saveProtocol: (form: ZkpProtocolForm) =>
+      run(
+        () =>
+          supabase.rpc('zkp_save_test_protocol', {
+            p_card_id: cardId,
+            p_data: {
+              inspector: form.inspector,
+              produced_on: form.produced_on,
+              inspected_on: form.inspected_on,
+              instruments: form.instruments,
+              notes: form.notes,
+              checks: Object.fromEntries(Object.entries(form.checks).filter(([, v]) => v)),
+              measurements: form.measurements,
+            },
+          }),
+        'Protokół zapisany — wyniki pomiarów przeliczone',
+      ),
+    closeProtocol: (protocolId: number, assessment: 'zgodny' | 'niezgodny', decision: 'zwolniony' | 'wstrzymany', ncRef: string, notes: string) =>
+      run(
+        () =>
+          supabase.rpc('zkp_close_test_protocol', {
+            p_protocol_id: protocolId,
+            p_assessment: assessment,
+            p_decision: decision,
+            p_nonconformity_ref: ncRef,
+            p_notes: notes,
+          }),
+        decision === 'zwolniony' ? 'Protokół zamknięty — konstrukcja ZWOLNIONA' : 'Protokół zamknięty — WSTRZYMANY',
+      ),
   }
 }
+
+/** Deklaracje KDWU / DWU (zał. 6.9): wykaz, konstrukcje gotowe do deklaracji, ustawienia (certyfikaty, podpisujący). */
+export function useZkpDeclarations(pushToast: Toast, active: boolean) {
+  const [declarations, setDeclarations] = useState<ZkpDeclaration[]>([])
+  const [candidates, setCandidates] = useState<ZkpDeclarationCandidate[]>([])
+  const [settings, setSettings] = useState<ZkpSetting[]>([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const mounted = useRef(true)
+
+  const reload = useCallback(async () => {
+    setLoading(true)
+    const [d, c, s] = await Promise.all([
+      fetchAllPages<ZkpDeclaration>((from, to) =>
+        supabase.from('zkp_declarations').select('*').order('id', { ascending: false }).range(from, to),
+      ),
+      supabase.rpc('zkp_declaration_candidates'),
+      supabase.from('zkp_settings').select('*').order('key'),
+    ])
+    if (!mounted.current) return
+    setLoading(false)
+    const err = d.error ?? c.error ?? s.error
+    if (err) {
+      pushToast(`Nie wczytano deklaracji: ${err.message}`, 'error')
+      return
+    }
+    setDeclarations(d.data)
+    setCandidates((c.data ?? []) as ZkpDeclarationCandidate[])
+    setSettings((s.data ?? []) as ZkpSetting[])
+  }, [pushToast])
+
+  useEffect(() => {
+    mounted.current = true
+    if (active) void reload()
+    return () => {
+      mounted.current = false
+    }
+  }, [active, reload])
+
+  const run = useCallback(
+    async <T,>(fn: () => PromiseLike<{ data: T | null; error: { message: string } | null }>, okMsg?: string): Promise<T | null | false> => {
+      setSaving(true)
+      try {
+        const { data, error } = await fn()
+        if (error) {
+          pushToast(error.message, 'error')
+          return false
+        }
+        if (okMsg) pushToast(okMsg, 'success')
+        await reload()
+        return data
+      } finally {
+        if (mounted.current) setSaving(false)
+      }
+    },
+    [pushToast, reload],
+  )
+
+  return {
+    declarations,
+    candidates,
+    settings,
+    loading,
+    saving,
+    reload,
+    setting: (key: string) => settings.find((s) => s.key === key)?.value ?? '',
+    issue: async (orderId: number, constructionIds: number[], data: Record<string, string>): Promise<ZkpDeclaration | null> => {
+      const res = await run(() => supabase.rpc('zkp_issue_declaration', { p_order_id: orderId, p_construction_ids: constructionIds, p_data: data }))
+      if (!res) return null
+      const row = (res as Array<{ r_id: number; r_number: string }>)[0]
+      if (!row) return null
+      const { data: d } = await supabase.from('zkp_declarations').select('*').eq('id', row.r_id).maybeSingle<ZkpDeclaration>()
+      pushToast(`Wystawiono deklarację ${row.r_number}`, 'success')
+      return d ?? null
+    },
+    withdraw: (id: number, reason: string) =>
+      run(() => supabase.rpc('zkp_withdraw_declaration', { p_id: id, p_reason: reason }), 'Deklaracja wycofana — konstrukcje wolne pod nową'),
+    setSetting: (key: string, value: string) => run(() => supabase.rpc('zkp_set_setting', { p_key: key, p_value: value }), 'Ustawienie zapisane'),
+  }
+}
+
+export type ZkpDeclarationsApi = ReturnType<typeof useZkpDeclarations>
 
 export type ZkpCardApi = ReturnType<typeof useZkpCard>

@@ -8,6 +8,7 @@ import ZkpCriticalPanel from './ZkpCriticalPanel'
 import ZkpCompetencyPanel from './ZkpCompetencyPanel'
 import ZkpTracePanel from './ZkpTracePanel'
 import ZkpProductsPanel from './ZkpProductsPanel'
+import ZkpDeclarationsPanel from './ZkpDeclarationsPanel'
 import type { CurrentUser, ToastVariant } from '../../types'
 
 // Zakładka ZKP AS 75EI — etap F: przyjęcia komponentów krytycznych z partiami
@@ -16,7 +17,7 @@ import type { CurrentUser, ToastVariant } from '../../types'
 // Pierwsza podzakładka: wyszukiwarka „od tabliczki” + eksport teczki (tylko odczyt);
 // „Wyroby i karty”: rejestr wyrobów 6.33 i karty wyrobu 6.25 (etap C).
 
-type Sub = 'tabliczka' | 'wyroby' | 'przyjecia' | 'dostawcy' | 'komponenty' | 'kompetencje'
+type Sub = 'tabliczka' | 'wyroby' | 'deklaracje' | 'przyjecia' | 'dostawcy' | 'komponenty' | 'kompetencje'
 
 type Props = {
   currentUser: CurrentUser | null
@@ -50,6 +51,7 @@ export default function ZkpView({ currentUser, isManager, pushToast }: Props) {
         <div className="subtab-bar" role="tablist" aria-label="ZKP — sekcje">
           {tab('tabliczka', 'Szukaj po tabliczce')}
           {tab('wyroby', 'Wyroby i karty (6.33 / 6.25)')}
+          {tab('deklaracje', 'Deklaracje (6.9)')}
           {tab('przyjecia', `Przyjęcia i partie (6.24)${quarantine ? ` · kwarantanna ${quarantine}` : ''}`)}
           {tab('dostawcy', 'Dostawcy kwalifikowani (6.31)')}
           {tab('komponenty', 'Komponenty krytyczne (6.10.5)')}
@@ -63,6 +65,7 @@ export default function ZkpView({ currentUser, isManager, pushToast }: Props) {
 
       {sub === 'tabliczka' && <ZkpTracePanel zkp={zkp} roles={roles} isManager={isManager} pushToast={pushToast} />}
       {sub === 'wyroby' && <ZkpProductsPanel zkp={zkp} roles={roles} isManager={isManager} pushToast={pushToast} />}
+      {sub === 'deklaracje' && <ZkpDeclarationsPanel roles={roles} isAdmin={currentUser?.role === 'admin'} pushToast={pushToast} />}
       {sub === 'przyjecia' && <ZkpReceiptsPanel zkp={zkp} canReceive={canReceive} canDecide={canDecide} onGoTo={setSub} />}
       {sub === 'dostawcy' && <ZkpSuppliersPanel zkp={zkp} canEdit={canDecide} />}
       {sub === 'komponenty' && <ZkpCriticalPanel zkp={zkp} canEdit={canDecide} />}
