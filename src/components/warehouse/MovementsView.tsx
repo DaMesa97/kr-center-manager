@@ -23,6 +23,9 @@ type MovementTableRow =
 type MovementsViewProps = {
   movements: WarehouseMovementRow[]
   loading: boolean
+  /** lista = ostatnie N ruchów, są starsze */
+  truncated?: boolean
+  onLoadMore?: () => void
   warehouses: Warehouse[]
   components: WarehouseComponent[]
 }
@@ -87,7 +90,7 @@ const componentLabelFlat = (row: WarehouseMovementRow): string =>
     ? `${row.component_code ?? '—'} — ${row.component_name ?? ''} (${row.component_unit ?? ''})`
     : '—'
 
-function MovementsView({ movements, loading, warehouses, components }: MovementsViewProps) {
+function MovementsView({ movements, loading, truncated, onLoadMore, warehouses, components }: MovementsViewProps) {
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [warehouseIdFilter, setWarehouseIdFilter] = useState<number | ''>('')
   const [componentIdFilter, setComponentIdFilter] = useState<number | ''>('')
@@ -363,6 +366,19 @@ function MovementsView({ movements, loading, warehouses, components }: Movements
             })
           }}
         />
+      )}
+      {!loading && truncated && (
+        <div className="muted" style={{ padding: '8px 4px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span>
+            Pokazuję {movements.length} ostatnich ruchów — starsze nie są wczytane (filtry szukają tylko w tej porcji;
+            pełna historia komponentu: ikona 🕘 w Stanach).
+          </span>
+          {onLoadMore && (
+            <button type="button" className="btn btn-sm" onClick={onLoadMore}>
+              Wczytaj starsze
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

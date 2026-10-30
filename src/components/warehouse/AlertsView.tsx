@@ -25,6 +25,11 @@ const LEVEL_BADGES: Record<StockAlert['alert_level'], string> = {
   no_data: 'alert-badge--no-data',
 }
 
+/** liczba różnych komponentów (wiersze alertów są per półka) */
+function skuCount(rows: { component_id: number }[]): number {
+  return new Set(rows.map((a) => a.component_id)).size
+}
+
 function countClass(base: number, alarm: boolean): string {
   return `alerts-filter-pill-count${alarm && base > 0 ? ' alerts-filter-pill-count--alarm' : ''}`
 }
@@ -140,26 +145,28 @@ function AlertsView({ isManager }: Props) {
     return result
   }, [alertsAfterLevelFilter, categoryFilter])
 
+  // liczniki po SKU, nie po wierszach (wiersz = półka magazyn × komponent; zwiad #6)
   const counts = useMemo(
     () => ({
-      critical: alerts.filter((a) => a.alert_level === 'critical').length,
-      critical_no_delivery: alerts.filter(isCriticalNoDelivery).length,
-      warning: alerts.filter((a) => a.alert_level === 'warning').length,
-      observation: alerts.filter((a) => a.alert_level === 'observation').length,
-      ok: alerts.filter((a) => a.alert_level === 'ok').length,
-      no_data: alerts.filter((a) => a.alert_level === 'no_data').length,
+      critical: skuCount(alerts.filter((a) => a.alert_level === 'critical')),
+      critical_no_delivery: skuCount(alerts.filter(isCriticalNoDelivery)),
+      warning: skuCount(alerts.filter((a) => a.alert_level === 'warning')),
+      observation: skuCount(alerts.filter((a) => a.alert_level === 'observation')),
+      ok: skuCount(alerts.filter((a) => a.alert_level === 'ok')),
+      no_data: skuCount(alerts.filter((a) => a.alert_level === 'no_data')),
+      total: skuCount(alerts),
     }),
     [alerts],
   )
   const categoryCounts = useMemo(
     () => ({
-      all: alertsAfterLevelFilter.length,
-      raw: alertsAfterLevelFilter.filter((a) => a.product_category === 'raw' || a.product_category == null).length,
-      doors_internal: alertsAfterLevelFilter.filter((a) =>
-        ['door_wing', 'door_frame', 'door_handle', 'door_hinge_cover'].includes(
-          a.product_category ?? '',
+      all: skuCount(alertsAfterLevelFilter),
+      raw: skuCount(alertsAfterLevelFilter.filter((a) => a.product_category === 'raw' || a.product_category == null)),
+      doors_internal: skuCount(
+        alertsAfterLevelFilter.filter((a) =>
+          ['door_wing', 'door_frame', 'door_handle', 'door_hinge_cover'].includes(a.product_category ?? ''),
         ),
-      ).length,
+      ),
     }),
     [alertsAfterLevelFilter],
   )
@@ -312,7 +319,7 @@ function AlertsView({ isManager }: Props) {
           onClick={() => setFilterLevel('all')}
         >
           Wszystkie
-          <span className={countClass(alerts.length, false)}>{alerts.length}</span>
+          <span className={countClass(counts.total, false)}>{counts.total}</span>
         </button>
       </div>
       <div className="alerts-filter-pills" style={{ marginTop: 8 }}>

@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { appConfirm } from '../lib/appDialogs'
+import { fetchAllPages } from '../lib/fetchPaged'
+
+/** Ruchy: pierwsza porcja i krok „Wczytaj starsze" */
+const MOVEMENTS_PAGE = 500
 import { buildRecipeAutoName, isInternalWarehouseCode } from '../utils'
 import {
   INITIAL_MM_FORM, INITIAL_PZ_FORM, INITIAL_RECIPE_FORM
@@ -52,6 +56,9 @@ export function useWarehouse({
   const [warehouseStockLoading, setWarehouseStockLoading] = useState(false)
   const [warehouseMovements, setWarehouseMovements] = useState<WarehouseMovementRow[]>([])
   const [warehouseMovementsLoading, setWarehouseMovementsLoading] = useState(false)
+  /** lista Ruchów pokazuje tylko ostatnie N — true, gdy są starsze do doczytania */
+  const [warehouseMovementsTruncated, setWarehouseMovementsTruncated] = useState(false)
+  const movementsLimitRef = useRef(MOVEMENTS_PAGE)
   const [pzGroups, setPzGroups] = useState<PzGroupRow[]>([])
   const [pzGroupsLoading, setPzGroupsLoading] = useState(false)
   const [pzFormOpen, setPzFormOpen] = useState(false)
@@ -268,19 +275,27 @@ export function useWarehouse({
   const fetchWarehouseMovements = useCallback(async () => {
     touchSession()
     setWarehouseMovementsLoading(true)
-    const { data, error } = await supabase
-      .from('warehouse_movements')
-      .select(
-        `
+    // ostatnie N ruchów (N rośnie przez „Wczytaj starsze"); PostgREST ucina do 1000 na porcję,
+    // stąd range() zamiast limit() — stabilne sortowanie created_at + id
+    const limit = movementsLimitRef.current
+    const { data, error } = await fetchAllPages<Record<string, unknown>>(
+      (from, to) =>
+        supabase
+          .from('warehouse_movements')
+          .select(
+            `
       *,
       warehouse_from:warehouses!warehouse_from_id(code),
       warehouse_to:warehouses!warehouse_to_id(code),
       warehouse_components(code, name, unit),
       orders(order_number)
     `,
-      )
-      .order('created_at', { ascending: false })
-      .limit(500)
+          )
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to),
+      { max: limit },
+    )
     setWarehouseMovementsLoading(false)
     if (error) {
       pushToast(`Błąd: ${error.message}`, 'error')
@@ -322,7 +337,13 @@ export function useWarehouse({
       } as WarehouseMovementRow
     })
     setWarehouseMovements(mapped)
+    setWarehouseMovementsTruncated(mapped.length >= limit)
   }, [pushToast, touchSession])
+
+  const loadMoreWarehouseMovements = useCallback(async () => {
+    movementsLimitRef.current += MOVEMENTS_PAGE
+    await fetchWarehouseMovements()
+  }, [fetchWarehouseMovements])
 
   const fetchPzGroups = useCallback(async () => {
     touchSession()
@@ -1654,7 +1675,9 @@ export function useWarehouse({
     await fetchWarehouseStock()
     await fetchWarehouseMovements()
     await fetchSmartRop()
-  }, [fetchPurchaseOrders, fetchWarehouseStock, fetchWarehouseMovements, fetchSmartRop])
+    // „w drodze" maleje po przyjęciu — bez tego Stany/Zamawianie pokazywały starą ilość (zwiad #6)
+    await fetchIncomingStock()
+  }, [fetchPurchaseOrders, fetchWarehouseStock, fetchWarehouseMovements, fetchSmartRop, fetchIncomingStock])
 
   // ---------------------------------------------------------------------------
   // Other
@@ -1883,6 +1906,8 @@ export function useWarehouse({
     fetchWarehouses,
     fetchWarehouseStock,
     fetchWarehouseMovements,
+    warehouseMovementsTruncated,
+    loadMoreWarehouseMovements,
     fetchPzGroups,
     fetchMmGroups,
     fetchMonthlyConsumption,

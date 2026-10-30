@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import type { IncomingStockRow, Supplier, ToastVariant, Warehouse, WarehouseComponent, WarehouseStockRow } from '../../types'
+import type { IncomingStockRow, SmartRopRow, Supplier, ToastVariant, Warehouse, WarehouseComponent, WarehouseStockRow } from '../../types'
 import DamageReportModal from '../DamageReportModal'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
@@ -91,6 +91,8 @@ type StockViewProps = {
   stock: WarehouseStockRow[]
   suppliers?: Supplier[]
   incoming?: IncomingStockRow[]
+  /** Smart ROP — ten sam próg MIN co w Komponentach i Zamawianiu (smart nadpisuje ręczny) */
+  smartRopData?: SmartRopRow[]
   loading: boolean
   isManager?: boolean
   /** PZ z widoku stanów (warehouse.movements); domyślnie = isManager */
@@ -101,7 +103,33 @@ type StockViewProps = {
   onStockChanged?: () => void
 }
 
-function StockView({ warehouses, components, stock, suppliers = [], incoming = [], loading, isManager, canAddPz, onAddPz, onShowHistory, pushToast, onStockChanged }: StockViewProps) {
+function StockView({ warehouses, components, stock, suppliers = [], incoming = [], smartRopData = [], loading, isManager, canAddPz, onAddPz, onShowHistory, pushToast, onStockChanged }: StockViewProps) {
+  // smart (≥ 4 dni WZ w 12 tyg.) → MIN = ROP; status „poniżej minimum" liczony od tego samego progu
+  const smartMinById = useMemo(() => {
+    const m = new Map<number, SmartRopRow>()
+    for (const r of smartRopData) if (r.smart_status === 'smart' && r.effective_min_stock != null) m.set(r.component_id, r)
+    return m
+  }, [smartRopData])
+  const renderMinCell = useCallback(
+    (componentId: number, value: number | null | undefined) => {
+      const smart = smartMinById.get(componentId)
+      return (
+        <>
+          {value != null ? value : '—'}
+          {smart && (
+            <span
+              className="smart-badge smart-badge--smart"
+              style={{ marginLeft: 6 }}
+              title={`Smart: ${smart.weeks_of_history ?? 0} tyg historii, avg ${smart.daily_avg?.toFixed(1) ?? '0'} szt/dzień · ręczne min: ${smart.manual_min_stock ?? '—'}`}
+            >
+              🤖
+            </span>
+          )}
+        </>
+      )
+    },
+    [smartMinById],
+  )
   const [damageTarget, setDamageTarget] = useState<{ componentId: number; warehouseId: number | null } | null>(null)
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | ''>('')
   const [search, setSearch] = useState('')
@@ -155,12 +183,13 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
             ? row.component_category
             : (comp?.category ?? null),
         component_min_stock_level:
-          row.component_min_stock_level !== undefined && row.component_min_stock_level !== null
+          smartMinById.get(row.component_id)?.effective_min_stock ??
+          (row.component_min_stock_level !== undefined && row.component_min_stock_level !== null
             ? row.component_min_stock_level
-            : (comp?.min_stock_level ?? null),
+            : (comp?.min_stock_level ?? null)),
       } as WarehouseStockRow
     })
-  }, [stock, componentById, warehouses])
+  }, [stock, componentById, warehouses, smartMinById])
 
   const sortedRows = useMemo(() => {
     return [...rowsWithFallbacks].sort((a, b) => {
@@ -338,7 +367,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
       label: 'MIN. STAN',
       stackUnder: 'status',
       sortValue: (r) => r.component_min_stock_level,
-      render: (r) => (r.component_min_stock_level != null ? r.component_min_stock_level : '—'),
+      render: (r) => renderMinCell(r.component_id, r.component_min_stock_level),
     },
     {
       key: 'status',
@@ -347,7 +376,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
       render: (r) => renderStatusCell(stockStatusAggregated(r)),
     },
     { key: 'actions', label: 'AKCJE', render: (r) => renderActions(r.component_id, null) },
-  ], [warehousesSorted, incomingByComponent, incQtyOf, renderActions])
+  ], [warehousesSorted, incomingByComponent, incQtyOf, renderActions, renderMinCell])
 
   const rowColumns = useMemo((): DataTableColumn<WarehouseStockRow>[] => [
     { key: 'code', label: 'KOD', stackUnder: 'name', sortValue: (r) => r.component_code, render: (r) => orDash(r.component_code) },
@@ -381,7 +410,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
       label: 'MIN. STAN',
       stackUnder: 'status',
       sortValue: (r) => r.component_min_stock_level,
-      render: (r) => (r.component_min_stock_level != null ? r.component_min_stock_level : '—'),
+      render: (r) => renderMinCell(r.component_id, r.component_min_stock_level),
     },
     {
       key: 'status',
@@ -390,7 +419,7 @@ function StockView({ warehouses, components, stock, suppliers = [], incoming = [
       render: (r) => renderStatusCell(stockStatus(r)),
     },
     { key: 'actions', label: 'AKCJE', render: (r) => renderActions(r.component_id, r.warehouse_id) },
-  ], [incomingByComponent, incQtyOf, renderActions])
+  ], [incomingByComponent, incQtyOf, renderActions, renderMinCell])
 
   const isAllWarehouses = selectedWarehouseId === ''
 

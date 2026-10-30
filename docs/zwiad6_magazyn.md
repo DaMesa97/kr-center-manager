@@ -19,14 +19,19 @@ trigger `BEFORE DELETE` na `stock_reservations` koryguje `reserved_quantity` (ka
 
 Test: `scratchpad/p1/test_p1.sql` (transakcja z rollback) — wszystkie scenariusze przeszły przed wgraniem.
 
+## P2 — zrobione (`migrate/zwiad6_p2_magazyn.sql` + UI)
+
+- „W drodze" odświeża się po przyjęciu dostawy (`onPoAfterAction`).
+- Ruchy: lista = ostatnie 500 z informacją i przyciskiem „Wczytaj starsze" (+500, `range()` zamiast `limit()`).
+- Stan na dzień: `fetchAllPages` na RPC (wszystkie magazyny > 1000 wierszy).
+- Smart: zużycie netto ≤ 0 (ZWR ≥ WZ) = `manual`, ręczne progi zostają (dziś 8 SKU smart, żadnego 1/1 — zabezpieczenie).
+- Stany pokazują próg MIN ze smart (🤖) i liczą status od tego samego progu co Komponenty / Zamawianie.
+- Alerty: propozycja zamówienia raz na SKU (61 SKU miało ją na 2 półkach; suma 51 118 → 51 050), liczniki pigułek po SKU.
+
 ## P2 — do zrobienia
 
-- Draft ZD nie liczy się do „w drodze" → Zamawianie proponuje zamówić drugi raz to, co już jest w szkicu.
-- „W drodze" nie odświeża się po przyjęciu dostawy.
-- Ruchy: limit 500 wierszy bez informacji; Stan na dzień: limit 1000 (PostgREST) bez `fetchAllPages`.
-- Smart: komponent ze ZWR ≥ WZ dostaje min 1 / target 1 i nadpisuje ręczne progi; Prognozy pokazują zero historii przy < 3 WZ.
-- Stany ignorują progi smart (Komponenty i Zamawianie już je pokazują).
-- Alerty: target mnożony przez liczbę magazynów; licznik liczy wiersze, nie SKU.
+- Draft ZD nie liczy się do „w drodze" → Zamawianie proponuje zamówić drugi raz to, co już jest w szkicu (decyzja: pokazywać szkice osobno jako „w szkicu"?).
+- Prognozy pokazują zero historii przy < 3 WZ.
 - Receptura 520: kryterium powinno być 80N (do potwierdzenia z Tymkiem).
 - Pola „policzono" edytowalne dla wszystkich, RPC tylko kierownik (decyzja: magazynier spisuje?).
 - Brak UI do `undo_damage_report`.

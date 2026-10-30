@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../supabaseClient'
 import type { ToastVariant, Warehouse } from '../../types'
 import { appAlert } from '../../lib/appDialogs'
+import { fetchAllPages } from '../../lib/fetchPaged'
 import { STOCK_HISTORY_RELIABLE_FROM, buildStockAtDateCsv, type StockAtDateRow } from '../../lib/stockAtDateCsv'
 
 type Props = {
@@ -35,10 +36,15 @@ export default function StockAtDateExport({ warehouses, warehouseId, pushToast }
     }
     setBusy(true)
     try {
-      const { data, error } = await supabase.rpc('get_stock_at_date', {
-        p_date: date,
-        p_warehouse_id: warehouseId === '' ? null : warehouseId,
-      })
+      // RPC też podlega limitowi 1000 wierszy PostgREST — wszystkie magazyny to więcej (zwiad #6)
+      const { data, error } = await fetchAllPages<StockAtDateRow>((from, to) =>
+        supabase
+          .rpc('get_stock_at_date', {
+            p_date: date,
+            p_warehouse_id: warehouseId === '' ? null : warehouseId,
+          })
+          .range(from, to),
+      )
       if (error) {
         pushToast?.(`Błąd eksportu: ${error.message}`, 'error')
         return

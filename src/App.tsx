@@ -419,6 +419,8 @@ function App() {
     fetchWarehouses,
     fetchWarehouseStock,
     fetchWarehouseMovements,
+    warehouseMovementsTruncated,
+    loadMoreWarehouseMovements,
     fetchPzGroups,
     fetchMmGroups,
     fetchMonthlyConsumption,
@@ -3313,6 +3315,8 @@ function App() {
             onRestore={handleRestoreRecipe}
             movements={warehouseMovements}
             movementsLoading={warehouseMovementsLoading}
+            movementsTruncated={warehouseMovementsTruncated}
+            onLoadMoreMovements={loadMoreWarehouseMovements}
             pzGroups={pzGroups}
             pzGroupsLoading={pzGroupsLoading}
             onPzCreate={handleOpenPzForm}
@@ -3377,6 +3381,8 @@ function App() {
             onRestore={handleRestoreRecipe}
             movements={warehouseMovements}
             movementsLoading={warehouseMovementsLoading}
+            movementsTruncated={warehouseMovementsTruncated}
+            onLoadMoreMovements={loadMoreWarehouseMovements}
             pzGroups={pzGroups}
             pzGroupsLoading={pzGroupsLoading}
             onPzCreate={handleOpenPzForm}
@@ -3466,6 +3472,8 @@ function App() {
             onRestore={handleRestoreRecipe}
             movements={warehouseMovements}
             movementsLoading={warehouseMovementsLoading}
+            movementsTruncated={warehouseMovementsTruncated}
+            onLoadMoreMovements={loadMoreWarehouseMovements}
             pzGroups={pzGroups}
             pzGroupsLoading={pzGroupsLoading}
             onPzCreate={handleOpenPzForm}

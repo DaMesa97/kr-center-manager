@@ -78,6 +78,9 @@ type WarehouseViewProps = {
   onRestore: (id: number) => Promise<void>
   movements: WarehouseMovementRow[]
   movementsLoading: boolean
+  /** Ruchy: lista ucięta do ostatnich N — pokaż „Wczytaj starsze" */
+  movementsTruncated?: boolean
+  onLoadMoreMovements?: () => void
   pzGroups: PzGroupRow[]
   pzGroupsLoading: boolean
   onPzCreate: () => void
@@ -152,6 +155,8 @@ function WarehouseView({
   onRestore,
   movements,
   movementsLoading,
+  movementsTruncated,
+  onLoadMoreMovements,
   pzGroups,
   pzGroupsLoading,
   onPzCreate,
@@ -248,6 +253,7 @@ function WarehouseView({
           stock={stock}
           suppliers={suppliers}
           incoming={incomingStock}
+          smartRopData={smartRopData}
           loading={stockLoading}
           isManager={isManager}
           canAddPz={canMovements}
@@ -282,6 +288,8 @@ function WarehouseView({
         <MovementsView
           movements={movements}
           loading={movementsLoading}
+          truncated={movementsTruncated}
+          onLoadMore={onLoadMoreMovements}
           warehouses={warehouses}
           components={components}
         />
