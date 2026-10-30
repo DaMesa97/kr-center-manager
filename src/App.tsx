@@ -3317,6 +3317,7 @@ function App() {
             movementsLoading={warehouseMovementsLoading}
             movementsTruncated={warehouseMovementsTruncated}
             onLoadMoreMovements={loadMoreWarehouseMovements}
+            onRefreshMovements={fetchWarehouseMovements}
             pzGroups={pzGroups}
             pzGroupsLoading={pzGroupsLoading}
             onPzCreate={handleOpenPzForm}
@@ -3383,6 +3384,7 @@ function App() {
             movementsLoading={warehouseMovementsLoading}
             movementsTruncated={warehouseMovementsTruncated}
             onLoadMoreMovements={loadMoreWarehouseMovements}
+            onRefreshMovements={fetchWarehouseMovements}
             pzGroups={pzGroups}
             pzGroupsLoading={pzGroupsLoading}
             onPzCreate={handleOpenPzForm}
@@ -3474,6 +3476,7 @@ function App() {
             movementsLoading={warehouseMovementsLoading}
             movementsTruncated={warehouseMovementsTruncated}
             onLoadMoreMovements={loadMoreWarehouseMovements}
+            onRefreshMovements={fetchWarehouseMovements}
             pzGroups={pzGroups}
             pzGroupsLoading={pzGroupsLoading}
             onPzCreate={handleOpenPzForm}

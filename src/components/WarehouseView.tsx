@@ -81,6 +81,7 @@ type WarehouseViewProps = {
   /** Ruchy: lista ucięta do ostatnich N — pokaż „Wczytaj starsze" */
   movementsTruncated?: boolean
   onLoadMoreMovements?: () => void
+  onRefreshMovements?: () => void
   pzGroups: PzGroupRow[]
   pzGroupsLoading: boolean
   onPzCreate: () => void
@@ -157,6 +158,7 @@ function WarehouseView({
   movementsLoading,
   movementsTruncated,
   onLoadMoreMovements,
+  onRefreshMovements = () => {},
   pzGroups,
   pzGroupsLoading,
   onPzCreate,
@@ -292,6 +294,12 @@ function WarehouseView({
           onLoadMore={onLoadMoreMovements}
           warehouses={warehouses}
           components={components}
+          isManager={isManager}
+          pushToast={pushToast}
+          onChanged={() => {
+            onRefreshMovements()
+            onRefreshStock()
+          }}
         />
       ) : activeSubTab === 'Przyjęcia' ? (
         <PzView

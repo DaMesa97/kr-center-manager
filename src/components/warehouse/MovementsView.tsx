@@ -1,7 +1,16 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import type { Warehouse, WarehouseComponent, WarehouseMovementRow } from '../../types'
+import type { ToastVariant, Warehouse, WarehouseComponent, WarehouseMovementRow } from '../../types'
+import { supabase } from '../../supabaseClient'
+import { appConfirm } from '../../lib/appDialogs'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
+
+/** ZN-<id zgłoszenia> — ruch zniszczenia, który kierownik może cofnąć (undo_damage_report) */
+const damageReportIdOf = (m: WarehouseMovementRow): number | null => {
+  if (m.movement_type !== 'ZN') return null
+  const match = /^ZN-(\d+)$/.exec(m.reference_doc ?? '')
+  return match ? Number(match[1]) : null
+}
 
 // Zgrupowany dokument magazynowy: wszystkie pozycje z tym samym reference_doc
 // (np. zbiorcze WZ 'WZ-STA-2388-e4') zwijamy do jednego wiersza z pozycjami.
@@ -28,6 +37,11 @@ type MovementsViewProps = {
   onLoadMore?: () => void
   warehouses: Warehouse[]
   components: WarehouseComponent[]
+  /** kierownik: „Cofnij" przy ZN (stan wraca, ruch ZWR-ZN) */
+  isManager?: boolean
+  pushToast?: (msg: string, variant: ToastVariant) => void
+  /** po cofnięciu zniszczenia — odśwież ruchy i stany */
+  onChanged?: () => void
 }
 
 function formatMovementDate(iso: string): string {
@@ -90,8 +104,39 @@ const componentLabelFlat = (row: WarehouseMovementRow): string =>
     ? `${row.component_code ?? '—'} — ${row.component_name ?? ''} (${row.component_unit ?? ''})`
     : '—'
 
-function MovementsView({ movements, loading, truncated, onLoadMore, warehouses, components }: MovementsViewProps) {
+function MovementsView({ movements, loading, truncated, onLoadMore, warehouses, components, isManager, pushToast, onChanged }: MovementsViewProps) {
   const [typeFilter, setTypeFilter] = useState<string>('')
+  const [undoingId, setUndoingId] = useState<number | null>(null)
+
+  // zniszczenia już cofnięte (jest ruch ZWR-ZN-<id>) — bez przycisku
+  const undoneDamageIds = useMemo(() => {
+    const s = new Set<number>()
+    for (const m of movements) {
+      const match = /^ZWR-ZN-(\d+)$/.exec(m.reference_doc ?? '')
+      if (match) s.add(Number(match[1]))
+    }
+    return s
+  }, [movements])
+
+  const handleUndoDamage = async (m: WarehouseMovementRow) => {
+    const reportId = damageReportIdOf(m)
+    if (reportId == null || undoingId != null) return
+    const label = `${m.component_name ?? m.component_code ?? m.component_id} × ${m.quantity}`
+    const ok = await appConfirm(
+      `Cofnąć zgłoszenie zniszczenia ZN-${reportId} (${label})?\n\nStan wraca na magazyn ${m.warehouse_from_code ?? ''}, powstaje ruch ZWR-ZN-${reportId}.`,
+      { title: 'Cofnij zniszczenie', confirmLabel: 'Cofnij' },
+    )
+    if (!ok) return
+    setUndoingId(reportId)
+    const { error } = await supabase.rpc('undo_damage_report', { p_report_id: reportId })
+    setUndoingId(null)
+    if (error) {
+      pushToast?.(`Nie cofnięto zniszczenia: ${error.message}`, 'error')
+      return
+    }
+    pushToast?.(`Cofnięto zniszczenie ZN-${reportId} — stan wrócił na magazyn`, 'success')
+    onChanged?.()
+  }
   const [warehouseIdFilter, setWarehouseIdFilter] = useState<number | ''>('')
   const [componentIdFilter, setComponentIdFilter] = useState<number | ''>('')
   const [dateFrom, setDateFrom] = useState('')
@@ -214,6 +259,29 @@ function MovementsView({ movements, loading, truncated, onLoadMore, warehouses, 
     { key: 'order', label: 'ZAMÓWIENIE', render: single((r) => r.row.order_number ?? '') },
     { key: 'doc', label: 'DOKUMENT', render: single((r) => r.row.reference_doc ?? '') },
     { key: 'notes', label: 'UWAGI', render: single((r) => r.row.notes ?? '') },
+    ...(isManager
+      ? [
+          {
+            key: 'actions',
+            label: 'AKCJE',
+            render: single((r) => {
+              const reportId = damageReportIdOf(r.row)
+              if (reportId == null || undoneDamageIds.has(reportId)) return null
+              return (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={undoingId != null}
+                  title="Cofnij zgłoszenie zniszczenia — stan wraca na magazyn"
+                  onClick={() => void handleUndoDamage(r.row)}
+                >
+                  {undoingId === reportId ? '…' : 'Cofnij'}
+                </button>
+              )
+            }),
+          } satisfies DataTableColumn<MovementTableRow>,
+        ]
+      : []),
   ]
 
   return (

@@ -35,7 +35,7 @@ Test: `scratchpad/p1/test_p1.sql` (transakcja z rollback) — wszystkie scenariu
 - Draft ZD nie liczy się do „w drodze" → Zamawianie proponuje zamówić drugi raz to, co już jest w szkicu (decyzja: pokazywać szkice osobno jako „w szkicu"?).
 - Receptura 520 (ST / Skrzydło / ST68 TERMO / ANTRACYT): komponent to skrzydło 80P, a kryterium i nazwa mówią „90E / PRAWE" (duplikat 522) → powinno być 80N. 3 otwarte zlecenia 80N PRAWE są w `no_recipe`. Gotowy skrypt naprawczy (kryterium + nazwa + rezerwacja tych 3 zleceń) czeka na uruchomienie przez Tymka: `migrate/fix_recipe_520_data.sql` (albo ręcznie w Recepturach: szerokość 90E → 80N i „Przelicz rezerwacje ST").
 - Pola „policzono" edytowalne dla wszystkich, RPC tylko kierownik (decyzja: magazynier spisuje?).
-- Brak UI do `undo_damage_report`.
+- ~~Brak UI do `undo_damage_report`~~ → Ruchy: przycisk „Cofnij" przy ZN (kierownik), znika po cofnięciu (ruch ZWR-ZN-id).
 - Oczekiwane części receptur `wing/frame/hardware` na sztywno (757 zleceń Disting w `partial_recipe`) — decyzja per kategoria.
 
 ## Decyzje dla Tymka
