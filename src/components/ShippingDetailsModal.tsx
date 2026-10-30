@@ -179,6 +179,17 @@ function ShippingDetailsModal({ open, order, companyInfo, glassAllowances, curre
                       </li>
                     )
                   }
+                  if (i.type === 'missing_warehouse' || i.type === 'inactive_component') {
+                    return (
+                      <li key={idx}>
+                        <strong>{i.type === 'inactive_component' ? 'Komponent usunięty z kartoteki' : 'Brak przypisania magazynu'}</strong>
+                        <div className="shipping-details-issue-detail">
+                          {i.component_name && `${i.component_name}${i.component_code ? ` (${i.component_code})` : ''} · `}
+                          część: {partLabel(i.part)}
+                        </div>
+                      </li>
+                    )
+                  }
                   if (i.type === 'glass_not_received') {
                     const dim = calcGlassIssueDim(i, order.category ?? '', glassAllowances)
                     return (

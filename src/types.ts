@@ -85,7 +85,7 @@ export type Order = {
   st_sheet?: string | null
   stock_status?: 'ok' | 'insufficient' | 'no_recipe' | 'partial_recipe' | null
   stock_issues?: Array<{
-    type?: 'shortage' | 'missing_recipe' | 'glass_not_received'
+    type?: 'shortage' | 'missing_recipe' | 'missing_warehouse' | 'inactive_component' | 'glass_not_received'
     component_code?: string
     component_name?: string
     shortage?: number

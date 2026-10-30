@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
+import { appConfirm } from '../../lib/appDialogs'
 import type { PurchaseOrder, PurchaseOrderItem, ToastVariant, Warehouse, WarehouseComponent } from '../../types'
 import DataTable from '../DataTable'
 
@@ -63,22 +64,46 @@ export default function PurchaseOrderReceiveModal({
       .map((item) => ({
         po_item_id: item.id,
         quantity_received: Math.max(0, Number(receivedQty[item.id]) || 0),
+        // ile było przyjęte, gdy ten ekran się ładował — baza odrzuci zapis, jeśli
+        // w międzyczasie przyjął ktoś inny (zwiad #6: dwa komputery = 20 z 10)
+        expected_received: Number(item.quantity_received) || 0,
       }))
-    if (itemsPayload.every((ip) => ip.quantity_received === 0)) {
+      .filter((ip) => ip.quantity_received > 0)
+    if (itemsPayload.length === 0) {
       pushToast('Wpisz co najmniej jedną ilość większą od 0', 'error')
       return
     }
     setSaving(true)
-    const { error } = await supabase.rpc('receive_purchase_order', {
-      p_po_id: purchaseOrder.id,
-      p_warehouse_id: warehouseId,
-      p_received_items: itemsPayload,
-      p_reference_doc: referenceDoc.trim() || null,
-      p_notes: notes.trim() || null,
-    })
+    const call = (allowOver: boolean) =>
+      supabase.rpc('receive_purchase_order', {
+        p_po_id: purchaseOrder.id,
+        p_warehouse_id: warehouseId,
+        p_received_items: itemsPayload,
+        p_reference_doc: referenceDoc.trim() || null,
+        p_notes: notes.trim() || null,
+        p_allow_over: allowOver,
+      })
+    let error = (await call(false)).error
+    if (error && error.code === 'P0401') {
+      // nadwyżka ponad zamówienie — świadoma decyzja magazyniera, nie literówka
+      const ok = await appConfirm(`${error.message}\n\nPrzyjąć nadwyżkę?`, {
+        title: 'Nadwyżka w dostawie',
+        confirmLabel: 'Przyjmij nadwyżkę',
+      })
+      if (!ok) {
+        setSaving(false)
+        return
+      }
+      error = (await call(true)).error
+    }
     setSaving(false)
     if (error) {
       pushToast(`Błąd przyjęcia dostawy: ${error.message}`, 'error')
+      if (/odśwież/i.test(error.message)) {
+        // stan pozycji zmienił się na innym stanowisku — zamykamy, lista ZD się przeładuje
+        onSaved()
+        onClose()
+      }
       return
     }
     pushToast('Dostawa przyjęta', 'success')

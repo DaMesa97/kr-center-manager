@@ -1759,6 +1759,29 @@ function App() {
         )
         return
       }
+      // Komponent w aktywnej recepturze też nie znika — nowe zlecenia dostawałyby
+      // „komponent usunięty z kartoteki" (partial_recipe) zamiast rezerwacji (zwiad #6)
+      const { data: recipeRows } = await supabase
+        .from('warehouse_recipe_components')
+        .select('recipe_id')
+        .eq('component_id', id)
+      const recipeIds = Array.from(new Set((recipeRows ?? []).map((r) => r.recipe_id as number)))
+      if (recipeIds.length > 0) {
+        const { data: activeRecipes } = await supabase
+          .from('warehouse_recipes')
+          .select('name')
+          .in('id', recipeIds)
+          .eq('is_active', true)
+          .limit(6)
+        if (activeRecipes && activeRecipes.length > 0) {
+          const names = activeRecipes.map((r) => r.name as string)
+          pushToast(
+            `Komponent jest w aktywnych recepturach (${names.join(', ')}${activeRecipes.length >= 6 ? ', …' : ''}) — usuń go z receptur albo je dezaktywuj, potem usuń komponent.`,
+            'error',
+          )
+          return
+        }
+      }
       // Fizyczny stan na półce ≠ 0 też blokuje — delete kasował towar bez
       // ruchu i bez korekty (towar znikał ze stanu bez śladu)
       const { data: nonZero } = await supabase

@@ -911,7 +911,13 @@ export function useWarehouse({
         )
         return
       }
-      const { error: cancelErr } = await supabase.rpc('cancel_order_reservations', { p_order_id: orderId })
+      // p_reason 'superseded': to unieważnienie po edycji, nie anulowanie zlecenia —
+      // restore_order_reservations (przywrócenie anulowanego zlecenia) tych wierszy
+      // NIE przywraca (zwiad #6: przywrócenie podwajało rezerwacje)
+      const { error: cancelErr } = await supabase.rpc('cancel_order_reservations', {
+        p_order_id: orderId,
+        p_reason: 'superseded',
+      })
       if (cancelErr) {
         // bez anulowania nowa rezerwacja trafiłaby na "already_reserved" i po cichu nic nie zrobiła
         pushToast(`Nie przeliczono rezerwacji po edycji: ${cancelErr.message}`, 'error')
