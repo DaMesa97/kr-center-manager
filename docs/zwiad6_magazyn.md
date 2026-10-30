@@ -33,7 +33,7 @@ Test: `scratchpad/p1/test_p1.sql` (transakcja z rollback) — wszystkie scenariu
 ## P2 — do zrobienia
 
 - Draft ZD nie liczy się do „w drodze" → Zamawianie proponuje zamówić drugi raz to, co już jest w szkicu (decyzja: pokazywać szkice osobno jako „w szkicu"?).
-- Receptura 520 (ST / Skrzydło / ST68 TERMO / ANTRACYT): komponent to skrzydło 80P, a kryterium i nazwa mówią „90E / PRAWE" (duplikat 522) → powinno być 80N. 3 otwarte zlecenia 80N PRAWE są w `no_recipe`. Gotowy skrypt naprawczy (kryterium + nazwa + rezerwacja tych 3 zleceń) czeka na uruchomienie przez Tymka: `migrate/fix_recipe_520_data.sql` (albo ręcznie w Recepturach: szerokość 90E → 80N i „Przelicz rezerwacje ST").
+- ~~Receptura 520~~ → naprawiona 30.10 (`migrate/fix_recipe_520_data.sql`, uruchomione przez konektor Supabase): szerokość 90E → 80N, nazwa poprawiona. Zlecenie 5042 (ORBITAL 11) dostało rezerwację skrzydła; 4760 (LUPUS 34) i 5278 (LUPUS 11) dalej `no_recipe`, bo żadna receptura skrzydeł ST nie obejmuje modeli LUPUS — do uzupełnienia w Recepturach, jeśli LUPUS ma mieć skrzydło z magazynu.
 - Pola „policzono" edytowalne dla wszystkich, RPC tylko kierownik (decyzja: magazynier spisuje?).
 - ~~Brak UI do `undo_damage_report`~~ → Ruchy: przycisk „Cofnij" przy ZN (kierownik), znika po cofnięciu (ruch ZWR-ZN-id).
 - Oczekiwane części receptur `wing/frame/hardware` na sztywno (757 zleceń Disting w `partial_recipe`) — decyzja per kategoria.
