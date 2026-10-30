@@ -8318,6 +8318,16 @@ html, body, #root {
 .sku-smart-hint { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 0.85rem; }
 /* Tabele DataTable wypełniają kontener: gdy treść jest węższa niż ekran, kolumny rozchodzą się na całą szerokość zamiast zostawiać pustkę po prawej (piętrowanie mierzy przepełnienie, więc min-width mu nie przeszkadza) */
 .orders-table.dt-table { min-width: 100%; }
+
+/* Nagłówek tabeli zleceń przyklejony do góry wrappera (to wrapper przewija: max-height).
+   border-collapse gubi dolną krawędź przy sticky — linia przez wewnętrzny cień.
+   Przyklejone kolumny NR/… w thead mają własne z-index 5–7, więc zostają nad resztą nagłówka. */
+.table-wrapper .orders-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  box-shadow: inset 0 -2px 0 var(--color-border-light);
+}
 /* ZKP — protokół 6.17.5 i deklaracje */
 .zkp-result-pick label { padding: 1px 6px; border-radius: 6px; }
 .zkp-result-pick label.zkp-result--OK { background: #dcfce7; }
