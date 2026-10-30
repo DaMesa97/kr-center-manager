@@ -665,6 +665,8 @@ export type IncomingStockRow = {
   earliest_eta: string | null
   latest_eta: string | null
   open_pos: number
+  /** ilość w szkicach ZD (status draft) — informacyjnie, nie liczy się do pozycji */
+  draft_qty: number
 }
 
 export type StockReservationRow = {

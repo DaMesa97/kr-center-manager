@@ -967,6 +967,7 @@ export function useWarehouse({
         earliest_eta: (r.r_earliest_eta as string | null) ?? null,
         latest_eta: (r.r_latest_eta as string | null) ?? null,
         open_pos: Number(r.r_open_pos ?? 0),
+        draft_qty: Number(r.r_draft_qty ?? 0),
       })),
     )
   }, [pushToast])

@@ -270,6 +270,11 @@ export default function ReorderDashboardView({
                 {row.incoming.earliest_eta ? ` (ETA ${fmtEta(row.incoming.earliest_eta)})` : ''}
               </>
             )}
+            {row.incoming && row.incoming.draft_qty > 0 && (
+              <span title="Już wpisane w niewysłanym szkicu ZD — nie liczy się do pozycji, żeby nie zamówić dwa razy">
+                {' '}| w szkicu ZD: <strong>{row.incoming.draft_qty}</strong>
+              </span>
+            )}
             {' '}| Min: {row.effective_min_stock ?? '—'} | Target: {row.effective_target_stock ?? '—'}
             {row.reserved > 0 && <> | zarezerwowane pod zlecenia: {row.reserved}</>}
           </div>
@@ -307,6 +312,9 @@ export default function ReorderDashboardView({
             Stock: <strong>{row.current_stock}</strong>
             {row.incoming && row.incoming.incoming_qty > 0 && (
               <> + w drodze: {row.incoming.incoming_qty}{row.incoming.earliest_eta ? ` (ETA ${fmtEta(row.incoming.earliest_eta)})` : ''}</>
+            )}
+            {row.incoming && row.incoming.draft_qty > 0 && (
+              <span title="Już wpisane w niewysłanym szkicu ZD — nie liczy się do pozycji"> | w szkicu ZD: {row.incoming.draft_qty}</span>
             )}
             {row.effective_min_stock != null && <> | Min: {row.effective_min_stock}</>}
             {row.effective_target_stock != null && <> | Target: {row.effective_target_stock}</>}

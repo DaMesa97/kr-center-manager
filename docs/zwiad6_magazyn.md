@@ -40,6 +40,7 @@ Test: `scratchpad/p1/test_p1.sql` (transakcja z rollback) — wszystkie scenariu
 
 ## Decyzje dla Tymka
 
-1. Czy magazynier ma spisywać inwentaryzację (dziś tylko kierownik zamyka, ale pola edytuje każdy)?
-2. Oczekiwane części receptur per kategoria (Disting bez `hardware`?).
-3. Alerty: rozdzielić „nadrezerwacja" (rezerwacje > stan) od „wyczerpanie" (stan < min)?
+1. ~~Czy magazynier ma spisywać inwentaryzację?~~ **Decyzja 30.10 (Tymek):** magazynierzy liczą na wydrukowanych kartkach, do komputera wprowadza kierownik → zakładka zostaje tylko dla kierownika, bez zmian.
+2. ~~Oczekiwane części receptur per kategoria~~ **Decyzja 30.10:** Disting ma ościeżnicę, ale produkowaną inaczej i bez śledzenia stanów → tylko skrzydło. ST: skrzydło + ościeżnica (receptury ościeżnic ST będą). STA: wszystkie trzy. Tabela `warehouse_expected_parts` (`migrate/zwiad6_p3_czesci_szkice.sql`); zmiana = INSERT/DELETE w tabeli, bez UI.
+3. ~~Alerty: rozdzielić nadrezerwację od wyczerpania?~~ **Decyzja 30.10:** NIE. Zlecenia schodzą w ~2 tygodnie, więc rezerwacje to realne bliskie zużycie — „dostępne po rezerwacjach" jest właściwą miarą. Smart gate zostaje 4 dni.
+4. ~~Szkice ZD~~ → Zamawianie pokazuje „w szkicu ZD: X" obok propozycji (informacyjnie, nie odejmuje); `get_incoming_stock_per_component.r_draft_qty`.
