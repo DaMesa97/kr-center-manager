@@ -8383,3 +8383,20 @@ html, body, #root {
 .bastion-picker-row--checked td { background: #eef2ff; }
 .bastion-picker-check { width: 36px; text-align: center; }
 .bastion-picker-check input { width: 16px; height: 16px; cursor: pointer; accent-color: #4338ca; }
+
+/* ── Bastion: Reszta (progi, opaski, zabudowy) ───────────────────────── */
+.bastion-extras { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; }
+.bastion-extras-wrapper { max-height: 70vh; border-radius: 10px; }
+.bastion-extras-table td { vertical-align: top; }
+.bastion-extra-desc { font-weight: 600; white-space: normal; min-width: 180px; max-width: 320px; }
+.bastion-extra-row--late1 td { background: #fffbeb; }
+.bastion-extra-row--late2 td { background: #fef2f2; }
+.bastion-extra-row--done td { color: var(--color-text-muted); }
+.bastion-extra-row--cancelled td { color: var(--color-text-muted); text-decoration: line-through; background: #f8fafc; }
+.bastion-extra-row--cancelled td.bastion-extra-actions,
+.bastion-extra-row--cancelled td.order-num-td { text-decoration: none; }
+.bastion-extra-actions { display: flex; gap: 6px; white-space: nowrap; }
+.bastion-extra-modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 0 0; }
+.bastion-extra-suggest { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; margin: 2px 0 0; padding: 4px 0; list-style: none; background: #fff; border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); max-height: 240px; overflow: auto; }
+.bastion-extra-suggest button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 6px 10px; cursor: pointer; font: inherit; }
+.bastion-extra-suggest button:hover { background: #eef2ff; }

@@ -74,6 +74,8 @@ import StaDistingOrdersTableView from './components/StaDistingOrdersTableView'
 import BastionOrdersTableView from './components/BastionOrdersTableView'
 import BastionBatchesPanel from './components/BastionBatchesPanel'
 import { useBastionBatches } from './hooks/useBastionBatches'
+import BastionExtrasPanel from './components/BastionExtrasPanel'
+import { useBastionExtras } from './hooks/useBastionExtras'
 import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
 import AluOrdersTable from './components/AluOrdersTable'
 import AluOrderDetailsModal from './components/AluOrderDetailsModal'
@@ -567,6 +569,8 @@ function App() {
 
   // Bastion: partie ościeżnic regulowanych (widok „Ościeżnice regulowane")
   const bastionBatches = useBastionBatches(pushToast, activeTab === 'Bastion')
+  // Bastion: „Reszta" (progi, opaski, zabudowy bez drzwi)
+  const bastionExtras = useBastionExtras(pushToast, activeTab === 'Bastion')
 
   const {
     profilesList,
@@ -3622,6 +3626,19 @@ function App() {
                         Partie{bastionBatches.batches.some((b) => b.status === 'open') ? ` (${bastionBatches.batches.filter((b) => b.status === 'open').length})` : ''}
                       </button>
                     )}
+                    {activeTab === 'Bastion' && (
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${activeSubTab === 'Reszta' ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setActiveSubTab('Reszta')}
+                        title="Zamówienia na same progi, opaski, zabudowy (arkusz Reszta)"
+                      >
+                        Reszta{(() => {
+                          const n = bastionExtras.extras.filter((e) => !e.released_at && !e.is_cancelled).length
+                          return n > 0 ? ` (${n})` : ''
+                        })()}
+                      </button>
+                    )}
                   </div>
                 )}
                 {activeSubTab === 'Zamówienia' && (
@@ -3804,6 +3821,25 @@ function App() {
                       tableWrapperRef={glassTableWrapperRef}
                     />
                   )}
+                {activeSubTab === 'Reszta' && activeTab === 'Bastion' && (
+                  <BastionExtrasPanel
+                    extras={bastionExtras.extras}
+                    loading={bastionExtras.loading}
+                    busy={bastionExtras.busy}
+                    companies={companies}
+                    systems={configOptions['Bastion']?.['system'] ?? []}
+                    colors={configOptions['Bastion']?.['kolor_oscieznicy'] ?? []}
+                    isManager={isManager}
+                    canMark={isManager || currentUser?.role === 'pracownik_produkcji'}
+                    currentInitials={currentUser?.initials ?? ''}
+                    onCreate={bastionExtras.create}
+                    onUpdate={bastionExtras.update}
+                    onSetStage={bastionExtras.setStage}
+                    onSetLabel={bastionExtras.setLabel}
+                    onSetReleased={bastionExtras.setReleased}
+                    onSetCancelled={bastionExtras.setCancelled}
+                  />
+                )}
                 {activeSubTab === 'Partie' && activeTab === 'Bastion' && (
                   <BastionBatchesPanel
                     batches={bastionBatches.batches}

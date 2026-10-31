@@ -208,7 +208,7 @@ export type ComplaintFormData = {
   linked_complaint_id: number | null
 }
 
-export type SubTab = 'Zamówienia' | 'Reklamacje' | 'Naświetla' | 'Ościeżnice regulowane' | 'Partie'
+export type SubTab = 'Zamówienia' | 'Reklamacje' | 'Naświetla' | 'Ościeżnice regulowane' | 'Partie' | 'Reszta'
 
 export type OrderCategory =
   | 'STA'
