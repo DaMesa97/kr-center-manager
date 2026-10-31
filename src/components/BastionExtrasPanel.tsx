@@ -21,6 +21,8 @@ type Props = {
   presets: string[]
   isManager: boolean
   canMark: boolean
+  /** pracownik produkcji: przypisane klucze etapów (null = kierownik) — obce etapy nieklikalne */
+  assignedStageKeys?: Set<string> | null
   currentInitials: string
   onCreate: (form: BastionExtraForm) => Promise<number | null>
   onUpdate: (id: number, form: BastionExtraForm) => Promise<boolean>
@@ -53,6 +55,7 @@ export default function BastionExtrasPanel({
   presets,
   isManager,
   canMark,
+  assignedStageKeys = null,
   currentInitials,
   onCreate,
   onUpdate,
@@ -85,7 +88,7 @@ export default function BastionExtrasPanel({
     const def = BASTION_EXTRA_STAGE_DEFS.find((d) => d.key === key)
     const cur = (e.stages[key]?.v ?? '').trim()
     if (cur) {
-      const ok = await appConfirm(`Cofnąć etap „${def?.title ?? key}" pozycji ${e.extra_no} (${cur})?`, { title: 'Cofnij etap', confirmLabel: 'Cofnij' })
+      const ok = await appConfirm(`Cofnąć etap „${def?.title ?? key}" pozycji ${e.extra_no} (${cur}, ${fmtDate(e.stages[key]?.at)})?`, { title: 'Cofnij etap', confirmLabel: 'Cofnij' })
       if (!ok) return
       await onSetStage(e.id, key, '')
       return
@@ -203,7 +206,13 @@ export default function BastionExtrasPanel({
                       const st = e.stages[d.key]
                       return (
                         <td key={d.key} className="production-stage-td col-stage" title={st?.v ? `${d.title}: ${st.v} · ${fmtDate(st.at)}` : d.title}>
-                          <ProductionStageCell value={st?.v ?? ''} disabled={busy || !canMark || e.is_cancelled} onPickEmpty={() => void handleStage(e, d.key)} onPickFilled={() => void handleStage(e, d.key)} />
+                          <ProductionStageCell
+                            value={st?.v ?? ''}
+                            disabled={busy || !canMark || e.is_cancelled}
+                            foreign={assignedStageKeys != null && !assignedStageKeys.has(d.key)}
+                            onPickEmpty={() => void handleStage(e, d.key)}
+                            onPickFilled={() => void handleStage(e, d.key)}
+                          />
                         </td>
                       )
                     })}

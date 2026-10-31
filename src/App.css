@@ -8400,3 +8400,136 @@ html, body, #root {
 .bastion-extra-suggest { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; margin: 2px 0 0; padding: 4px 0; list-style: none; background: #fff; border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); max-height: 240px; overflow: auto; }
 .bastion-extra-suggest button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 6px 10px; cursor: pointer; font: inherit; }
 .bastion-extra-suggest button:hover { background: #eef2ff; }
+
+
+/* ================================================================
+   ZWIAD #7 — HALA (pracownik 55+, wspólny komputer, „tylko klika etapy")
+================================================================ */
+
+/* komórka etapu: zrobione wyraźnie ciemniejsze (było 1,02:1 tła vs puste),
+   inicjały z kontrastem AA; puste = jasne z ramką, nie „szary klocek" */
+.production-stage-cell--empty {
+  background: #f1f3f5;
+  border: 1px dashed #b0b7bf;
+  color: #9aa0a6;
+}
+.production-stage-cell--done {
+  background: #a5d6a7;
+  border: 1px solid #81c784;
+  color: #1b5e20;
+  font-weight: 800;
+}
+/* etap innego stanowiska: „nie Twój" — bez tła, kropkowana ramka, bez łapki */
+.production-stage-cell--foreign,
+.production-stage-cell--foreign:disabled {
+  background: transparent;
+  border: 1px dotted #cbd5e1;
+  color: #cbd5e1;
+  cursor: default;
+  opacity: 1;
+}
+.production-stage-cell--foreign.production-stage-cell--done,
+.production-stage-cell--foreign.production-stage-cell--done:disabled {
+  background: #eef4ee;
+  border: 1px dotted #a5d6a7;
+  color: #6b8f6d;
+  font-weight: 600;
+}
+
+/* logowanie */
+.login-password-wrap { position: relative; display: block; }
+.login-password-wrap .login-input { padding-right: 4.2rem; }
+.login-password-toggle {
+  position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%);
+  border: none; background: transparent; color: var(--color-text-muted);
+  font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0.3rem 0.4rem;
+}
+.login-password-toggle:hover { color: var(--color-text); }
+.login-error {
+  background: #fdecea; color: #8b1d16; border: 1px solid #f5b8b2;
+  border-radius: var(--radius-md); padding: 0.65rem 0.8rem; font-size: 0.95rem; line-height: 1.4;
+}
+.login-submit-btn { min-height: 46px; font-size: 1.05rem; }
+
+/* ostrzeżenie o wylogowaniu */
+.session-warning-modal h2 { color: var(--color-text); font-size: 1.35rem; }
+.session-warning-modal p { font-size: 1.05rem; }
+.session-warning-actions { justify-content: flex-end; gap: 0.75rem; margin-top: 1rem; }
+.session-warning-stay { min-height: 48px; font-size: 1.05rem; padding-inline: 1.4rem; }
+
+/* dialog „Zrobione?" — tytuł widoczny, szczegóły zlecenia, duży przycisk */
+.stage-confirm-title {
+  margin: 0 0 0.5rem; font-size: 1.35rem; font-weight: 800; color: var(--color-text); text-align: center;
+}
+.stage-confirm-message { margin-bottom: 0.5rem; font-size: 1.05rem; }
+.stage-confirm-details {
+  margin: 0 0 1rem; font-size: 0.95rem; color: #475569; text-align: center; line-height: 1.45;
+}
+.stage-confirm-yes { min-height: 48px; font-size: 1.05rem; padding-inline: 1.4rem; }
+.shortage-dialog-list--simple .shortage-dialog-row { justify-content: space-between; }
+
+/* popup cofania */
+.production-stage-popup-note { margin: -0.4rem 0 1rem; font-size: 0.82rem; color: #64748b; }
+
+/* brak internetu (desktop) */
+.offline-banner {
+  background: #7c2d12; color: #ffedd5; padding: 0.6rem 1.25rem; font-size: 0.95rem;
+  border-bottom: 1px solid #9a3412;
+}
+.offline-banner strong { color: #fff; }
+
+/* Moje stanowisko: kto zalogowany, NASTĘPNE, „czeka na" */
+.station-who-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: #eef2ff; border: 1px solid #c7d2fe; color: #1e1b4b;
+  padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 1rem;
+}
+.station-who-bar strong { font-size: 1.1rem; }
+.my-station-next-badge {
+  display: inline-block; margin-left: 0.5rem; padding: 2px 8px; border-radius: 999px;
+  background: #16a34a; color: #fff; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.03em; vertical-align: middle;
+}
+.my-station-waiting-text { display: inline-block; margin-top: 0.3rem; color: #854d0e; font-size: 0.9rem; font-weight: 600; }
+.my-station-done-btn { min-height: 40px; margin-top: 0.3rem; }
+
+/* zoom w nagłówku */
+.app-zoom-group { display: inline-flex; gap: 2px; }
+.app-zoom-btn { min-width: 2.4rem; padding-inline: 0.45rem; font-weight: 800; }
+
+/* ── tryb DUŻY: rola pracownik produkcji (klasa app--large na .app-layout) ── */
+.app--large {
+  --font-size-xs: 13px;
+  --font-size-sm: 15px;
+  --font-size-base: 17px;
+  --font-size-lg: 19px;
+  --font-size-xl: 22px;
+}
+.app--large .orders-table th,
+.app--large .orders-table td { font-size: 1rem; padding: 0.5rem 0.7rem; }
+.app--large .orders-table thead th { font-size: 0.85rem; }
+.app--large .production-stage-cell { width: 44px; height: 44px; font-size: 15px; border-radius: 8px; }
+.app--large .orders-table td.col-stage:not(.sta-osc-pack-td) { min-width: 56px; width: 56px; max-width: 56px; }
+.app--large .orders-table td.production-stage-td { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.app--large .btn-sm { padding: 0.5rem 0.85rem; font-size: var(--font-size-sm); }
+.app--large .my-station-done-btn { min-height: 48px; font-size: 1.1rem; padding-inline: 1.4rem; }
+.app--large .orders-table.my-station-table td { font-size: 1.05rem; }
+.app--large .my-station-cell-sub { font-size: 0.9rem; }
+.app--large .my-station-ready-badge,
+.app--large .my-station-waiting-badge { font-size: 0.9rem; padding: 4px 10px; }
+.app--large .my-station-meta { font-size: 1.05rem; }
+.app--large .station-undo-bar { font-size: 1.05rem; padding: 12px 14px; }
+.app--large .station-stage-chip { font-size: 1rem; min-height: 40px; }
+.app--large .stage-worker-tile { min-width: 120px; padding: 0.8rem 1.1rem; }
+.app--large .stage-worker-tile-initials { font-size: 1.5rem; }
+.app--large .stage-worker-tile-name { font-size: 0.85rem; max-width: 150px; color: #334155; }
+.app--large .app-toolbar-username { font-size: 1rem; color: var(--color-text); max-width: 16rem; }
+.app--large .released-badge,
+.app--large .order-badge { font-size: 0.75rem; }
+/* toasty: większe, wyżej (prawy dolny róg 14 px nikt z hali nie widział) */
+.app--large ~ .toast-stack,
+body:has(.app--large) .toast-stack {
+  right: 50%; transform: translateX(50%); bottom: auto; top: 64px;
+  align-items: center; max-width: min(34rem, calc(100vw - 2rem));
+}
+body:has(.app--large) .toast { padding: 0.9rem 0.8rem 0.9rem 1.1rem; }
+body:has(.app--large) .toast-message { font-size: 1.1rem; font-weight: 600; }

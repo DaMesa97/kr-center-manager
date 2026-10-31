@@ -36,10 +36,22 @@ export type OrderTableCtx = {
   onShowHistory?: (order: Order) => void
   onPrintOrder?: (order: Order) => void
   pushToast: (message: string, variant: ToastVariant) => void
+  /**
+   * Pracownik produkcji: zbiór PRZYPISANYCH kluczy etapów (worker_stages).
+   * null/undefined = bez ograniczeń (kierownik). Gdy ustawione: komórki
+   * etapów spoza zbioru są „obce" (nieklikalne), a kolumny etapów stoją
+   * zaraz za FIRMĄ, a nie ~30 kolumn w prawo.
+   */
+  assignedStageKeys?: Set<string> | null
 }
+
+/** Pracownik hali: etap jest „obcy", gdy ma listę przypisań i klucza na niej nie ma. */
+export const isForeignStage = (c: OrderTableCtx, stageKey: string): boolean =>
+  c.assignedStageKeys != null && !c.assignedStageKeys.has(stageKey)
 
 /** Zależności useMemo kolumn — stała długość i kolejność (ctx to nowy obiekt przy każdym renderze). */
 export const orderCtxDeps = (c: OrderTableCtx): unknown[] => [
+  c.assignedStageKeys,
   c.isManager,
   c.selectedForLabel,
   c.onToggleLabelSelect,

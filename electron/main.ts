@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -436,18 +436,88 @@ function setupPrinting(mainWin: BrowserWindow) {
 // Window
 // ---------------------------------------------------------------------------
 
+// ── Powiększenie (zoom) zapamiętane między uruchomieniami ─────────────
+// Hala: pracownicy 55+ na wspólnych komputerach. Bez menu Electrona nie ma
+// Ctrl+plus/minus, więc obsługujemy je sami i trzymamy wartość w userData,
+// żeby po restarcie / aktualizacji nie wracało do 100 %.
+const ZOOM_MIN = 0.8
+const ZOOM_MAX = 2.0
+const ZOOM_STEP = 0.1
+const zoomFile = () => path.join(app.getPath('userData'), 'zoom.json')
+function readZoom(): number {
+  try {
+    const raw = JSON.parse(readFileSync(zoomFile(), 'utf-8')) as { factor?: unknown }
+    const f = Number(raw.factor)
+    if (Number.isFinite(f) && f >= ZOOM_MIN && f <= ZOOM_MAX) return f
+  } catch { /* brak pliku = 100 % */ }
+  return 1
+}
+function writeZoom(factor: number) {
+  try { writeFileSync(zoomFile(), JSON.stringify({ factor })) } catch { /* ignore */ }
+}
+function applyZoom(w: BrowserWindow, factor: number) {
+  const f = Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, factor)) * 100) / 100
+  w.webContents.setZoomFactor(f)
+  writeZoom(f)
+  w.webContents.send('zoom:changed', f)
+  return f
+}
+
 function createWindow() {
   const iconPath = path.join(process.env.APP_ROOT ?? '', 'public', 'icon.ico')
 
+  // Domyślne menu Electrona (File/Edit/View… po angielsku) niosło Ctrl+W
+  // (zamyka program) i Ctrl+Shift+I — na hali to pułapki. Zoom robimy sami niżej.
+  Menu.setApplicationMenu(null)
+
   win = new BrowserWindow({
     icon: iconPath,
+    // zmaksymalizowane od startu — domyślne 800×600 mieściło ~520 px tabeli
+    show: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
+  win.once('ready-to-show', () => {
+    win?.maximize()
+    win?.show()
+  })
 
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', new Date().toLocaleString())
+    if (win) applyZoom(win, readZoom())
+  })
+
+  // Ctrl+plus / Ctrl+minus / Ctrl+0 (także numeryczna) — powiększenie; F12 — DevTools
+  win.webContents.on('before-input-event', (event, input) => {
+    if (!win || input.type !== 'keyDown') return
+    const ctrl = input.control || input.meta
+    if (input.key === 'F12') {
+      win.webContents.toggleDevTools()
+      event.preventDefault()
+      return
+    }
+    if (!ctrl) return
+    const cur = win.webContents.getZoomFactor()
+    if (input.key === '=' || input.key === '+' || input.code === 'NumpadAdd') {
+      applyZoom(win, cur + ZOOM_STEP)
+      event.preventDefault()
+    } else if (input.key === '-' || input.code === 'NumpadSubtract') {
+      applyZoom(win, cur - ZOOM_STEP)
+      event.preventDefault()
+    } else if (input.key === '0' || input.code === 'Numpad0') {
+      applyZoom(win, 1)
+      event.preventDefault()
+    }
+  })
+  ipcMain.removeHandler('zoom:get')
+  ipcMain.removeHandler('zoom:set')
+  ipcMain.handle('zoom:get', () => win?.webContents.getZoomFactor() ?? 1)
+  ipcMain.handle('zoom:set', (_e, factor: unknown) => {
+    if (!win) return 1
+    const f = Number(factor)
+    return applyZoom(win, Number.isFinite(f) ? f : 1)
   })
 
   // ── Stały log błędów aplikacji ────────────────────────────────────

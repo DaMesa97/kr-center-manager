@@ -246,15 +246,13 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
         }),
       )
 
+      const who = ` · ${mark}`
       if (forcedCount > 0) {
-        pushToast(
-          `Etap oznaczony — wydano ${releasedCount} pozycji, w tym ${forcedCount} MIMO BRAKU (stan zszedł na minus)`,
-          'info',
-        )
+        pushToast(`Zapisano: ${order.order_number}${who}. Uwaga: ${forcedCount} części brakowało w magazynie — kierownik ma to w historii.`, 'info')
       } else if (releasedCount > 0) {
-        pushToast(`Etap oznaczony — wydano z magazynu ${releasedCount} pozycji`, 'success')
+        pushToast(`Zapisano: ${order.order_number}${who} (z magazynu zeszło ${releasedCount} poz.)`, 'success')
       } else {
-        pushToast('Etap oznaczony jako zrobiony', 'success')
+        pushToast(`Zapisano: ${order.order_number}${who}`, 'success')
       }
       return { status: 'ok' }
     },

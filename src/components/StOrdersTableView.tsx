@@ -18,6 +18,7 @@ import {
   useStickyCol1Width,
   isCancelledOwn,
   type OrderTableCtx,
+  isForeignStage,
 } from './orderTableColumns'
 import type { Order, StageDef, StStageLayoutMode } from '../types'
 import { isReleaseDateEmpty, isStTitanOrder, parseOrderExtraFields, parseProductionStages, stStageCellKind } from '../utils'
@@ -29,7 +30,7 @@ type StOrdersTableViewProps = OrderTableCtx & {
   canSeePrices?: boolean
   productionStageUpdating: string | null
   onOpenEditOrderModal: (order: Order) => void
-  onMarkProductionStageWithProfileInitials: (orderId: number, stageKey: string) => void | Promise<void>
+  onMarkProductionStageWithProfileInitials: (orderId: number, stageKey: string) => void | boolean | Promise<void | boolean>
   onSetStageRevertTarget: (target: { orderId: number; stageKey: string }) => void
   onHandleStTitanStaSheetNavigate: (staRef: string, event: MouseEvent<HTMLButtonElement>) => void
 }
@@ -62,6 +63,7 @@ function StOrdersTableView({
   const columns = useMemo<DataTableColumn<Order>[]>(() => {
     const stagesOf = (o: Order) => stagesByOrder.get(o) ?? parseProductionStages(o.production_stages, 'ST')
     const { mode, defs } = stOrdersStageLayout
+    const workerMode = ctx.assignedStageKeys != null
 
     const stageCols = defs.map((def): DataTableColumn<Order> => {
       const kindOf = (o: Order) => stStageCellKind(def, isStTitanOrder(o), mode)
@@ -128,6 +130,7 @@ function StOrdersTableView({
             <ProductionStageCell
               value={rowStages[stageKey] ?? ''}
               disabled={rowBusy || isCancelledOwn(o) || id === undefined}
+              foreign={isForeignStage(ctx, stageKey)}
               onPickEmpty={() => {
                 if (id === undefined) {
                   pushToast('Brak identyfikatora zamówienia', 'error')
@@ -156,6 +159,8 @@ function StOrdersTableView({
       quantityCol(),
       textCol('sequence', 'KOLEJNOŚĆ', (o) => o.sequence, { cellTooltip: false }),
       rushCol(ctx),
+      // Pracownik hali: etapy zaraz za FIRMĄ
+      ...(workerMode ? stageCols : []),
       modelSystemCol(),
       textCol('wing_color', 'KOLOR', (o) => o.wing_color),
       textCol('threshold_color', 'PRÓG', (o) => o.threshold_color),
@@ -167,7 +172,7 @@ function StOrdersTableView({
       textCol('hardware', 'OKUCIA', (o) => o.hardware),
       textCol('handle', 'POCHWYT', (o) => o.handle),
       textCol('peephole', 'WIZJER', (o) => o.peephole),
-      ...stageCols,
+      ...(workerMode ? [] : stageCols),
       releaseCol(ctx),
       textCol('info', 'INFO', (o) => o.info),
       textCol('notes', 'UWAGI', (o) => o.notes),

@@ -43,6 +43,7 @@ import {
   getExtQty,
   getOrderAgeStatus,
   getOrderStageDefinitions,
+  parseProductionStages,
   getTableStageDefinitions,
   isExtSideActive,
   isAppVersionOlder,
@@ -99,6 +100,8 @@ import ShippingView from './components/ShippingView'
 import ShippingDetailsModal from './components/ShippingDetailsModal'
 import WorkerStagesModal from './components/WorkerStagesModal'
 import MyStationView from './components/MyStationView'
+import StageWorkerConfirmDialog from './components/StageWorkerConfirmDialog'
+import { workersForStage } from './lib/stationLogic'
 import OrderCommentsPanel from './components/OrderCommentsPanel'
 import AppHeader from './components/AppHeader'
 import Sidebar from './components/Sidebar'
@@ -148,6 +151,7 @@ function LoginScreen({
   username,
   password,
   submitting,
+  error,
   onUsernameChange,
   onPasswordChange,
   onSubmit,
@@ -155,14 +159,17 @@ function LoginScreen({
   username: string
   password: string
   submitting: boolean
+  /** błąd ostatniej próby — na stałe pod formularzem, do następnej próby */
+  error: string | null
   onUsernameChange: (v: string) => void
   onPasswordChange: (v: string) => void
   onSubmit: (e: FormEvent) => void
 }) {
+  const [showPassword, setShowPassword] = useState(false)
   return (
     <main className="login-screen">
       <div className="login-card">
-        <h1 className="login-title">System Zamówień</h1>
+        <h1 className="login-title">KR Center Manager</h1>
         <form className="login-form" onSubmit={onSubmit}>
           <label className="login-field">
             <span className="login-label">Nazwa użytkownika</span>
@@ -170,6 +177,7 @@ function LoginScreen({
               type="text"
               className="login-input"
               autoComplete="username"
+              autoFocus
               value={username}
               onChange={(e) => onUsernameChange(e.target.value)}
               onKeyDown={(e) => {
@@ -183,22 +191,39 @@ function LoginScreen({
           </label>
           <label className="login-field">
             <span className="login-label">Hasło</span>
-            <input
-              type="password"
-              className="login-input"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => onPasswordChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  e.currentTarget.form?.requestSubmit()
-                }
-              }}
-              disabled={submitting}
-            />
+            <span className="login-password-wrap">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className="login-input"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => onPasswordChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    e.currentTarget.form?.requestSubmit()
+                  }
+                }}
+                disabled={submitting}
+              />
+              <button
+                type="button"
+                className="login-password-toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                title={showPassword ? 'Ukryj hasło' : 'Pokaż hasło'}
+                aria-label={showPassword ? 'Ukryj hasło' : 'Pokaż hasło'}
+                tabIndex={-1}
+              >
+                {showPassword ? 'Ukryj' : 'Pokaż'}
+              </button>
+            </span>
           </label>
-          <button type="submit" className="btn btn-success" disabled={submitting}>
+          {error && (
+            <div className="login-error" role="alert">
+              {error}
+            </div>
+          )}
+          <button type="submit" className="btn btn-success login-submit-btn" disabled={submitting}>
             {submitting ? 'Logowanie…' : 'Zaloguj się'}
           </button>
         </form>
@@ -315,6 +340,8 @@ function App() {
     loginPassword,
     setLoginPassword,
     loginSubmitting,
+    loginError,
+    clearLoginError,
     sessionWarningOpen,
     touchSession,
     handleLoginSubmit,
@@ -760,29 +787,74 @@ function App() {
     () => new Set(workerStagesForCurrent.map((w) => w.stage_key)),
     [workerStagesForCurrent],
   )
+  const isProductionWorker = currentUser?.role === 'pracownik_produkcji'
+  // Tabele: pracownik hali dostaje listę przypisań (obce komórki nieklikalne,
+  // etapy zaraz za FIRMĄ); kierownik — null = bez ograniczeń
+  const tableAssignedStageKeys = isProductionWorker ? myAssignedStageKeys : null
+  // Partie / Reszta: baza (bastion_batch_can_mark) wymaga przypisania w kategorii
+  // Bastion — UI mówił „możesz" każdemu pracownikowi produkcji i leciał czerwony toast
+  const bastionCanMark = isManager || workerStagesForCurrent.some((w) => w.category === 'Bastion')
+  // Brak internetu na desktopie — baner zamiast zgadywania „czy klikać jeszcze raz"
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine))
+  useEffect(() => {
+    const on = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => {
+      window.removeEventListener('online', on)
+      window.removeEventListener('offline', off)
+    }
+  }, [])
+  // Klik w tabeli u pracownika hali: gdy do etapu przypisanych jest >1 osób
+  // (wspólny komputer), ten sam kafelkowy dialog „Kto zrobił?" co na stanowisku
+  const [tableStageConfirm, setTableStageConfirm] = useState<{
+    order: Order
+    stageKey: string
+    workers: ReturnType<typeof workersForStage>
+  } | null>(null)
+  const [tableStageConfirmSaving, setTableStageConfirmSaving] = useState(false)
   const guardedMarkProductionStage = useCallback(
-    (orderId: number, stageKey: string) => {
-      if (currentUser?.role === 'pracownik_produkcji' && !myAssignedStageKeys.has(stageKey)) {
-        pushToast('Możesz oznaczać tylko przypisane Ci etapy', 'error')
-        return
+    async (orderId: number, stageKey: string): Promise<boolean> => {
+      if (isProductionWorker && !myAssignedStageKeys.has(stageKey)) {
+        pushToast('To nie Twój etap. Jeśli powinien być — poproś kierownika o przypisanie.', 'error')
+        return false
       }
-      return markProductionStageWithProfileInitials(orderId, stageKey)
+      if (isProductionWorker) {
+        const order = orders.find((o) => o.id === orderId)
+        if (order) {
+          const workers = workersForStage(order.category, [stageKey], allWorkerStages, stationProfiles)
+          if (workers.length > 1) {
+            setTableStageConfirm({ order, stageKey, workers })
+            return true
+          }
+        }
+      }
+      await markProductionStageWithProfileInitials(orderId, stageKey)
+      return true
     },
-    [currentUser?.role, myAssignedStageKeys, markProductionStageWithProfileInitials, pushToast],
+    [isProductionWorker, myAssignedStageKeys, orders, allWorkerStages, stationProfiles, markProductionStageWithProfileInitials, pushToast],
   )
   const guardedSetStageRevertTarget = useCallback(
     (target: Parameters<typeof setStageRevertTarget>[0]) => {
-      if (
-        currentUser?.role === 'pracownik_produkcji' &&
-        target &&
-        !myAssignedStageKeys.has((target as { stageKey: string }).stageKey)
-      ) {
-        pushToast('Możesz cofać tylko przypisane Ci etapy', 'error')
-        return
+      if (isProductionWorker && target) {
+        const t = target as { orderId: number; stageKey: string }
+        if (!myAssignedStageKeys.has(t.stageKey)) {
+          pushToast('To nie Twój etap — cofnąć może kierownik.', 'error')
+          return
+        }
+        // Decyzja Tymka (zwiad #7): pracownik cofa tylko SWOJE inicjały
+        const order = orders.find((o) => o.id === t.orderId)
+        const cur = order ? String(parseProductionStages(order.production_stages, order.category)[t.stageKey] ?? '').trim() : ''
+        const mine = (currentUser?.initials ?? '').trim().toUpperCase()
+        if (cur && mine && cur.toUpperCase() !== mine) {
+          pushToast(`To wpis innej osoby (${cur}). Cofnąć może ${cur} albo kierownik.`, 'error')
+          return
+        }
       }
       setStageRevertTarget(target)
     },
-    [currentUser?.role, myAssignedStageKeys, setStageRevertTarget, pushToast],
+    [isProductionWorker, myAssignedStageKeys, orders, currentUser?.initials, setStageRevertTarget, pushToast],
   )
 
   const {
@@ -2393,8 +2465,15 @@ function App() {
           username={loginUsername}
           password={loginPassword}
           submitting={loginSubmitting}
-          onUsernameChange={setLoginUsername}
-          onPasswordChange={setLoginPassword}
+          error={loginError}
+          onUsernameChange={(v) => {
+            clearLoginError()
+            setLoginUsername(v)
+          }}
+          onPasswordChange={(v) => {
+            clearLoginError()
+            setLoginPassword(v)
+          }}
           onSubmit={handleLoginSubmit}
         />
       </>
@@ -2517,12 +2596,64 @@ function App() {
           }}
         />
       )}
-      {stageRevertTarget && (
-        <StageRevertPopup
-          onCancel={() => setStageRevertTarget(null)}
-          onConfirm={() => void confirmProductionStageRevert()}
-        />
-      )}
+      {stageRevertTarget && (() => {
+        const o = orders.find((x) => x.id === stageRevertTarget.orderId)
+        const def = o ? getOrderStageDefinitions(o.category).find((d) => d.key === stageRevertTarget.stageKey) : undefined
+        const cur = o ? String(parseProductionStages(o.production_stages, o.category)[stageRevertTarget.stageKey] ?? '').trim() : ''
+        return (
+          <StageRevertPopup
+            orderNumber={o ? String(o.order_number ?? '') : undefined}
+            stageLabel={def ? `${def.header} — ${def.title}` : stageRevertTarget.stageKey}
+            currentValue={cur || undefined}
+            showStockNote={isManager}
+            onCancel={() => setStageRevertTarget(null)}
+            onConfirm={() => void confirmProductionStageRevert()}
+          />
+        )
+      })()}
+      {tableStageConfirm && (() => {
+        const o = tableStageConfirm.order
+        const def = getOrderStageDefinitions(o.category).find((d) => d.key === tableStageConfirm.stageKey)
+        let lastWorkerId: string | null = null
+        try {
+          lastWorkerId = localStorage.getItem('stationLastWorkerId')
+        } catch {
+          lastWorkerId = null
+        }
+        return (
+          <StageWorkerConfirmDialog
+            title="Oznaczyć etap jako zrobiony?"
+            message={`Zlecenie nr ${o.order_number}, etap: ${def?.header ?? tableStageConfirm.stageKey} — ${def?.title ?? ''}`}
+            details={[o.company, o.model, [o.width, o.height].filter(Boolean).join('×'), o.quantity ? `${o.quantity} szt.` : '']
+              .filter((x) => String(x ?? '').trim())
+              .join(' · ')}
+            workers={tableStageConfirm.workers}
+            lastWorkerId={lastWorkerId}
+            saving={tableStageConfirmSaving}
+            onConfirm={(worker) => {
+              const run = async () => {
+                if (!tableStageConfirm || o.id === undefined) return
+                setTableStageConfirmSaving(true)
+                try {
+                  if (worker) {
+                    try {
+                      localStorage.setItem('stationLastWorkerId', worker.id)
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                  await markProductionStageWithProfileInitials(o.id, tableStageConfirm.stageKey, { initials: worker?.initials })
+                  setTableStageConfirm(null)
+                } finally {
+                  setTableStageConfirmSaving(false)
+                }
+              }
+              void run()
+            }}
+            onCancel={() => setTableStageConfirm(null)}
+          />
+        )
+      })()}
       {releaseClearTarget && (
         <ReleaseClearPopup
           onCancel={() => setReleaseClearTarget(null)}
@@ -2547,6 +2678,7 @@ function App() {
             }
             orderNumber={stageReleaseShortage.orderNumber}
             shortages={stageReleaseShortage.shortages}
+            isManager={isManager}
             onForce={() => void confirmStageReleaseForce()}
             onCancel={cancelStageRelease}
           />
@@ -2703,7 +2835,7 @@ function App() {
           pushToast={pushToast}
         />
       )}
-    <div className="app-layout">
+    <div className={`app-layout${isProductionWorker ? ' app--large' : ''}`}>
       <Sidebar
         visibleTabs={visibleTabs}
         activeTab={activeTab}
@@ -2747,6 +2879,11 @@ function App() {
           <div className="min-version-admin-banner" role="alert">
             Minimalna wymagana wersja to v{minVersionRequired}, a masz v{__APP_VERSION__} — pozostali użytkownicy są
             zablokowani. Jeśli to pomyłka, popraw <code>min_app_version</code> (app_config); jako admin pracujesz dalej.
+          </div>
+        )}
+        {!isOnline && (
+          <div className="offline-banner" role="alert">
+            <strong>Brak internetu.</strong> Poczekaj — program sam się połączy. Nie klikaj etapów jeszcze raz.
           </div>
         )}
         <OverdueBanner
@@ -3292,6 +3429,8 @@ function App() {
             loading={myStationLoading}
             pushToast={pushToast}
             isManager={isManager}
+            currentUserLabel={`${currentUser?.full_name ?? ''}${currentUser?.initials ? ` (${currentUser.initials})` : ''}`.trim()}
+            onSwitchUser={() => void handleSignOut()}
           />
         ) : isShippingTab && can(currentUser?.role, 'shipping.view') ? (
           <ShippingView
@@ -3656,6 +3795,7 @@ function App() {
                     onToggleLabelSelect={toggleLabelSelect}
                     productionStageUpdating={productionStageUpdating}
                     releaseDateUpdating={releaseDateUpdating}
+                    assignedStageKeys={tableAssignedStageKeys}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     orders={orders}
                     linkedOrders={linkedOrders}
@@ -3689,6 +3829,7 @@ function App() {
                     canSeePrices={canSeePrices}
                     productionStageUpdating={productionStageUpdating}
                     releaseDateUpdating={releaseDateUpdating}
+                    assignedStageKeys={tableAssignedStageKeys}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     glassAllowances={glassAllowances}
                     orderCommentsCounts={orderCommentsCounts}
@@ -3723,6 +3864,7 @@ function App() {
                     selectedForLabel={labelSelection}
                     onToggleLabelSelect={toggleLabelSelect}
                     releaseDateUpdating={releaseDateUpdating}
+                    assignedStageKeys={tableAssignedStageKeys}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     productionStageUpdating={productionStageUpdating}
                     glassAllowances={glassAllowances}
@@ -3751,6 +3893,7 @@ function App() {
                     selectedForLabel={labelSelection}
                     onToggleLabelSelect={toggleLabelSelect}
                     releaseDateUpdating={releaseDateUpdating}
+                    assignedStageKeys={tableAssignedStageKeys}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     glassAllowances={glassAllowances}
                     orderCommentsCounts={orderCommentsCounts}
@@ -3831,7 +3974,8 @@ function App() {
                     colors={configOptions['Bastion']?.['kolor_oscieznicy'] ?? []}
                     presets={configOptions['Bastion']?.['reszta'] ?? []}
                     isManager={isManager}
-                    canMark={isManager || currentUser?.role === 'pracownik_produkcji'}
+                    canMark={bastionCanMark}
+                    assignedStageKeys={tableAssignedStageKeys}
                     currentInitials={currentUser?.initials ?? ''}
                     onCreate={bastionExtras.create}
                     onUpdate={bastionExtras.update}
@@ -3849,7 +3993,9 @@ function App() {
                     ordersById={bastionOrdersById}
                     candidates={bastionBatchCandidates}
                     isManager={isManager}
-                    canMark={isManager || currentUser?.role === 'pracownik_produkcji'}
+                    canMark={bastionCanMark}
+                    canScrew={isManager || myAssignedStageKeys.has('oscieznica_skrecanie')}
+                    assignedStageKeys={tableAssignedStageKeys}
                     currentInitials={currentUser?.initials ?? ''}
                     onCreateBatch={bastionBatches.createBatch}
                     onAddOrders={bastionBatches.addOrders}
@@ -3874,6 +4020,7 @@ function App() {
                       canSeePrices={canSeePrices}
                       productionStageUpdating={productionStageUpdating}
                       releaseDateUpdating={releaseDateUpdating}
+                      assignedStageKeys={tableAssignedStageKeys}
                       rushUpdatingOrderId={rushUpdatingOrderId}
                       glassAllowances={glassAllowances}
                       orderCommentsCounts={orderCommentsCounts}

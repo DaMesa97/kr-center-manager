@@ -20,6 +20,10 @@ type Props = {
   isManager: boolean
   /** kierownik albo pracownik z etapami Bastion — odhacza etapy partii i skręcanie */
   canMark: boolean
+  /** skręcanie (etap OŚĆ SKR. na zleceniu) — kierownik albo pracownik z TYM etapem; bez tego przycisk był widoczny i sypał toastami */
+  canScrew?: boolean
+  /** pracownik produkcji: przypisane klucze etapów (null = kierownik, wszystko) — obce etapy partii nieklikalne */
+  assignedStageKeys?: Set<string> | null
   currentInitials: string
   onCreateBatch: (orderIds: number[], notes: string) => Promise<number | null>
   onAddOrders: (batchId: number, orderIds: number[]) => Promise<boolean>
@@ -28,8 +32,8 @@ type Props = {
   onSetStage: (batchId: number, stageKey: string, value: string) => Promise<boolean>
   onSetNotes: (batchId: number, notes: string) => Promise<boolean>
   onOpenOrder?: (order: Order) => void
-  /** skręcenie ościeżnicy = etap OŚĆ SKR. na zleceniu (ten sam mechanizm co w tabeli) */
-  onMarkScrewed?: (orderId: number) => void | Promise<void>
+  /** skręcenie ościeżnicy = etap OŚĆ SKR. na zleceniu (ten sam mechanizm co w tabeli); false = odmowa (guard) */
+  onMarkScrewed?: (orderId: number) => boolean | void | Promise<boolean | void>
 }
 
 const fmtDate = (iso: string | null | undefined): string => {
@@ -53,6 +57,8 @@ export default function BastionBatchesPanel({
   candidates,
   isManager,
   canMark,
+  canScrew = canMark,
+  assignedStageKeys = null,
   currentInitials,
   onCreateBatch,
   onAddOrders,
@@ -191,7 +197,11 @@ export default function BastionBatchesPanel({
     if (!ok) return
     setScrewingBatchId(b.id)
     try {
-      for (const id of pending) await onMarkScrewed(id)
+      // pierwsza odmowa (brak uprawnień) przerywa — zamiast N czerwonych toastów
+      for (const id of pending) {
+        const ok = await onMarkScrewed(id)
+        if (ok === false) break
+      }
     } finally {
       setScrewingBatchId(null)
     }
@@ -248,6 +258,8 @@ export default function BastionBatchesPanel({
                     busy={busy}
                     isManager={isManager}
                     canMark={canMark}
+                    canScrew={canScrew}
+                    assignedStageKeys={assignedStageKeys}
                     ordersById={ordersById}
                     onToggle={() => toggleExpanded(b.id)}
                     onStage={(key) => void handleStage(b, key)}
@@ -388,6 +400,8 @@ type RowProps = {
   busy: boolean
   isManager: boolean
   canMark: boolean
+  canScrew: boolean
+  assignedStageKeys: Set<string> | null
   ordersById: Map<number, Order>
   onToggle: () => void
   onStage: (key: string) => void
@@ -395,12 +409,13 @@ type RowProps = {
   onDelete: () => void
   onRemove: (orderId: number, orderNumber: string) => void
   onOpenOrder?: (order: Order) => void
-  onMarkScrewed?: (orderId: number) => void | Promise<void>
+  onMarkScrewed?: (orderId: number) => boolean | void | Promise<boolean | void>
   onScrewAll: () => void
   screwingAll: boolean
 }
 
-function BatchRows({ b, isOpen, busy, isManager, canMark, ordersById, onToggle, onStage, onNotes, onDelete, onRemove, onOpenOrder, onMarkScrewed, onScrewAll, screwingAll }: RowProps) {
+function BatchRows({ b, isOpen, busy, isManager, canMark, canScrew, assignedStageKeys, ordersById, onToggle, onStage, onNotes, onDelete, onRemove, onOpenOrder, onMarkScrewed, onScrewAll, screwingAll }: RowProps) {
+  const foreignStage = (key: string) => assignedStageKeys != null && !assignedStageKeys.has(key)
   const closed = b.status === 'closed'
   const colSpan = 11 + (isManager ? 1 : 0)
   const progress = batchStageProgress(b)
@@ -425,7 +440,7 @@ function BatchRows({ b, isOpen, busy, isManager, canMark, ordersById, onToggle, 
           const st = b.stages[d.key]
           return (
             <td key={d.key} className="production-stage-td col-stage" title={st?.v ? `${d.title}: ${st.v} · ${fmtDate(st.at)}` : d.title}>
-              <ProductionStageCell value={st?.v ?? ''} disabled={busy || !canMark} onPickEmpty={() => onStage(d.key)} onPickFilled={() => onStage(d.key)} />
+              <ProductionStageCell value={st?.v ?? ''} disabled={busy || !canMark} foreign={foreignStage(d.key)} onPickEmpty={() => onStage(d.key)} onPickFilled={() => onStage(d.key)} />
               {st?.at && <div className="bastion-stage-date">{fmtDate(st.at).slice(0, 5)}</div>}
             </td>
           )
@@ -435,7 +450,7 @@ function BatchRows({ b, isOpen, busy, isManager, canMark, ordersById, onToggle, 
             {b.screwed_count}/{b.items_count}
             {range && <span className="bastion-batch-screw-range">{range}</span>}
           </div>
-          {canMark && onMarkScrewed && !allScrewed && (
+          {canScrew && onMarkScrewed && !allScrewed && (
             <button type="button" className="btn btn-sm btn-secondary bastion-batch-screw-all" disabled={busy || screwingAll} onClick={onScrewAll} title="Oznacz skręcenie ościeżnic na wszystkich niedokręconych zleceniach partii (etap OŚĆ SKR.)">
               {screwingAll ? 'Oznaczam…' : 'Skręć całą partię'}
             </button>
@@ -481,7 +496,7 @@ function BatchRows({ b, isOpen, busy, isManager, canMark, ordersById, onToggle, 
                       <td>{o?.width ?? ''}</td>
                       <td>{o?.direction ?? ''}</td>
                       <td className="bastion-batch-item-state">
-                        {screwed || !canMark || !onMarkScrewed ? (
+                        {screwed || !canScrew || !onMarkScrewed ? (
                           <span className={screwed ? 'bastion-batch-item-flag bastion-batch-item-flag--ok' : 'bastion-batch-item-flag'}>
                             {screwed ? 'skręcona' : 'do skręcenia'}
                           </span>

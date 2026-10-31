@@ -30,7 +30,13 @@ Tworzy **trzy** powiązane rekordy: STA + ST + Bastion.
 - Każda ekipa oznacza swoje etapy; wydanie niezależne per kategoria.
 
 ## ✅ Moje stanowisko
-Twoje zadania — etapy gotowe do zrobienia (pilne i gotowe na górze). Rozwijasz kartę, „Oznacz jako zrobione".
+Twoje zadania — etapy gotowe do zrobienia (pilne i gotowe na górze, pierwsze ma plakietkę **NASTĘPNE**).
+1. Sprawdź u góry, **kto jest zalogowany** („To nie ja — zmień osobę").
+2. Klik w wiersz = szczegóły dla Twojego etapu.
+3. **✓ Zrobione** → kafelek ze **swoimi inicjałami**.
+4. Pomyłka: pasek **Cofnij** przez 5 min; później klik w zieloną komórkę w tabeli (tylko swoje inicjały).
+5. „W magazynie brakuje części" → **Zrobione mimo braku** (magazyn dostaje informację).
+6. Za małe litery: **A− / A+** w prawym górnym rogu (zostaje na tym komputerze).
 
 ## 🚛 Wysyłka (kierownik)
 Zlecenia gotowe do wydania.

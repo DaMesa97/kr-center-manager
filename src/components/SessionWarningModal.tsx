@@ -7,6 +7,11 @@ type Props = {
   onLogout: () => void
 }
 
+/**
+ * Ostrzeżenie przed automatycznym wylogowaniem po godzinie bez klikania.
+ * Język „dla hali": bez „sesji" i „przedłużania"; właściwy przycisk zielony
+ * i duży, Enter = „pracuję dalej".
+ */
 export default function SessionWarningModal({ open, onExtend, onLogout }: Props) {
   const [secondsLeft, setSecondsLeft] = useState(60)
 
@@ -18,25 +23,34 @@ export default function SessionWarningModal({ open, onExtend, onLogout }: Props)
     const interval = setInterval(() => {
       setSecondsLeft((s) => Math.max(0, s - 1))
     }, 1000)
-    return () => clearInterval(interval)
-  }, [open])
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        onExtend()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open, onExtend])
 
   if (!open) return null
 
   return createPortal(
-    <div className="modal-overlay">
-      <div className="session-warning-modal">
-        <h2>Sesja wkrótce wygaśnie</h2>
+    <div className="modal-overlay" onClick={onExtend}>
+      <div className="session-warning-modal" role="alertdialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <h2>Jesteś tam jeszcze?</h2>
         <p>
-          Zostaniesz automatycznie wylogowany za <strong>{secondsLeft}s</strong> z powodu braku aktywności.
+          Nikt nic nie klikał od godziny. Za <strong>{secondsLeft} s</strong> program sam się wyloguje.
         </p>
-        <p>Kliknij "Zostań zalogowany" aby przedłużyć sesję.</p>
-        <div className="confirm-dialog-actions">
+        <div className="confirm-dialog-actions session-warning-actions">
           <button type="button" className="btn btn-secondary" onClick={onLogout}>
-            Wyloguj się teraz
+            Wyloguj
           </button>
-          <button type="button" className="btn btn-danger" onClick={onExtend}>
-            Zostań zalogowany
+          <button type="button" className="btn btn-success session-warning-stay" onClick={onExtend} autoFocus>
+            Tak, pracuję dalej
           </button>
         </div>
       </div>

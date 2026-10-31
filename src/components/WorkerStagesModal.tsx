@@ -10,6 +10,8 @@ import {
   ST_TITAN_STAGE_DEFS,
 } from '../constants'
 import type { Profile, WorkerStage } from '../types'
+import { BASTION_BATCH_STAGE_DEFS } from '../lib/bastionBatches'
+import { BASTION_EXTRA_STAGE_DEFS } from '../lib/bastionExtras'
 import Spinner from './Spinner'
 
 type Props = {
@@ -41,6 +43,10 @@ const CATEGORY_DEFS: Array<{
   // Noga Titana w Bastionie: okuwanie/montaż/pakowanie (klucze tit_*) —
   // bez tej sekcji „titanowego pakowania" nie dało się nikomu przypisać
   { category: 'Bastion', label: 'Bastion (Titan)', defs: BASTION_TITAN_STAGE_DEFS },
+  // Partie ościeżnic regulowanych (arkusz NOWE) i Reszta (progi/opaski) — bez tych
+  // sekcji pracownika Bastionu nie dało się przypisać do etapów paneli/opasek ani Reszty
+  { category: 'Bastion', label: 'Bastion — partie ościeżnic (panele / opaski)', defs: BASTION_BATCH_STAGE_DEFS },
+  { category: 'Bastion', label: 'Bastion — Reszta (progi, opaski, zabudowy)', defs: BASTION_EXTRA_STAGE_DEFS },
   // Stolarka aluminiowa: etapy per pozycja/sztuka (klikane na Moim stanowisku)
   { category: 'Aluminium', label: 'Stolarka aluminiowa', defs: ALU_STAGE_DEFS },
 ]

@@ -27,6 +27,27 @@ Najcięższe zarzuty zweryfikowane ręcznie w kodzie po zwiadzie (okno Electrona
 
 ---
 
+## Decyzje Tymka (31.10) i co z tego zrobiono
+
+Decyzje: **konta osobiste jak dziś** (PIN-y stanowiskowe odpadły — „większy problem"); pracownik **widzi tabele, ale ma pracować na Moim stanowisku**; **cofa tylko swoje inicjały, bez limitu czasu**; „**Wydaj mimo braku" zostaje u pracownika**; **tylko PC** (telefon/tablet odpada). Pytanie o uprawnienia brygadzisty Bastionu (partie, Reszta) — bez odpowiedzi, czeka.
+
+Zrobione 31.10 (na `clean`, nie w becie; migracja `migrate/zwiad7_etapy_hala.sql` wgrana przez konektor Supabase):
+
+- **Electron** (`electron/main.ts`): okno zmaksymalizowane od startu, bez angielskiego menu (Ctrl+W/Ctrl+Shift+I nie działają), zoom Ctrl+plus/minus/0 i przyciski **A− / A+** w nagłówku, zapamiętany w `userData/zoom.json`; F12 = DevTools.
+- **Logowanie**: po wylogowaniu pole loginu puste (koniec blokowania cudzego konta), autofocus, „Pokaż" hasło, błąd na stałe pod formularzem z podpowiedzią „sprawdź, czy to TWÓJ login", tytuł „KR Center Manager".
+- **Sesja**: licznik bezczynności widzi `pointerdown`/`keydown` (throttle 30 s); modal „Jesteś tam jeszcze? … Tak, pracuję dalej" (zielony, Enter).
+- **Tabele dla pracownika produkcji**: komórki nie-swoich etapów wykropkowane i nieklikalne (`ProductionStageCell foreign`, `OrderTableCtx.assignedStageKeys`), **etapy zaraz za FIRMĄ** (STA/Disting, ST, Bastion), dialog kafelków „Kto zrobił?" także z tabeli, gdy do etapu przypisanych jest >1 osób; blokada wiersza od razu (dwuklik nie woła dwa razy wydania); toast „Zapisano: 7154 · E5 · KW".
+- **Cofanie**: UI i baza (`update_order_stage` z '' oraz `revert_order_stage`) pozwalają pracownikowi cofnąć tylko własne inicjały (błąd `P0403` „To wpis innej osoby (TC)…"); popup mówi które zlecenie, etap i czyje inicjały; dopisek o ZWR tylko dla kierownika; pasek Cofnij na stanowisku 5 min zamiast 60 s.
+- **Konflikt dwóch osób**: `update_order_stage` odrzuca nadpisanie wypełnionego etapu inną wartością (`P0402` „Ten etap jest już oznaczony (MK)"); lustra `sta_*`/`dist_*` wyjęte spod kontroli; ta sama wartość = idempotentnie OK. Test: `scratchpad/zwiad7/test_guard.sql` (T1–T7 w transakcji z rollbackiem).
+- **Dialog „Zrobione?"**: tytuł widoczny, druga linia firma · model · S×W · ilość, pierwsze 400 ms bez reakcji na klik, klik w tło nie zamyka, duży zielony przycisk.
+- **Moje stanowisko**: pasek „Zalogowany: Jan K. (JK) — To nie ja, zmień osobę"; plakietka **NASTĘPNE** na pierwszym gotowym zadaniu sekcji; zamiast szarego przycisku napis „⏳ Czeka na E1" (`missingPrereqs`); dialog braków po ludzku („W magazynie brakuje części… Zrobione mimo braku", zielony) dla pracownika, pełna lista dla kierownika; toasty „Zapisano: 7154 · KW".
+- **Tryb duży** `app--large` automatycznie dla roli pracownik produkcji: font 17 px, komórki etapów 44×44/15 px, przyciski większe, kafelki 120 px, toasty na górze po środku 1.1 rem. Komórka zrobiona ciemniejsza zieleń + bold (kontrast AA), pusta jasna z przerywaną ramką.
+- **Baner „Brak internetu"** na desktopie.
+- **Bastion**: `canMark` w Partiach/Reszcie z `worker_stages` (kategoria Bastion), `canScrew` tylko z etapem `oscieznica_skrecanie`, „Skręć całą partię" przerywa po pierwszej odmowie, obce etapy partii/Reszty wykropkowane; `WorkerStagesModal` ma sekcje „Bastion — partie ościeżnic" i „Bastion — Reszta".
+- **Pomoc / INSTRUKCJA**: ściąga „krok po kroku" dla stanowiska.
+
+Nie ruszone (wymaga decyzji / później): uprawnienia brygadzisty Bastionu (#11), Użytkownicy dla kierownika działu (#12), stany specjalne etapów, daty start/koniec partii, partie/Reszta na Moim stanowisku, „Skopiuj od…" i unikalność inicjałów w kontach, cały wątek mobile (#13 — Tymek: tylko PC).
+
 ## P1 — to zablokuje seniora albo da złe dane
 
 Zdublowane znaleziska scalone; w nawiasie, kto je zgłosił.

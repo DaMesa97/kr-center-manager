@@ -24,6 +24,18 @@ function getIpc(): AboutIpc | undefined {
 
 type CheckState = 'idle' | 'checking' | 'uptodate' | 'available' | 'error'
 
+/** Zoom okna Electrona o krok (IPC zoom:get/zoom:set w electron/main.ts); w przeglądarce — nic. */
+async function zoomBy(delta: number) {
+  const ipc = (window as Window & { ipcRenderer?: { invoke: (ch: string, ...a: unknown[]) => Promise<unknown> } }).ipcRenderer
+  if (!ipc) return
+  try {
+    const cur = Number(await ipc.invoke('zoom:get')) || 1
+    await ipc.invoke('zoom:set', Math.round((cur + delta) * 100) / 100)
+  } catch (err) {
+    console.warn('zoom ipc:', err)
+  }
+}
+
 function AboutModal({ onClose }: { onClose: () => void }) {
   const [checkState, setCheckState] = useState<CheckState>('idle')
   const [updateVersion, setUpdateVersion] = useState('')
@@ -287,6 +299,14 @@ export default function AppHeader({
           ) : null}
 
           <div className="app-toolbar-user">
+            <span className="app-zoom-group" title="Powiększenie programu (zapamiętane na tym komputerze). Działa też Ctrl + / Ctrl −">
+              <button type="button" className="btn btn-sm btn-secondary app-zoom-btn" onClick={() => void zoomBy(-0.1)} aria-label="Pomniejsz">
+                A−
+              </button>
+              <button type="button" className="btn btn-sm btn-secondary app-zoom-btn" onClick={() => void zoomBy(0.1)} aria-label="Powiększ">
+                A+
+              </button>
+            </span>
             <NotificationBell currentUserId={currentUserId} onNavigate={onNavigateTab} />
             <span className="app-toolbar-username">{currentUserFullName}</span>
             <button

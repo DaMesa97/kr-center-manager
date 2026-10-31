@@ -29,6 +29,9 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
   const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginSubmitting, setLoginSubmitting] = useState(false)
+  // Błąd logowania NA STAŁE pod formularzem (toast znikał po 10 s i formularz
+  // wyglądał „czysto" — senior nie wiedział, co poprawić)
+  const [loginError, setLoginError] = useState<string | null>(null)
   // Aktywność w REF, nie w stanie — touchSession woła się na początku niemal
   // każdego fetcha i każdy setState przerysowywał całe App (3+ tys. linii)
   const sessionLastActivityRef = useRef<number>(Date.now())
@@ -129,6 +132,10 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
         setCurrentUser(null)
         setProfileError(null)
         setLoginPassword('')
+        // Wspólny PC: login poprzedniej osoby zostawał w polu → kolega wpisywał
+        // swoje hasło pod cudzym loginem i po 5 próbach blokował CUDZE konto
+        setLoginUsername('')
+        setLoginError(null)
         onLogout()
       }
     })
@@ -139,6 +146,26 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Licznik bezczynności widzi KLIKANIE, nie tylko fetche: oznaczanie etapów na
+  // „Moim stanowisku" nie woła touchSession i pracownik był wylogowywany w
+  // środku pracy (zwiad #7). Throttle 30 s — bez re-renderów.
+  useEffect(() => {
+    if (!authSession) return
+    let last = 0
+    const onActivity = () => {
+      const now = Date.now()
+      if (now - last < 30_000) return
+      last = now
+      sessionLastActivityRef.current = now
+    }
+    window.addEventListener('pointerdown', onActivity, { passive: true })
+    window.addEventListener('keydown', onActivity, { passive: true })
+    return () => {
+      window.removeEventListener('pointerdown', onActivity)
+      window.removeEventListener('keydown', onActivity)
+    }
+  }, [authSession])
 
   // Auto-logout po braku aktywności — interwał stabilny (czyta ref),
   // nie odtwarza się przy każdym fetchu/aktywności
@@ -165,8 +192,13 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
     async (e: FormEvent) => {
       e.preventDefault()
       const username = loginUsername.trim()
+      setLoginError(null)
       if (!username) {
-        pushToast('Podaj nazwę użytkownika', 'error')
+        setLoginError('Wpisz swoją nazwę użytkownika.')
+        return
+      }
+      if (!loginPassword) {
+        setLoginError('Wpisz hasło.')
         return
       }
       const email = username.toLowerCase().endsWith('@krcenter.pl')
@@ -183,10 +215,7 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
         } else if ((rateCheck as RateLimitRow[])?.[0]?.r_blocked) {
           const seconds = (rateCheck as RateLimitRow[])[0].r_seconds_until_unlock ?? 0
           const minutes = Math.ceil(seconds / 60)
-          pushToast(
-            `Zbyt wiele nieudanych prób logowania. Spróbuj ponownie za ${minutes} min.`,
-            'error',
-          )
+          setLoginError(`Za dużo nieudanych prób. Poczekaj ${minutes} min i spróbuj ponownie.`)
           return
         }
 
@@ -198,11 +227,11 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
         // Konto wyłączone przez admina (ban) / limit Supabase na IP — to nie
         // "złe hasło", więc bez liczenia próby i z własnym komunikatem
         if (error?.code === 'user_banned') {
-          pushToast('Konto jest zablokowane — skontaktuj się z administratorem.', 'error')
+          setLoginError('To konto jest zablokowane. Zgłoś to kierownikowi.')
           return
         }
         if (error?.status === 429) {
-          pushToast('Za dużo prób logowania z tego komputera — odczekaj kilka minut.', 'error')
+          setLoginError('Za dużo prób logowania z tego komputera. Poczekaj kilka minut.')
           return
         }
 
@@ -219,7 +248,7 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
         }
 
         if (error && !isCredentialError) {
-          pushToast('Błąd połączenia z serwerem — sprawdź sieć i spróbuj ponownie.', 'error')
+          setLoginError('Brak połączenia z internetem. Sprawdź sieć i spróbuj ponownie.')
           return
         }
         if (error) {
@@ -232,17 +261,13 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
             const minutes = Math.ceil(
               ((postCheck as RateLimitRow[])[0].r_seconds_until_unlock ?? 0) / 60,
             )
-            pushToast(
-              `Zbyt wiele nieudanych prób. Konto zablokowane na ${minutes} min.`,
-              'error',
-            )
+            setLoginError(`Za dużo nieudanych prób. Konto „${username}" jest zablokowane na ${minutes} min.`)
           } else if (remainingAttempts > 0 && remainingAttempts <= 3) {
-            pushToast(
-              `Nieprawidłowe dane logowania. Pozostało prób: ${remainingAttempts}.`,
-              'error',
+            setLoginError(
+              `Zła nazwa użytkownika albo hasło (sprawdź, czy to na pewno TWÓJ login: „${username}"). Pozostało prób: ${remainingAttempts}.`,
             )
           } else {
-            pushToast('Nieprawidłowe dane logowania.', 'error')
+            setLoginError(`Zła nazwa użytkownika albo hasło. Sprawdź, czy to na pewno TWÓJ login: „${username}".`)
           }
           return
         }
@@ -252,7 +277,7 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
         setLoginSubmitting(false)
       }
     },
-    [loginUsername, loginPassword, pushToast, touchSession],
+    [loginUsername, loginPassword, touchSession],
   )
 
   const handleSignOut = useCallback(async () => {
@@ -281,6 +306,8 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
     loginPassword,
     setLoginPassword,
     loginSubmitting,
+    loginError,
+    clearLoginError: () => setLoginError(null),
     sessionWarningOpen,
     touchSession,
     handleLoginSubmit,

@@ -139,7 +139,7 @@ const SECTIONS: Section[] = [
         <h4>Etapy produkcji</h4>
         <ul>
           <li>Kliknięcie <b>pustej</b> komórki etapu wstawia <b>Twoje inicjały</b> — „zrobione, przeze mnie".</li>
-          <li>Kliknięcie <b>wypełnionej</b> komórki = cofnięcie etapu (z potwierdzeniem; pracownik produkcji cofa tylko swoje przypisane etapy).</li>
+          <li>Kliknięcie <b>wypełnionej</b> komórki = cofnięcie etapu (z potwierdzeniem; pracownik produkcji cofa tylko <b>swoje</b> inicjały na przypisanych etapach — cudze cofa kierownik).</li>
           <li>Etap uznaje się za wykonany, gdy komórka jest <b>niepusta</b> — dlatego widać inicjały wykonawcy, nie „ptaszek".</li>
         </ul>
         <h4>Pilne i wydanie</h4>
@@ -215,12 +215,21 @@ const SECTIONS: Section[] = [
           Widok dla pracownika produkcji: lista zadań wynikających z <b>przypisanych Ci etapów</b>
           (przypisuje kierownik w panelu Użytkownicy → „Etapy produkcji").
         </p>
+        <p><b>Krok po kroku (ściąga przy stanowisku):</b></p>
+        <ol>
+          <li>Na górze widać, <b>kto jest zalogowany</b>. To nie Ty? Kliknij „To nie ja — zmień osobę" i zaloguj się na siebie.</li>
+          <li>Pierwsze gotowe zlecenie w kolejce ma plakietkę <b>NASTĘPNE</b>. Pilne i „na dziś" są zawsze na górze.</li>
+          <li>Kliknij wiersz, żeby zobaczyć <b>wymiary, kolory, szklenia</b> dla Twojego etapu.</li>
+          <li>Po robocie kliknij <b>✓ Zrobione</b>, a potem <b>kafelek ze SWOIMI inicjałami</b>. Zapis widać od razu u kierownika.</li>
+          <li>Pomyłka? Na górze przez 5 minut jest pasek <b>Cofnij</b>. Później cofniesz w tabeli zlecenia (klik w zieloną komórkę) — ale tylko <b>swoje</b> inicjały; cudze cofa kierownik.</li>
+          <li>Okno „W magazynie brakuje części" — jeśli etap jest zrobiony, kliknij <b>Zrobione mimo braku</b>. Magazyn dostanie informację, nic nie psujesz.</li>
+          <li>Napis „⏳ Czeka na E1" = jeszcze nie Twoja kolej; zadanie samo zmieni się na gotowe, gdy kolega skończy.</li>
+          <li>Za małe litery? Przyciski <b>A− / A+</b> w prawym górnym rogu (albo Ctrl + / Ctrl −) — ustawienie zostaje na tym komputerze.</li>
+        </ol>
         <ul>
-          <li><b>Gotowe do pracy</b> — poprzednie etapy zlecenia są ukończone, możesz działać.</li>
-          <li><b>Czeka na poprzednie</b> — jeszcze nie Twoja kolej; zadanie zablokowane.</li>
-          <li>Kliknięcie wiersza rozwija <b>szczegóły istotne dla Twojego etapu</b> (wymiary, kolory, szklenia, dostawki…).</li>
-          <li><b>✓ Zrobione</b> — oznacza etap Twoimi inicjałami (z potwierdzeniem).</li>
-          <li>Pilne zlecenia są wyróżnione i sortowane wyżej.</li>
+          <li>W tabelach zleceń komórki <b>nie Twoich</b> etapów są wykropkowane i nie reagują na klik; Twoje etapy stoją zaraz za FIRMĄ.</li>
+          <li>Gdy ktoś oznaczył ten sam etap chwilę przed Tobą, program powie „Ten etap jest już oznaczony (XX)" — nic nie nadpisujesz.</li>
+          <li>Program sam się wyloguje po godzinie bez klikania (wcześniej zapyta „Jesteś tam jeszcze?").</li>
         </ul>
       </>
     ),

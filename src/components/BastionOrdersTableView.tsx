@@ -21,6 +21,7 @@ import {
   textCol,
   useStickyCol1Width,
   type OrderTableCtx,
+  isForeignStage,
 } from './orderTableColumns'
 import type { ConfigOptionRecord, Order } from '../types'
 import { bastionFrameOptionForOrder, isReleaseDateEmpty, parseOrderExtraFields, parseProductionStages } from '../utils'
@@ -40,7 +41,7 @@ type BastionOrdersTableViewProps = OrderTableCtx & {
   productionStageUpdating: string | null
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
   onOpenEditOrderModal: (order: Order) => void
-  onMarkProductionStageWithProfileInitials: (orderId: number, stageKey: string) => void | Promise<void>
+  onMarkProductionStageWithProfileInitials: (orderId: number, stageKey: string) => void | boolean | Promise<void | boolean>
   onSetStageRevertTarget: (target: { orderId: number; stageKey: string }) => void
   bastionFrameOptions: ConfigOptionRecord[]
   canEditSalesChanges: boolean
@@ -117,6 +118,7 @@ function BastionOrdersTableView({
       }
     }
 
+    const workerMode = ctx.assignedStageKeys != null
     const stageCell = (o: Order, stageKey: string) => {
       const id = o.id
       const rowBusy = id !== undefined && productionStageUpdating === String(id)
@@ -124,6 +126,7 @@ function BastionOrdersTableView({
         <ProductionStageCell
           value={stagesOf(o)[stageKey] ?? ''}
           disabled={rowBusy || isCancelledOwn(o) || id === undefined}
+          foreign={isForeignStage(ctx, stageKey)}
           onPickEmpty={() => {
             if (id === undefined) {
               pushToast('Brak identyfikatora zamówienia', 'error')
@@ -227,6 +230,8 @@ function BastionOrdersTableView({
       productionDayCol(),
       quantityCol(),
       rushCol(ctx),
+      // Pracownik hali: etapy zaraz za FIRMĄ (pełny układ: ~27. kolumna)
+      ...(workerMode ? stageCols : []),
       textCol('collection', 'KOLEKCJA', f('bastion_collection')),
       modelSystemCol({ className: 'col-order-text col-order-model' }),
       colorWithWfCol('wing_color', 'KOLOR SKRZYDŁA', (o) => o.wing_color, 'kolor_skrzydla_wf', 'col-order-text col-wing-color'),
@@ -289,7 +294,7 @@ function BastionOrdersTableView({
           return inlineInput(priority, (v) => void onUpdateProductionPriority(id, v))
         },
       },
-      ...stageCols,
+      ...(workerMode ? [] : stageCols),
       textCol('label_qty', 'ILOŚĆ ETYKIET', f('bastion_label_qty')),
       {
         key: 'label',

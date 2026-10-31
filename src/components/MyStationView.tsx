@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AluPosition, Complaint, Order, WorkerStage } from '../types'
-import { isRushOrderSequence, orderRouteMark } from '../utils'
+import { getOrderStageDefinitions, isRushOrderSequence, orderRouteMark, parseProductionStages } from '../utils'
 import { aluDetailFields, aluTaskKey, buildAluTasks } from '../lib/aluStation'
 import {
   buildComplaintTasks,
   buildTasks,
   fieldsForStage,
   isTaskShownByDefault,
+  missingPrereqs,
   sortTasks,
   workersForTask,
   type MyTask,
@@ -50,6 +51,10 @@ type Props = {
   pushToast: (msg: string, variant: ToastVariant) => void
   /** zgłaszanie zniszczeń tylko dla kierownika (wyprowadza towar ze stanu) */
   isManager: boolean
+  /** „Zalogowany: Jan K. (JK)" — wspólny komputer; pusty = nie pokazuj */
+  currentUserLabel?: string
+  /** „Zmień osobę" = wyloguj (ekran logowania ma już pusty login) */
+  onSwitchUser?: () => void
 }
 
 export default function MyStationView({
@@ -67,6 +72,8 @@ export default function MyStationView({
   loading,
   pushToast,
   isManager,
+  currentUserLabel,
+  onSwitchUser,
 }: Props) {
   void currentUserId
   const [confirmTask, setConfirmTask] = useState<MyTask | null>(null)
@@ -182,6 +189,16 @@ export default function MyStationView({
   }
   const activeFilter = stageFilter !== 'all' && groups.some((g) => g.key === stageFilter) ? stageFilter : 'all'
 
+  const nextKeys = useMemo(() => {
+    const visible = activeFilter === 'all' ? groups : groups.filter((g) => g.key === activeFilter)
+    const out = new Set<string>()
+    for (const g of visible) {
+      const first = g.tasks.find((t) => t.readyToWork)
+      if (first) out.add(taskKey(first))
+    }
+    return out
+  }, [groups, activeFilter])
+
   const rows = useMemo<StationRow[]>(() => {
     const visible = activeFilter === 'all' ? groups : groups.filter((g) => g.key === activeFilter)
     const out: StationRow[] = []
@@ -213,6 +230,11 @@ export default function MyStationView({
             <div className="my-station-cell-main">
               <span className="my-station-expand-icon">{expandedKey === taskKey(task) ? '▾' : '▸'}</span>{' '}
               {task.order.order_number}
+              {nextKeys.has(taskKey(task)) && (
+                <span className="my-station-next-badge" title="Pierwsze gotowe zadanie w kolejce">
+                  NASTĘPNE
+                </span>
+              )}
               {orderRouteMark(task.order) && (
                 <span
                   className={`route-mark-chip route-mark-chip--${orderRouteMark(task.order).toLowerCase()}`}
@@ -268,17 +290,34 @@ export default function MyStationView({
             <div>
               <strong>{task.stageHeader}</strong> — {task.stageTitle}
             </div>
-            <button
-              type="button"
-              className="btn btn-sm btn-success"
-              disabled={!task.readyToWork}
-              onClick={(e) => {
-                e.stopPropagation()
-                setConfirmTask(task)
-              }}
-            >
-              {task.alu ? `✓ Sztuka ${Math.min(task.alu.done + 1, task.alu.quantity)}/${task.alu.quantity}` : '✓ Zrobione'}
-            </button>
+            {task.readyToWork ? (
+              <button
+                type="button"
+                className="btn btn-success my-station-done-btn"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setConfirmTask(task)
+                }}
+              >
+                {task.alu ? `✓ Sztuka ${Math.min(task.alu.done + 1, task.alu.quantity)}/${task.alu.quantity}` : '✓ Zrobione'}
+              </button>
+            ) : (
+              // Szary nieaktywny przycisk nic nie tłumaczył („kliknąłem i nie działa") —
+              // zamiast niego napis, NA CO zadanie czeka
+              <span className="my-station-waiting-text" title="Najpierw musi być zrobiony wcześniejszy etap">
+                {(() => {
+                  const miss = task.alu || task.isComplaint
+                    ? []
+                    : missingPrereqs(
+                        task.category,
+                        task.actualStageKey,
+                        parseProductionStages(task.order.production_stages, task.category),
+                        getOrderStageDefinitions(task.category),
+                      )
+                  return miss.length > 0 ? `⏳ Czeka na ${miss.join(' i ')}` : '⏳ Czeka na poprzedni etap'
+                })()}
+              </span>
+            )}
             {isManager && !task.isComplaint && !task.alu && (
               <>
                 {' '}
@@ -311,7 +350,7 @@ export default function MyStationView({
       },
       { key: 'notes', label: 'UWAGI', tdClassName: 'my-station-notes', render: (task) => task.order.notes || '—' },
     ],
-    [expandedKey, isManager],
+    [expandedKey, isManager, nextKeys],
   )
 
   // Kolumny na wierszach sekcyjnych — BEZ sortValue: kolejka jest jedna
@@ -329,6 +368,18 @@ export default function MyStationView({
 
   return (
     <div className="my-station-view">
+      {currentUserLabel && (
+        <div className="station-who-bar" role="status">
+          <span>
+            Zalogowany: <strong>{currentUserLabel}</strong>
+          </span>
+          {onSwitchUser && (
+            <button type="button" className="btn btn-sm btn-secondary" onClick={onSwitchUser} title="Wyloguje tę osobę i pokaże ekran logowania">
+              To nie ja — zmień osobę
+            </button>
+          )}
+        </div>
+      )}
       <div className="my-station-meta">
         <div>
           Do zrobienia: <strong>{tasks.length}</strong>
@@ -483,6 +534,18 @@ export default function MyStationView({
                 ? `REKLAMACJA ${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number}), etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
                 : `Zamówienie nr ${confirmTask.order.order_number}, etap: ${confirmTask.stageHeader} — ${confirmTask.stageTitle}`
           }
+          details={
+            confirmTask.alu
+              ? undefined
+              : [
+                  confirmTask.order.company,
+                  confirmTask.order.model,
+                  [confirmTask.order.width, confirmTask.order.height].filter(Boolean).join('×'),
+                  confirmTask.order.quantity ? `${confirmTask.order.quantity} szt.` : '',
+                ]
+                  .filter((x) => String(x ?? '').trim())
+                  .join(' · ')
+          }
           workers={workersForTask(confirmTask, allWorkerStages, stationProfiles)}
           lastWorkerId={lastWorkerId}
           saving={confirmSaving}
@@ -534,6 +597,7 @@ export default function MyStationView({
           stageTitle={shortageDialog.task.stageTitle}
           orderNumber={String(shortageDialog.task.order.order_number ?? '')}
           shortages={shortageDialog.shortages}
+          isManager={isManager}
           onForce={() => {
             const run = async () => {
               if (!shortageDialog) return
@@ -551,7 +615,7 @@ export default function MyStationView({
   )
 }
 
-const UNDO_MS = 60_000
+const UNDO_MS = 5 * 60_000
 
 // Prefiks dla reklamacji — mają własną numerację id i mogłyby kolidować z zamówieniami
 const taskKey = (task: MyTask) =>

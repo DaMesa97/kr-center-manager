@@ -17,6 +17,7 @@ import {
   modelSystemCol,
   textCol,
   type OrderTableCtx,
+  isForeignStage,
 } from './orderTableColumns'
 import type { Order, StageDef } from '../types'
 import {
@@ -41,7 +42,7 @@ type StaDistingOrdersTableViewProps = OrderTableCtx & {
   orders: Order[]
   linkedOrders: Order[]
   onOpenEditOrderModal: (order: Order) => void
-  onMarkProductionStageWithProfileInitials: (orderId: number, stageKey: string) => void | Promise<void>
+  onMarkProductionStageWithProfileInitials: (orderId: number, stageKey: string) => void | boolean | Promise<void | boolean>
   onSetStageRevertTarget: (target: { orderId: number; stageKey: string }) => void
   onToggleOscReceived?: (order: Order) => void | Promise<void>
   handleDistingStaSheetNavigate: (staVal: string, event: MouseEvent<HTMLButtonElement>) => void
@@ -161,6 +162,7 @@ function StaDistingOrdersTableView({
       }
     // Disting Plus powiązany z partnerem (nie Titan) — pokazujemy OŚC/ODBIÓR
     const linkedPlus = (o: Order) => o.linked_order_id != null && !infoOf(o).titanLinked
+    const workerMode = ctx.assignedStageKeys != null
 
     const stageCols = orderStageColumnDefs.map((def): DataTableColumn<Order> => {
       const cell = (o: Order) => stageCellInfo(o, def, infoOf(o).stages, infoOf(o).titanLinked)
@@ -197,6 +199,7 @@ function StaDistingOrdersTableView({
             <ProductionStageCell
               value={c.value}
               disabled={rowBusy || isCancelledOwn(o) || id === undefined}
+              foreign={isForeignStage(ctx, def.key)}
               onPickEmpty={() => {
                 if (id === undefined) {
                   pushToast('Brak identyfikatora zamówienia', 'error')
@@ -343,6 +346,9 @@ function StaDistingOrdersTableView({
       productionDayCol(),
       quantityCol(),
       rushCol(ctx),
+      // Pracownik hali: etapy zaraz za FIRMĄ (w pełnym układzie są ~30. kolumną
+      // i każdy klik wymagał przewinięcia ~1000 px)
+      ...(workerMode ? stageCols : []),
       modelSystemCol({ className: 'col-order-text col-order-model' }),
       textCol('wing_color', 'KOLOR SKRZYDŁA', (o) => o.wing_color, { className: 'col-order-text col-wing-color' }),
       textCol('frame_color', 'KOLOR OŚCIEŻNICY', (o) => o.frame_color, { className: 'col-order-text col-frame-color' }),
@@ -377,7 +383,7 @@ function StaDistingOrdersTableView({
         { title: 'SZKLENIE DOSTAWKI B' },
       ),
       textCol('extension', 'POSZERZENIE', (o) => o.extension),
-      ...stageCols,
+      ...(workerMode ? [] : stageCols),
       ...staOscCols,
       releaseCol(ctx, { thClassName: 'release-date-th' }),
       // Zakładka STA: sta_sheet jest tu ZAWSZE puste (to pole zwrotne na

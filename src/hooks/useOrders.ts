@@ -36,6 +36,7 @@ import {
   orderToStForm,
   orderToStaForm,
   orderToTechniczneForm,
+  getOrderStageDefinitions,
   parseProductionStages,
   productionStagesFromLegacyStageFormFields,
   sanitizeOrderPayloadForDb,
@@ -75,6 +76,8 @@ export type StageReleaseShortageState = {
   shortages: StockReleaseRow[]
   /** kind='final': data wydania czekająca na potwierdzenie wymuszenia */
   pendingValue?: string | null
+  /** kind='stage': inicjały wybrane kafelkiem (wspólny komputer) — nie gubić ich przy „mimo braku" */
+  markInitials?: string
 }
 
 const emptyOrderMeta = {
@@ -615,39 +618,55 @@ export function useOrders({
   }, [activeTab, fetchInternalDoorItemsForVisibleOrders, touchSession, pushToast])
 
   const markProductionStageWithProfileInitials = useCallback(
-    async (orderId: number, stageKey: string) => {
-      const initials = (currentUser?.initials ?? '').trim()
+    async (orderId: number, stageKey: string, opts?: { initials?: string }) => {
+      // opts.initials = osoba wybrana kafelkiem „Kto zrobił?" (wspólny komputer
+      // stanowiska); bez wyboru — inicjały zalogowanego
+      const initials = (opts?.initials ?? currentUser?.initials ?? '').trim()
       if (!initials) {
-        pushToast('Brak inicjałów w profilu. Skontaktuj się z administratorem.', 'error')
+        pushToast('Twoje konto nie ma inicjałów — zgłoś to kierownikowi.', 'error')
         return
       }
       const order = orders.find((o) => o.id === orderId)
       if (!order) return
 
-      // Oznaczenie etapu w TABELI wydaje z magazynu tak samo jak Moje stanowisko
-      // (tylko przejście pusty → zrobione; mirrory NIE wydają — robota fizycznie
-      // dzieje się na zamówieniu źródłowym).
-      const current = parseProductionStages(order.production_stages, order.category)
-      const wasEmpty = !String(current[stageKey] ?? '').trim()
-      if (wasEmpty) {
-        const rel = await runStockRelease(orderId, stageKey, false)
-        if (rel.status === 'shortage') {
-          setStageReleaseShortage({
-            kind: 'stage',
-            orderId,
-            stageKey,
-            orderNumber: String(order.order_number ?? orderId),
-            category: order.category,
-            shortages: rel.shortages,
-          })
-          return
+      // Blokada wiersza OD RAZU (nie dopiero po wydaniu z magazynu) — dwuklik
+      // w komórkę wołał release_stock_for_stage dwa razy
+      setProductionStageUpdating(String(orderId))
+      try {
+        // Oznaczenie etapu w TABELI wydaje z magazynu tak samo jak Moje stanowisko
+        // (tylko przejście pusty → zrobione; mirrory NIE wydają — robota fizycznie
+        // dzieje się na zamówieniu źródłowym).
+        const current = parseProductionStages(order.production_stages, order.category)
+        const wasEmpty = !String(current[stageKey] ?? '').trim()
+        if (wasEmpty) {
+          const rel = await runStockRelease(orderId, stageKey, false)
+          if (rel.status === 'shortage') {
+            setStageReleaseShortage({
+              kind: 'stage',
+              orderId,
+              stageKey,
+              orderNumber: String(order.order_number ?? orderId),
+              category: order.category,
+              shortages: rel.shortages,
+              markInitials: initials,
+            })
+            return
+          }
         }
-      }
 
-      await applyProductionStagesUpdate(orderId, stageKey, initials)
-      await syncMirrorStagesToLinkedOrder(order, stageKey, initials)
+        await applyProductionStagesUpdate(orderId, stageKey, initials)
+        await syncMirrorStagesToLinkedOrder(order, stageKey, initials)
+        // Pracownik hali patrzy na tabelę, nie na róg ekranu — krótkie „zapisano"
+        // z numerem i inicjałami (kierownik ma zieloną komórkę i tyle)
+        if (!isManager) {
+          const def = getOrderStageDefinitions(order.category).find((d) => d.key === stageKey)
+          pushToast(`Zapisano: ${order.order_number ?? orderId} · ${def?.header ?? stageKey} · ${initials}`, 'success')
+        }
+      } finally {
+        setProductionStageUpdating(null)
+      }
     },
-    [currentUser?.initials, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast, runStockRelease],
+    [currentUser?.initials, isManager, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast, runStockRelease],
   )
 
   // "Wydaj mimo braku" z dialogu braków (tabela zamówień / oznaczenie wydania)
@@ -658,7 +677,7 @@ export function useOrders({
     await runStockRelease(t.orderId, t.kind === 'stage' ? t.stageKey : null, true)
     if (t.kind === 'stage') {
       const order = orders.find((o) => o.id === t.orderId)
-      const initials = (currentUser?.initials ?? '').trim() || 'X'
+      const initials = (t.markInitials ?? currentUser?.initials ?? '').trim() || 'X'
       await applyProductionStagesUpdate(t.orderId, t.stageKey, initials)
       if (order) await syncMirrorStagesToLinkedOrder(order, t.stageKey, initials)
     } else {

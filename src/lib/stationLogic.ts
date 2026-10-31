@@ -54,13 +54,19 @@ export function workersForTask(
   allStages: WorkerStage[],
   profiles: Array<{ id: string; initials?: string | null; full_name?: string | null }>,
 ): StationWorker[] {
+  return workersForStage(task.category, [task.stageKey, task.actualStageKey], allStages, profiles)
+}
+
+/** Osoby przypisane do etapu kategorii (także z tabeli zleceń — ten sam kafelkowy wybór co na stanowisku). */
+export function workersForStage(
+  category: string,
+  stageKeys: string[],
+  allStages: WorkerStage[],
+  profiles: Array<{ id: string; initials?: string | null; full_name?: string | null }>,
+): StationWorker[] {
   const ids = new Set(
     allStages
-      .filter(
-        (ws) =>
-          ws.category === task.category &&
-          (ws.stage_key === task.stageKey || ws.stage_key === task.actualStageKey),
-      )
+      .filter((ws) => ws.category === category && stageKeys.includes(ws.stage_key))
       .map((ws) => ws.worker_id),
   )
   const out: StationWorker[] = []
@@ -87,6 +93,14 @@ const STAGE_DEPS: Record<string, Record<string, string[]>> = {
     cnc: [], osc: [], skr: ['cnc'], mon: ['osc', 'skr'], mag: ['mon'],
     e1: [], e2: [], e3: ['e2'], e4: ['e1', 'e3'],
   },
+}
+
+/** Nagłówki etapów, na które to zadanie jeszcze czeka (do napisu „Czeka na E1" zamiast szarego przycisku). */
+export function missingPrereqs(category: string, actualKey: string, parsed: Record<string, string>, defs: StageDef[]): string[] {
+  const deps = STAGE_DEPS[category]?.[actualKey] ?? []
+  return deps
+    .filter((d) => !String(parsed[d] ?? '').trim())
+    .map((d) => defs.find((x) => x.key === d)?.header ?? d.toUpperCase())
 }
 
 export function isStageReady(
