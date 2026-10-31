@@ -329,8 +329,6 @@ export default function BastionBatchesPanel({
                     <th>FIRMA</th>
                     <th>DATA</th>
                     <th>DZIEŃ PROD.</th>
-                    <th>SYSTEM</th>
-                    <th>MODEL</th>
                     <th>OŚCIEŻNICA</th>
                     <th>ZAKRES</th>
                     <th>KOLOR OŚC.</th>
@@ -365,8 +363,6 @@ export default function BastionBatchesPanel({
                         <td>{o.company}</td>
                         <td>{fmtDate(o.order_date)}</td>
                         <td>{o.production_day ?? ''}</td>
-                        <td><strong>{o.system}</strong></td>
-                        <td>{o.model}</td>
                         <td>{field(o, 'bastion_frame_type')}</td>
                         <td>{field(o, 'bastion_frame_range')}</td>
                         <td>{o.frame_color}</td>
@@ -479,10 +475,6 @@ function BatchRows({ b, isOpen, busy, isManager, canMark, ordersById, onToggle, 
                         </button>
                       </td>
                       <td>{o?.company ?? ''}</td>
-                      <td>
-                        <strong>{o?.system ?? ''}</strong>
-                        {o?.model ? <span className="muted"> · {o.model}</span> : null}
-                      </td>
                       <td>{o ? field(o, 'bastion_frame_type') : ''}</td>
                       <td>{o ? field(o, 'bastion_frame_range') : ''}</td>
                       <td>{o?.frame_color ?? ''}</td>
