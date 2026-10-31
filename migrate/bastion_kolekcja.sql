@@ -6,7 +6,7 @@
 -- Bastion to STANDARD / ALU / NOWOCZESNE / TRADYCYJNE / LUX / LACOBEL, liczona
 -- przez makro z dwóch pierwszych znaków modelu. Tu to samo, w bazie:
 --   A- → ALU, B- → ALU BLACK, P- → ALU PATINA, R- → ALU RADIUS, N- → NOWOCZESNE,
---   T- → TRADYCYJNE, ST → STANDARD, LA / L- → LACOBEL, LU → LUX, inne → brak.
+--   T- → TRADYCYJNE, ST → STANDARD, LA / L- → LACOBEL, LU → LUX, DW → DWUMODEL, inne → brak.
 -- Trigger wylicza kolekcję przy INSERT i przy zmianie modelu; ręczna kolekcja
 -- zostaje tylko wtedy, gdy z modelu nic nie wynika (i nie jest nazwą systemu).
 -- Bezpieczne do ponownego uruchomienia.
@@ -28,6 +28,7 @@ as $function$
     when 'LA' then 'LACOBEL'
     when 'L-' then 'LACOBEL'
     when 'LU' then 'LUX'
+    when 'DW' then 'DWUMODEL'
     else null
   end;
 $function$;
@@ -74,7 +75,7 @@ create trigger trg_bastion_set_collection
 insert into public.config_options (category, type, value, sort_order)
 select 'Bastion', 'kolekcja', v.value, v.ord
 from (values ('STANDARD', 1), ('ALU', 2), ('ALU BLACK', 3), ('ALU PATINA', 4), ('ALU RADIUS', 5),
-             ('NOWOCZESNE', 6), ('TRADYCYJNE', 7), ('LUX', 8), ('LACOBEL', 9)) as v(value, ord)
+             ('NOWOCZESNE', 6), ('TRADYCYJNE', 7), ('LUX', 8), ('LACOBEL', 9), ('DWUMODEL', 10)) as v(value, ord)
 where not exists (select 1 from public.config_options c where c.category = 'Bastion' and c.type = 'kolekcja' and upper(c.value) = v.value);
 update public.config_options c set sort_order = v.ord
 from (values ('STANDARD', 1), ('ALU', 2), ('ALU BLACK', 3), ('ALU PATINA', 4), ('ALU RADIUS', 5),
