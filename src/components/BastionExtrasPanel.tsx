@@ -17,6 +17,8 @@ type Props = {
   companies: Company[]
   systems: string[]
   colors: string[]
+  /** słownik „Reszta — pozycje" (Konfiguracja → Bastion) — podpowiedzi opisu */
+  presets: string[]
   isManager: boolean
   canMark: boolean
   currentInitials: string
@@ -48,6 +50,7 @@ export default function BastionExtrasPanel({
   companies,
   systems,
   colors,
+  presets,
   isManager,
   canMark,
   currentInitials,
@@ -252,6 +255,7 @@ export default function BastionExtrasPanel({
         companies={companies}
         systems={systems}
         colors={colors}
+        presets={presets}
         busy={busy}
         onClose={() => setModal({ open: false, extra: null })}
         onSave={async (form) => {

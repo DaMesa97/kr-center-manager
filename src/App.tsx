@@ -3829,6 +3829,7 @@ function App() {
                     companies={companies}
                     systems={configOptions['Bastion']?.['system'] ?? []}
                     colors={configOptions['Bastion']?.['kolor_oscieznicy'] ?? []}
+                    presets={configOptions['Bastion']?.['reszta'] ?? []}
                     isManager={isManager}
                     canMark={isManager || currentUser?.role === 'pracownik_produkcji'}
                     currentInitials={currentUser?.initials ?? ''}

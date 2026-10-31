@@ -8,19 +8,19 @@ type Props = {
   /** edycja — null = nowa pozycja */
   extra: BastionExtra | null
   companies: Company[]
-  /** słowniki Bastion: system, kolor_oscieznicy (z Konfiguracji) */
+  /** słowniki Bastion z Konfiguracji: system, kolor_oscieznicy, reszta (podpowiedzi opisu pozycji) */
   systems: string[]
   colors: string[]
+  presets: string[]
   busy: boolean
   onClose: () => void
   onSave: (form: BastionExtraForm) => Promise<boolean>
 }
 
 const DAYS = ['PONIEDZIAŁEK', 'WTOREK', 'ŚRODA', 'CZWARTEK', 'PIĄTEK']
-const PRESETS = ['PRÓG BOLD 60', 'PRÓG BOLD 150 BEZ USZCZELKI', 'OPASKI 40mm', 'OPASKI 50mm', 'OPASKI ZAM. OŚC. REG.', 'ZAB. KĄTOWA 150']
 
 /** Formularz pozycji „Reszty": bez modelu i wymiarów drzwi — opis, kolor, szer./strona, system, ilość, do zlecenia. */
-export default function BastionExtraModal({ open, extra, companies, systems, colors, busy, onClose, onSave }: Props) {
+export default function BastionExtraModal({ open, extra, companies, systems, colors, presets, busy, onClose, onSave }: Props) {
   const [form, setForm] = useState<BastionExtraForm>(emptyBastionExtraForm())
   const [companyQuery, setCompanyQuery] = useState('')
 
@@ -106,7 +106,7 @@ export default function BastionExtraModal({ open, extra, companies, systems, col
               onChange={(e) => set('description', e.target.value)}
             />
             <datalist id="bastion-extra-presets">
-              {PRESETS.map((p) => (
+              {presets.map((p) => (
                 <option key={p} value={p} />
               ))}
             </datalist>

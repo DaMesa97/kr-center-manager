@@ -366,6 +366,7 @@ export const CONFIG_DICTIONARIES: ConfigDictionaryDef[] = [
   { key: 'bastion-oscieznica', label: 'Ościeżnice/Zabudowy', category: 'Bastion', type: 'oscieznica' },
   { key: 'bastion-zakres', label: 'Zakresy ościeżnicy', category: 'Bastion', type: 'zakres' },
   { key: 'bastion-kolekcja', label: 'Kolekcje', category: 'Bastion', type: 'kolekcja' },
+  { key: 'bastion-reszta', label: 'Reszta — pozycje', category: 'Bastion', type: 'reszta' },
   { key: 'wewnetrzne-model', label: 'Modele skrzydeł', category: 'Wewnetrzne', type: 'model' },
   { key: 'wewnetrzne-kolor', label: 'Kolory', category: 'Wewnetrzne', type: 'kolor' },
   { key: 'wewnetrzne-rozmiar', label: 'Rozmiary', category: 'Wewnetrzne', type: 'rozmiar' },

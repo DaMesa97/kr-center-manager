@@ -190,3 +190,10 @@ begin
 exception when others then
   raise notice 'realtime publication: %', sqlerrm;
 end $$;
+
+-- słownik podpowiedzi opisu pozycji (Konfiguracja → Bastion → „Reszta — pozycje")
+insert into public.config_options (category, type, value, sort_order)
+select 'Bastion', 'reszta', v.value, v.ord
+from (values ('PRÓG BOLD 60', 1), ('PRÓG BOLD 150', 2), ('PRÓG BOLD 150 BEZ USZCZELKI', 3), ('OPASKI 40mm', 4), ('OPASKI 50mm', 5),
+             ('OPASKI ZAM. OŚC. REG.', 6), ('ZAB. KĄTOWA 150', 7), ('POSZERZENIE', 8)) as v(value, ord)
+where not exists (select 1 from public.config_options c where c.category = 'Bastion' and c.type = 'reszta' and c.value = v.value);
