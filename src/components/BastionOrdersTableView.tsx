@@ -47,9 +47,7 @@ type BastionOrdersTableViewProps = OrderTableCtx & {
   onUpdateSalesChanges: (orderId: number, value: string) => void | Promise<void>
   onUpdateProductionPriority: (orderId: number, value: string) => void | Promise<void>
   onLabelToggle: (orderId: number, current: string) => void | Promise<void>
-  /** Partie ościeżnic: zaznaczanie zleceń do partii (tylko widok „Ościeżnice regulowane", kierownik) */
-  batchSelect?: { selected: Set<number>; canSelect: (order: Order) => boolean; onToggle: (order: Order) => void }
-  /** zlecenie → numer partii (kolumna PARTIA) */
+  /** zlecenie → numer partii ościeżnic (kolumna PARTIA; partie w podzakładce „Partie") */
   batchNoByOrderId?: Map<number, number>
 }
 
@@ -91,7 +89,6 @@ function BastionOrdersTableView({
   onUpdateSalesChanges,
   onUpdateProductionPriority,
   onLabelToggle,
-  batchSelect,
   batchNoByOrderId,
   ...ctx
 }: BastionOrdersTableViewProps) {
@@ -225,38 +222,6 @@ function BastionOrdersTableView({
           )
         },
       }),
-      ...(batchSelect
-        ? [
-            {
-              key: 'batch_select',
-              label: 'DO PARTII',
-              thClassName: 'bastion-batch-select-th',
-              tdClassName: 'bastion-batch-select-td',
-              stopRowClick: true,
-              sortValue: (o: Order) => (o.id !== undefined && batchSelect.selected.has(o.id) ? 0 : 1),
-              render: (o: Order) => {
-                const id = o.id
-                if (id === undefined) return null
-                const inBatch = batchNoByOrderId?.get(id)
-                if (inBatch) return <span className="muted" title={`W partii ${inBatch}`}>p. {inBatch}</span>
-                if (!batchSelect.canSelect(o)) return <span className="muted">—</span>
-                const checked = batchSelect.selected.has(id)
-                return (
-                  <button
-                    type="button"
-                    className={`release-checkbox-btn${checked ? ' release-checkbox-btn--checked' : ''}`}
-                    role="checkbox"
-                    aria-checked={checked}
-                    title={checked ? 'Odznacz' : 'Zaznacz do partii'}
-                    onClick={() => batchSelect.onToggle(o)}
-                  >
-                    {checked ? '☑' : '☐'}
-                  </button>
-                )
-              },
-            } satisfies DataTableColumn<Order>,
-          ]
-        : []),
       companyCol(),
       orderDateCol(),
       productionDayCol(),
@@ -378,7 +343,7 @@ function BastionOrdersTableView({
     return withOrderStacking(cols)
     // ctx to nowy obiekt przy każdym renderze — zależności pole po polu przez orderCtxDeps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stagesByOrder, linkedOrders, canSeePrices, productionStageUpdating, onMarkProductionStageWithProfileInitials, onSetStageRevertTarget, bastionFrameOptions, canEditSalesChanges, onUpdateSalesChanges, onUpdateProductionPriority, onLabelToggle, batchSelect, batchNoByOrderId, ...orderCtxDeps(ctx)])
+  }, [stagesByOrder, linkedOrders, canSeePrices, productionStageUpdating, onMarkProductionStageWithProfileInitials, onSetStageRevertTarget, bastionFrameOptions, canEditSalesChanges, onUpdateSalesChanges, onUpdateProductionPriority, onLabelToggle, batchNoByOrderId, ...orderCtxDeps(ctx)])
 
   return (
     <DataTable

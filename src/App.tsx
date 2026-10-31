@@ -567,7 +567,6 @@ function App() {
 
   // Bastion: partie ościeżnic regulowanych (widok „Ościeżnice regulowane")
   const bastionBatches = useBastionBatches(pushToast, activeTab === 'Bastion')
-  const [bastionBatchSelection, setBastionBatchSelection] = useState<Set<number>>(new Set())
 
   const {
     profilesList,
@@ -1538,60 +1537,24 @@ function App() {
     })
   }, [filteredOrders, bastionFrameOptions])
 
-  // Partie: które zlecenia można zaznaczyć (otwarte, nieanulowane, jeszcze bez partii)
-  const bastionBatchSelect = useMemo(() => {
-    if (!isManager) return undefined
-    const batchable = new Set(
-      bastionBatchOrders
-        .filter(
-          (o) =>
-            o.id !== undefined &&
-            isReleaseDateEmpty(o.release_date) &&
-            (o.extra_fields as Record<string, unknown> | null)?.cancelled !== true,
-        )
-        .map((o) => o.id as number),
-    )
-    const taken = bastionBatches.batchNoById
-    return {
-      selected: bastionBatchSelection,
-      canSelect: (o: Order) => o.id !== undefined && batchable.has(o.id) && !taken.has(o.id),
-      onToggle: (o: Order) => {
-        const id = o.id
-        if (id === undefined) return
-        setBastionBatchSelection((prev) => {
-          const next = new Set(prev)
-          if (next.has(id)) next.delete(id)
-          else next.add(id)
-          return next
-        })
-      },
-    }
-  }, [isManager, bastionBatchOrders, bastionBatches.batchNoById, bastionBatchSelection])
+  // Partie: wszystkie zlecenia Bastion po id (skład partii) i kandydaci do partii —
+  // otwarte, nieanulowane, ościeżnica z flagą partii, jeszcze bez partii (niezależnie od filtrów tabeli)
   const bastionOrdersById = useMemo(
     () => new Map(orders.filter((o) => o.category === 'Bastion' && o.id !== undefined).map((o) => [o.id as number, o])),
     [orders],
   )
-  const handleCreateBastionBatch = useCallback(
-    async (notes: string) => {
-      const ids = [...bastionBatchSelection]
-      if (ids.length === 0) return
-      const id = await bastionBatches.createBatch(ids, notes)
-      if (id) {
-        setBastionBatchSelection(new Set())
-        pushToast(`Utworzono partię z ${ids.length} zleceń`, 'success')
-      }
-    },
-    [bastionBatchSelection, bastionBatches, pushToast],
-  )
-  const handleAddSelectionToBastionBatch = useCallback(
-    async (batchId: number) => {
-      const ids = [...bastionBatchSelection]
-      if (ids.length === 0) return
-      const ok = await bastionBatches.addOrders(batchId, ids)
-      if (ok) setBastionBatchSelection(new Set())
-    },
-    [bastionBatchSelection, bastionBatches],
-  )
+  const bastionBatchCandidates = useMemo(() => {
+    if (activeTab !== 'Bastion') return []
+    const taken = bastionBatches.batchNoById
+    return orders.filter((o) => {
+      if (o.category !== 'Bastion' || o.id === undefined || taken.has(o.id)) return false
+      if (!isReleaseDateEmpty(o.release_date)) return false
+      if ((o.extra_fields as Record<string, unknown> | null)?.cancelled === true) return false
+      const frameType = String((o as Record<string, unknown>).bastion_frame_type ?? '').trim()
+      if (!frameType) return false
+      return !!bastionFrameOptionForOrder(frameType, bastionFrameOptions)?.add_to_batch
+    })
+  }, [activeTab, orders, bastionBatches.batchNoById, bastionFrameOptions])
 
   const filteredComplaints = useMemo(() => {
     return complaints.filter((c) => {
@@ -3649,6 +3612,16 @@ function App() {
                         Ościeżnice regulowane
                       </button>
                     )}
+                    {activeTab === 'Bastion' && (
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${activeSubTab === 'Partie' ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setActiveSubTab('Partie')}
+                        title="Partie ościeżnic regulowanych / opaskowych"
+                      >
+                        Partie{bastionBatches.batches.some((b) => b.status === 'open') ? ` (${bastionBatches.batches.filter((b) => b.status === 'open').length})` : ''}
+                      </button>
+                    )}
                   </div>
                 )}
                 {activeSubTab === 'Zamówienia' && (
@@ -3831,28 +3804,29 @@ function App() {
                       tableWrapperRef={glassTableWrapperRef}
                     />
                   )}
+                {activeSubTab === 'Partie' && activeTab === 'Bastion' && (
+                  <BastionBatchesPanel
+                    batches={bastionBatches.batches}
+                    loading={bastionBatches.loading}
+                    busy={bastionBatches.busy}
+                    ordersById={bastionOrdersById}
+                    candidates={bastionBatchCandidates}
+                    isManager={isManager}
+                    canMark={isManager || currentUser?.role === 'pracownik_produkcji'}
+                    currentInitials={currentUser?.initials ?? ''}
+                    onCreateBatch={bastionBatches.createBatch}
+                    onAddOrders={bastionBatches.addOrders}
+                    onRemoveOrder={bastionBatches.removeOrder}
+                    onDeleteBatch={bastionBatches.deleteBatch}
+                    onSetStage={bastionBatches.setStage}
+                    onSetNotes={bastionBatches.setNotes}
+                    onOpenOrder={openEditOrderModal}
+                    onMarkScrewed={(orderId) => guardedMarkProductionStage(orderId, 'oscieznica_skrecanie')}
+                  />
+                )}
                 {activeSubTab === 'Ościeżnice regulowane' && activeTab === 'Bastion' && (
                   <>
-                    <BastionBatchesPanel
-                      batches={bastionBatches.batches}
-                      loading={bastionBatches.loading}
-                      busy={bastionBatches.busy}
-                      ordersById={bastionOrdersById}
-                      isManager={isManager}
-                      canMark={isManager || currentUser?.role === 'pracownik_produkcji'}
-                      currentInitials={currentUser?.initials ?? ''}
-                      selectedCount={bastionBatchSelection.size}
-                      onCreateFromSelection={handleCreateBastionBatch}
-                      onAddSelectionToBatch={handleAddSelectionToBastionBatch}
-                      onClearSelection={() => setBastionBatchSelection(new Set())}
-                      onRemoveOrder={bastionBatches.removeOrder}
-                      onDeleteBatch={bastionBatches.deleteBatch}
-                      onSetStage={bastionBatches.setStage}
-                      onSetNotes={bastionBatches.setNotes}
-                      onOpenOrder={openEditOrderModal}
-                    />
                     <BastionOrdersTableView
-                      batchSelect={bastionBatchSelect}
                       batchNoByOrderId={bastionBatches.batchNoById}
                     onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
                     selectedForLabel={labelSelection}

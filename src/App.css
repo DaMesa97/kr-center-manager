@@ -8338,27 +8338,48 @@ html, body, #root {
 .zkp-measure-inputs label { display: inline-flex; flex-direction: column; gap: 2px; font-size: 0.75rem; color: #64748b; }
 
 /* ── Bastion: partie ościeżnic regulowanych ─────────────────────────── */
-.bastion-batches { margin: 0 0 14px; }
-.bastion-batches-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-.bastion-batches-title { margin: 0; font-size: 1rem; }
+.bastion-batches { display: flex; flex-direction: column; gap: 18px; margin: 0 0 14px; }
+.bastion-batches-section { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 12px 14px; }
+.bastion-batches-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.bastion-batches-title { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 10px; }
+.bastion-batches-count { font-size: 0.78rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #e0e7ff; color: #3730a3; }
+.bastion-batches-count--muted { background: #f1f5f9; color: #64748b; }
 .bastion-batches-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.bastion-batches-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--color-text-muted); }
-.bastion-batches-hint { margin: 0 0 8px; font-size: 0.85rem; }
-.bastion-batches-wrapper { max-height: 46vh; }
-.bastion-batches-table th.bastion-batches-group-th { text-align: center; border-bottom: 1px solid var(--color-border-light); }
+.bastion-batches-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--color-text-muted); cursor: pointer; }
+.bastion-batches-empty { margin: 4px 0; font-size: 0.9rem; }
+.bastion-batches-wrapper { max-height: 52vh; border-radius: 10px; }
+.bastion-picker-wrapper { max-height: 46vh; border-radius: 10px; }
+.bastion-picker-search { min-width: 260px; }
+.bastion-batches-table th.bastion-batches-group-th { text-align: center; border-bottom: 1px solid var(--color-border-light); padding-bottom: 2px; }
+.bastion-batches-table td { vertical-align: top; }
+.bastion-th-no { min-width: 110px; }
+.bastion-th-actions { width: 70px; }
 .bastion-batch-row--closed td { background: #f6f7f9; color: var(--color-text-muted); }
-.bastion-batch-no { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; }
-.bastion-batch-no:hover { text-decoration: underline; }
-.bastion-batch-screw { font-weight: 700; }
+.bastion-batch-no { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+.bastion-batch-caret { color: #64748b; font-size: 0.8rem; width: 10px; }
+.bastion-batch-closed { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
+.bastion-batch-nums { font-size: 0.78rem; color: #64748b; white-space: normal; max-width: 220px; }
+.bastion-stage-date { font-size: 0.68rem; color: #64748b; text-align: center; margin-top: 1px; }
+.bastion-batch-screw { font-weight: 700; display: flex; align-items: baseline; gap: 8px; }
 .bastion-batch-screw--done { color: #15803d; }
+.bastion-batch-screw-range { font-weight: 500; font-size: 0.78rem; color: #64748b; }
+.bastion-batch-screw-all { margin-top: 4px; }
 .bastion-batch-notes-btn { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; text-align: left; white-space: normal; max-width: 260px; }
 .bastion-batch-notes-btn:hover { text-decoration: underline; }
-.bastion-batch-items-row td { background: var(--color-bg-muted, #f8fafc); }
-.bastion-batch-items { list-style: none; margin: 0; padding: 4px 0 4px 20px; display: flex; flex-direction: column; gap: 4px; }
-.bastion-batch-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
-.bastion-batch-item-num { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-weight: 700; color: var(--color-primary, #1d4ed8); }
+.bastion-batch-items-row td { background: #f8fafc; padding: 6px 10px 10px 36px; }
+.bastion-batch-items { border-collapse: collapse; font-size: 0.84rem; }
+.bastion-batch-items td { padding: 3px 12px 3px 0; border-bottom: 1px dashed #e2e8f0; white-space: nowrap; background: transparent; }
+.bastion-batch-item--screwed td { color: #64748b; }
+.bastion-batch-item-numcell { font-weight: 700; }
+.bastion-batch-item-num { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-weight: 700; color: #1d4ed8; }
 .bastion-batch-item-num:disabled { color: inherit; cursor: default; }
-.bastion-batch-item-flag { font-size: 0.75rem; padding: 1px 6px; border-radius: 999px; background: #fee2e2; color: #991b1b; }
+.bastion-batch-item-flag { font-size: 0.74rem; padding: 2px 8px; border-radius: 999px; background: #fee2e2; color: #991b1b; white-space: nowrap; }
 .bastion-batch-item-flag--ok { background: #dcfce7; color: #166534; }
-.bastion-batch-chip { display: inline-block; padding: 1px 7px; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-weight: 700; font-size: 0.78rem; }
-.bastion-batch-select-td { text-align: center; }
+.bastion-batch-item-remove { background: none; border: 1px solid #e2e8f0; border-radius: 6px; width: 24px; height: 24px; line-height: 1; cursor: pointer; color: #64748b; }
+.bastion-batch-item-remove:hover:not(:disabled) { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.bastion-batch-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-weight: 700; font-size: 0.78rem; }
+.bastion-batch-chip--lg { font-size: 0.95rem; padding: 2px 10px; }
+.bastion-picker-table tbody tr { cursor: pointer; }
+.bastion-picker-row--checked td { background: #eef2ff; }
+.bastion-picker-check { width: 36px; text-align: center; }
+.bastion-picker-check input { width: 16px; height: 16px; cursor: pointer; accent-color: #4338ca; }
