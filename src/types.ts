@@ -317,6 +317,7 @@ export type ConfigSubTab =
   | 'Dostawcy'
   | 'Dane firmy'
   | 'Terminy realizacji'
+  | 'Reguły Bastion'
 
 export type LeadTimeRule = {
   id: number

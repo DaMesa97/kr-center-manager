@@ -16,6 +16,7 @@ import SearchableSelect from './SearchableSelect'
 import SuppliersConfigView from './config/SuppliersConfigView'
 import CompanySettingsView from './config/CompanySettingsView'
 import LeadTimeRulesView from './config/LeadTimeRulesView'
+import BastionRulesSection from './config/BastionRulesSection'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 
@@ -442,7 +443,16 @@ export default function ConfigView({
             Terminy realizacji
           </button>
         )}
+        <button
+          type="button"
+          className={`btn btn-sm ${activeConfigSubTab === 'Reguły Bastion' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveConfigSubTab('Reguły Bastion')}
+          title="Reguły domyślne Bastion przeniesione z makra Excela"
+        >
+          Reguły Bastion
+        </button>
       </div>
+      {activeConfigSubTab === 'Reguły Bastion' && <BastionRulesSection isManager={isManager} pushToast={pushToast} />}
       {activeConfigSubTab === 'Słowniki' && (
         <div className="config-layout">
           <aside className="config-sidebar" aria-label="Słowniki konfiguracji">
