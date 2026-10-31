@@ -47,6 +47,10 @@ type BastionOrdersTableViewProps = OrderTableCtx & {
   onUpdateSalesChanges: (orderId: number, value: string) => void | Promise<void>
   onUpdateProductionPriority: (orderId: number, value: string) => void | Promise<void>
   onLabelToggle: (orderId: number, current: string) => void | Promise<void>
+  /** Partie ościeżnic: zaznaczanie zleceń do partii (tylko widok „Ościeżnice regulowane", kierownik) */
+  batchSelect?: { selected: Set<number>; canSelect: (order: Order) => boolean; onToggle: (order: Order) => void }
+  /** zlecenie → numer partii (kolumna PARTIA) */
+  batchNoByOrderId?: Map<number, number>
 }
 
 const titanGroupOf = (o: Order) => {
@@ -87,6 +91,8 @@ function BastionOrdersTableView({
   onUpdateSalesChanges,
   onUpdateProductionPriority,
   onLabelToggle,
+  batchSelect,
+  batchNoByOrderId,
   ...ctx
 }: BastionOrdersTableViewProps) {
   const { isManager, pushToast } = ctx
@@ -219,6 +225,38 @@ function BastionOrdersTableView({
           )
         },
       }),
+      ...(batchSelect
+        ? [
+            {
+              key: 'batch_select',
+              label: 'DO PARTII',
+              thClassName: 'bastion-batch-select-th',
+              tdClassName: 'bastion-batch-select-td',
+              stopRowClick: true,
+              sortValue: (o: Order) => (o.id !== undefined && batchSelect.selected.has(o.id) ? 0 : 1),
+              render: (o: Order) => {
+                const id = o.id
+                if (id === undefined) return null
+                const inBatch = batchNoByOrderId?.get(id)
+                if (inBatch) return <span className="muted" title={`W partii ${inBatch}`}>p. {inBatch}</span>
+                if (!batchSelect.canSelect(o)) return <span className="muted">—</span>
+                const checked = batchSelect.selected.has(id)
+                return (
+                  <button
+                    type="button"
+                    className={`release-checkbox-btn${checked ? ' release-checkbox-btn--checked' : ''}`}
+                    role="checkbox"
+                    aria-checked={checked}
+                    title={checked ? 'Odznacz' : 'Zaznacz do partii'}
+                    onClick={() => batchSelect.onToggle(o)}
+                  >
+                    {checked ? '☑' : '☐'}
+                  </button>
+                )
+              },
+            } satisfies DataTableColumn<Order>,
+          ]
+        : []),
       companyCol(),
       orderDateCol(),
       productionDayCol(),
@@ -239,6 +277,20 @@ function BastionOrdersTableView({
       textCol('intarsja', 'INTARSJA', (o) => o.intarsja ?? '', { title: 'INTARSJA (Titan)' }),
       textCol('frame_type', 'OŚCIEŻNICA', f('bastion_frame_type')),
       textCol('frame_range', 'ZAKRES', f('bastion_frame_range')),
+      ...(batchNoByOrderId
+        ? [
+            {
+              key: 'batch_no',
+              label: 'PARTIA',
+              className: 'col-order-text',
+              sortValue: (o: Order) => (o.id !== undefined ? batchNoByOrderId.get(o.id) ?? null : null),
+              render: (o: Order) => {
+                const no = o.id !== undefined ? batchNoByOrderId.get(o.id) : undefined
+                return no ? <span className="bastion-batch-chip" title={`Partia ościeżnic ${no}`}>{no}</span> : '—'
+              },
+            } satisfies DataTableColumn<Order>,
+          ]
+        : []),
       // PRÓG = kolor progu (osobna kolumna w arkuszu Bastiona)
       textCol('threshold', 'PRÓG', (o) => o.threshold_color),
       textCol('side_panel_k', 'PANEL BOCZNY KLAMK.', f('bastion_side_panel_k')),
@@ -326,7 +378,7 @@ function BastionOrdersTableView({
     return withOrderStacking(cols)
     // ctx to nowy obiekt przy każdym renderze — zależności pole po polu przez orderCtxDeps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stagesByOrder, linkedOrders, canSeePrices, productionStageUpdating, onMarkProductionStageWithProfileInitials, onSetStageRevertTarget, bastionFrameOptions, canEditSalesChanges, onUpdateSalesChanges, onUpdateProductionPriority, onLabelToggle, ...orderCtxDeps(ctx)])
+  }, [stagesByOrder, linkedOrders, canSeePrices, productionStageUpdating, onMarkProductionStageWithProfileInitials, onSetStageRevertTarget, bastionFrameOptions, canEditSalesChanges, onUpdateSalesChanges, onUpdateProductionPriority, onLabelToggle, batchSelect, batchNoByOrderId, ...orderCtxDeps(ctx)])
 
   return (
     <DataTable

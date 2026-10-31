@@ -72,6 +72,8 @@ import StOrdersTableView from './components/StOrdersTableView'
 import TechniczneOrdersTableView from './components/TechniczneOrdersTableView'
 import StaDistingOrdersTableView from './components/StaDistingOrdersTableView'
 import BastionOrdersTableView from './components/BastionOrdersTableView'
+import BastionBatchesPanel from './components/BastionBatchesPanel'
+import { useBastionBatches } from './hooks/useBastionBatches'
 import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
 import AluOrdersTable from './components/AluOrdersTable'
 import AluOrderDetailsModal from './components/AluOrderDetailsModal'
@@ -562,6 +564,10 @@ function App() {
     applyAluPositionEvent,
     handleAluStageClick,
   } = useMyStation({ pushToast, currentUser })
+
+  // Bastion: partie ościeżnic regulowanych (widok „Ościeżnice regulowane")
+  const bastionBatches = useBastionBatches(pushToast, activeTab === 'Bastion')
+  const [bastionBatchSelection, setBastionBatchSelection] = useState<Set<number>>(new Set())
 
   const {
     profilesList,
@@ -1531,6 +1537,61 @@ function App() {
       return !!frameOption?.add_to_batch
     })
   }, [filteredOrders, bastionFrameOptions])
+
+  // Partie: które zlecenia można zaznaczyć (otwarte, nieanulowane, jeszcze bez partii)
+  const bastionBatchSelect = useMemo(() => {
+    if (!isManager) return undefined
+    const batchable = new Set(
+      bastionBatchOrders
+        .filter(
+          (o) =>
+            o.id !== undefined &&
+            isReleaseDateEmpty(o.release_date) &&
+            (o.extra_fields as Record<string, unknown> | null)?.cancelled !== true,
+        )
+        .map((o) => o.id as number),
+    )
+    const taken = bastionBatches.batchNoById
+    return {
+      selected: bastionBatchSelection,
+      canSelect: (o: Order) => o.id !== undefined && batchable.has(o.id) && !taken.has(o.id),
+      onToggle: (o: Order) => {
+        const id = o.id
+        if (id === undefined) return
+        setBastionBatchSelection((prev) => {
+          const next = new Set(prev)
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+          return next
+        })
+      },
+    }
+  }, [isManager, bastionBatchOrders, bastionBatches.batchNoById, bastionBatchSelection])
+  const bastionOrdersById = useMemo(
+    () => new Map(orders.filter((o) => o.category === 'Bastion' && o.id !== undefined).map((o) => [o.id as number, o])),
+    [orders],
+  )
+  const handleCreateBastionBatch = useCallback(
+    async (notes: string) => {
+      const ids = [...bastionBatchSelection]
+      if (ids.length === 0) return
+      const id = await bastionBatches.createBatch(ids, notes)
+      if (id) {
+        setBastionBatchSelection(new Set())
+        pushToast(`Utworzono partię z ${ids.length} zleceń`, 'success')
+      }
+    },
+    [bastionBatchSelection, bastionBatches, pushToast],
+  )
+  const handleAddSelectionToBastionBatch = useCallback(
+    async (batchId: number) => {
+      const ids = [...bastionBatchSelection]
+      if (ids.length === 0) return
+      const ok = await bastionBatches.addOrders(batchId, ids)
+      if (ok) setBastionBatchSelection(new Set())
+    },
+    [bastionBatchSelection, bastionBatches],
+  )
 
   const filteredComplaints = useMemo(() => {
     return complaints.filter((c) => {
@@ -3658,6 +3719,7 @@ function App() {
                     onUpdateSalesChanges={handleBastionSalesChangesUpdate}
                     onUpdateProductionPriority={handleBastionProductionPriorityUpdate}
                     onLabelToggle={handleBastionLabelToggle}
+                    batchNoByOrderId={bastionBatches.batchNoById}
                   />
                 )}
                 {activeTab === 'ST' && stOrdersStageLayout && (
@@ -3771,7 +3833,27 @@ function App() {
                   )}
                 {activeSubTab === 'Ościeżnice regulowane' && activeTab === 'Bastion' && (
                   <>
+                    <BastionBatchesPanel
+                      batches={bastionBatches.batches}
+                      loading={bastionBatches.loading}
+                      busy={bastionBatches.busy}
+                      ordersById={bastionOrdersById}
+                      isManager={isManager}
+                      canMark={isManager || currentUser?.role === 'pracownik_produkcji'}
+                      currentInitials={currentUser?.initials ?? ''}
+                      selectedCount={bastionBatchSelection.size}
+                      onCreateFromSelection={handleCreateBastionBatch}
+                      onAddSelectionToBatch={handleAddSelectionToBastionBatch}
+                      onClearSelection={() => setBastionBatchSelection(new Set())}
+                      onRemoveOrder={bastionBatches.removeOrder}
+                      onDeleteBatch={bastionBatches.deleteBatch}
+                      onSetStage={bastionBatches.setStage}
+                      onSetNotes={bastionBatches.setNotes}
+                      onOpenOrder={openEditOrderModal}
+                    />
                     <BastionOrdersTableView
+                      batchSelect={bastionBatchSelect}
+                      batchNoByOrderId={bastionBatches.batchNoById}
                     onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
                     selectedForLabel={labelSelection}
                     onToggleLabelSelect={toggleLabelSelect}

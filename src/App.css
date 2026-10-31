@@ -8336,3 +8336,29 @@ html, body, #root {
 .zkp-measure td { vertical-align: top; }
 .zkp-measure-inputs { display: inline-flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
 .zkp-measure-inputs label { display: inline-flex; flex-direction: column; gap: 2px; font-size: 0.75rem; color: #64748b; }
+
+/* ── Bastion: partie ościeżnic regulowanych ─────────────────────────── */
+.bastion-batches { margin: 0 0 14px; }
+.bastion-batches-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.bastion-batches-title { margin: 0; font-size: 1rem; }
+.bastion-batches-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bastion-batches-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--color-text-muted); }
+.bastion-batches-hint { margin: 0 0 8px; font-size: 0.85rem; }
+.bastion-batches-wrapper { max-height: 46vh; }
+.bastion-batches-table th.bastion-batches-group-th { text-align: center; border-bottom: 1px solid var(--color-border-light); }
+.bastion-batch-row--closed td { background: #f6f7f9; color: var(--color-text-muted); }
+.bastion-batch-no { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+.bastion-batch-no:hover { text-decoration: underline; }
+.bastion-batch-screw { font-weight: 700; }
+.bastion-batch-screw--done { color: #15803d; }
+.bastion-batch-notes-btn { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; text-align: left; white-space: normal; max-width: 260px; }
+.bastion-batch-notes-btn:hover { text-decoration: underline; }
+.bastion-batch-items-row td { background: var(--color-bg-muted, #f8fafc); }
+.bastion-batch-items { list-style: none; margin: 0; padding: 4px 0 4px 20px; display: flex; flex-direction: column; gap: 4px; }
+.bastion-batch-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+.bastion-batch-item-num { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-weight: 700; color: var(--color-primary, #1d4ed8); }
+.bastion-batch-item-num:disabled { color: inherit; cursor: default; }
+.bastion-batch-item-flag { font-size: 0.75rem; padding: 1px 6px; border-radius: 999px; background: #fee2e2; color: #991b1b; }
+.bastion-batch-item-flag--ok { background: #dcfce7; color: #166534; }
+.bastion-batch-chip { display: inline-block; padding: 1px 7px; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-weight: 700; font-size: 0.78rem; }
+.bastion-batch-select-td { text-align: center; }
