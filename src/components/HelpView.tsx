@@ -217,7 +217,7 @@ const SECTIONS: Section[] = [
         </p>
         <p>
           <b>Stany specjalne etapu</b> (ustawia kierownik, prawy klik na komórce etapu w tabeli): <b>—</b> szara kreska =
-          „nie dotyczy" (etap w tym zleceniu niepotrzebny, liczy się jako zrobiony, nikt go nie robi, nic nie schodzi z magazynu);{' '}
+          „nie dotyczy" (etap w tym zleceniu niepotrzebny, liczy się jako zrobiony, nikt go nie robi, a rezerwacja części na ten etap wraca na magazyn; „Wznów" ją przywraca);{' '}
           <b>⏸</b> pomarańczowa pauza = „wstrzymane" (czekamy, np. na klienta albo materiał — na stanowisku zamiast przycisku
           widać „Wstrzymane: powód", NASTĘPNE to zlecenie omija). Zdejmuje je kierownik tym samym menu („Wznów").
         </p>

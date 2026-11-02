@@ -87,7 +87,7 @@ export default function StageSpecialMenu({
               <span className="stage-special-menu-swatch stage-special-menu-swatch--na">—</span>
               <span>
                 <b>Nie dotyczy</b>
-                <small>Etap niepotrzebny w tym zleceniu. Liczy się jako zrobiony, nikt go nie robi.</small>
+                <small>Etap niepotrzebny w tym zleceniu. Liczy się jako zrobiony, nikt go nie robi, rezerwacja części na ten etap wraca na magazyn.</small>
               </span>
             </button>
           )}
@@ -103,7 +103,7 @@ export default function StageSpecialMenu({
               <span className="stage-special-menu-swatch stage-special-menu-swatch--clear">↺</span>
               <span>
                 <b>{isStageHold(currentValue) ? 'Wznów' : 'Zdejmij „nie dotyczy"'}</b>
-                <small>Komórka wraca do pustej — do normalnego odhaczenia.</small>
+                <small>{isStageHold(currentValue) ? 'Komórka wraca do pustej — do normalnego odhaczenia.' : 'Komórka wraca do pustej, rezerwacja części na ten etap wraca.'}</small>
               </span>
             </button>
           )}

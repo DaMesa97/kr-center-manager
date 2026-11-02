@@ -253,7 +253,8 @@ export function useOrders({
     async (orderId: number, stageKey: string, stageValue: string) => {
       setProductionStageUpdating(String(orderId))
       markLocalStageWrite(orderId, stageKey)
-      const { error } = await supabase.rpc('update_order_stage', {
+      // wynik: {freed, restored} = rezerwacje etapu zwolnione przez „nie dotyczy" / przywrócone
+      const { data, error } = await supabase.rpc('update_order_stage', {
         p_order_id: orderId,
         p_stage_key: stageKey,
         p_stage_value: stageValue,
@@ -261,7 +262,7 @@ export function useOrders({
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
         setProductionStageUpdating(null)
-        return
+        return null
       }
       setOrders((prev) =>
         prev.map((o) => {
@@ -271,6 +272,8 @@ export function useOrders({
         }),
       )
       setProductionStageUpdating(null)
+      const d = (data ?? null) as { freed?: number; restored?: number } | null
+      return { freed: Number(d?.freed ?? 0), restored: Number(d?.restored ?? 0) }
     },
     [pushToast],
   )
@@ -682,16 +685,21 @@ export function useOrders({
         pushToast(`Etap ma już wpis „${current}" — najpierw cofnij etap, potem ustaw stan.`, 'error')
         return
       }
-      await applyProductionStagesUpdate(orderId, stageKey, value)
+      const res = await applyProductionStagesUpdate(orderId, stageKey, value)
+      if (!res) return
       await syncMirrorStagesToLinkedOrder(order, stageKey, value)
       const def = getOrderStageDefinitions(order.category).find((d) => d.key === stageKey)
       const what = `${order.order_number ?? orderId} · ${def?.header ?? stageKey}`
+      // „nie dotyczy" zwalnia rezerwację części na ten etap; zdjęcie — przywraca
+      const stock =
+        res.freed > 0 ? ` — zwolniono rezerwację (${res.freed} poz.)` : res.restored > 0 ? ` — przywrócono rezerwację (${res.restored} poz.)` : ''
       pushToast(
-        value === '' ? `${what}: etap wrócił do pustego` : isStageNA(value) ? `${what}: nie dotyczy` : `${what}: wstrzymane`,
+        (value === '' ? `${what}: etap wrócił do pustego` : isStageNA(value) ? `${what}: nie dotyczy` : `${what}: wstrzymane`) + stock,
         'success',
       )
+      if (res.freed > 0 || res.restored > 0) await fetchWarehouseStock()
     },
-    [orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast],
+    [orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast, fetchWarehouseStock],
   )
 
   // "Wydaj mimo braku" z dialogu braków (tabela zamówień / oznaczenie wydania)
