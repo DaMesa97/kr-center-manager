@@ -19,6 +19,7 @@ import {
   isCancelledOwn,
   type OrderTableCtx,
   isForeignStage,
+  stageMenuOpener,
 } from './orderTableColumns'
 import type { Order, StageDef, StStageLayoutMode } from '../types'
 import { isReleaseDateEmpty, isStTitanOrder, parseOrderExtraFields, parseProductionStages, stStageCellKind } from '../utils'
@@ -131,6 +132,7 @@ function StOrdersTableView({
               value={rowStages[stageKey] ?? ''}
               disabled={rowBusy || isCancelledOwn(o) || id === undefined}
               foreign={isForeignStage(ctx, stageKey)}
+              onOpenMenu={stageMenuOpener(ctx, o, stageKey)}
               onPickEmpty={() => {
                 if (id === undefined) {
                   pushToast('Brak identyfikatora zamówienia', 'error')

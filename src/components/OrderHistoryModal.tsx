@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import type { AuditLogRow } from '../types'
+import { stageLabel } from '../lib/stageSpecial'
 import Spinner from './Spinner'
 
 const FIELD_LABELS: Record<string, string> = {
@@ -127,7 +128,7 @@ function renderFieldValue(field: string, value: unknown): string {
     // nie tylko 'T') — pokazujemy etap z inicjałami, np. E3(TW)
     const setStages = Object.entries(obj)
       .filter(([, v]) => String(v ?? '').trim() !== '')
-      .map(([k, v]) => `${k.toUpperCase()}(${String(v).trim()})`)
+      .map(([k, v]) => `${k.toUpperCase()}(${stageLabel(v)})`)
     return setStages.length > 0 ? setStages.join(', ') : '(brak)'
   }
 

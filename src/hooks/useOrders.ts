@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { buildPartnerSyncPayload } from '../lib/linkedSync'
 import { appConfirm } from '../lib/appDialogs'
 import { mirrorStageKey } from '../lib/stageMirror'
+import { isStageDone, isStageNA, isStageSpecial } from '../lib/stageSpecial'
 import { markLocalStageWrite } from '../lib/stageWrites'
 import {
   EDITABLE_CATEGORIES,
@@ -637,7 +638,7 @@ export function useOrders({
         // (tylko przejście pusty → zrobione; mirrory NIE wydają — robota fizycznie
         // dzieje się na zamówieniu źródłowym).
         const current = parseProductionStages(order.production_stages, order.category)
-        const wasEmpty = !String(current[stageKey] ?? '').trim()
+        const wasEmpty = !isStageDone(current[stageKey])
         if (wasEmpty) {
           const rel = await runStockRelease(orderId, stageKey, false)
           if (rel.status === 'shortage') {
@@ -667,6 +668,30 @@ export function useOrders({
       }
     },
     [currentUser?.initials, isManager, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast, runStockRelease],
+  )
+
+  // Stan specjalny etapu (kierownik, menu na komórce): '#ND' nie dotyczy,
+  // '#WS:powód' wstrzymane, '' = zdjęcie stanu. Bez wydania z magazynu (nikt nic
+  // nie robi), z lustrem na partnera pary — żeby Disting Plus widział to samo.
+  const setProductionStageSpecial = useCallback(
+    async (orderId: number, stageKey: string, value: string) => {
+      const order = orders.find((o) => o.id === orderId)
+      if (!order) return
+      const current = String(parseProductionStages(order.production_stages, order.category)[stageKey] ?? '').trim()
+      if (current !== '' && !isStageSpecial(current) && value !== '') {
+        pushToast(`Etap ma już wpis „${current}" — najpierw cofnij etap, potem ustaw stan.`, 'error')
+        return
+      }
+      await applyProductionStagesUpdate(orderId, stageKey, value)
+      await syncMirrorStagesToLinkedOrder(order, stageKey, value)
+      const def = getOrderStageDefinitions(order.category).find((d) => d.key === stageKey)
+      const what = `${order.order_number ?? orderId} · ${def?.header ?? stageKey}`
+      pushToast(
+        value === '' ? `${what}: etap wrócił do pustego` : isStageNA(value) ? `${what}: nie dotyczy` : `${what}: wstrzymane`,
+        'success',
+      )
+    },
+    [orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast],
   )
 
   // "Wydaj mimo braku" z dialogu braków (tabela zamówień / oznaczenie wydania)
@@ -3000,6 +3025,7 @@ export function useOrders({
     toggleOscReceived,
     fetchNextOrderNumber,
     markProductionStageWithProfileInitials,
+    setProductionStageSpecial,
     fetchInternalDoorItemsForVisibleOrders,
     fetchOrders,
     handleFormChange,

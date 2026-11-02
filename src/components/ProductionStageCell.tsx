@@ -1,3 +1,8 @@
+import type { MouseEvent as ReactMouseEvent } from 'react'
+import { isStageHold, isStageNA, isStageSpecial, stageDisplay, stageSpecialTitle } from '../lib/stageSpecial'
+
+export type StageMenuAnchor = { x: number; y: number }
+
 type ProductionStageCellProps = {
   value: string
   disabled?: boolean
@@ -10,6 +15,13 @@ type ProductionStageCellProps = {
   title?: string
   onPickEmpty: () => void
   onPickFilled: () => void
+  /**
+   * Kierownik: menu stanów specjalnych (Nie dotyczy / Wstrzymane / Wznów).
+   * Otwiera je prawy klik na dowolnej komórce i lewy klik na komórce, która
+   * już ma stan specjalny. Brak = pracownik: stan specjalny jest tylko do
+   * oglądania (komórka nieaktywna z opisem w tytule).
+   */
+  onOpenMenu?: (anchor: StageMenuAnchor) => void
 }
 
 export default function ProductionStageCell({
@@ -19,25 +31,63 @@ export default function ProductionStageCell({
   title,
   onPickEmpty,
   onPickFilled,
+  onOpenMenu,
 }: ProductionStageCellProps) {
-  const filled = Boolean(value.trim())
+  const v = value.trim()
+  const special = isStageSpecial(v)
+  const filled = Boolean(v) && !special
   const cls = [
     'production-stage-cell',
-    filled ? 'production-stage-cell--done' : 'production-stage-cell--empty',
+    special
+      ? isStageNA(v)
+        ? 'production-stage-cell--na'
+        : isStageHold(v)
+          ? 'production-stage-cell--hold'
+          : 'production-stage-cell--empty'
+      : filled
+        ? 'production-stage-cell--done'
+        : 'production-stage-cell--empty',
     foreign ? 'production-stage-cell--foreign' : '',
   ]
     .filter(Boolean)
     .join(' ')
+  const specialTitle = stageSpecialTitle(v)
+  const resolvedTitle = title ?? (foreign ? 'Etap innego stanowiska — nie Twój' : specialTitle)
+  // stan specjalny bez menu (pracownik) = tylko do oglądania
+  const inert = disabled || foreign || (special && !onOpenMenu)
+
+  const anchorFromEvent = (e: ReactMouseEvent<HTMLButtonElement>): StageMenuAnchor => {
+    if (e.clientX || e.clientY) return { x: e.clientX, y: e.clientY }
+    const r = e.currentTarget.getBoundingClientRect()
+    return { x: r.left + r.width / 2, y: r.bottom }
+  }
+
   return (
     <button
       type="button"
       className={cls}
-      disabled={disabled || foreign}
-      title={title ?? (foreign ? 'Etap innego stanowiska — nie Twój' : undefined)}
+      disabled={inert}
+      title={resolvedTitle}
       aria-disabled={foreign || undefined}
-      onClick={() => (filled ? onPickFilled() : onPickEmpty())}
+      onClick={(e) => {
+        if (special) {
+          onOpenMenu?.(anchorFromEvent(e))
+          return
+        }
+        if (filled) onPickFilled()
+        else onPickEmpty()
+      }}
+      onContextMenu={
+        onOpenMenu && !disabled && !foreign
+          ? (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onOpenMenu(anchorFromEvent(e))
+            }
+          : undefined
+      }
     >
-      {filled ? value.trim() : ' '}
+      {special ? stageDisplay(v) : filled ? v : ' '}
     </button>
   )
 }

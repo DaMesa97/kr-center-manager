@@ -13,6 +13,7 @@ import { supabase } from '../../supabaseClient'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import { fetchAllPages } from '../../lib/fetchPaged'
+import { isStageDone, stageInitials } from '../../lib/stageSpecial'
 import { localDateStr, localDayEndExclusiveIso, localDayStartIso, localMonday } from '../../lib/localDates'
 
 // ---------------------------------------------------------------------------
@@ -54,8 +55,10 @@ function newCompletions(
     // Mirrory par (dist_*/sta_*) to KOPIA pracy zrobionej u partnera — ich
     // zapis to osobny wpis audytu i każdy etap zlecenia łączonego liczył się 2×
     if (key.startsWith('dist_') || key.startsWith('sta_')) continue
-    const wasEmpty = !oldStages[key] || String(oldStages[key]).trim() === ''
-    const value = newStages[key] ? String(newStages[key]).trim() : ''
+    // '#ND' / '#WS' (nie dotyczy / wstrzymane) to decyzja kierownika, nie praca —
+    // nie liczą się nikomu; zdjęcie wstrzymania i wpisanie inicjałów liczy się normalnie
+    const wasEmpty = !isStageDone(oldStages[key])
+    const value = stageInitials(newStages[key])
     if (wasEmpty && value !== '') out.push(value)
   }
   return out

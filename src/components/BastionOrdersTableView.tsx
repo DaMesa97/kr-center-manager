@@ -22,6 +22,7 @@ import {
   useStickyCol1Width,
   type OrderTableCtx,
   isForeignStage,
+  stageMenuOpener,
 } from './orderTableColumns'
 import type { ConfigOptionRecord, Order } from '../types'
 import { bastionFrameOptionForOrder, isReleaseDateEmpty, parseOrderExtraFields, parseProductionStages } from '../utils'
@@ -127,6 +128,7 @@ function BastionOrdersTableView({
           value={stagesOf(o)[stageKey] ?? ''}
           disabled={rowBusy || isCancelledOwn(o) || id === undefined}
           foreign={isForeignStage(ctx, stageKey)}
+          onOpenMenu={stageMenuOpener(ctx, o, stageKey)}
           onPickEmpty={() => {
             if (id === undefined) {
               pushToast('Brak identyfikatora zamówienia', 'error')

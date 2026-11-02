@@ -59,10 +59,12 @@ import {
 } from './utils'
 import DeleteConfirmDialog from './components/DeleteConfirmDialog'
 import StockShortageDialog from './components/StockShortageDialog'
-import { AppDialogHost } from './lib/appDialogs'
+import { AppDialogHost, appPrompt } from './lib/appDialogs'
 import GlobalSpinner from './components/GlobalSpinner'
 import ToastStack from './components/ToastStack'
 import StageRevertPopup from './components/StageRevertPopup'
+import StageSpecialMenu from './components/StageSpecialMenu'
+import { STAGE_NA, holdValue } from './lib/stageSpecial'
 import ReleaseClearPopup from './components/ReleaseClearPopup'
 import UsersView from './components/UsersView'
 import CompaniesView from './components/CompaniesView'
@@ -709,6 +711,7 @@ function App() {
     cancelStageRelease,
     toggleOscReceived,
     markProductionStageWithProfileInitials,
+    setProductionStageSpecial,
     fetchInternalDoorItemsForVisibleOrders,
     fetchOrders,
     handleFormChange,
@@ -855,6 +858,20 @@ function App() {
       setStageRevertTarget(target)
     },
     [isProductionWorker, myAssignedStageKeys, orders, currentUser?.initials, setStageRevertTarget, pushToast],
+  )
+
+  // Stany specjalne etapu (nie dotyczy / wstrzymane) — menu kierownika na komórce (zgłoszenie #73)
+  const [stageSpecialMenu, setStageSpecialMenu] = useState<{
+    order: Order
+    stageKey: string
+    anchor: { x: number; y: number }
+  } | null>(null)
+  const openStageSpecialMenu = useMemo(
+    () =>
+      isManager
+        ? (order: Order, stageKey: string, anchor: { x: number; y: number }) => setStageSpecialMenu({ order, stageKey, anchor })
+        : undefined,
+    [isManager],
   )
 
   const {
@@ -2611,6 +2628,43 @@ function App() {
           />
         )
       })()}
+      {stageSpecialMenu && (() => {
+        const { stageKey, anchor } = stageSpecialMenu
+        const o = orders.find((x) => x.id === stageSpecialMenu.order.id) ?? stageSpecialMenu.order
+        const oid = o.id
+        if (oid === undefined) return null
+        const def = getOrderStageDefinitions(o.category).find((d) => d.key === stageKey)
+        const cur = String(parseProductionStages(o.production_stages, o.category)[stageKey] ?? '').trim()
+        const close = () => setStageSpecialMenu(null)
+        return (
+          <StageSpecialMenu
+            anchor={anchor}
+            orderNumber={String(o.order_number ?? oid)}
+            stageLabel={def ? `${def.header} — ${def.title}` : stageKey}
+            currentValue={cur}
+            onPickNA={() => {
+              close()
+              void setProductionStageSpecial(oid, stageKey, STAGE_NA)
+            }}
+            onPickHold={() => {
+              close()
+              void (async () => {
+                const reason = await appPrompt('Powód wstrzymania — zobaczy go hala przy zleceniu (można zostawić puste):', {
+                  title: `Wstrzymaj etap ${def?.header ?? stageKey} w zleceniu ${o.order_number ?? oid}`,
+                  confirmLabel: 'Wstrzymaj',
+                })
+                if (reason === null) return
+                await setProductionStageSpecial(oid, stageKey, holdValue(reason))
+              })()
+            }}
+            onClear={() => {
+              close()
+              void setProductionStageSpecial(oid, stageKey, '')
+            }}
+            onClose={close}
+          />
+        )
+      })()}
       {tableStageConfirm && (() => {
         const o = tableStageConfirm.order
         const def = getOrderStageDefinitions(o.category).find((d) => d.key === tableStageConfirm.stageKey)
@@ -3799,6 +3853,7 @@ function App() {
                     productionStageUpdating={productionStageUpdating}
                     releaseDateUpdating={releaseDateUpdating}
                     assignedStageKeys={tableAssignedStageKeys}
+                    onStageSpecialMenu={openStageSpecialMenu}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     orders={orders}
                     linkedOrders={linkedOrders}
@@ -3833,6 +3888,7 @@ function App() {
                     productionStageUpdating={productionStageUpdating}
                     releaseDateUpdating={releaseDateUpdating}
                     assignedStageKeys={tableAssignedStageKeys}
+                    onStageSpecialMenu={openStageSpecialMenu}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     glassAllowances={glassAllowances}
                     orderCommentsCounts={orderCommentsCounts}
@@ -3868,6 +3924,7 @@ function App() {
                     onToggleLabelSelect={toggleLabelSelect}
                     releaseDateUpdating={releaseDateUpdating}
                     assignedStageKeys={tableAssignedStageKeys}
+                    onStageSpecialMenu={openStageSpecialMenu}
                     rushUpdatingOrderId={rushUpdatingOrderId}
                     productionStageUpdating={productionStageUpdating}
                     glassAllowances={glassAllowances}
@@ -4026,6 +4083,7 @@ function App() {
                       productionStageUpdating={productionStageUpdating}
                       releaseDateUpdating={releaseDateUpdating}
                       assignedStageKeys={tableAssignedStageKeys}
+                      onStageSpecialMenu={openStageSpecialMenu}
                       rushUpdatingOrderId={rushUpdatingOrderId}
                       glassAllowances={glassAllowances}
                       orderCommentsCounts={orderCommentsCounts}

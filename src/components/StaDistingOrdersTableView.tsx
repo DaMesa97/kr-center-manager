@@ -1,5 +1,6 @@
 import { memo, useMemo, type MouseEvent, type MutableRefObject } from 'react'
 import ProductionStageCell from './ProductionStageCell'
+import { isStageDone, stageDisplay, stageSpecialTitle } from '../lib/stageSpecial'
 import DataTable, { type DataTableColumn } from './DataTable'
 import {
   actionsCol,
@@ -18,6 +19,7 @@ import {
   textCol,
   type OrderTableCtx,
   isForeignStage,
+  stageMenuOpener,
 } from './orderTableColumns'
 import type { Order, StageDef } from '../types'
 import {
@@ -185,11 +187,11 @@ function StaDistingOrdersTableView({
               <span
                 className={[
                   'production-stage-readonly',
-                  c.value ? 'production-stage-readonly--linked-done' : 'production-stage-readonly--linked-empty',
+                  isStageDone(c.value) ? 'production-stage-readonly--linked-done' : 'production-stage-readonly--linked-empty',
                 ].join(' ')}
-                title={c.spanTitle}
+                title={stageSpecialTitle(c.value) ?? c.spanTitle}
               >
-                {c.value || '—'}
+                {stageDisplay(c.value) || '—'}
               </span>
             )
           }
@@ -200,6 +202,7 @@ function StaDistingOrdersTableView({
               value={c.value}
               disabled={rowBusy || isCancelledOwn(o) || id === undefined}
               foreign={isForeignStage(ctx, def.key)}
+              onOpenMenu={stageMenuOpener(ctx, o, def.key)}
               onPickEmpty={() => {
                 if (id === undefined) {
                   pushToast('Brak identyfikatora zamówienia', 'error')

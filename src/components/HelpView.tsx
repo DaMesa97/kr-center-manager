@@ -215,6 +215,12 @@ const SECTIONS: Section[] = [
           Widok dla pracownika produkcji: lista zadań wynikających z <b>przypisanych Ci etapów</b>
           (przypisuje kierownik w panelu Użytkownicy → „Etapy produkcji").
         </p>
+        <p>
+          <b>Stany specjalne etapu</b> (ustawia kierownik, prawy klik na komórce etapu w tabeli): <b>—</b> szara kreska =
+          „nie dotyczy" (etap w tym zleceniu niepotrzebny, liczy się jako zrobiony, nikt go nie robi, nic nie schodzi z magazynu);{' '}
+          <b>⏸</b> pomarańczowa pauza = „wstrzymane" (czekamy, np. na klienta albo materiał — na stanowisku zamiast przycisku
+          widać „Wstrzymane: powód", NASTĘPNE to zlecenie omija). Zdejmuje je kierownik tym samym menu („Wznów").
+        </p>
         <p><b>Krok po kroku (ściąga przy stanowisku):</b></p>
         <ol>
           <li>Na górze widać, <b>kto jest zalogowany</b>. To nie Ty? Kliknij „To nie ja — zmień osobę" i zaloguj się na siebie.</li>

@@ -1,6 +1,7 @@
 import { BASTION_STAGE_DEFS, BASTION_TITAN_STAGE_DEFS, STA_DISTING_STAGE_DEFS, ST_STAGE_DEFS, ST_TITAN_STAGE_DEFS } from '../constants'
 import type { AluPosition, Complaint, Order, StageDef, WhatComplained, WorkerStage } from '../types'
 import { mergeIncomingStages } from './stageWrites'
+import { isStageDone, isStageHold, stageHoldReason } from './stageSpecial'
 import {
   getComplaintBlockedStages,
   hasGlassExtra,
@@ -21,6 +22,8 @@ export type MyTask = {
   stageHeader: string
   stageTitle: string
   readyToWork: boolean
+  /** Etap WSTRZYMANY przez kierownika ('#WS:powód') — zadanie widać, ale nie da się go odhaczyć */
+  holdReason?: string
   /** Zadanie z REKLAMACJI (etapy pisze update_complaint_stage, bez magazynu) */
   isComplaint?: boolean
   complaintId?: number
@@ -99,8 +102,11 @@ const STAGE_DEPS: Record<string, Record<string, string[]>> = {
 export function missingPrereqs(category: string, actualKey: string, parsed: Record<string, string>, defs: StageDef[]): string[] {
   const deps = STAGE_DEPS[category]?.[actualKey] ?? []
   return deps
-    .filter((d) => !String(parsed[d] ?? '').trim())
-    .map((d) => defs.find((x) => x.key === d)?.header ?? d.toUpperCase())
+    .filter((d) => !isStageDone(parsed[d]))
+    .map((d) => {
+      const h = defs.find((x) => x.key === d)?.header ?? d.toUpperCase()
+      return isStageHold(parsed[d]) ? `${h} (wstrzymane)` : h
+    })
 }
 
 export function isStageReady(
@@ -120,7 +126,8 @@ export function isStageReady(
   const done = (k: string) => {
     if (blocked.has(k)) return true
     if (k === 'e2_2' && (category === 'STA' || category === 'Disting') && opts?.glassExtra === false) return true
-    return String(parsed[k] ?? '').trim() !== ''
+    // '#ND' (nie dotyczy) = zrobione; '#WS' (wstrzymane) = NIE
+    return isStageDone(parsed[k])
   }
   let deps = STAGE_DEPS[category]?.[actualKey]
   if (deps) {
@@ -208,7 +215,8 @@ export function buildTasks(orders: Order[], workerStages: WorkerStage[]): MyTask
 
       const def = defs.find((d) => d.key === actualKey)
       if (!def) continue
-      if (String(parsed[actualKey] ?? '').trim() !== '') continue // już zrobione (inicjały/'T'/'X')
+      if (isStageDone(parsed[actualKey])) continue // już zrobione (inicjały/'T'/'X'/nie dotyczy)
+      const held = isStageHold(parsed[actualKey])
 
       if (
         actualKey === 'e2_2' &&
@@ -225,10 +233,11 @@ export function buildTasks(orders: Order[], workerStages: WorkerStage[]): MyTask
         category,
         stageHeader: def.header,
         stageTitle: def.title ?? '',
-        readyToWork: isStageReady(category, actualKey, parsed, defs, {
+        readyToWork: !held && isStageReady(category, actualKey, parsed, defs, {
           blocked,
           glassExtra: hasGlassExtra(order),
         }),
+        ...(held ? { holdReason: stageHoldReason(parsed[actualKey]) } : {}),
       })
     }
   }
@@ -306,7 +315,7 @@ export function buildComplaintTasks(complaints: Complaint[], workerStages: Worke
       if (blocked.has(actualKey)) continue
       const def = defs.find((d) => d.key === actualKey)
       if (!def) continue
-      if (String(parsed[actualKey] ?? '').trim() !== '') continue
+      if (isStageDone(parsed[actualKey])) continue
       if (actualKey === 'e2_2' && (category === 'STA' || category === 'Disting') && !hasGlassExtra(orderLike)) {
         continue
       }

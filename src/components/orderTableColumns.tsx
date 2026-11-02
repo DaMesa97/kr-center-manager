@@ -43,15 +43,26 @@ export type OrderTableCtx = {
    * zaraz za FIRMĄ, a nie ~30 kolumn w prawo.
    */
   assignedStageKeys?: Set<string> | null
+  /**
+   * Kierownik: menu stanów specjalnych etapu (Nie dotyczy / Wstrzymane / Wznów)
+   * — prawy klik na komórce albo lewy na komórce ze stanem. undefined = pracownik
+   * (stany tylko do oglądania).
+   */
+  onStageSpecialMenu?: (order: Order, stageKey: string, anchor: { x: number; y: number }) => void
 }
 
 /** Pracownik hali: etap jest „obcy", gdy ma listę przypisań i klucza na niej nie ma. */
 export const isForeignStage = (c: OrderTableCtx, stageKey: string): boolean =>
   c.assignedStageKeys != null && !c.assignedStageKeys.has(stageKey)
 
+/** Otwieracz menu stanów dla konkretnej komórki (undefined, gdy użytkownik nie może ustawiać stanów). */
+export const stageMenuOpener = (c: OrderTableCtx, order: Order, stageKey: string) =>
+  c.onStageSpecialMenu ? (anchor: { x: number; y: number }) => c.onStageSpecialMenu!(order, stageKey, anchor) : undefined
+
 /** Zależności useMemo kolumn — stała długość i kolejność (ctx to nowy obiekt przy każdym renderze). */
 export const orderCtxDeps = (c: OrderTableCtx): unknown[] => [
   c.assignedStageKeys,
+  c.onStageSpecialMenu,
   c.isManager,
   c.selectedForLabel,
   c.onToggleLabelSelect,

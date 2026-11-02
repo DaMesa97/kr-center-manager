@@ -304,8 +304,12 @@ export default function MyStationView({
             ) : (
               // Szary nieaktywny przycisk nic nie tłumaczył („kliknąłem i nie działa") —
               // zamiast niego napis, NA CO zadanie czeka
-              <span className="my-station-waiting-text" title="Najpierw musi być zrobiony wcześniejszy etap">
+              <span
+                className={task.holdReason != null ? 'my-station-waiting-text my-station-hold-text' : 'my-station-waiting-text'}
+                title={task.holdReason != null ? 'Kierownik wstrzymał ten etap — nie rób go, aż zdejmie wstrzymanie' : 'Najpierw musi być zrobiony wcześniejszy etap'}
+              >
                 {(() => {
+                  if (task.holdReason != null) return `⏸ Wstrzymane${task.holdReason ? `: ${task.holdReason}` : ''}`
                   const miss = task.alu || task.isComplaint
                     ? []
                     : missingPrereqs(

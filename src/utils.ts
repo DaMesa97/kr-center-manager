@@ -13,6 +13,7 @@ import {
 } from './constants'
 import { supabase } from './supabaseClient'
 import { can, isAdminRole, isCategoryScoped, isManagerRole } from './lib/permissions'
+import { isStageDone } from './lib/stageSpecial'
 import type {
   BastionOrderFormData,
   Company,
@@ -607,7 +608,8 @@ export function countCompletedStages(order: Order): {
   // spójnie z komórkami tabeli, które każdą niepustą wartość traktują jako wykonany etap.
   // Para Disting Plus: część etapów robi partner i trafiają tu jako lustro (STA: dist_e1/e2_*/e5,
   // Disting: sta_e3/e4) — bez tego pary nigdy nie dochodziły do 100% (jak orderSetCompleteness).
-  const filled = (k: string) => String(parsed[k] ?? '').trim() !== ''
+  // '#ND' (nie dotyczy) liczy się jako zrobione, '#WS' (wstrzymane) — nie (lib/stageSpecial)
+  const filled = (k: string) => isStageDone(parsed[k])
   const stages = defs.map((def) => ({
     key: def.key,
     header: def.header,
@@ -976,7 +978,7 @@ export function isRushOrderSequence(sequence: string | undefined | null): boolea
 export type SetCompleteness = { complete: boolean; missing: string[] }
 
 export function orderSetCompleteness(order: Order, allOrders: Order[]): SetCompleteness | null {
-  const done = (v: unknown) => String(v ?? '').trim() !== ''
+  const done = (v: unknown) => isStageDone(v)
   const stagesOf = (o: Order) => parseProductionStages(o.production_stages, o.category)
   const byId = (id: number | null | undefined) =>
     id == null ? undefined : allOrders.find((o) => o.id === id)
