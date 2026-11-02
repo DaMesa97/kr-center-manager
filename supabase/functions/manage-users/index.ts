@@ -43,20 +43,50 @@ serve(async (req) => {
 
     const { data: profile, error: profErr } = await supabaseAdmin
       .from('profiles')
-      .select('role')
+      .select('role, categories')
       .eq('id', caller.id)
       .single()
 
     // Zarządzać kontami może admin (nowe role) oraz legacy 'manager'
     // (okres przejściowy przed migracją roles.sql — bez tego migracja
     // manager→admin odcięłaby WSZYSTKICH od panelu użytkowników).
-    const ALLOWED_ROLES = ['manager', 'admin']
-    if (profErr || !ALLOWED_ROLES.includes(String(profile?.role ?? ''))) {
+    // Kierownik działu (decyzja 2.11.2026, zgłoszenie #74): zakłada konta,
+    // resetuje hasła i dezaktywuje — ale TYLKO pracowników produkcji, których
+    // wszystkie kategorie mieszczą się w jego kategoriach. Profil zakłada
+    // klient; pilnują tego polityki profiles_insert/update w bazie.
+    const callerRole = String(profile?.role ?? '')
+    const isAdmin = ['manager', 'admin'].includes(callerRole)
+    const isKd = callerRole === 'kierownik_dzialu'
+    if (profErr || (!isAdmin && !isKd)) {
       return new Response(JSON.stringify({ error: 'Brak uprawnień' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+    const kdCategories: string[] = Array.isArray(profile?.categories) ? (profile!.categories as string[]) : []
+
+    // null = wolno; tekst = powód odmowy. allowOrphan: konto auth bez profilu
+    // (sprzątanie po nieudanym insercie profilu) kierownik może usunąć.
+    const kdDenyReason = async (user_id: string, allowOrphan: boolean): Promise<string | null> => {
+      if (!isKd) return null
+      const { data: target } = await supabaseAdmin
+        .from('profiles')
+        .select('role, categories')
+        .eq('id', user_id)
+        .maybeSingle()
+      if (!target) return allowOrphan ? null : 'Nie znaleziono profilu użytkownika'
+      const cats: string[] = Array.isArray(target.categories) ? (target.categories as string[]) : []
+      const ok =
+        String(target.role ?? '') === 'pracownik_produkcji' &&
+        cats.length > 0 &&
+        cats.every((c) => kdCategories.includes(c))
+      return ok ? null : 'Kierownik działu zarządza tylko kontami pracowników produkcji w swoich kategoriach'
+    }
+    const deny = (reason: string) =>
+      new Response(JSON.stringify({ error: reason }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
 
     const body = (await req.json()) as Record<string, unknown>
     const action = String(body.action ?? '')
@@ -118,6 +148,8 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+      const kdReason = await kdDenyReason(user_id, false)
+      if (kdReason) return deny(kdReason)
       const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
         // 100 lat = dezaktywacja; 'none' zdejmuje bana
         ban_duration: action === 'deactivate' ? '876000h' : 'none',
@@ -150,6 +182,8 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+      const kdReason = await kdDenyReason(user_id, false)
+      if (kdReason) return deny(kdReason)
       const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(user_id, { password })
       if (pwErr) {
         return new Response(JSON.stringify({ error: pwErr.message }), {
@@ -177,6 +211,11 @@ serve(async (req) => {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
+      }
+      // kierownik działu: twarde usuwanie tylko sieroty bez profilu
+      if (isKd) {
+        const { data: target } = await supabaseAdmin.from('profiles').select('id').eq('id', user_id).maybeSingle()
+        if (target) return deny('Usuwanie kont — tylko administrator. Użyj „Dezaktywuj".')
       }
 
       const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(user_id)

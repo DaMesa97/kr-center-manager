@@ -45,6 +45,7 @@ export type Permission =
   | 'labels.print'
   | 'labels.manageTemplates'
   | 'admin.panel'          // użytkownicy / konfiguracja / kontrahenci / klucze API
+  | 'users.manageProduction' // zakłada/edytuje konta pracowników produkcji w swoich kategoriach, resetuje hasła
   | 'categories.scoped'    // widzi/działa tylko w przypisanych kategoriach (nie wszystkich)
 
 const R = ROLES
@@ -64,6 +65,7 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'warehouse.movements', 'warehouse.manage', 'warehouse.ordering',
     'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
     'categories.scoped', // KD widzi tylko przypisane kategorie
+    'users.manageProduction', // zwiad #7 / decyzja 2.11.2026: KD sam zakłada konta i resetuje hasła
   ],
 
   [R.KIER_MAGAZYNU]: [
@@ -112,6 +114,22 @@ export function can(role: string | null | undefined, perm: Permission): boolean 
   if (r === R.ADMIN) return true // superrola
   if (LEGACY_MANAGER.has(r)) return true // stary 'manager' ~ pełny dostęp (okres przejściowy)
   return (ROLE_PERMISSIONS[r] ?? []).includes(perm)
+}
+
+// Kto wchodzi do zakładki Użytkownicy: admin (wszystko) albo kierownik działu
+// (tylko pracownicy produkcji w swoich kategoriach — zob. usersScopeFor).
+// Po stronie bazy pilnują tego polityki profiles_insert/update, trigger
+// protect_profile_privileges i edge function manage-users.
+export function canManageUsers(role: string | null | undefined): boolean {
+  const r = String(role ?? '')
+  return isAdminRole(r) || LEGACY_MANAGER.has(r) || can(r, 'users.manageProduction')
+}
+
+// null = bez ograniczeń (admin); tablica = tylko pracownicy produkcji w tych kategoriach
+export function usersScopeFor(role: string | null | undefined, categories?: string[] | null): string[] | null {
+  const r = String(role ?? '')
+  if (isAdminRole(r) || LEGACY_MANAGER.has(r)) return null
+  return categories ?? []
 }
 
 // Czy rola jest "zawężona" do przypisanych kategorii (PP, KD)?

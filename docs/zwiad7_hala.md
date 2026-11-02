@@ -131,3 +131,18 @@ Flaga `profiles.simple_mode` albo automat `role === 'pracownik_produkcji' && wor
 9. **Telefon/tablet na hali**: hosting wersji mobilnej (Cloudflare Pages / Netlify) i pilotaż tabletem przy stole okuwania, czy zostajemy przy PC.
 10. **Unikalność inicjałów** wymusić w profilach (statystyki liczą po inicjałach).
 11. Duża czcionka: automatycznie dla roli PP czy przełącznik per komputer.
+
+---
+
+## Decyzje Tymka (2.11) i co z tego zrobiono
+
+| # | Decyzja | Zrobione |
+|---|---|---|
+| 3 | „Brygadzista niech sam tworzy partie i dodaje Resztę" | Pracownik z etapami Bastion na stanowisku (`bastion_batch_can_mark()` → `assert_bastion_crew()`) tworzy partie, dokłada/wyjmuje zlecenia, pisze notatkę partii, dodaje i edytuje pozycje Reszty. Przy kierowniku: usuwanie partii, naklejka, zrealizowane, anulowanie Reszty. `migrate/zwiad7_decyzje_bastion_kd.sql`, prop `canManage` w `BastionBatchesPanel` / `BastionExtrasPanel`. |
+| 4 | „Start i koniec tak jak jest" | Bez zmian — jedna data przy etapie partii. |
+| 5 | „Rozwiń proszę" | Rozwinięcie w odpowiedzi; czeka na decyzję (#73 w Zgłoszeniach). |
+| 8 | „Niech sam zakłada konta i resetuje hasła" | Kierownik działu ma zakładkę **Użytkownicy**: widzi i zarządza tylko pracownikami produkcji, których wszystkie kategorie mieszczą się w jego kategoriach — zakłada konto (rola na stałe pracownik produkcji, kategorie tylko ze swoich), zmienia nazwisko/inicjały/kategorie, resetuje hasło, dezaktywuje, przypisuje etapy. Nie usuwa kont, nie zmienia ról / działu / ZKP. Permission `users.manageProduction`, `canManageUsers` / `usersScopeFor` w `permissions.ts`; baza: `kd_can_manage_profile()` w politykach `profiles_insert` / `profiles_update` i w triggerze `protect_profile_privileges`; edge function `manage-users` v7 (KD: deactivate / reset tylko swoich PP, delete tylko sieroty bez profilu). |
+| — | Partie / Reszta na Moim stanowisku | „Kontroluje tylko kierownik, ustalimy jutro" (#75). |
+| — | Numeracja STA + Disting Plus (#61) | „Jeszcze pomyślę". |
+
+Testy migracji (ROLLBACK, przez Supabase MCP): KD wstawia PP w STA → przechodzi RLS (pada dopiero FK do auth.users); PP z Bastion / rola kierownik → RLS 42501; nazwisko MK → 1 wiersz; rola / kategorie MK, własne inicjały → trigger P0001; KW (4 kategorie) → 0 wierszy; `assert_bastion_crew` KD OK, MK bez etapów Bastion → P0001.

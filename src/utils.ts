@@ -194,6 +194,7 @@ function baseTabsForUser(
     if (isAdminRole(role)) out.push('Kontrahenci')
     out.push('Etykiety')
     if (isAdminRole(role)) out.push('Konfiguracja', 'Użytkownicy', 'Klucze API')
+    else if (can(role, 'users.manageProduction')) out.push('Użytkownicy') // kierownik działu: konta swoich pracowników
     out.push('Zgłoszenia', 'Pomoc')
     return out
   }

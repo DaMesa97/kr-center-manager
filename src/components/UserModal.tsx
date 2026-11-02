@@ -23,6 +23,8 @@ type UserModalProps = {
   submitOnEnterInInput: (e: React.KeyboardEvent<HTMLElement>, action: () => void) => void
   /** role ZKP zmienia tylko admin (trigger protect_profile_privileges) */
   canEditZkpRoles: boolean
+  /** null = admin (każda rola, każda kategoria); tablica = kierownik działu: tylko pracownik produkcji w tych kategoriach */
+  scopedCategories?: string[] | null
 }
 
 export default function UserModal({
@@ -35,8 +37,11 @@ export default function UserModal({
   onSave,
   submitOnEnterInInput,
   canEditZkpRoles,
+  scopedCategories = null,
 }: UserModalProps) {
   if (!open) return null
+  const roleOptions = scopedCategories != null ? ['pracownik_produkcji'] : ROLE_OPTIONS
+  const categoryOptions = scopedCategories ?? USER_CATEGORIES
 
   return createPortal(
     <div className="modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
@@ -103,18 +108,21 @@ export default function UserModal({
             <select
               value={userForm.role}
               onChange={(e) => onFormChange({ role: e.target.value })}
-              disabled={userModalSaving}
+              disabled={userModalSaving || scopedCategories != null}
             >
-              {ROLE_OPTIONS.map((r) => (
+              {roleOptions.map((r) => (
                 <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
               ))}
             </select>
+            {scopedCategories != null && (
+              <span className="user-modal-hint">Kierownik działu zakłada tylko konta pracowników produkcji. Inne role — administrator.</span>
+            )}
           </label>
           {isCategoryScoped(userForm.role) ? (
             <label className="order-field-full">
               <span className="order-field-label-text">Kategorie (dostęp)</span>
               <div className="user-cat-picker">
-                {USER_CATEGORIES.map((c) => {
+                {categoryOptions.map((c) => {
                   const checked = userForm.categories.includes(c)
                   return (
                     <label key={c} className={`user-cat-chip ${checked ? 'user-cat-chip--on' : ''}`}>

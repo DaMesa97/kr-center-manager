@@ -49,7 +49,7 @@ const SECTIONS: Section[] = [
         </ul>
         <h4>Konta i stabilność</h4>
         <ul>
-          <li>Administrator może <b>dezaktywować konto</b> i <b>zresetować hasło</b> (Użytkownicy).</li>
+          <li>Administrator może <b>dezaktywować konto</b> i <b>zresetować hasło</b> (Użytkownicy). Kierownik działu robi to samo dla <b>pracowników produkcji ze swoich kategorii</b> — i sam zakłada im konta.</li>
           <li>Po utracie i powrocie sieci program <b>sam odświeża dane</b>; awaria ekranu pokazuje komunikat z przyciskiem przeładowania zamiast białego okna.</li>
           <li>Program może wymagać minimalnej wersji — przy zbyt starej poprosi o aktualizację po zalogowaniu.</li>
         </ul>
@@ -368,7 +368,7 @@ const SECTIONS: Section[] = [
         <ul>
           <li><b>Konfiguracja</b> — słowniki pól formularzy (systemy, modele, kolory, okucia…), wykluczenia niedozwolonych kombinacji, wymiary/poszerzenia, czasy realizacji (terminy ostrzeżeń), opcje ościeżnic Bastion (mnożniki etykiet).</li>
           <li><b>Kontrahenci</b> — baza firm: dni produkcji/tras, dane logistyczne, scalanie aliasów nazw.</li>
-          <li><b>Użytkownicy</b> — konta, role, przypisane kategorie, przypisane etapy pracowników („Etapy produkcji"). Hasła nadaje się przy tworzeniu konta.</li>
+          <li><b>Użytkownicy</b> — konta, role, przypisane kategorie, przypisane etapy pracowników („Etapy produkcji"). Hasła nadaje się przy tworzeniu konta. Kierownik działu widzi tu tylko pracowników produkcji ze swoich kategorii: zakłada konta, resetuje hasła, przypisuje etapy, dezaktywuje; ról nie zmienia i kont nie usuwa.</li>
           <li><b>Klucze API</b> — klucze dla integracji (konfigurator, Excel): generowanie, dezaktywacja, statystyki użycia i limity.</li>
           <li><b>Audyt</b> — pełna historia zmian: kto, kiedy, co zmienił.</li>
           <li><b>Archiwum</b> — zrealizowane zlecenia (podstawa do tworzenia reklamacji).</li>

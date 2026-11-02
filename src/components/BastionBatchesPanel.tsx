@@ -22,6 +22,8 @@ type Props = {
   canMark: boolean
   /** skręcanie (etap OŚĆ SKR. na zleceniu) — kierownik albo pracownik z TYM etapem; bez tego przycisk był widoczny i sypał toastami */
   canScrew?: boolean
+  /** tworzenie partii, dokładanie/wyjmowanie zleceń, notatka — kierownik albo brygadzista/pracownik z etapami Bastion (decyzja 2.11.2026); usuwanie partii — tylko isManager */
+  canManage?: boolean
   /** pracownik produkcji: przypisane klucze etapów (null = kierownik, wszystko) — obce etapy partii nieklikalne */
   assignedStageKeys?: Set<string> | null
   currentInitials: string
@@ -58,6 +60,7 @@ export default function BastionBatchesPanel({
   isManager,
   canMark,
   canScrew = canMark,
+  canManage = isManager,
   assignedStageKeys = null,
   currentInitials,
   onCreateBatch,
@@ -225,7 +228,7 @@ export default function BastionBatchesPanel({
           <p className="muted">Wczytywanie partii…</p>
         ) : visible.length === 0 ? (
           <p className="muted bastion-batches-empty">
-            {showClosed ? 'Brak partii.' : 'Brak otwartych partii.'}{isManager && candidates.length > 0 ? ' Zaznacz zlecenia poniżej i utwórz pierwszą.' : ''}
+            {showClosed ? 'Brak partii.' : 'Brak otwartych partii.'}{canManage && candidates.length > 0 ? ' Zaznacz zlecenia poniżej i utwórz pierwszą.' : ''}
           </p>
         ) : (
           <div className="table-wrapper bastion-batches-wrapper">
@@ -259,6 +262,7 @@ export default function BastionBatchesPanel({
                     isManager={isManager}
                     canMark={canMark}
                     canScrew={canScrew}
+                    canManage={canManage}
                     assignedStageKeys={assignedStageKeys}
                     ordersById={ordersById}
                     onToggle={() => toggleExpanded(b.id)}
@@ -279,7 +283,7 @@ export default function BastionBatchesPanel({
       </section>
 
       {/* ── zlecenia do partii ──────────────────────────────────── */}
-      {isManager && (
+      {canManage && (
         <section className="bastion-batches-section">
           <div className="bastion-batches-toolbar">
             <h3 className="bastion-batches-title">
@@ -401,6 +405,7 @@ type RowProps = {
   isManager: boolean
   canMark: boolean
   canScrew: boolean
+  canManage: boolean
   assignedStageKeys: Set<string> | null
   ordersById: Map<number, Order>
   onToggle: () => void
@@ -414,7 +419,7 @@ type RowProps = {
   screwingAll: boolean
 }
 
-function BatchRows({ b, isOpen, busy, isManager, canMark, canScrew, assignedStageKeys, ordersById, onToggle, onStage, onNotes, onDelete, onRemove, onOpenOrder, onMarkScrewed, onScrewAll, screwingAll }: RowProps) {
+function BatchRows({ b, isOpen, busy, isManager, canMark, canScrew, canManage, assignedStageKeys, ordersById, onToggle, onStage, onNotes, onDelete, onRemove, onOpenOrder, onMarkScrewed, onScrewAll, screwingAll }: RowProps) {
   const foreignStage = (key: string) => assignedStageKeys != null && !assignedStageKeys.has(key)
   const closed = b.status === 'closed'
   const colSpan = 11 + (isManager ? 1 : 0)
@@ -457,7 +462,7 @@ function BatchRows({ b, isOpen, busy, isManager, canMark, canScrew, assignedStag
           )}
         </td>
         <td className="col-notes">
-          {isManager ? (
+          {canManage ? (
             <button type="button" className="bastion-batch-notes-btn" onClick={onNotes} title="Edytuj notatkę">
               {b.notes?.trim() ? b.notes : <span className="muted">— dodaj —</span>}
             </button>
@@ -507,7 +512,7 @@ function BatchRows({ b, isOpen, busy, isManager, canMark, canScrew, assignedStag
                         )}
                       </td>
                       <td className="bastion-batch-item-actions">
-                        {isManager && (
+                        {canManage && (
                           <button type="button" className="bastion-batch-item-remove" disabled={busy} onClick={() => onRemove(id, num)} title="Wyjmij z partii">
                             ✕
                           </button>

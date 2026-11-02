@@ -112,7 +112,7 @@ import ZkpView from './components/zkp/ZkpView'
 import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
-import { can, isAdminRole, isCategoryScoped, isManagerRole } from './lib/permissions'
+import { can, canManageUsers, isAdminRole, isCategoryScoped, isManagerRole, usersScopeFor } from './lib/permissions'
 import { findCompanyInfo } from './lib/companyMatch'
 import { mergeIncomingStages } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
@@ -3231,6 +3231,7 @@ function App() {
             onSave={() => void handleSaveUser()}
             submitOnEnterInInput={submitOnEnterInInput}
             canEditZkpRoles={isAdminRole(currentUser?.role)}
+            scopedCategories={usersScopeFor(currentUser?.role, currentUser?.categories)}
           />
         )}
 
@@ -3349,7 +3350,7 @@ function App() {
             onToggleLeadTimeRuleActive={handleToggleLeadTimeRuleActive}
             pushToast={pushToast}
           />
-        ) : isUsersTab && isManager ? (
+        ) : isUsersTab && canManageUsers(currentUser?.role) ? (
           <UsersView
             profilesLoading={profilesLoading}
             profiles={profilesList}
@@ -3361,6 +3362,8 @@ function App() {
             onManageWorkerStages={(profile) => setWorkerStagesModal({ open: true, worker: profile })}
             getRoleLabel={profileRoleLabel}
             getDepartmentLabel={profileDepartmentLabel}
+            canDelete={isAdminRole(currentUser?.role) || currentUser?.role === 'manager'}
+            scopedCategories={usersScopeFor(currentUser?.role, currentUser?.categories)}
           />
         ) : isApiKeysTab && (isAdminRole(currentUser?.role) || currentUser?.role === 'manager') ? (
           <ApiKeysView
@@ -3975,6 +3978,7 @@ function App() {
                     presets={configOptions['Bastion']?.['reszta'] ?? []}
                     isManager={isManager}
                     canMark={bastionCanMark}
+                    canManage={bastionCanMark}
                     assignedStageKeys={tableAssignedStageKeys}
                     currentInitials={currentUser?.initials ?? ''}
                     onCreate={bastionExtras.create}
@@ -3994,6 +3998,7 @@ function App() {
                     candidates={bastionBatchCandidates}
                     isManager={isManager}
                     canMark={bastionCanMark}
+                    canManage={bastionCanMark}
                     canScrew={isManager || myAssignedStageKeys.has('oscieznica_skrecanie')}
                     assignedStageKeys={tableAssignedStageKeys}
                     currentInitials={currentUser?.initials ?? ''}

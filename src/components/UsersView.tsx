@@ -10,7 +10,7 @@ const ROLE_LEGEND: Array<{ role: string; opis: string }> = [
   { role: 'pracownik_produkcji', opis: 'Widzi przypisane kategorie, oznacza TYLKO swoje przypisane etapy (przycisk „Etapy produkcji"), dodaje komentarze i drukuje etykiety.' },
   { role: 'magazynier', opis: 'Podgląd zleceń + Wysyłka + ruchy magazynowe (PZ/MM). Bez edycji zleceń, komponentów i receptur.' },
   { role: 'obsluga_klienta', opis: 'Podgląd wszystkich zleceń + komentarze + druk etykiet. Bez edycji.' },
-  { role: 'kierownik_dzialu', opis: 'Pełny kierownik (tworzenie/edycja/wydawanie zleceń, etapy, magazyn, weryfikacja, statystyki) — ale TYLKO w przypisanych kategoriach. Np. brygadzista STA.' },
+  { role: 'kierownik_dzialu', opis: 'Pełny kierownik (tworzenie/edycja/wydawanie zleceń, etapy, magazyn, weryfikacja, statystyki) — ale TYLKO w przypisanych kategoriach. Np. brygadzista STA. Sam zakłada konta pracowników produkcji w swoich kategoriach, edytuje je, przypisuje etapy i resetuje hasła (nie usuwa kont, nie zmienia ról).' },
   { role: 'kierownik_magazynu', opis: 'Pełna firma, wszystkie kategorie — bez oznaczania „gotowe do fakturowania".' },
   { role: 'kierownik_produkcji', opis: 'Pełna firma, wszystkie kategorie, wszystko poza panelem administracyjnym.' },
   { role: 'admin', opis: 'Wszystko + panel administracyjny (Użytkownicy, Konfiguracja, Klucze API, Kontrahenci). Ceny widzą tylko kierownicy i admin.' },
@@ -27,6 +27,10 @@ type UsersViewProps = {
   onManageWorkerStages: (row: DbProfileRow) => void
   getRoleLabel: (role: string) => string
   getDepartmentLabel: (department: string, role: string) => string
+  /** twarde usuwanie kont — tylko admin */
+  canDelete: boolean
+  /** null = admin (wszyscy); tablica = kierownik działu widzi tylko pracowników produkcji z tych kategorii */
+  scopedCategories: string[] | null
 }
 
 export default function UsersView({
@@ -40,7 +44,22 @@ export default function UsersView({
   onManageWorkerStages,
   getRoleLabel,
   getDepartmentLabel,
+  canDelete,
+  scopedCategories,
 }: UsersViewProps) {
+  // Kierownik działu: tylko konta, którymi baza pozwoli mu zarządzać
+  // (pracownik produkcji, wszystkie kategorie w jego kategoriach) — inaczej
+  // klikałby w przyciski, które kończą się błędem uprawnień.
+  const visibleProfiles = useMemo(() => {
+    if (scopedCategories == null) return profiles
+    return profiles.filter(
+      (p) =>
+        p.role === 'pracownik_produkcji' &&
+        (p.categories ?? []).length > 0 &&
+        (p.categories ?? []).every((c) => scopedCategories.includes(c)),
+    )
+  }, [profiles, scopedCategories])
+
   const columns = useMemo<DataTableColumn<DbProfileRow>[]>(() => {
     const deptText = (row: DbProfileRow) =>
       row.categories && row.categories.length > 0
@@ -111,24 +130,26 @@ export default function UsersView({
             >
               Aktywuj
             </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-danger"
-              onClick={() => onDeleteUser(row)}
-              disabled={row.id === currentUserId}
-              title={
-                row.id === currentUserId
-                  ? 'Nie można usunąć własnego konta'
-                  : 'Twarde usunięcie — zadziała tylko dla kont bez historii (ruchy magazynowe, ZD). W innym wypadku użyj Dezaktywuj.'
-              }
-            >
-              Usuń
-            </button>
+            {canDelete && (
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                onClick={() => onDeleteUser(row)}
+                disabled={row.id === currentUserId}
+                title={
+                  row.id === currentUserId
+                    ? 'Nie można usunąć własnego konta'
+                    : 'Twarde usunięcie — zadziała tylko dla kont bez historii (ruchy magazynowe, ZD). W innym wypadku użyj Dezaktywuj.'
+                }
+              >
+                Usuń
+              </button>
+            )}
           </div>
         ),
       },
     ]
-  }, [currentUserId, onEditUser, onDeleteUser, onDeactivateUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
+  }, [currentUserId, canDelete, onEditUser, onDeleteUser, onDeactivateUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
 
   const [legendOpen, setLegendOpen] = useState(false)
 
@@ -150,15 +171,23 @@ export default function UsersView({
         )}
       </div>
 
+      {scopedCategories != null && (
+        <p className="user-modal-hint users-scope-hint">
+          Jako kierownik działu widzisz i zakładasz tylko konta <b>pracowników produkcji</b> w kategoriach:{' '}
+          <b>{scopedCategories.length > 0 ? scopedCategories.join(', ') : '(brak przypisanych kategorii — poproś administratora)'}</b>.
+          Nowe konto: „Dodaj użytkownika" u góry. Zapomniane hasło: przycisk „Hasło". Etapy na stanowisku: „Etapy produkcji".
+        </p>
+      )}
+
       {profilesLoading ? (
         <Spinner center label="Ładowanie użytkowników…" />
       ) : (
         <DataTable
-          rows={profiles}
+          rows={visibleProfiles}
           rowKey={(r) => r.id}
           columns={columns}
           className="contractors-table users-table"
-          emptyText="Brak użytkowników w bazie."
+          emptyText={scopedCategories != null ? 'Brak kont pracowników produkcji w Twoich kategoriach. Dodaj pierwsze przyciskiem „Dodaj użytkownika".' : 'Brak użytkowników w bazie.'}
         />
       )}
     </>

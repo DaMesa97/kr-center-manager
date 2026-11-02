@@ -4,7 +4,7 @@ import { INITIAL_USER_FORM } from '../constants'
 import type { CurrentUser, DbProfileRow, DeleteConfirmState, UserFormState } from '../types'
 import type { ToastVariant } from '../types'
 import type { Session, User } from '@supabase/supabase-js'
-import { isManagerRole } from '../lib/permissions'
+import { canManageUsers, usersScopeFor } from '../lib/permissions'
 
 // Przy non-2xx supabase-js daje generyczny error.message, a prawdziwy komunikat
 // funkcji jest w error.context (Response). Wyciągamy go, żeby user widział powód.
@@ -52,7 +52,9 @@ export function useUsers({
   const [userForm, setUserForm] = useState<UserFormState>(INITIAL_USER_FORM)
   const [userModalSaving, setUserModalSaving] = useState(false)
 
-  const isManager = isManagerRole(currentUser?.role)
+  // admin: wszystko; kierownik działu: tylko pracownicy produkcji w swoich kategoriach
+  const canManage = canManageUsers(currentUser?.role)
+  const scope = usersScopeFor(currentUser?.role, currentUser?.categories)
 
   const fetchProfiles = useCallback(async () => {
     touchSession()
@@ -88,15 +90,19 @@ export function useUsers({
   }, [pushToast, touchSession])
 
   const openAddUserModal = () => {
-    if (!isManager) return
+    if (!canManage) return
     setUserModalMode('add')
     setEditingProfileId(null)
-    setUserForm(INITIAL_USER_FORM)
+    setUserForm(
+      scope
+        ? { ...INITIAL_USER_FORM, role: 'pracownik_produkcji', categories: scope.length === 1 ? [...scope] : [] }
+        : INITIAL_USER_FORM,
+    )
     setUserModalOpen(true)
   }
 
   const openEditUserModal = (row: DbProfileRow) => {
-    if (!isManager) return
+    if (!canManage) return
     setUserModalMode('edit')
     setEditingProfileId(row.id)
     setUserForm({
@@ -125,13 +131,25 @@ export function useUsers({
   }
 
   const handleSaveUser = async () => {
-    if (!isManager) return
+    if (!canManage) return
     if (userModalSaving) return // guard double-submit (duplikat konta)
     const full_name = userForm.full_name.trim()
     const initials = userForm.initials.trim().slice(0, 3)
     if (!full_name || !initials) {
       pushToast('Uzupełnij imię i nazwisko oraz inicjały', 'error')
       return
+    }
+    if (scope) {
+      // to samo sprawdza baza (polityki profiles + trigger) — tu po to, żeby błąd był po ludzku
+      if (userForm.role !== 'pracownik_produkcji') {
+        pushToast('Kierownik działu zakłada tylko konta pracowników produkcji', 'error')
+        return
+      }
+      const cats = userForm.categories ?? []
+      if (cats.length === 0 || cats.some((c) => !scope.includes(c))) {
+        pushToast(`Zaznacz kategorie ze swojego działu: ${scope.join(', ') || '(brak przypisanych kategorii)'}`, 'error')
+        return
+      }
     }
     if (userModalMode === 'add') {
       const username = userForm.username.trim()
@@ -222,7 +240,7 @@ export function useUsers({
   }
 
   const handleDeleteUserClick = (row: DbProfileRow) => {
-    if (!isManager) return
+    if (!canManage) return
     if (row.id === currentUser?.id) {
       pushToast('Nie możesz usunąć własnego konta', 'error')
       return
@@ -254,7 +272,7 @@ export function useUsers({
   // (ruchy magazynowe, ZD, inwentaryzacje); ban blokuje logowanie,
   // a historia pracownika zostaje
   const handleDeactivateUser = async (row: DbProfileRow, deactivate: boolean) => {
-    if (!isManager) return
+    if (!canManage) return
     if (row.id === currentUser?.id) {
       pushToast('Nie możesz dezaktywować własnego konta', 'error')
       return
@@ -275,7 +293,7 @@ export function useUsers({
   }
 
   const handleResetPassword = async (row: DbProfileRow, newPassword: string): Promise<boolean> => {
-    if (!isManager) return false
+    if (!canManage) return false
     if (newPassword.length < 6) {
       pushToast('Hasło musi mieć co najmniej 6 znaków', 'error')
       return false

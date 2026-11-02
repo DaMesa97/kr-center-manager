@@ -21,6 +21,8 @@ type Props = {
   presets: string[]
   isManager: boolean
   canMark: boolean
+  /** nowa pozycja + edycja — kierownik albo pracownik z etapami Bastion (decyzja 2.11.2026); naklejka, zrealizowane, anulowanie — tylko isManager */
+  canManage?: boolean
   /** pracownik produkcji: przypisane klucze etapów (null = kierownik) — obce etapy nieklikalne */
   assignedStageKeys?: Set<string> | null
   currentInitials: string
@@ -55,6 +57,7 @@ export default function BastionExtrasPanel({
   presets,
   isManager,
   canMark,
+  canManage = isManager,
   assignedStageKeys = null,
   currentInitials,
   onCreate,
@@ -138,7 +141,7 @@ export default function BastionExtrasPanel({
           <label className="bastion-batches-toggle">
             <input type="checkbox" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} /> anulowane
           </label>
-          {isManager && (
+          {canManage && (
             <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => setModal({ open: true, extra: null })}>
               + Nowa pozycja
             </button>
@@ -175,7 +178,7 @@ export default function BastionExtrasPanel({
                 <th>NAKLEJKA</th>
                 <th>ZREALIZ.</th>
                 <th>WPISAŁ</th>
-                {isManager && <th>AKCJE</th>}
+                {canManage && <th>AKCJE</th>}
               </tr>
             </thead>
             <tbody>
@@ -241,14 +244,16 @@ export default function BastionExtrasPanel({
                       </button>
                     </td>
                     <td>{e.entered_by}</td>
-                    {isManager && (
+                    {canManage && (
                       <td className="bastion-extra-actions">
                         <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => setModal({ open: true, extra: e })}>
                           Edytuj
                         </button>
-                        <button type="button" className={`btn btn-sm ${e.is_cancelled ? 'btn-secondary' : 'btn-danger'}`} disabled={busy} onClick={() => void handleCancel(e)}>
-                          {e.is_cancelled ? 'Przywróć' : 'Anuluj'}
-                        </button>
+                        {isManager && (
+                          <button type="button" className={`btn btn-sm ${e.is_cancelled ? 'btn-secondary' : 'btn-danger'}`} disabled={busy} onClick={() => void handleCancel(e)}>
+                            {e.is_cancelled ? 'Przywróć' : 'Anuluj'}
+                          </button>
+                        )}
                       </td>
                     )}
                   </tr>

@@ -66,6 +66,6 @@ Zlecenia gotowe do wydania.
 ## ⚙️ Konfiguracja i uprawnienia (kierownik)
 - **Konfiguracja** — słowniki, wykluczenia, czasy realizacji, ustawienia firmy.
 - **Kontrahenci** — firmy, aliasy nazw, dni tras.
-- **Użytkownicy** — konta, role (kierownik/pracownik/sprzedawca), działy (decydują co kto widzi).
+- **Użytkownicy** — konta, role (kierownik/pracownik/sprzedawca), działy (decydują co kto widzi). Kierownik działu widzi tu tylko pracowników produkcji ze swoich kategorii: zakłada im konta, resetuje hasła, przypisuje etapy („Etapy produkcji"), dezaktywuje. Ról nie zmienia, kont nie usuwa — to admin.
 - **Klucze API** — konfigurator / integracje.
 - **Audyt / Archiwum** — historia zmian i zrealizowane zlecenia.
