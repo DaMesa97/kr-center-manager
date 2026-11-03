@@ -381,7 +381,7 @@ export default function ShippingView({
       render: (order) => (
         <>
           {order.order_number}
-          <ErpStatusBadge order={order} />
+          <ErpStatusBadge order={order} inline />
           {order.category === 'Aluminium' && aluOrderExtra(order).realizacja === 'montaz' && (
             <span className="alu-realizacja-chip alu-realizacja-chip--montaz" style={{ marginLeft: 6 }} title="Realizacja montażem własnym — nie jedzie transportem">
               MONTAŻ

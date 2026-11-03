@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useLayoutEffect, type DependencyList, type MutableRefObject, type ReactNode } from 'react'
 import StockStatusBadge from './StockStatusBadge'
 import ErpStatusBadge from './ErpStatusBadge'
+import { hasErpInfo } from '../lib/erpStatus'
 import OrderCommentsButton from './OrderCommentsButton'
 import { appConfirm } from '../lib/appDialogs'
 import type { DataTableColumn } from './DataTable'
@@ -209,7 +210,7 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
         'sticky-col sticky-1',
         opts.tdClassName,
         'col-order-number',
-        (opts.partnerBadge?.(o) || released) && 'col-order-number--with-badges',
+        (opts.partnerBadge?.(o) || released || hasErpInfo(o)) && 'col-order-number--with-badges',
       )
     },
     tdTitle: (o) => orderNumberCellTooltip(o, opts.partnerBadge?.(o) ?? null, !isReleaseDateEmpty(o.release_date)),
