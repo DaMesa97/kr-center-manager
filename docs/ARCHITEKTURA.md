@@ -134,7 +134,7 @@ ale baza mogła odjechać od pliku — przed edycją i tak porównaj z `pg_get_f
 |---|---|---|---|
 | Formularz w aplikacji | `useOrders.handleSaveOrder` | — | max+1 w kategorii |
 | Konfigurator (BOT) | Edge `orders-intake` → RPC `create_bot_order` | po `recordId` (airtable_id) | max+1 w kategorii |
-| Excel | Edge `orders-excel-intake` (w Supabase pod nazwą **`dynamic-handler`**) | po (kategoria + numer zlecenia) | numer z arkusza |
+| Excel | Edge `orders-excel-intake` (w Supabase pod nazwą **`dynamic-handler`**) | po (kategoria + numer zlecenia) z porównaniem treści; bliźniak z bota po numerze klienta (21 dni) albo — gdy numer nieporównywalny („-") — po treści (firma+model+szer+wys+kolor+strona+ilość, 6 h); przy konflikcie numeru arkusza identyczny wiersz z Excela z ostatnich 6 h = duplikat (4.11.2026) | numer z arkusza |
 
 Wszystkie trzy kanały po utworzeniu zlecenia wołają `reserve_stock_for_order`
 (rezerwacja magazynowa — sekcja 6).
