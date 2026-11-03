@@ -324,7 +324,7 @@ const SECTIONS: Section[] = [
         <ul>
           <li>Zlecenie z brakami (brak modelu, firmy, nieznana kategoria) dostaje flagę i trafia do zakładki <b>Weryfikacja</b> — kierownik uzupełnia dane i zatwierdza.</li>
           <li>Automaty same tworzą pary Disting Plus i trójki Titan — tak jak formularz.</li>
-          <li><b>Optima (RO)</b>: zamówienia z konfiguratora zakłada w Optimie automat. Przy numerze zlecenia widać zieloną plakietkę z numerem RO albo czerwoną <b>Błąd ERP</b> (najedź — zobaczysz powód, np. brak towaru w Optimie). Lista błędów jest w Weryfikacji w sekcji „Błędy ERP (Optima)", a kierownicy dostają powiadomienie w dzwonku. Poprawia się to w Airtable („Błędy automatyzacji (Optima)" → „Ponów wysyłkę"), nie w aplikacji.</li>
+          <li><b>Optima (RO)</b>: zamówienia z konfiguratora zakłada w Optimie automat. Przy numerze zlecenia widać zieloną plakietkę z numerem RO albo czerwoną <b>Błąd ERP</b> (najedź — zobaczysz powód, np. brak towaru w Optimie). Lista błędów jest w Weryfikacji w sekcji „Błędy ERP (Optima)", a kierownicy dostają powiadomienie w dzwonku. Po usunięciu przyczyny (np. dodaniu towaru w Optimie) kierownik klika <b>„Ponów wysyłkę do Optimy"</b> w oknie zlecenia albo na liście błędów — Make zakłada RO jeszcze raz i status sam się odświeży. Adres webhooka Make ustawia administrator w Konfiguracja → <b>Integracje</b>. Numer RO działa też w wyszukiwarce zleceń (wpisz np. „231/11").</li>
         </ul>
         <h4>Dopasowanie kontrahenta</h4>
         <ul>

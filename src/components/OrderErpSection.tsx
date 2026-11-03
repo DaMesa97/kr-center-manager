@@ -1,14 +1,19 @@
 import type { ErpFields } from '../lib/erpStatus'
 import { erpStatusLabel, fmtErpDate, hasErpInfo, isErpError, isErpOk } from '../lib/erpStatus'
 
-type Props = { order: ErpFields | null | undefined }
+type Props = {
+  order: ErpFields | null | undefined
+  /** kierownik: „Ponów wysyłkę do Optimy" (edge erp-retry -> webhook Make) */
+  onRetry?: () => void
+  retrying?: boolean
+}
 
 /**
  * Sekcja „Optima" w oknie zlecenia: numer RO, status, błąd, data. Tylko odczyt
  * (kolumny erp_* pisze Make; poprawki robi się w Airtable → „Ponów wysyłkę").
  * Nie pokazuje się, gdy zlecenie nie ma żadnej informacji z Optimy.
  */
-export default function OrderErpSection({ order }: Props) {
+export default function OrderErpSection({ order, onRetry, retrying = false }: Props) {
   if (!order || !hasErpInfo(order)) return null
   const ok = isErpOk(order)
   const err = isErpError(order)
@@ -35,6 +40,19 @@ export default function OrderErpSection({ order }: Props) {
             <div className="muted erp-section-hint">
               Poprawka po stronie Airtable: interfejs „Błędy automatyzacji (Optima)" → „Ponów wysyłkę". Aplikacja tych pól nie edytuje.
             </div>
+            {onRetry && (
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  disabled={retrying}
+                  onClick={onRetry}
+                  title="Wyślij zlecenie jeszcze raz do Make, żeby założył RO w Optimie (najpierw usuń przyczynę błędu, np. dodaj towar w Optimie)"
+                >
+                  {retrying ? 'Wysyłanie…' : '↻ Ponów wysyłkę do Optimy'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

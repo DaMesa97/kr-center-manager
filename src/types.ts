@@ -332,6 +332,7 @@ export type ConfigSubTab =
   | 'Słowniki'
   | 'Wykluczenia'
   | 'Słownik wymiarów'
+  | 'Integracje'
   | 'Naddatki szyb (naświetla)'
   | 'Dostawcy'
   | 'Dane firmy'

@@ -24,6 +24,9 @@ type Props = {
   /** zlecenia z erp_status = NIEPOMYŚLNY (RO w Optimie nie powstało) — najnowsze na górze */
   erpErrors: ErpErrorRow[]
   onOpenErpOrder: (orderId: number) => void
+  /** „Ponów wysyłkę do Optimy" (kierownik) */
+  onRetryErp: (row: ErpErrorRow) => void
+  retryingErpId: number | null
 }
 
 const sourceBadge = (source: string | null | undefined) => {
@@ -46,7 +49,7 @@ const formatWhen = (value: string | null): string => {
   return `${absolute} (${diffMinutes} min temu)`
 }
 
-export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMarkVerified, onCancel, duplicates, erpErrors, onOpenErpOrder }: Props) {
+export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMarkVerified, onCancel, duplicates, erpErrors, onOpenErpOrder, onRetryErp, retryingErpId }: Props) {
   const reviewColumns = useMemo<DataTableColumn<OrderNeedingReview>[]>(
     () => [
       { key: 'idx', label: '#', render: (_o, index) => index + 1 },
@@ -132,13 +135,24 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
         key: 'actions',
         label: 'Akcje',
         render: (r) => (
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenErpOrder(r.id)}>
-            Otwórz
-          </button>
+          <div className="contractor-actions">
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenErpOrder(r.id)}>
+              Otwórz
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              disabled={retryingErpId === r.id}
+              onClick={() => onRetryErp(r)}
+              title="Wyślij zlecenie jeszcze raz do Make, żeby założył RO w Optimie (najpierw usuń przyczynę błędu)"
+            >
+              {retryingErpId === r.id ? 'Wysyłanie…' : '↻ Ponów wysyłkę'}
+            </button>
+          </div>
         ),
       },
     ],
-    [onOpenErpOrder],
+    [onOpenErpOrder, onRetryErp, retryingErpId],
   )
 
   const duplicateColumns = useMemo<DataTableColumn<DuplicateGroup>[]>(

@@ -64,6 +64,7 @@ import GlobalSpinner from './components/GlobalSpinner'
 import ToastStack from './components/ToastStack'
 import StageRevertPopup from './components/StageRevertPopup'
 import StageSpecialMenu from './components/StageSpecialMenu'
+import { useErpRetry } from './hooks/useErpRetry'
 import { STAGE_NA, holdValue } from './lib/stageSpecial'
 import ReleaseClearPopup from './components/ReleaseClearPopup'
 import UsersView from './components/UsersView'
@@ -875,6 +876,9 @@ function App() {
     [isManager],
   )
 
+  // „Ponów wysyłkę do Optimy" (RO) — edge erp-retry → webhook Make z Konfiguracja → Integracje
+  const { retryErp, retryingId: erpRetryingId } = useErpRetry({ pushToast, enabled: isManager })
+
   const {
     activeStatsSubTab,
     setActiveStatsSubTab,
@@ -1556,6 +1560,10 @@ function App() {
       const matchCategory = order.category.toLowerCase() === activeCategory
       const matchQuery =
         String(order.order_number ?? '')
+          .toLowerCase()
+          .includes(query) ||
+        // numer RO z Optimy (ZLEC/231/11/2026) — „231/11" trafia w zlecenie
+        String(order.erp_ro_number ?? '')
           .toLowerCase()
           .includes(query) ||
         String(order.disting_sheet ?? '')
@@ -2974,6 +2982,12 @@ function App() {
               onRequestClose: handleRequestCloseOrderModal,
               onPrintLabel: (o: Order) => setPrintLabelOrder(o),
               onPrintDop: (o: Order) => setDopOrder(o),
+              onErpRetry: isManager
+                ? (o: Order) => {
+                    if (o.id !== undefined) void retryErp({ id: o.id, order_number: o.order_number, category: o.category })
+                  }
+                : undefined,
+              erpRetryingId,
               editingOrderId,
               editingOrderBaseline,
               newOrderFormNumber,
@@ -3457,6 +3471,8 @@ function App() {
             duplicates={suspectedDuplicates}
             erpErrors={erpErrors}
             onOpenErpOrder={handleOpenReviewOrder}
+            onRetryErp={(r) => void retryErp(r)}
+            retryingErpId={erpRetryingId}
           />
         ) : isAuditTab && isManager ? (
           <AuditLogView

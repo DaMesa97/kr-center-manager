@@ -72,6 +72,8 @@ function OrderFormModal(props: OrderFormModalProps) {
     onRequestClose,
     onPrintLabel,
     onPrintDop,
+    onErpRetry,
+    erpRetryingId,
     editingOrderId,
     editingOrderBaseline,
     newOrderFormNumber,
@@ -279,7 +281,11 @@ function OrderFormModal(props: OrderFormModalProps) {
                   </button>
                 </div>
               </div>
-              <OrderErpSection order={editingOrderBaseline} />
+              <OrderErpSection
+                order={editingOrderBaseline}
+                onRetry={onErpRetry && editingOrderBaseline ? () => onErpRetry(editingOrderBaseline) : undefined}
+                retrying={erpRetryingId != null && erpRetryingId === editingOrderBaseline?.id}
+              />
               {isBotOrder(editingOrderBaseline) && (() => {
                 const meta = getBotMetadata(editingOrderBaseline)
                 const warnings = getBotWarnings(editingOrderBaseline)

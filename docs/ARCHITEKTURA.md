@@ -163,8 +163,21 @@ W aplikacji (`src/lib/erpStatus.ts` jako jedyne miejsce interpretacji):
   go nie mają → jedno powiadomienie na zamówienie), ten sam błąd nie powtarza się
   przez dobę; indeksy `orders_erp_error_idx`, `orders_erp_ro_number_idx`.
 
-Na później (nie zamykać drogi): przycisk „Ponów wysyłkę do Optimy" (webhook Make),
-porównanie stanów i rezerwacji Optimy ze `stock_reservations`, RO → faktura po wydaniu.
+- **„Ponów wysyłkę do Optimy"** (sekcja Optima w oknie zlecenia i lista błędów w
+  Weryfikacji, tylko kierownik, potwierdzenie, blokada 30 s per zlecenie): hook
+  `useErpRetry` → edge `erp-retry` → webhook Make. Adres webhooka trzyma
+  `integration_settings.erp_retry_webhook_url` (tabela klucz/wartość, RLS: tylko
+  admin; UI: Konfiguracja → Integracje), funkcja czyta go service_role. Warunki:
+  zlecenie ma `airtable_id` i `erp_status = NIEPOMYŚLNY`; payload
+  `{action:'erp_retry', airtable_id, order_id, order_number, category, company,
+  previous_error, requested_by, requested_at}`; każde wysłanie w `audit_log`
+  (`action: erp_retry`). Kolumn `erp_*` funkcja nie dotyka — status wraca od Make.
+- szukanie po numerze RO w tabelach kategorii („231/11"), RO w Wysyłce (plakietka)
+  i w Archiwum (kolumna + szczegóły; `orders_archive` ma kolumny `erp_*`,
+  `migrate/erp_retry_integracje.sql`).
+
+Na później (nie zamykać drogi): porównanie stanów i rezerwacji Optimy ze
+`stock_reservations`, RO → faktura po wydaniu.
 
 **Duble bot↔excel** (rozwiązane 2026-09-08): zlecenia konfiguratora wchodzą i przez
 API, i przez Excel (arkusz musi je mieć — pracują z niego handlowcy), więc
@@ -410,6 +423,7 @@ mówi co robi i kiedy odpalić. Ważne pliki:
 - `relink_disting_plus.sql` — naprawa zerwanych powiązań par.
 - `labels.sql`, `feedback.sql`, `notifications.sql`, `order_photos.sql` — tabele modułów.
 - `erp_status_powiadomienia.sql` — status RO z Optimy: trigger powiadomień `erp_error` + indeksy (sekcja 4a).
+- `erp_retry_integracje.sql` — `integration_settings` (webhook „Ponów wysyłkę do Optimy") + kolumny `erp_*` w `orders_archive`.
 - `print_documents_dwu.sql`, `bastion_side_top_panel.sql`, `orders_wentylacja.sql` —
   rozszerzenia kolumn.
 

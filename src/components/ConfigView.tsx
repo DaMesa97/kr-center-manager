@@ -15,6 +15,7 @@ import type {
 import SearchableSelect from './SearchableSelect'
 import SuppliersConfigView from './config/SuppliersConfigView'
 import CompanySettingsView from './config/CompanySettingsView'
+import IntegrationsSettingsView from './config/IntegrationsSettingsView'
 import LeadTimeRulesView from './config/LeadTimeRulesView'
 import BastionRulesSection from './config/BastionRulesSection'
 import Spinner from './Spinner'
@@ -432,6 +433,16 @@ export default function ConfigView({
             onClick={() => setActiveConfigSubTab('Dane firmy')}
           >
             Dane firmy
+          </button>
+        )}
+        {isManager && (
+          <button
+            type="button"
+            className={`btn btn-sm ${activeConfigSubTab === 'Integracje' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveConfigSubTab('Integracje')}
+            title="Adresy webhooków Make (np. Ponów wysyłkę do Optimy)"
+          >
+            Integracje
           </button>
         )}
         {isManager && (
@@ -900,6 +911,9 @@ export default function ConfigView({
           onSaved={onCompanySettingsSaved}
           pushToast={pushToast}
         />
+      )}
+      {activeConfigSubTab === 'Integracje' && isManager && (
+        <IntegrationsSettingsView pushToast={pushToast} />
       )}
       {activeConfigSubTab === 'Terminy realizacji' && isManager && (
         <LeadTimeRulesView
