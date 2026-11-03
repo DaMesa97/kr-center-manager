@@ -83,6 +83,12 @@ export type Order = {
   extra_fields?: unknown
   sta_ref?: string | null
   st_sheet?: string | null
+  // RO w Optimie (zapisuje wyłącznie Make przez edge erp-status → set_erp_status;
+  // frontend tylko czyta). null = jeszcze nie przetworzone / zlecenie spoza tej ścieżki.
+  erp_ro_number?: string | null
+  erp_status?: 'POMYŚLNY' | 'NIEPOMYŚLNY' | string | null
+  erp_error?: string | null
+  erp_updated_at?: string | null
   stock_status?: 'ok' | 'insufficient' | 'no_recipe' | 'partial_recipe' | null
   stock_issues?: Array<{
     type?: 'shortage' | 'missing_recipe' | 'missing_warehouse' | 'inactive_component' | 'glass_not_received'

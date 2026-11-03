@@ -8,6 +8,7 @@ import FormInput from './FormInput'
 import { getBotMetadata, getBotWarnings, isBotOrder } from '../utils/botOrder'
 import { bastionFrameOptionForOrder, findBestCompanyMatch, isCompanyInBase, isTitanSystem } from '../utils'
 import StockWarningBanner from './StockWarningBanner'
+import OrderErpSection from './OrderErpSection'
 import DamageReportModal from './DamageReportModal'
 import { useStockPreview } from '../hooks/useStockPreview'
 import { buildPreviewPayload } from '../lib/stockPreview'
@@ -278,7 +279,8 @@ function OrderFormModal(props: OrderFormModalProps) {
                   </button>
                 </div>
               </div>
-                            {isBotOrder(editingOrderBaseline) && (() => {
+              <OrderErpSection order={editingOrderBaseline} />
+              {isBotOrder(editingOrderBaseline) && (() => {
                 const meta = getBotMetadata(editingOrderBaseline)
                 const warnings = getBotWarnings(editingOrderBaseline)
                 return (

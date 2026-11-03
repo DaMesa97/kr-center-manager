@@ -5,6 +5,7 @@
 // =====================================================================
 import { useCallback, useEffect, useLayoutEffect, type DependencyList, type MutableRefObject, type ReactNode } from 'react'
 import StockStatusBadge from './StockStatusBadge'
+import ErpStatusBadge from './ErpStatusBadge'
 import OrderCommentsButton from './OrderCommentsButton'
 import { appConfirm } from '../lib/appDialogs'
 import type { DataTableColumn } from './DataTable'
@@ -264,6 +265,7 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
             category={o.category}
             glassAllowances={ctx.glassAllowances}
           />
+          <ErpStatusBadge order={o} />
         </>
       )
     },
