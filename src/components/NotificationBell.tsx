@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, Check, ClipboardCheck, AlertTriangle, MessageSquare, Package } from 'lucide-react'
+import { Bell, Check, ClipboardCheck, AlertTriangle, MessageSquare, Package, FileX2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import type { AppNotification } from '../types'
 
@@ -13,6 +13,8 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   stock: <AlertTriangle size={15} />,
   complaint: <MessageSquare size={15} />,
   overdue: <Package size={15} />,
+  // RO w Optimie nie powstało (trigger notify_erp_error)
+  erp_error: <FileX2 size={15} />,
 }
 
 function timeAgo(iso: string): string {
