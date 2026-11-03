@@ -17,8 +17,7 @@ import type {
   RecipeFormState, ShoppingListItem, SmartRopRow, Supplier,
   ToastVariant, Warehouse, WarehouseComponent, WarehouseComponentCreateInput,
   WarehouseComponentUpdateInput, WarehouseMovementRow, WarehouseRecipe,
-  WarehouseRecipeComponent, WarehouseStockRow, WarehouseSubTab
-} from '../types'
+  WarehouseRecipeComponent, WarehouseStockRow, WarehouseSubTab, ErpErrorRow } from '../types'
 import React from 'react'
 
 type UseWarehouseParams = {
@@ -118,6 +117,8 @@ export function useWarehouse({
   const [warehouseEditRequestComponent, setWarehouseEditRequestComponent] = useState<WarehouseComponent | null>(null)
   const [ordersNeedingReview, setOrdersNeedingReview] = useState<OrderNeedingReview[]>([])
   const [reviewLoading, setReviewLoading] = useState(false)
+  // Błędy zakładania RO w Optimie (orders.erp_status = NIEPOMYŚLNY) — ta sama pętla odświeżania co weryfikacja
+  const [erpErrors, setErpErrors] = useState<ErpErrorRow[]>([])
 
   // ---------------------------------------------------------------------------
   // Fetch functions
@@ -581,6 +582,20 @@ export function useWarehouse({
       source: row.source == null ? null : String(row.source),
     }))
     setOrdersNeedingReview(mapped)
+
+    // Błędy ERP — najnowsze na górze; kolumny erp_* pisze wyłącznie Make
+    const { data: erpData, error: erpErr } = await supabase
+      .from('orders')
+      .select('id, order_number, category, company, client_order_number, erp_ro_number, erp_status, erp_error, erp_updated_at')
+      .eq('erp_status', 'NIEPOMYŚLNY')
+      .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.eq.false')
+      .order('erp_updated_at', { ascending: false, nullsFirst: false })
+      .limit(300)
+    if (erpErr) {
+      console.error('[erpErrors]', erpErr)
+    } else {
+      setErpErrors((erpData ?? []) as ErpErrorRow[])
+    }
   }, [pushToast])
 
   // ---------------------------------------------------------------------------
@@ -1899,6 +1914,7 @@ export function useWarehouse({
     warehouseEditRequestComponent,
     setWarehouseEditRequestComponent,
     ordersNeedingReview,
+    erpErrors,
     setOrdersNeedingReview,
     reviewLoading,
     // Fetch functions

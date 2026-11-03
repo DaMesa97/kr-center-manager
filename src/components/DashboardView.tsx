@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Package, AlertTriangle, ClipboardCheck, Truck, RefreshCw,
+  Package, AlertTriangle, ClipboardCheck, Truck, RefreshCw, FileX2,
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import Spinner from './Spinner'
@@ -9,6 +9,8 @@ import { fetchAllPages } from '../lib/fetchPaged'
 type Props = {
   currentUserFullName: string
   reviewCount: number
+  /** zlecenia z erp_status = NIEPOMYŚLNY (RO w Optimie nie powstało) */
+  erpErrorCount?: number
   alertsBadgeCount: number
   onNavigate: (tab: string) => void
 }
@@ -50,6 +52,7 @@ function greeting(): string {
 export default function DashboardView({
   currentUserFullName,
   reviewCount,
+  erpErrorCount = 0,
   alertsBadgeCount,
   onNavigate,
 }: Props) {
@@ -117,6 +120,17 @@ export default function DashboardView({
           <ClipboardCheck size={22} />
           <div className="dashboard-alert-num">{reviewCount}</div>
           <div className="dashboard-alert-label">Czeka na weryfikację</div>
+        </button>
+
+        <button
+          type="button"
+          className={`dashboard-alert-card ${erpErrorCount > 0 ? 'dashboard-alert-card--danger' : ''}`}
+          onClick={() => onNavigate('Weryfikacja')}
+          title="Zamówienia z konfiguratora, dla których nie powstało RO w Optimie (poprawka w Airtable → Ponów wysyłkę)"
+        >
+          <FileX2 size={22} />
+          <div className="dashboard-alert-num">{erpErrorCount}</div>
+          <div className="dashboard-alert-label">Błędy ERP (Optima)</div>
         </button>
 
         <button

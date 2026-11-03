@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import type { Order, OrderNeedingReview } from '../types'
+import type { ErpErrorRow, Order, OrderNeedingReview } from '../types'
+import { fmtErpDate } from '../lib/erpStatus'
 import type { DuplicateCandidate, DuplicateGroup } from '../lib/duplicateDetect'
 import { countCompletedStages } from '../utils'
 import Spinner from './Spinner'
@@ -20,6 +21,9 @@ type Props = {
   onMarkVerified: (orderId: number) => Promise<void>
   onCancel: (orderId: number) => Promise<void>
   duplicates: DuplicateGroup[]
+  /** zlecenia z erp_status = NIEPOMYŚLNY (RO w Optimie nie powstało) — najnowsze na górze */
+  erpErrors: ErpErrorRow[]
+  onOpenErpOrder: (orderId: number) => void
 }
 
 const sourceBadge = (source: string | null | undefined) => {
@@ -42,7 +46,7 @@ const formatWhen = (value: string | null): string => {
   return `${absolute} (${diffMinutes} min temu)`
 }
 
-export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMarkVerified, onCancel, duplicates }: Props) {
+export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMarkVerified, onCancel, duplicates, erpErrors, onOpenErpOrder }: Props) {
   const reviewColumns = useMemo<DataTableColumn<OrderNeedingReview>[]>(
     () => [
       { key: 'idx', label: '#', render: (_o, index) => index + 1 },
@@ -100,6 +104,41 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
       },
     ],
     [onEdit, onMarkVerified, onCancel],
+  )
+
+  const erpColumns = useMemo<DataTableColumn<ErpErrorRow>[]>(
+    () => [
+      {
+        key: 'order_number',
+        label: 'Zlecenie',
+        sortValue: (r) => r.order_number,
+        render: (r) => (
+          <button type="button" className="btn-link" onClick={() => onOpenErpOrder(r.id)} title="Otwórz zlecenie">
+            <strong>{r.order_number}</strong>
+          </button>
+        ),
+      },
+      { key: 'category', label: 'Kategoria', sortValue: (r) => r.category, render: (r) => r.category },
+      { key: 'company', label: 'Firma', sortValue: (r) => r.company ?? '', render: (r) => r.company ?? '—' },
+      { key: 'client_order_number', label: 'Nr zam. klienta', sortValue: (r) => r.client_order_number ?? '', render: (r) => r.client_order_number ?? '—' },
+      {
+        key: 'erp_error',
+        label: 'Błąd z Optimy',
+        sortValue: (r) => r.erp_error ?? '',
+        render: (r) => <span className="erp-error-text">{r.erp_error?.trim() || 'Make nie podał treści błędu'}</span>,
+      },
+      { key: 'erp_updated_at', label: 'Kiedy', sortValue: (r) => r.erp_updated_at ?? '', render: (r) => fmtErpDate(r.erp_updated_at) },
+      {
+        key: 'actions',
+        label: 'Akcje',
+        render: (r) => (
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenErpOrder(r.id)}>
+            Otwórz
+          </button>
+        ),
+      },
+    ],
+    [onOpenErpOrder],
   )
 
   const duplicateColumns = useMemo<DataTableColumn<DuplicateGroup>[]>(
@@ -179,6 +218,28 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
           rows={orders}
           rowKey={(o) => o.id}
           columns={reviewColumns}
+          className="orders-review-table"
+          rowClassName={() => 'orders-review-row'}
+        />
+      )}
+
+      <div className="orders-review-header" style={{ marginTop: 32 }}>
+        <h2>🧾 Błędy ERP (Optima)</h2>
+        <p>
+          Zamówienia z konfiguratora, dla których Make nie zdołał założyć RO w Optimie (najczęściej: brak towaru
+          w kartotece Optimy). Najnowsze na górze. Poprawia się to w Airtable — interfejs „Błędy automatyzacji (Optima)"
+          i przycisk „Ponów wysyłkę"; po udanej wysyłce status sam zniknie z tej listy.
+        </p>
+        <div className="orders-review-count">{erpErrors.length} zleceń z błędem</div>
+      </div>
+
+      {erpErrors.length === 0 ? (
+        <p className="no-results">🎉 Brak błędów ERP — wszystkie RO założone.</p>
+      ) : (
+        <DataTable
+          rows={erpErrors}
+          rowKey={(r) => r.id}
+          columns={erpColumns}
           className="orders-review-table"
           rowClassName={() => 'orders-review-row'}
         />

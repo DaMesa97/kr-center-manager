@@ -445,6 +445,7 @@ function App() {
     warehouseEditRequestComponent,
     setWarehouseEditRequestComponent,
     ordersNeedingReview,
+    erpErrors,
     setOrdersNeedingReview,
     reviewLoading,
     fetchWarehouseComponents,
@@ -2894,7 +2895,7 @@ function App() {
         visibleTabs={visibleTabs}
         activeTab={activeTab}
         onChange={(tab) => setActiveTab(tab as (typeof TABS)[number])}
-        reviewCount={ordersNeedingReview.length}
+        reviewCount={ordersNeedingReview.length + erpErrors.length}
         warehouseAlertsCount={alertsBadgeCount}
         overdueCount={overdueCount + warningCount}
       />
@@ -3311,6 +3312,7 @@ function App() {
           <DashboardView
             currentUserFullName={currentUser?.full_name ?? ''}
             reviewCount={ordersNeedingReview.length}
+            erpErrorCount={erpErrors.length}
             alertsBadgeCount={alertsBadgeCount}
             onNavigate={(tab) => setActiveTab(tab as (typeof TABS)[number])}
           />
@@ -3453,6 +3455,8 @@ function App() {
             onMarkVerified={handleMarkVerified}
             onCancel={handleCancelReviewOrder}
             duplicates={suspectedDuplicates}
+            erpErrors={erpErrors}
+            onOpenErpOrder={handleOpenReviewOrder}
           />
         ) : isAuditTab && isManager ? (
           <AuditLogView

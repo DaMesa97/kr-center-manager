@@ -8622,3 +8622,5 @@ body:has(.app--large) .toast-message { font-size: 1.1rem; font-weight: 600; }
 .erp-section-error { grid-column: 1 / -1; color: #7f1d1d; }
 .erp-section-hint { margin-top: 4px; font-size: 0.82rem; }
 .erp-error-text { white-space: normal; max-width: 420px; color: #7f1d1d; }
+.btn-link { background: none; border: 0; padding: 0; color: #005faf; cursor: pointer; font: inherit; text-decoration: underline; }
+.btn-link:hover { color: #003f75; }

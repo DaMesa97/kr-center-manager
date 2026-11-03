@@ -170,6 +170,19 @@ export type OrderNeedingReview = {
   source: string | null
 }
 
+/** Zlecenie z błędem zakładania RO w Optimie (sekcja „Błędy ERP" w Weryfikacji; tylko odczyt). */
+export type ErpErrorRow = {
+  id: number
+  order_number: string
+  category: string
+  company: string | null
+  client_order_number: string | null
+  erp_ro_number: string | null
+  erp_status: string | null
+  erp_error: string | null
+  erp_updated_at: string | null
+}
+
 export type ComplaintFormData = {
   order_id: number | null
   order_number: string
