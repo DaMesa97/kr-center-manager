@@ -139,6 +139,33 @@ ale baza mogła odjechać od pliku — przed edycją i tak porównaj z `pg_get_f
 Wszystkie trzy kanały po utworzeniu zlecenia wołają `reserve_stock_for_order`
 (rezerwacja magazynowa — sekcja 6).
 
+### 4a. Status RO z Optimy (od 4.11.2026)
+
+Zamówienia z konfiguratora zakłada w Optimie Make (scenariusz „Dodaj zamówienie do
+ERP (API Optima)"), a wynik odkłada w aplikacji przez edge `erp-status` (klucz z
+`api_keys`) → `set_erp_status(airtable_id, ro, status, error)`. Kolumny
+`orders.erp_ro_number / erp_status (POMYŚLNY | NIEPOMYŚLNY | null) / erp_error /
+erp_updated_at` pisze **wyłącznie Make**; frontend tylko czyta (poprawki w Airtable:
+„Błędy automatyzacji (Optima)" → Ponów wysyłkę). RO bywa wcześniej niż zlecenie w
+aplikacji — status czeka w `erp_status_by_airtable` i dopina go trigger BEFORE INSERT
+`trg_orders_apply_erp_status`. `set_erp_status` kopiuje status na partnera pary
+Disting Plus i nogi Titana.
+
+W aplikacji (`src/lib/erpStatus.ts` jako jedyne miejsce interpretacji):
+- plakietka przy numerze zlecenia (`ErpStatusBadge` w `orderNumberCol`): zielona
+  `RO 231/11/2026`, czerwona `Błąd ERP` (tooltip z treścią), nic gdy null;
+- sekcja „Optima (RO)" w oknie zlecenia (`OrderErpSection`, tylko odczyt);
+- Weryfikacja → sekcja „Błędy ERP (Optima)" (`erpErrors` w `useWarehouse`, to samo
+  odświeżanie co weryfikacja, co 60 s), licznik w sidebarze, kafelek na Pulpicie;
+- powiadomienia: trigger `trg_notify_erp_error` (`migrate/erp_status_powiadomienia.sql`)
+  → `notifications.type = 'erp_error'` dla admin / manager / kierownik_produkcji /
+  kierownik_firmowy, tylko dla wiersza z `airtable_id` (partnerzy pary i nogi Titana
+  go nie mają → jedno powiadomienie na zamówienie), ten sam błąd nie powtarza się
+  przez dobę; indeksy `orders_erp_error_idx`, `orders_erp_ro_number_idx`.
+
+Na później (nie zamykać drogi): przycisk „Ponów wysyłkę do Optimy" (webhook Make),
+porównanie stanów i rezerwacji Optimy ze `stock_reservations`, RO → faktura po wydaniu.
+
 **Duble bot↔excel** (rozwiązane 2026-09-08): zlecenia konfiguratora wchodzą i przez
 API, i przez Excel (arkusz musi je mieć — pracują z niego handlowcy), więc
 `orders-excel-intake` robi **dedup krzyżowy**: wiersz jest pomijany
@@ -382,6 +409,7 @@ mówi co robi i kiedy odpalić. Ważne pliki:
 **Narzędziowe / naprawcze:**
 - `relink_disting_plus.sql` — naprawa zerwanych powiązań par.
 - `labels.sql`, `feedback.sql`, `notifications.sql`, `order_photos.sql` — tabele modułów.
+- `erp_status_powiadomienia.sql` — status RO z Optimy: trigger powiadomień `erp_error` + indeksy (sekcja 4a).
 - `print_documents_dwu.sql`, `bastion_side_top_panel.sql`, `orders_wentylacja.sql` —
   rozszerzenia kolumn.
 
