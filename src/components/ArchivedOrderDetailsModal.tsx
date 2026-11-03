@@ -15,6 +15,8 @@ const BASIC_FIELDS: FieldDef[] = [
   { key: 'category', label: 'Kategoria' },
   { key: 'company', label: 'Firma' },
   { key: 'client_order_number', label: 'Nr zamówienia klienta' },
+  { key: 'erp_ro_number', label: 'RO w Optimie' },
+  { key: 'erp_status', label: 'Status Optima' },
   { key: 'quantity', label: 'Ilość' },
   { key: 'order_date', label: 'Data zamówienia' },
   { key: 'release_date', label: 'Data wydania' },

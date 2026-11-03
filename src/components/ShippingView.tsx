@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { GlassAllowance, LeadTimeRule, Order } from '../types'
 import { CATEGORY_LABELS, ROUTE_PLAN_ENABLED } from '../constants'
 import { aluOrderExtra } from '../lib/alu'
+import ErpStatusBadge from './ErpStatusBadge'
 import {
   autoSuggestReadyToInvoice,
   countCompletedStages,
@@ -380,6 +381,7 @@ export default function ShippingView({
       render: (order) => (
         <>
           {order.order_number}
+          <ErpStatusBadge order={order} />
           {order.category === 'Aluminium' && aluOrderExtra(order).realizacja === 'montaz' && (
             <span className="alu-realizacja-chip alu-realizacja-chip--montaz" style={{ marginLeft: 6 }} title="Realizacja montażem własnym — nie jedzie transportem">
               MONTAŻ

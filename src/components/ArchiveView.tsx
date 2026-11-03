@@ -159,6 +159,7 @@ export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCre
   const orderColumns = useMemo<DataTableColumn<ArchivedOrder>[]>(
     () => [
       { key: 'order_number', label: 'NR ZLECENIA', sortValue: (o) => o.order_number, render: (o) => o.order_number },
+      { key: 'erp_ro_number', label: 'RO OPTIMA', sortValue: (o) => o.erp_ro_number ?? '', render: (o) => o.erp_ro_number ?? '—' },
       { key: 'created_at', label: 'DATA UTWORZENIA', sortValue: (o) => o.created_at, render: (o) => formatDate(o.created_at) },
       { key: 'archived_at', label: 'DATA ARCH.', sortValue: (o) => o.archived_at, render: (o) => formatDate(o.archived_at) },
       { key: 'category', label: 'KATEGORIA', sortValue: (o) => o.category, render: (o) => o.category },
