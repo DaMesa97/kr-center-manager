@@ -296,28 +296,90 @@ export const companiesMatch = (a: unknown, b: unknown): boolean => {
   return shorter.every((t) => longer.includes(t))
 }
 
+// Ten sam produkt (bliźniak po TREŚCI): model, szerokość, wysokość, kolor
+// skrzydła, strona, ilość. Używane, gdy numer klienta jest nieporównywalny
+// ('-', puste): 7 dubli bot+excel w 60 dni (3.11.2026) szło właśnie tak.
+const sameProduct = (a: Record<string, unknown>, b: Record<string, unknown>): boolean => {
+  const n = (v: unknown) => String(v ?? '').trim().toUpperCase()
+  return (
+    n(a.model) === n(b.model) &&
+    n(a.width) === n(b.width) &&
+    n(a.height) === n(b.height) &&
+    n(a.wing_color) === n(b.wing_color) &&
+    n(a.direction) === n(b.direction) &&
+    (Number(a.quantity) || 1) === (Number(b.quantity) || 1)
+  )
+}
+// Przepływ konfigurator → Excel trwa minuty (obserwowane 6–39 min); 6 h to
+// bezpieczny margines, a nie łapie legalnego drugiego zamówienia tych samych
+// drzwi tydzień później.
+const CONTENT_TWIN_WINDOW_MS = 6 * 3600 * 1000
+const PRODUCT_COLUMNS = 'id, order_number, company, client_order_number, model, width, height, wing_color, direction, quantity'
+
 const findBotTwin = async (
   supabase: any,
   payload: Record<string, unknown>,
 ): Promise<{ id: number; order_number: string } | null> => {
   const clientNo = String(payload.client_order_number ?? '').trim().toUpperCase()
   const company = String(payload.company ?? '').trim().toUpperCase()
-  if (!isComparableClientNumber(clientNo) || !company) return null
+  if (!company) return null
 
-  const since = new Date(Date.now() - BOT_TWIN_WINDOW_DAYS * 86400 * 1000).toISOString()
+  if (isComparableClientNumber(clientNo)) {
+    const since = new Date(Date.now() - BOT_TWIN_WINDOW_DAYS * 86400 * 1000).toISOString()
+    const { data } = await supabase
+      .from('orders')
+      .select('id, order_number, company, client_order_number')
+      .eq('category', String(payload.category ?? ''))
+      .eq('source', 'bot')
+      .gte('created_at', since)
+    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      if (
+        companiesMatch(row.company, company) &&
+        String(row.client_order_number ?? '').trim().toUpperCase() === clientNo
+      ) {
+        return { id: Number(row.id), order_number: String(row.order_number ?? '') }
+      }
+    }
+    return null
+  }
+
+  // Numer klienta nieporównywalny → bliźniak z bota po treści w wąskim oknie
+  const since = new Date(Date.now() - CONTENT_TWIN_WINDOW_MS).toISOString()
   const { data } = await supabase
     .from('orders')
-    .select('id, order_number, company, client_order_number')
+    .select(PRODUCT_COLUMNS)
     .eq('category', String(payload.category ?? ''))
     .eq('source', 'bot')
     .gte('created_at', since)
   for (const row of (data ?? []) as Array<Record<string, unknown>>) {
-    if (
-      companiesMatch(row.company, company) &&
-      String(row.client_order_number ?? '').trim().toUpperCase() === clientNo
-    ) {
+    if (companiesMatch(row.company, company) && sameProduct(row, payload)) {
       return { id: Number(row.id), order_number: String(row.order_number ?? '') }
     }
+  }
+  return null
+}
+
+// Ten sam wiersz z arkusza wysłany drugi raz pod INNYM numerem (np. po
+// przesunięciu wierszy): identyczny produkt tej samej firmy (i ten sam numer
+// klienta, gdy porównywalny) z ostatnich godzin. 28.10: 958 → 7173.
+const findExcelTwin = async (
+  supabase: any,
+  payload: Record<string, unknown>,
+): Promise<{ id: number; order_number: string } | null> => {
+  const company = String(payload.company ?? '').trim().toUpperCase()
+  if (!company) return null
+  const clientNo = String(payload.client_order_number ?? '').trim().toUpperCase()
+  const since = new Date(Date.now() - CONTENT_TWIN_WINDOW_MS).toISOString()
+  const { data } = await supabase
+    .from('orders')
+    .select(PRODUCT_COLUMNS)
+    .eq('category', String(payload.category ?? ''))
+    .eq('source', 'excel')
+    .gte('created_at', since)
+  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    if (!companiesMatch(row.company, company) || !sameProduct(row, payload)) continue
+    if (isComparableClientNumber(clientNo) && String(row.client_order_number ?? '').trim().toUpperCase() !== clientNo) continue
+    return { id: Number(row.id), order_number: String(row.order_number ?? '') }
   }
   return null
 }
@@ -477,7 +539,18 @@ serve(async (req) => {
             results.push({ index: i, status: 'duplicate', order_number: orderNumber, category })
             continue
           }
-          // KONFLIKT NUMERU: inny towar pod tym numerem — nadajemy nowy numer
+          // KONFLIKT NUMERU: zanim nadamy nowy numer — czy to nie ten sam wiersz
+          // arkusza wysłany drugi raz pod innym numerem? (identyczny produkt tej
+          // samej firmy z ostatnich godzin → duplikat, nie nowe zlecenie)
+          const excelTwin = await findExcelTwin(supabase, payload)
+          if (excelTwin) {
+            results.push({
+              index: i, status: 'duplicate', order_number: orderNumber, category,
+              reason: `identyczny wiersz już wszedł jako ${excelTwin.order_number} (id ${excelTwin.id})`,
+            })
+            continue
+          }
+          // inny towar pod tym numerem — nadajemy nowy numer
           // z RPC i wstawiamy z flagą do weryfikacji, zamiast cicho wyrzucać
           const newNumber = await nextOrderNumber(supabase, category)
           payload.order_number = newNumber
