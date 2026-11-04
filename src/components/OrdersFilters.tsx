@@ -1,4 +1,5 @@
 import { PRODUCTION_DAYS } from '../constants'
+import { DATE_PRESET_LABELS, describeDateRange, isDateFilterActive, type DateRangeFilter } from '../lib/dateRange'
 
 const WYKONAWCA_OPTIONS = [
   { value: 'Center', label: 'CENTER', color: '#9b1c1c' },
@@ -18,6 +19,9 @@ type OrdersFiltersProps = {
   showWykonawcaFilter: boolean
   /** filtr dnia produkcji — aluminium ma termin z kalendarza, nie dzień tygodnia */
   showDayFilter?: boolean
+  /** filtr dat zamówienia (presety + własny zakres) */
+  dateFilter: DateRangeFilter
+  onDateFilterChange: (v: DateRangeFilter) => void
   onSearchChange: (v: string) => void
   // Enter w polu = wyszukaj natychmiast (bez czekania na debounce)
   onSearchCommit?: (v: string) => void
@@ -36,6 +40,8 @@ export default function OrdersFilters({
   wykonawcaFilter,
   showWykonawcaFilter,
   showDayFilter,
+  dateFilter,
+  onDateFilterChange,
   onSearchChange,
   onSearchCommit,
   onDayChange,
@@ -76,6 +82,50 @@ export default function OrdersFilters({
           ))}
         </select>
       )}
+      <div className={`date-filter${isDateFilterActive(dateFilter) ? ' date-filter--active' : ''}`} title="Data zamówienia">
+        <select
+          className="day-filter date-filter-preset"
+          value={dateFilter.preset}
+          onChange={(e) => onDateFilterChange({ ...dateFilter, preset: e.target.value as DateRangeFilter['preset'] })}
+        >
+          {DATE_PRESET_LABELS.map((p) => (
+            <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
+        </select>
+        {dateFilter.preset === 'custom' ? (
+          <>
+            <input
+              type="date"
+              className="day-filter date-filter-input"
+              value={dateFilter.from}
+              max={dateFilter.to || undefined}
+              onChange={(e) => onDateFilterChange({ ...dateFilter, from: e.target.value })}
+              title="Od (data zamówienia)"
+            />
+            <span className="date-filter-sep">–</span>
+            <input
+              type="date"
+              className="day-filter date-filter-input"
+              value={dateFilter.to}
+              min={dateFilter.from || undefined}
+              onChange={(e) => onDateFilterChange({ ...dateFilter, to: e.target.value })}
+              title="Do (data zamówienia)"
+            />
+          </>
+        ) : (
+          isDateFilterActive(dateFilter) && <span className="date-filter-desc">{describeDateRange(dateFilter)}</span>
+        )}
+        {isDateFilterActive(dateFilter) && (
+          <button
+            type="button"
+            className="date-filter-clear"
+            onClick={() => onDateFilterChange({ preset: 'all', from: '', to: '' })}
+            title="Wyczyść filtr dat"
+          >
+            ✕
+          </button>
+        )}
+      </div>
       <div className="orders-filter-checkbox-row">
         <label className="orders-filter-checkbox">
           <input

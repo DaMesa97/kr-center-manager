@@ -28,6 +28,8 @@ Tworzy **trzy** powiązane rekordy: STA + ST + Bastion.
 - **ST** — ościeżnica.
 - **Bastion** — stacja końcowa: **okuwanie → montaż → pakowanie**. Chipy **OŚC / SKRZ** pokazują czy ościeżnica (z ST) i skrzydło (ze STA) dojechały.
 - Każda ekipa oznacza swoje etapy; wydanie niezależne per kategoria.
+- **Filtr dat** nad tabelą (data zamówienia): Dziś / Ten tydzień / Ten miesiąc / Poprzedni miesiąc / Ostatnie 30 dni / Ten kwartał / Ten rok / własny zakres od–do; „✕" czyści. Działa razem z wyszukiwarką i „Ukryj zrealizowane".
+- **Aluminium**: kolumny etapów w tabeli pokazują zrobione/wszystkie sztuki w zleceniu (po wszystkich pozycjach). Klik = następna sztuka, komplet = pytanie o cofnięcie ostatniej; najechanie rozbija na pozycje z inicjałami. Kolejność wg ZKP: CIĘCIE (IS-01) → SKŁAD (IS-03) → OKUCIA (IS-04) → SZKL (IS-05) → PAK. Na zleceniu ZKP sztukę podpisuje tylko osoba z uprawnieniem w matrycy 6.27.
 - Stany specjalne etapu (kierownik, prawy klik na komórce): **—** „nie dotyczy" (liczy się jako zrobione, bez osoby; rezerwacja części na ten etap wraca na magazyn, „Wznów" ją przywraca) i **⏸** „wstrzymane" z powodem (liczy się jako niezrobione; na Moim stanowisku „Wstrzymane: powód", NASTĘPNE omija). „Wznów" zdejmuje stan. Na komórkę z inicjałami stanu nie nałożysz — najpierw cofnij etap.
 
 ## ✅ Moje stanowisko

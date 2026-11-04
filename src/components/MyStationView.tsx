@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AluPosition, Complaint, Order, WorkerStage } from '../types'
 import { getOrderStageDefinitions, isRushOrderSequence, orderRouteMark, parseProductionStages } from '../utils'
-import { aluDetailFields, aluTaskKey, buildAluTasks } from '../lib/aluStation'
+import { ALU_STAGE_KEYS, aluDetailFields, aluTaskKey, buildAluTasks } from '../lib/aluStation'
+import { aluStageDone } from '../lib/alu'
+import { ALU_STAGE_DEFS } from '../constants'
 import {
   buildComplaintTasks,
   buildTasks,
@@ -310,6 +312,15 @@ export default function MyStationView({
               >
                 {(() => {
                   if (task.holdReason != null) return `⏸ Wstrzymane${task.holdReason ? `: ${task.holdReason}` : ''}`
+                  // Aluminium: etap per sztuka — pokaż, ILE sztuk poprzedniego etapu brakuje
+                  if (task.alu) {
+                    const idx = ALU_STAGE_KEYS.indexOf(task.actualStageKey)
+                    const prev = idx > 0 ? ALU_STAGE_DEFS[idx - 1] : null
+                    if (prev) {
+                      const d = aluStageDone(task.alu.position.production_stages, prev.key, task.alu.quantity)
+                      return `⏳ Czeka na ${prev.header} (${d}/${task.alu.quantity} szt.)`
+                    }
+                  }
                   const miss = task.alu || task.isComplaint
                     ? []
                     : missingPrereqs(

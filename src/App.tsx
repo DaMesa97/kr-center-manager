@@ -66,6 +66,7 @@ import StageRevertPopup from './components/StageRevertPopup'
 import StageSpecialMenu from './components/StageSpecialMenu'
 import { useErpRetry } from './hooks/useErpRetry'
 import { STAGE_NA, holdValue } from './lib/stageSpecial'
+import { dateInRange, resolveDateRange } from './lib/dateRange'
 import ReleaseClearPopup from './components/ReleaseClearPopup'
 import UsersView from './components/UsersView'
 import CompaniesView from './components/CompaniesView'
@@ -552,6 +553,9 @@ function App() {
   // ── Stolarka aluminiowa: pozycje/PDF-y zleceń + import LP ──
   const {
     aluPositionsByOrder,
+    markAluPiece,
+    undoAluPiece,
+    aluStageBusyOrderId,
     documentsByOrder: aluDocumentsByOrder,
     constructionsByOrder: aluConstructionsByOrder,
     productionByOrder: aluProductionByOrder,
@@ -684,6 +688,8 @@ function App() {
     showCancelledOrders,
     setShowCancelledOrders,
     sourceFilter,
+    dateFilter,
+    setDateFilter,
     setSourceFilter,
     stageRevertTarget,
     setStageRevertTarget,
@@ -1554,6 +1560,7 @@ function App() {
     }
     const query = searchTerm.trim().toLowerCase()
     const filterByDay = selectedProductionDay !== 'Wszystkie dni'
+    const dateRange = resolveDateRange(dateFilter)
     const activeCategory = activeTab.toLowerCase()
 
     return orders.filter((order) => {
@@ -1592,6 +1599,8 @@ function App() {
           .includes(query)
 
       const matchDay = !filterByDay || order.production_day === selectedProductionDay
+      // data zamówienia (order_date) w wybranym zakresie
+      const matchDate = dateInRange(order.order_date, dateRange)
       const matchNotReleased =
         !hideCompletedOrders || isReleaseDateEmpty(order.release_date)
       const isCancelled =
@@ -1599,9 +1608,9 @@ function App() {
         order.extra_fields !== null &&
         (order.extra_fields as Record<string, unknown>).cancelled === true
       const matchNotCancelled = showCancelledOrders || !isCancelled
-      return matchCategory && matchQuery && matchDay && matchNotReleased && matchNotCancelled
+      return matchCategory && matchQuery && matchDay && matchDate && matchNotReleased && matchNotCancelled
     })
-  }, [activeTab, orders, searchTerm, selectedProductionDay, hideCompletedOrders, showCancelledOrders])
+  }, [activeTab, orders, searchTerm, selectedProductionDay, dateFilter, hideCompletedOrders, showCancelledOrders])
 
   const filteredOrders = useMemo(() => {
     // Filtr wykonawcy widać tylko w STA/Disting — w innych zakładkach nie może
@@ -3763,6 +3772,8 @@ function App() {
               showCancelledOrders={showCancelledOrders}
               sourceFilter={sourceFilter}
               sourceFilterCounts={sourceFilterCounts}
+              dateFilter={dateFilter}
+              onDateFilterChange={(v) => startFilterTransition(() => setDateFilter(v))}
               showSourceFilter={['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'].includes(activeTab)}
               wykonawcaFilter={wykonawcaFilter}
               showWykonawcaFilter={activeTab === 'STA' || activeTab === 'Disting'}
@@ -4004,6 +4015,11 @@ function App() {
                     loading={aluLoading}
                     onShowDetails={(o) => setAluDetailsOrderId(o.id ?? null)}
                     tableWrapperRef={ordersTableWrapperRef}
+                    canMark={isManager || workerStagesForCurrent.some((w) => w.category === 'Aluminium')}
+                    assignedStageKeys={tableAssignedStageKeys}
+                    busyOrderId={aluStageBusyOrderId}
+                    onMarkPiece={(positionId, stageKey) => markAluPiece(positionId, stageKey, currentUser?.initials ?? '')}
+                    onUndoPiece={undoAluPiece}
                   />
                 )}
                 {filteredOrders.length === 0 &&

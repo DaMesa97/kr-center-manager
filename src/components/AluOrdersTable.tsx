@@ -1,7 +1,9 @@
 import { useMemo, type MutableRefObject } from 'react'
 import DataTable, { type DataTableColumn } from './DataTable'
-import { ALU_CONSTRUCTION_LABELS, ALU_REALIZACJA_LABELS } from '../constants'
-import { aluLoadingDate, aluOrderExtra, aluOrderProgress, formatPlDateWithDow, summarizeAluTypes } from '../lib/alu'
+import { ALU_CONSTRUCTION_LABELS, ALU_REALIZACJA_LABELS, ALU_STAGE_DEFS } from '../constants'
+import { aluCanUndo, aluReadyCount } from '../lib/aluStation'
+import { appConfirm } from '../lib/appDialogs'
+import { aluLoadingDate, aluOrderExtra, aluOrderProgress, aluStageDone, formatPlDateWithDow, summarizeAluTypes } from '../lib/alu'
 import { currentDocuments } from '../lib/aluDossier'
 import { countCompletedStages, isReleaseDateEmpty } from '../utils'
 import type { AluPosition, Order, OrderDocument } from '../types'
@@ -16,6 +18,37 @@ type Props = {
   loading: boolean
   onShowDetails: (o: Order) => void
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
+  /** kierownik albo pracownik z etapami Aluminium — klik w komórkę etapu oznacza JEDNĄ sztukę */
+  canMark?: boolean
+  /** pracownik produkcji: tylko przypisane etapy są klikalne (null = kierownik) */
+  assignedStageKeys?: Set<string> | null
+  busyOrderId?: number | null
+  onMarkPiece?: (positionId: number, stageKey: string) => Promise<boolean> | boolean | void
+  onUndoPiece?: (positionId: number, stageKey: string) => Promise<boolean> | boolean | void
+}
+
+/** Etap zlecenia zsumowany po pozycjach: zrobione/wszystkie sztuki + co da się kliknąć */
+function aluOrderStageAgg(positions: AluPosition[], stageKey: string) {
+  let done = 0
+  let total = 0
+  let ready = 0
+  let nextPositionId: number | null = null
+  let undoPositionId: number | null = null
+  const lines: string[] = []
+  for (const p of positions) {
+    const qty = Math.max(0, Number(p.quantity) || 0)
+    const d = aluStageDone(p.production_stages, stageKey, qty)
+    const r = aluReadyCount(p.production_stages, stageKey, qty)
+    done += d
+    total += qty
+    ready += r
+    if (r > 0 && nextPositionId == null) nextPositionId = p.id
+    if (aluCanUndo(p.production_stages, stageKey, qty)) undoPositionId = p.id
+    const marks = (p.production_stages?.[stageKey] as { marks?: unknown } | undefined)?.marks
+    const who = Array.isArray(marks) && marks.length > 0 ? ` (${marks.map(String).join(', ')})` : ''
+    lines.push(`poz. ${p.pos_no}: ${d}/${qty} szt.${who}`)
+  }
+  return { done, total, ready, nextPositionId, undoPositionId, lines }
 }
 
 type Status = 'cancelled' | 'released' | 'in_progress'
@@ -43,7 +76,19 @@ function deadlineInfo(deadline: string): { label: string; daysLeft: number | nul
   return { label: d.toLocaleDateString('pl-PL'), daysLeft }
 }
 
-export default function AluOrdersTable({ orders, positionsByOrder, documentsByOrder, loading, onShowDetails, tableWrapperRef }: Props) {
+export default function AluOrdersTable({
+  orders,
+  positionsByOrder,
+  documentsByOrder,
+  loading,
+  onShowDetails,
+  tableWrapperRef,
+  canMark = false,
+  assignedStageKeys = null,
+  busyOrderId = null,
+  onMarkPiece,
+  onUndoPiece,
+}: Props) {
   const columns = useMemo<DataTableColumn<Order>[]>(() => {
     const posOf = (o: Order) => (o.id != null ? positionsByOrder[o.id] ?? [] : [])
     // bieżące wersje (teczka trzyma wszystkie wersje i wycofane dokumenty, ZKP 5.9)
@@ -130,6 +175,64 @@ export default function AluOrdersTable({ orders, positionsByOrder, documentsByOr
         sortValue: (o) => posOf(o)[0]?.system ?? '',
         render: (o) => [...new Set(posOf(o).map((p) => p.system).filter(Boolean))].join(', ') || '—',
       },
+      // Etapy per SZTUKA (jak Moje stanowisko): komórka = zrobione/wszystkie sztuki
+      // we wszystkich pozycjach zlecenia; klik = następna sztuka pierwszej gotowej
+      // pozycji, komplet = pytanie o cofnięcie ostatniej sztuki. Szczegóły per
+      // pozycja w tooltipie i w oknie zlecenia.
+      ...ALU_STAGE_DEFS.map<DataTableColumn<Order>>((def) => ({
+        key: `stage_${def.key}`,
+        label: def.header,
+        title: def.title ?? def.header,
+        thClassName: 'production-stage-th col-stage',
+        tdClassName: 'production-stage-td col-stage',
+        stopRowClick: true,
+        sortValue: (o) => {
+          const a = aluOrderStageAgg(posOf(o), def.key)
+          return a.total > 0 ? a.done / a.total : -1
+        },
+        render: (o) => {
+          const agg = aluOrderStageAgg(posOf(o), def.key)
+          const open = orderStatus(o) === 'in_progress'
+          const foreign = assignedStageKeys != null && !assignedStageKeys.has(def.key)
+          const busy = busyOrderId != null && busyOrderId === o.id
+          const canUndo = agg.undoPositionId != null && agg.ready === 0
+          const actionable = canMark && !foreign && open && !busy && agg.total > 0 && (agg.ready > 0 || canUndo) && !!onMarkPiece && !!onUndoPiece
+          const state = agg.total === 0 ? 'empty' : agg.done >= agg.total ? 'done' : agg.done > 0 ? 'partial' : 'empty'
+          const title = [
+            `${def.title ?? def.header}: ${agg.done}/${agg.total} szt.`,
+            ...agg.lines,
+            foreign ? 'Etap innego stanowiska — nie Twój' : agg.ready > 0 ? 'Klik = oznacz następną sztukę' : canUndo ? 'Klik = cofnij ostatnią sztukę' : agg.total > 0 && agg.done < agg.total ? 'Najpierw poprzedni etap' : '',
+          ].filter(Boolean).join('\n')
+          return (
+            <button
+              type="button"
+              className={`production-stage-cell alu-stage-cell production-stage-cell--${state}${foreign ? ' production-stage-cell--foreign' : ''}`}
+              disabled={!actionable}
+              title={title}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!actionable) return
+                if (agg.ready > 0 && agg.nextPositionId != null) {
+                  void onMarkPiece?.(agg.nextPositionId, def.key)
+                  return
+                }
+                if (canUndo && agg.undoPositionId != null) {
+                  const posId = agg.undoPositionId
+                  void (async () => {
+                    const ok = await appConfirm(
+                      `Cofnąć ostatnią sztukę etapu ${def.header} w zleceniu ${o.order_number}? (${agg.done}/${agg.total} szt.)`,
+                      { title: 'Cofnij sztukę', confirmLabel: 'Cofnij' },
+                    )
+                    if (ok) await onUndoPiece?.(posId, def.key)
+                  })()
+                }
+              }}
+            >
+              {agg.total > 0 ? `${agg.done}/${agg.total}` : '—'}
+            </button>
+          )
+        },
+      })),
       {
         key: 'progress',
         label: 'POSTĘP',
@@ -186,7 +289,7 @@ export default function AluOrdersTable({ orders, positionsByOrder, documentsByOr
         },
       },
     ]
-  }, [positionsByOrder, documentsByOrder])
+  }, [positionsByOrder, documentsByOrder, canMark, assignedStageKeys, busyOrderId, onMarkPiece, onUndoPiece])
 
   return (
     <DataTable

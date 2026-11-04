@@ -1,9 +1,11 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { fetchAllPages } from '../lib/fetchPaged'
-import { ORDER_DOCUMENTS_BUCKET } from '../constants'
+import { ALU_STAGE_DEFS, ORDER_DOCUMENTS_BUCKET } from '../constants'
+import { applyAluPositionStages } from '../lib/aluStation'
 import type { AluMaterialListParseResult } from '../lib/aluMaterialListParser'
 import type {
+  AluPositionStages,
   AluConstruction,
   AluDossierItem,
   AluMaterialList,
@@ -621,9 +623,75 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     [pushToast, touchSession, fetchAluData],
   )
 
+  // ── Etapy per sztuka z TABELI zleceń (ta sama RPC co Moje stanowisko) ──
+  const [aluStageBusyOrderId, setAluStageBusyOrderId] = useState<number | null>(null)
+  const orderIdOfPosition = useCallback(
+    (positionId: number): number | null => {
+      for (const [oid, list] of Object.entries(aluPositionsByOrder)) {
+        if (list.some((p) => p.id === positionId)) return Number(oid)
+      }
+      return null
+    },
+    [aluPositionsByOrder],
+  )
+
+  const markAluPiece = useCallback(
+    async (positionId: number, stageKey: string, initials: string): Promise<boolean> => {
+      touchSession()
+      const def = ALU_STAGE_DEFS.find((d) => d.key === stageKey)
+      const orderId = orderIdOfPosition(positionId)
+      setAluStageBusyOrderId(orderId)
+      try {
+        const { data, error } = await supabase.rpc('mark_alu_position_stage', {
+          p_position_id: positionId,
+          p_stage_key: stageKey,
+          p_initials: (initials ?? '').trim() || 'T',
+        })
+        if (error) {
+          pushToast(`Nie oznaczono sztuki: ${error.message}`, 'error')
+          return false
+        }
+        setAluPositionsByOrder((prev) => applyAluPositionStages(prev, positionId, (data ?? {}) as AluPositionStages))
+        pushToast(`${def?.header ?? stageKey}: sztuka oznaczona`, 'success')
+        return true
+      } finally {
+        setAluStageBusyOrderId(null)
+      }
+    },
+    [orderIdOfPosition, pushToast, touchSession],
+  )
+
+  const undoAluPiece = useCallback(
+    async (positionId: number, stageKey: string): Promise<boolean> => {
+      touchSession()
+      const def = ALU_STAGE_DEFS.find((d) => d.key === stageKey)
+      const orderId = orderIdOfPosition(positionId)
+      setAluStageBusyOrderId(orderId)
+      try {
+        const { data, error } = await supabase.rpc('undo_alu_position_stage', {
+          p_position_id: positionId,
+          p_stage_key: stageKey,
+        })
+        if (error) {
+          pushToast(`Nie cofnięto sztuki: ${error.message}`, 'error')
+          return false
+        }
+        setAluPositionsByOrder((prev) => applyAluPositionStages(prev, positionId, (data ?? {}) as AluPositionStages))
+        pushToast(`${def?.header ?? stageKey}: cofnięto sztukę`, 'success')
+        return true
+      } finally {
+        setAluStageBusyOrderId(null)
+      }
+    },
+    [orderIdOfPosition, pushToast, touchSession],
+  )
+
   return {
     aluPositionsByOrder,
     setAluPositionsByOrder,
+    markAluPiece,
+    undoAluPiece,
+    aluStageBusyOrderId,
     documentsByOrder,
     setDocumentsByOrder,
     constructionsByOrder,

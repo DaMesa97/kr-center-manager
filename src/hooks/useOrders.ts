@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { buildPartnerSyncPayload } from '../lib/linkedSync'
 import { appConfirm } from '../lib/appDialogs'
 import { mirrorStageKey } from '../lib/stageMirror'
+import { DATE_FILTER_ALL, type DateRangeFilter } from '../lib/dateRange'
 import { isStageDone, isStageNA, isStageSpecial } from '../lib/stageSpecial'
 import { markLocalStageWrite } from '../lib/stageWrites'
 import {
@@ -202,6 +203,8 @@ export function useOrders({
   const [hideCompletedOrders, setHideCompletedOrders] = useState(true)
   const [showCancelledOrders, setShowCancelledOrders] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'bot'>('all')
+  // filtr dat zamówienia (presety: dziś / tydzień / miesiąc / zakres) — lib/dateRange
+  const [dateFilter, setDateFilter] = useState<DateRangeFilter>(DATE_FILTER_ALL)
   const [stageRevertTarget, setStageRevertTarget] = useState<{
     orderId: number
     stageKey: string
@@ -2996,6 +2999,8 @@ export function useOrders({
     showCancelledOrders,
     setShowCancelledOrders,
     sourceFilter,
+    dateFilter,
+    setDateFilter,
     setSourceFilter,
     stageRevertTarget,
     setStageRevertTarget,
