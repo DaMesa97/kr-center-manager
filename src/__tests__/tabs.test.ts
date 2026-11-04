@@ -17,17 +17,17 @@ describe('tabsForUserDepartment — zakładka ZKP', () => {
 describe('tabsForUserDepartment — nowe role', () => {
   it('admin widzi panel administracyjny i wszystko inne', () => {
     const tabs = tabsForUserDepartment('all', true, 'admin', [])
-    for (const t of ['Pulpit', 'STA', 'Bastion', 'Wysyłka', 'Magazyn', 'Zamawianie', 'Kontrahenci', 'Konfiguracja', 'Użytkownicy', 'Klucze API', 'Etykiety', 'Zgłoszenia', 'Pomoc']) {
+    for (const t of ['Pulpit', 'STA', 'Bastion', 'Wysyłka', 'Stany', 'Zamawianie', 'Kontrahenci', 'Konfiguracja', 'Użytkownicy', 'Integracje', 'Etykiety', 'Zgłoszenia', 'Pomoc']) {
       expect(tabs).toContain(t)
     }
   })
 
   it('kierownik produkcji — pełna firma, ale BEZ panelu admina', () => {
     const tabs = tabsForUserDepartment('all', true, 'kierownik_produkcji', [])
-    for (const t of ['Pulpit', 'STA', 'Wysyłka', 'Statystyki', 'Archiwum', 'Magazyn', 'Zamawianie']) {
+    for (const t of ['Pulpit', 'STA', 'Wysyłka', 'Statystyki', 'Archiwum', 'Stany', 'Zamawianie']) {
       expect(tabs).toContain(t)
     }
-    for (const t of ['Użytkownicy', 'Konfiguracja', 'Klucze API', 'Kontrahenci']) {
+    for (const t of ['Użytkownicy', 'Konfiguracja', 'Integracje', 'Kontrahenci']) {
       expect(tabs).not.toContain(t)
     }
   })
@@ -48,7 +48,7 @@ describe('tabsForUserDepartment — nowe role', () => {
     expect(tabs).toContain('Etykiety')
     expect(tabs).not.toContain('STA')
     expect(tabs).not.toContain('Wysyłka')
-    expect(tabs).not.toContain('Magazyn')
+    expect(tabs).not.toContain('Stany')
     expect(tabs).not.toContain('Użytkownicy')
   })
 
@@ -57,7 +57,7 @@ describe('tabsForUserDepartment — nowe role', () => {
     expect(tabs).toContain('Moje stanowisko')
     expect(tabs).toContain('STA')
     expect(tabs).toContain('Wysyłka')
-    expect(tabs).toContain('Magazyn')
+    expect(tabs).toContain('Stany')
     expect(tabs).not.toContain('Zamawianie')
     expect(tabs).not.toContain('Statystyki')
     expect(tabs).not.toContain('Użytkownicy')
@@ -69,7 +69,7 @@ describe('tabsForUserDepartment — nowe role', () => {
     expect(tabs).toContain('DrzwiWewnetrzne')
     expect(tabs).not.toContain('Moje stanowisko')
     expect(tabs).not.toContain('Wysyłka')
-    expect(tabs).not.toContain('Magazyn')
+    expect(tabs).not.toContain('Stany')
   })
 })
 
@@ -79,14 +79,14 @@ describe('tabsForUserDepartment — legacy (okres przejściowy, zero zmian)', ()
     expect(tabs).toContain('Bastion')
     expect(tabs).not.toContain('STA')
     expect(tabs).toContain('Moje stanowisko')
-    expect(tabs).toContain('Magazyn')
+    expect(tabs).toContain('Stany')
     expect(tabs).not.toContain('Wysyłka')
     expect(tabs).not.toContain('Użytkownicy')
   })
 
   it('legacy manager widzi wszystko (w tym panel admina)', () => {
     const tabs = tabsForUserDepartment('all', true, 'manager')
-    for (const t of ['Pulpit', 'STA', 'Bastion', 'Wysyłka', 'Statystyki', 'Archiwum', 'Użytkownicy', 'Konfiguracja', 'Klucze API', 'Kontrahenci']) {
+    for (const t of ['Pulpit', 'STA', 'Bastion', 'Wysyłka', 'Statystyki', 'Archiwum', 'Użytkownicy', 'Konfiguracja', 'Integracje', 'Kontrahenci']) {
       expect(tabs).toContain(t)
     }
   })

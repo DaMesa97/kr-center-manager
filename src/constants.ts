@@ -76,7 +76,9 @@ export const TABS = [
   'Audyt',
   'Archiwum',
   'Wysyłka',
-  'Magazyn',
+  'Stany',
+  'Komponenty',
+  'Dokumenty',
   'Zamawianie',
   'Inwentaryzacja',
   'Etykiety',
@@ -84,10 +86,30 @@ export const TABS = [
   'ZKP',
   'Konfiguracja',
   'Użytkownicy',
-  'Klucze API',
+  'Integracje',
   'Zgłoszenia',
   'Pomoc',
 ] as const
+
+/**
+ * Magazyn w menu bocznym (porządki menu, beta.86): pięć pozycji zamiast jednej
+ * z trzynastoma przyciskami. Każda pozycja otwiera WarehouseView z własnym,
+ * krótkim zestawem podzakładek. „Miesięczne zużycie" przeszło do Statystyk.
+ */
+export const WAREHOUSE_TABS = ['Stany', 'Komponenty', 'Dokumenty', 'Zamawianie', 'Inwentaryzacja'] as const
+export type WarehouseTab = (typeof WAREHOUSE_TABS)[number]
+
+export const WAREHOUSE_TAB_SUBTABS: Record<WarehouseTab, readonly WarehouseSubTab[]> = {
+  Stany: ['Stany', 'Rezerwacje', 'Ruchy'],
+  Komponenty: ['Komponenty', 'Receptury'],
+  Dokumenty: ['Przyjęcia', 'Przesunięcia'],
+  Zamawianie: ['Zamawianie', 'Alerty', 'Prognozy', 'Zamówienia'],
+  Inwentaryzacja: ['Inwentaryzacja'],
+}
+
+export function isWarehouseTabName(tab: string): tab is WarehouseTab {
+  return (WAREHOUSE_TABS as readonly string[]).includes(tab)
+}
 
 export const EDITABLE_CATEGORIES = [
   'Bastion',
@@ -100,7 +122,7 @@ export const EDITABLE_CATEGORIES = [
 
 export type EditableCategory = typeof EDITABLE_CATEGORIES[number]
 
-export const STATS_SUB_TABS = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Reklamacje', 'Produktywność', 'Czas realizacji'] as const
+export const STATS_SUB_TABS = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Reklamacje', 'Produktywność', 'Czas realizacji', 'Zużycie magazynu'] as const
 
 export const CATEGORY_LABELS: Record<OrderCategory, string> = {
   STA: 'STA',
@@ -127,7 +149,6 @@ export const WAREHOUSE_SUB_TABS: WarehouseSubTab[] = [
   'Ruchy',
   'Przyjęcia',
   'Przesunięcia',
-  'Miesięczne zużycie',
   'Prognozy',
   'Alerty',
   'Zamówienia',

@@ -332,12 +332,11 @@ export type ConfigSubTab =
   | 'Słowniki'
   | 'Wykluczenia'
   | 'Słownik wymiarów'
-  | 'Integracje'
   | 'Naddatki szyb (naświetla)'
-  | 'Dostawcy'
   | 'Dane firmy'
   | 'Terminy realizacji'
   | 'Reguły Bastion'
+  | 'Szablony etykiet'
 
 export type LeadTimeRule = {
   id: number
@@ -789,6 +788,7 @@ export type StatsSubTab =
   | 'Reklamacje'
   | 'Produktywność'
   | 'Czas realizacji'
+  | 'Zużycie magazynu'
 
 export type OrderPhoto = {
   id: number
@@ -906,7 +906,6 @@ export type WarehouseSubTab =
   | 'Ruchy'
   | 'Przyjęcia'
   | 'Przesunięcia'
-  | 'Miesięczne zużycie'
   | 'Prognozy'
   | 'Alerty'
   | 'Zamówienia'

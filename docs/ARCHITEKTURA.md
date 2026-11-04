@@ -347,8 +347,22 @@ nowe uprawnienie = dopisanie do macierzy + użycie `can(role, '...')` w UI.
 ⚠️ Przy nowej roli KIEROWNICZEJ pamiętaj też o bazie — patrz pułapka #9.
 
 ### 7.10. Nowy **kontrahent**
-Kontrahenci (admin) — albo przycisk „+ Utwórz kontrahenta" przy dopasowywaniu
-niedopasowanej firmy w zleceniu. Dzień trasy steruje sortowaniem Wysyłki.
+Ustawienia → Kontrahenci → *Klienci* (admin) — albo przycisk „+ Utwórz kontrahenta"
+przy dopasowywaniu niedopasowanej firmy w zleceniu. Dzień trasy steruje
+sortowaniem Wysyłki. Dostawców magazynu dopisuje się obok, w zakładce *Dostawcy*.
+
+### 7.10a. Menu boczne (porządki, beta.86)
+Układ grup trzyma `Sidebar.tsx` (`TAB_GROUPS`, etykiety w `TAB_LABELS`), widoczność
+pozycji per rola — `tabsForUserDepartment` w `utils.ts`, tytuł nagłówka —
+`sectionTitle` w `AppHeader.tsx`. Zasady: grupa = jedno pytanie użytkownika
+(Zamówienia / Produkcja / Magazyn = „co mam zrobić", Analizy = „co chcę wiedzieć",
+Ustawienia = „jak to ustawić"); każda rzecz w jednym miejscu; plakietka tylko tam,
+gdzie ktoś ma zadziałać (Weryfikacja, Wysyłka po terminie, Zamawianie = alerty).
+Magazyn to pięć zakładek (`WAREHOUSE_TABS`), każda renderuje `WarehouseView`
+z podzbiorem podzakładek (`WAREHOUSE_TAB_SUBTABS` w `constants.ts`); nowa
+podzakładka magazynu = dopisanie do `WarehouseSubTab` + do właściwej listy.
+Integracje = `IntegrationsView` (Klucze API + webhooki Make), Kontrahenci =
+`ContractorsView` (Klienci + Dostawcy), szablony etykiet żyją w Konfiguracji.
 
 ### 7.11. Nowa **kategoria produkcyjna** (nowa zakładka) — DUŻA zmiana
 To pełnoprawna zmiana w kodzie; miejsca do ruszenia (minimum):
@@ -356,6 +370,7 @@ To pełnoprawna zmiana w kodzie; miejsca do ruszenia (minimum):
 CONFIG_DICTIONARIES), `types.ts` (FormData), nowy widok tabeli w `components/`,
 formularz w `OrderFormModal`, logika zapisu w `useOrders`, `utils.ts`
 (tabsForUserDepartment, createEmptyProductionStages, countCompletedStages),
+`Sidebar.tsx` (TAB_GROUPS — grupa Zamówienia), `AppHeader.tsx` (sectionTitle),
 `stationLogic.ts`, obie Edge Functions (determineCategory), szablony etykiet.
 Zaplanuj to jako osobny, testowany etap.
 
@@ -477,7 +492,7 @@ mówi co robi i kiedy odpalić. Ważne pliki:
 - **Baza = całość firmy.** Wymagany Supabase Pro (backupy dzienne + PITR) albo
   własny `pg_dump` co noc z rotacją. Bez tego jeden błędny SQL = utrata danych.
 - Konta: hasła nadaje admin; e-maile w domenie `@krcenter.pl` (login = część lokalna).
-- Klucze API: rotacja/dezaktywacja w zakładce Klucze API; każdy request jest logowany.
+- Klucze API: rotacja/dezaktywacja w Ustawienia → Integracje → Klucze API; każdy request jest logowany.
 
 ---
 

@@ -36,7 +36,11 @@ import {
   ST_STAGE_DEFS,
   ST_TITAN_STAGE_DEFS,
   TABS,
+  WAREHOUSE_TABS,
+  WAREHOUSE_TAB_SUBTABS,
+  isWarehouseTabName,
 } from './constants'
+import type { WarehouseTab } from './constants'
 import {
   canEditBastionSalesChanges,
   calcExtensionDims,
@@ -69,7 +73,7 @@ import { STAGE_NA, holdValue } from './lib/stageSpecial'
 import { dateInRange, resolveDateRange } from './lib/dateRange'
 import ReleaseClearPopup from './components/ReleaseClearPopup'
 import UsersView from './components/UsersView'
-import CompaniesView from './components/CompaniesView'
+import ContractorsView from './components/ContractorsView'
 import GlassView from './components/GlassView'
 import ConfigView from './components/ConfigView'
 import ComplaintsView from './components/ComplaintsView'
@@ -132,7 +136,7 @@ import ConfigOptionModal from './components/ConfigOptionModal'
 import UserModal from './components/UserModal'
 import ComplaintFormModal from './components/ComplaintFormModal'
 import OrdersFilters from './components/OrdersFilters'
-import ApiKeysView from './components/ApiKeysView'
+import IntegrationsView from './components/IntegrationsView'
 import UpdateBanner from './components/UpdateBanner'
 import UpdateBlocker from './components/UpdateBlocker'
 import OverdueBanner from './components/OverdueBanner'
@@ -386,10 +390,10 @@ function App() {
     isManager || (currentUser?.role === 'worker' && currentUser?.department === 'magazyn')
   const canSeePurchaseOrdersTab = canSeeReorderTab
 
-  const isWarehouseTab = activeTab === 'Magazyn'
-  // Taby które potrzebują danych magazynowych (stany, komponenty, smart ROP, dostawcy)
-  const isWarehouseDataTab =
-    activeTab === 'Magazyn' || activeTab === 'Zamawianie' || activeTab === 'Inwentaryzacja'
+  // Magazyn = pięć pozycji menu (Stany / Komponenty / Dokumenty / Zamawianie / Inwentaryzacja),
+  // każda otwiera WarehouseView z własnym zestawem podzakładek (WAREHOUSE_TAB_SUBTABS)
+  const isWarehouseTab = isWarehouseTabName(activeTab)
+  const isWarehouseDataTab = isWarehouseTab
 
   const {
     warehouseComponents,
@@ -882,7 +886,7 @@ function App() {
     [isManager],
   )
 
-  // „Ponów wysyłkę do Optimy" (RO) — edge erp-retry → webhook Make z Konfiguracja → Integracje
+  // „Ponów wysyłkę do Optimy" (RO) — edge erp-retry → webhook Make z Ustawienia → Integracje → Make / Optima
   const { retryErp, retryingId: erpRetryingId } = useErpRetry({ pushToast, enabled: isManager })
 
   const {
@@ -1174,10 +1178,10 @@ function App() {
       void fetchProfiles()
       return
     }
-    if (activeTab === 'Magazyn') {
+    if (isWarehouseTabName(activeTab)) {
       setOrders([])
       setComplaints([])
-      setActiveWarehouseSubTab('Stany')
+      setActiveWarehouseSubTab(WAREHOUSE_TAB_SUBTABS[activeTab][0])
       return
     }
     if (activeTab === 'Statystyki') {
@@ -1201,7 +1205,7 @@ function App() {
       setComplaints([])
       return
     }
-    if (activeTab === 'Zamawianie' || activeTab === 'Inwentaryzacja' || activeTab === 'Pulpit' || activeTab === 'ZKP') {
+    if (activeTab === 'Pulpit' || activeTab === 'ZKP' || activeTab === 'Integracje') {
       setOrders([])
       setComplaints([])
       return
@@ -1228,7 +1232,7 @@ function App() {
         'Kontrahenci',
         'Konfiguracja',
         'Użytkownicy',
-        'Magazyn',
+        ...WAREHOUSE_TABS,
         'Statystyki',
         'Audyt',
         'Archiwum',
@@ -1422,9 +1426,10 @@ function App() {
   }, [authUserId,fetchCompanySettings])
 
   useEffect(() => {
-    if (!authSession || activeTab !== 'Konfiguracja' || activeConfigSubTab !== 'Dostawcy') return
+    // dostawcy mieszkają w Ustawienia → Kontrahenci → Dostawcy (porządki menu, beta.86)
+    if (!authSession || activeTab !== 'Kontrahenci') return
     void fetchSuppliers()
-  }, [authUserId,activeTab, activeConfigSubTab, fetchSuppliers])
+  }, [authUserId, activeTab, fetchSuppliers])
 
   useEffect(() => {
     if (!authSession) return
@@ -1545,7 +1550,7 @@ function App() {
       activeTab === 'Kontrahenci' ||
       activeTab === 'Konfiguracja' ||
       activeTab === 'Użytkownicy' ||
-      activeTab === 'Magazyn' ||
+      isWarehouseTab ||
       activeTab === 'Statystyki' ||
       activeTab === 'Weryfikacja' ||
       activeTab === 'Audyt' ||
@@ -1751,15 +1756,13 @@ function App() {
   const isCompaniesTab = activeTab === 'Kontrahenci'
   const isConfigTab = activeTab === 'Konfiguracja'
   const isUsersTab = activeTab === 'Użytkownicy'
-  const isApiKeysTab = activeTab === 'Klucze API'
+  const isApiKeysTab = activeTab === 'Integracje' // Klucze API + webhooki Make w jednym widoku
   const isStatsTab = activeTab === 'Statystyki'
   const isReviewTab = activeTab === 'Weryfikacja'
   const isAuditTab = activeTab === 'Audyt'
   const isArchiveTab = activeTab === 'Archiwum'
   const isShippingTab = activeTab === 'Wysyłka'
   const isMyStationTab = activeTab === 'Moje stanowisko'
-  const isZamawianiTab = activeTab === 'Zamawianie'
-  const isInwentaryzacjaTab = activeTab === 'Inwentaryzacja'
   const isLabelsTab = activeTab === 'Etykiety'
   const isHelpTab = activeTab === 'Pomoc'
   const isFeedbackTab = activeTab === 'Zgłoszenia'
@@ -2013,8 +2016,6 @@ function App() {
       isArchiveTab ||
       isMyStationTab ||
       isShippingTab ||
-      isZamawianiTab ||
-      isInwentaryzacjaTab ||
       isPulpitTab ||
       loading
     )
@@ -2056,8 +2057,6 @@ function App() {
       isArchiveTab ||
       isMyStationTab ||
       isShippingTab ||
-      isZamawianiTab ||
-      isInwentaryzacjaTab ||
       isPulpitTab ||
       loading
     )
@@ -2332,10 +2331,11 @@ function App() {
   }, [isWarehouseTab, activeWarehouseSubTab, fetchMmGroups])
 
   useEffect(() => {
-    if (isWarehouseTab && activeWarehouseSubTab === 'Miesięczne zużycie') {
+    // „Zużycie magazynu" to raport — mieszka w Statystykach (Analizy), nie w Magazynie
+    if (isStatsTab && activeStatsSubTab === 'Zużycie magazynu') {
       void fetchMonthlyConsumption(monthlyConsumptionRange)
     }
-  }, [isWarehouseTab, activeWarehouseSubTab, monthlyConsumptionRange, fetchMonthlyConsumption])
+  }, [isStatsTab, activeStatsSubTab, monthlyConsumptionRange, fetchMonthlyConsumption])
 
   useEffect(() => {
     if (isWarehouseTab && activeWarehouseSubTab === 'Prognozy') {
@@ -2367,10 +2367,10 @@ function App() {
   }, [isManager, fetchAlertsBadgeCount])
 
   useEffect(() => {
-    if (isManager && activeTab === 'Magazyn') {
+    if (isManager && isWarehouseTab) {
       void fetchAlertsBadgeCount()
     }
-  }, [isManager, activeTab, fetchAlertsBadgeCount])
+  }, [isManager, isWarehouseTab, fetchAlertsBadgeCount])
 
   const configDictionariesForCategory = useMemo(
     () => CONFIG_DICTIONARIES.filter((d) => d.category === selectedConfigCategory),
@@ -2975,8 +2975,6 @@ function App() {
           !isArchiveTab &&
           !isMyStationTab &&
           !isShippingTab &&
-          !isZamawianiTab &&
-          !isInwentaryzacjaTab &&
           !isLabelsTab &&
           !isHelpTab &&
           !isFeedbackTab &&
@@ -3340,24 +3338,25 @@ function App() {
             onNavigate={(tab) => setActiveTab(tab as (typeof TABS)[number])}
           />
         ) : isCompaniesTab ? (
-          <>
-            <div className="orders-filters">
-              <input
-                type="text"
-                className="search-input"
-                placeholder="Wyszukaj kontrahenta po nazwie..."
-                value={contractorSearchTerm}
-                onChange={(event) => setContractorSearchTerm(event.target.value)}
-              />
-            </div>
-            <CompaniesView
-              companiesLoading={companiesLoading}
-              companies={contractorsTableRows}
-              isManager={isManager}
-              onEditCompany={handleEditCompany}
-              onDeleteCompany={handleDeleteContractor}
-            />
-          </>
+          <ContractorsView
+            searchTerm={contractorSearchTerm}
+            onSearchTermChange={setContractorSearchTerm}
+            companies={{
+              companiesLoading,
+              companies: contractorsTableRows,
+              isManager,
+              onEditCompany: handleEditCompany,
+              onDeleteCompany: handleDeleteContractor,
+            }}
+            suppliers={{
+              suppliers,
+              loading: suppliersLoading,
+              isManager,
+              onCreate: openCreateSupplier,
+              onEdit: openEditSupplier,
+              onToggleActive: toggleSupplierActive,
+            }}
+          />
         ) : isConfigTab && isManager ? (
           <ConfigView
             activeConfigSubTab={activeConfigSubTab}
@@ -3412,11 +3411,6 @@ function App() {
             handleDeleteExtensionProfile={handleDeleteExtensionProfile}
             glassAllowances={glassAllowances}
             handleUpdateGlassAllowance={handleUpdateGlassAllowance}
-            suppliers={suppliers}
-            suppliersLoading={suppliersLoading}
-            onCreateSupplier={openCreateSupplier}
-            onEditSupplier={openEditSupplier}
-            onToggleSupplierActive={toggleSupplierActive}
             companySettings={companySettings}
             companySettingsLoading={companySettingsLoading}
             onCompanySettingsSaved={() => {
@@ -3445,7 +3439,8 @@ function App() {
             scopedCategories={usersScopeFor(currentUser?.role, currentUser?.categories)}
           />
         ) : isApiKeysTab && (isAdminRole(currentUser?.role) || currentUser?.role === 'manager') ? (
-          <ApiKeysView
+          <IntegrationsView
+            pushToast={pushToast}
             apiKeys={filteredApiKeys}
             filteredApiKeys={filteredApiKeys}
             loading={apiKeysLoading}
@@ -3469,6 +3464,14 @@ function App() {
             internalDoorItemsLoading={statsInternalDoorItemsLoading}
             activeSubTab={activeStatsSubTab}
             onSubTabChange={setActiveStatsSubTab}
+            monthlyConsumption={{
+              data: monthlyConsumption,
+              months: monthlyConsumptionMonths,
+              loading: monthlyConsumptionLoading,
+              onRefresh: () => void fetchMonthlyConsumption(monthlyConsumptionRange),
+              onRangeChange: setMonthlyConsumptionRange,
+              currentMonths: monthlyConsumptionRange,
+            }}
           />
         ) : isReviewTab && isManager ? (
           <OrdersNeedingReviewView
@@ -3536,140 +3539,6 @@ function App() {
             glassAllowances={glassAllowances}
             leadTimeRules={leadTimeRules}
           />
-        ) : isZamawianiTab ? (
-          <WarehouseView
-            isManager={isManager}
-            activeSubTab="Zamawianie"
-            onSubTabChange={() => {}}
-            hideSubTabs
-            warehouses={warehouses}
-            stock={warehouseStock}
-            stockLoading={warehouseStockLoading}
-            components={warehouseComponents}
-            componentsLoading={warehouseComponentsLoading}
-            onCreateComponent={handleCreateWarehouseComponent}
-            onUpdateComponent={handleUpdateWarehouseComponent}
-            onSetComponentWarehouses={handleSetComponentWarehouses}
-            onCleanupStock={handleCleanupOrphanStock}
-            onDeleteComponent={handleDeleteWarehouseComponent}
-            onAddDoorComponent={openAddDoorComponent}
-            onEditDoorComponent={openEditDoorComponent}
-            onShowHistory={openComponentHistory}
-            editRequestComponent={warehouseEditRequestComponent}
-            onEditRequestHandled={() => setWarehouseEditRequestComponent(null)}
-            recipes={warehouseRecipes}
-            recipesLoading={warehouseRecipesLoading}
-            onCreateRecipe={handleOpenRecipeEditor}
-            onEditRecipe={handleEditRecipe}
-            onDeleteRecipe={handleDeleteRecipe}
-            onToggleRecipeActive={handleToggleRecipeActive}
-            showDeleted={showDeletedRecipes}
-            onToggleShowDeleted={setShowDeletedRecipes}
-            onRestore={handleRestoreRecipe}
-            movements={warehouseMovements}
-            movementsLoading={warehouseMovementsLoading}
-            movementsTruncated={warehouseMovementsTruncated}
-            onLoadMoreMovements={loadMoreWarehouseMovements}
-            onRefreshMovements={fetchWarehouseMovements}
-            pzGroups={pzGroups}
-            pzGroupsLoading={pzGroupsLoading}
-            onPzCreate={handleOpenPzForm}
-            onPzPreview={handlePzPreview}
-            mmGroups={mmGroups}
-            mmGroupsLoading={mmGroupsLoading}
-            onMmCreate={handleOpenMmForm}
-            onMmPreview={handleMmPreview}
-            monthlyConsumption={monthlyConsumption}
-            monthlyConsumptionMonths={monthlyConsumptionMonths}
-            monthlyConsumptionLoading={monthlyConsumptionLoading}
-            monthlyConsumptionRange={monthlyConsumptionRange}
-            onMonthlyConsumptionRefresh={() => void fetchMonthlyConsumption(monthlyConsumptionRange)}
-            onMonthlyConsumptionRangeChange={setMonthlyConsumptionRange}
-            alertsBadgeCount={alertsBadgeCount}
-            suppliers={suppliers}
-            canSeeReorderTab={canSeeReorderTab}
-            canSeePurchaseOrdersTab={canSeePurchaseOrdersTab}
-            shoppingList={shoppingList}
-            smartRopData={smartRopData}
-            smartRopLoading={smartRopLoading}
-            onAddToShoppingList={handleAddToShoppingList}
-            onOpenShoppingList={() => setShoppingListModalOpen(true)}
-            onEditComponent={openComponentEditFromDashboard}
-            purchaseOrders={purchaseOrders}
-            purchaseOrderItems={purchaseOrderItems}
-            purchaseOrdersLoading={purchaseOrdersLoading}
-            companySettings={companySettings}
-            currentUser={currentUser}
-            onShowPurchaseOrderDetails={openPoDetails}
-            pushToast={pushToast}
-          />
-        ) : isInwentaryzacjaTab ? (
-          <WarehouseView
-            isManager={isManager}
-            activeSubTab="Inwentaryzacja"
-            onSubTabChange={() => {}}
-            hideSubTabs
-            warehouses={warehouses}
-            stock={warehouseStock}
-            stockLoading={warehouseStockLoading}
-            components={warehouseComponents}
-            componentsLoading={warehouseComponentsLoading}
-            onCreateComponent={handleCreateWarehouseComponent}
-            onUpdateComponent={handleUpdateWarehouseComponent}
-            onSetComponentWarehouses={handleSetComponentWarehouses}
-            onCleanupStock={handleCleanupOrphanStock}
-            onDeleteComponent={handleDeleteWarehouseComponent}
-            onAddDoorComponent={openAddDoorComponent}
-            onEditDoorComponent={openEditDoorComponent}
-            onShowHistory={openComponentHistory}
-            editRequestComponent={warehouseEditRequestComponent}
-            onEditRequestHandled={() => setWarehouseEditRequestComponent(null)}
-            recipes={warehouseRecipes}
-            recipesLoading={warehouseRecipesLoading}
-            onCreateRecipe={handleOpenRecipeEditor}
-            onEditRecipe={handleEditRecipe}
-            onDeleteRecipe={handleDeleteRecipe}
-            onToggleRecipeActive={handleToggleRecipeActive}
-            showDeleted={showDeletedRecipes}
-            onToggleShowDeleted={setShowDeletedRecipes}
-            onRestore={handleRestoreRecipe}
-            movements={warehouseMovements}
-            movementsLoading={warehouseMovementsLoading}
-            movementsTruncated={warehouseMovementsTruncated}
-            onLoadMoreMovements={loadMoreWarehouseMovements}
-            onRefreshMovements={fetchWarehouseMovements}
-            pzGroups={pzGroups}
-            pzGroupsLoading={pzGroupsLoading}
-            onPzCreate={handleOpenPzForm}
-            onPzPreview={handlePzPreview}
-            mmGroups={mmGroups}
-            mmGroupsLoading={mmGroupsLoading}
-            onMmCreate={handleOpenMmForm}
-            onMmPreview={handleMmPreview}
-            monthlyConsumption={monthlyConsumption}
-            monthlyConsumptionMonths={monthlyConsumptionMonths}
-            monthlyConsumptionLoading={monthlyConsumptionLoading}
-            monthlyConsumptionRange={monthlyConsumptionRange}
-            onMonthlyConsumptionRefresh={() => void fetchMonthlyConsumption(monthlyConsumptionRange)}
-            onMonthlyConsumptionRangeChange={setMonthlyConsumptionRange}
-            alertsBadgeCount={alertsBadgeCount}
-            suppliers={suppliers}
-            canSeeReorderTab={canSeeReorderTab}
-            canSeePurchaseOrdersTab={canSeePurchaseOrdersTab}
-            shoppingList={shoppingList}
-            smartRopData={smartRopData}
-            smartRopLoading={smartRopLoading}
-            onAddToShoppingList={handleAddToShoppingList}
-            onOpenShoppingList={() => setShoppingListModalOpen(true)}
-            onEditComponent={openComponentEditFromDashboard}
-            purchaseOrders={purchaseOrders}
-            purchaseOrderItems={purchaseOrderItems}
-            purchaseOrdersLoading={purchaseOrdersLoading}
-            companySettings={companySettings}
-            currentUser={currentUser}
-            onShowPurchaseOrderDetails={openPoDetails}
-            pushToast={pushToast}
-          />
         ) : isLabelsTab ? (
           <LabelsView
             isManager={isManager}
@@ -3687,6 +3556,7 @@ function App() {
             isManager={isManager}
             activeSubTab={activeWarehouseSubTab}
             onSubTabChange={setActiveWarehouseSubTab}
+            subTabs={WAREHOUSE_TAB_SUBTABS[activeTab as WarehouseTab]}
             warehouses={warehouses}
             stock={warehouseStock}
             stockLoading={warehouseStockLoading}
@@ -3739,12 +3609,6 @@ function App() {
             mmGroupsLoading={mmGroupsLoading}
             onMmCreate={handleOpenMmForm}
             onMmPreview={handleMmPreview}
-            monthlyConsumption={monthlyConsumption}
-            monthlyConsumptionMonths={monthlyConsumptionMonths}
-            monthlyConsumptionLoading={monthlyConsumptionLoading}
-            monthlyConsumptionRange={monthlyConsumptionRange}
-            onMonthlyConsumptionRefresh={() => void fetchMonthlyConsumption(monthlyConsumptionRange)}
-            onMonthlyConsumptionRangeChange={setMonthlyConsumptionRange}
             alertsBadgeCount={alertsBadgeCount}
             suppliers={suppliers}
             canSeeReorderTab={canSeeReorderTab}

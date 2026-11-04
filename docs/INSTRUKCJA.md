@@ -47,29 +47,36 @@ Zlecenia gotowe do wydania.
 - „Gotowe do fakturowania" — checkbox (sugerowane przy 100% / dacie wydania).
 - Sortowanie po dniu trasy; ostrzeżenia o przeterminowanych.
 
+## 🧭 Menu boczne (od beta.86)
+- **Pulpit**, **Moje stanowisko** — na górze, bez grupy.
+- **Zamówienia** — kategorie (STA, Disting, ST, Techniczne, Bastion, Drzwi wewnętrzne, Stolarka aluminiowa), a pod nimi **Weryfikacja** (duble, brak numeru klienta, błędy ERP) i **Archiwum**.
+- **Produkcja** — Wysyłka, Etykiety i druk, ZKP AS 75EI.
+- **Magazyn** — Stany, Komponenty, Dokumenty PZ / MM, Zamawianie, Inwentaryzacja.
+- **Analizy** — Statystyki, Audyt.
+- **Ustawienia** — Konfiguracja, Kontrahenci, Użytkownicy, Integracje.
+- Plakietki liczą tylko to, co wymaga decyzji: Weryfikacja (do sprawdzenia), Wysyłka (po terminie), Zamawianie (alerty braków). Zwinięta grupa pokazuje sumę plakietek swoich pozycji.
+
 ## 📦 Magazyn
-- **Stany** — ilości per magazyn (Bukowa, Marklowicka, Wewnętrzne).
-- **Komponenty** — kartoteka; przy tworzeniu wybierasz magazyny; „Wyczyść błędne półki".
-- **Przyjęcia (PZ)** — filtr po dostawcy i kategorii; jednostki sztukowe = całkowite.
-- **Przesunięcia (MM)** — między magazynami.
-- **Receptury** — co schodzi na zlecenie (auto przy realizacji).
-- **Zamawianie** — sugestie (ROP), lista zakupowa, zamówienia do dostawców.
+Pięć pozycji w menu, każda z krótkim paskiem podzakładek:
+- **Stany** — *Stany* (ilości per magazyn: Bukowa, Marklowicka, Wewnętrzne), *Rezerwacje* (co trzymają otwarte zlecenia), *Ruchy* (historia operacji).
+- **Komponenty** — *Komponenty* (kartoteka; przy tworzeniu wybierasz magazyny; „Wyczyść błędne półki"), *Receptury* (co schodzi na zlecenie, auto przy realizacji).
+- **Dokumenty PZ / MM** — *Przyjęcia (PZ)* (filtr po dostawcy i kategorii; jednostki sztukowe = całkowite), *Przesunięcia (MM)* między magazynami.
+- **Zamawianie** — *Zamawianie* (sugestie ROP, lista zakupowa), *Alerty* (braki; licznik przy tej pozycji menu), *Prognozy*, *Zamówienia* do dostawców.
 - **Inwentaryzacja** — remanent: PDF do liczenia + wprowadzanie stanów.
-- **Alerty / Prognozy** — braki i zużycie.
+- Raport **Zużycie magazynu** jest w Analizy → Statystyki; dostawców dopisujesz w Ustawienia → Kontrahenci → Dostawcy.
 
 ## 🏷️ Etykiety
 - **Etykieta zlecenia (dynamiczna)** — otwórz zlecenie → „🏷️ Drukuj etykietę". Auto-szablon wg kategorii + dane + QR (ID), podgląd, druk.
-- **Dokumenty (DoP/ZPL)** — Etykiety → Dokumenty: gotowe pliki ZPL per kategoria, druk N kopii na Zebrę.
-- **Konfiguracja (kierownik):** Etykiety → Szablony (HTML per kategoria, instrukcja + lista pól); dodawanie drukarek Zebra (IP) i plików ZPL.
+- **Dokumenty (DoP/ZPL)** — Produkcja → Etykiety i druk: gotowe pliki ZPL per kategoria, druk N kopii na Zebrę; tu też wgrywasz pliki ZPL i cechy doboru.
+- **Szablony etykiet (kierownik):** Ustawienia → Konfiguracja → Szablony etykiet (HTML per kategoria, instrukcja + lista pól).
 
 ## 🔔 Powiadomienia i aktualizacje
 - **Dzwonek** — m.in. nowe zamówienia z konfiguratora do weryfikacji.
 - **Aktualizacje** — program sprawdza nową wersję po zalogowaniu i proponuje update.
 
-## ⚙️ Konfiguracja i uprawnienia (kierownik)
-- **Konfiguracja** — słowniki, wykluczenia, czasy realizacji, ustawienia firmy.
-- **Kontrahenci** — firmy, aliasy nazw, dni tras.
-- **Konfiguracja → Integracje** (admin) — adres webhooka Make do „Ponów wysyłkę do Optimy". Status RO z Optimy widać przy numerze zlecenia (zielony numer RO albo czerwony „Błąd ERP"), lista błędów jest w Weryfikacji, kierownik ponawia wysyłkę przyciskiem po usunięciu przyczyny.
+## ⚙️ Ustawienia (kierownik / admin)
+- **Konfiguracja** — słowniki, wykluczenia, słownik wymiarów, naddatki szyb, dane firmy, terminy realizacji, reguły Bastion, szablony etykiet.
+- **Kontrahenci** — *Klienci* (firmy, aliasy nazw, dni tras) i *Dostawcy* (firmy, od których kupuje magazyn).
 - **Użytkownicy** — konta, role (kierownik/pracownik/sprzedawca), działy (decydują co kto widzi). Kierownik działu widzi tu tylko pracowników produkcji ze swoich kategorii: zakłada im konta, resetuje hasła, przypisuje etapy („Etapy produkcji"), dezaktywuje. Ról nie zmienia, kont nie usuwa — to admin.
-- **Klucze API** — konfigurator / integracje.
-- **Audyt / Archiwum** — historia zmian i zrealizowane zlecenia.
+- **Integracje** (admin) — *Klucze API* (konfigurator, arkusz Excel) oraz *Make / Optima*: adres webhooka do „Ponów wysyłkę do Optimy". Status RO z Optimy widać przy numerze zlecenia (zielony numer RO albo czerwony „Błąd ERP"), lista błędów jest w Zamówienia → Weryfikacja, kierownik ponawia wysyłkę przyciskiem po usunięciu przyczyny.
+- **Audyt** jest w Analizach, **Archiwum** w Zamówieniach.

@@ -6,6 +6,8 @@ import ComplaintsStatsDashboard from './stats/ComplaintsStatsDashboard'
 import InternalDoorStatsDashboard from './stats/InternalDoorStatsDashboard'
 import ProductivityView from './stats/ProductivityView'
 import LeadTimeStatsView from './stats/LeadTimeStatsView'
+import MonthlyConsumptionView from './warehouse/MonthlyConsumptionView'
+import type { ComponentProps } from 'react'
 
 type StatsViewProps = {
   orders: Order[]
@@ -15,6 +17,8 @@ type StatsViewProps = {
   internalDoorItemsLoading: boolean
   activeSubTab: StatsSubTab
   onSubTabChange: (tab: StatsSubTab) => void
+  /** „Zużycie magazynu" — raport miesięczny, przeniesiony tu z Magazynu (porządki menu, beta.86) */
+  monthlyConsumption: ComponentProps<typeof MonthlyConsumptionView>
 }
 
 function StatsView({
@@ -25,6 +29,7 @@ function StatsView({
   internalDoorItemsLoading,
   activeSubTab,
   onSubTabChange,
+  monthlyConsumption,
 }: StatsViewProps) {
   return (
     <div
@@ -61,6 +66,7 @@ function StatsView({
       )}
       {activeSubTab === 'Produktywność' && <ProductivityView />}
       {activeSubTab === 'Czas realizacji' && <LeadTimeStatsView />}
+      {activeSubTab === 'Zużycie magazynu' && <MonthlyConsumptionView {...monthlyConsumption} />}
     </div>
   )
 }

@@ -249,8 +249,6 @@ export default function AppHeader({
     isShippingTab ||
     isApiKeysTab ||
     activeTab === 'Pulpit' ||
-    activeTab === 'Zamawianie' ||
-    activeTab === 'Inwentaryzacja' ||
     activeTab === 'ZKP'
 
   const sectionTitle: Record<string, string> = {
@@ -263,18 +261,21 @@ export default function AppHeader({
     DrzwiWewnetrzne: 'Drzwi Wewnętrzne',
     Aluminium: 'Stolarka aluminiowa',
     Statystyki: 'Statystyki',
-    Weryfikacja: 'Weryfikacja BOT',
+    Weryfikacja: 'Weryfikacja — duble, braki numerów, błędy ERP',
     Audyt: 'Audyt',
     Archiwum: 'Archiwum',
     Wysyłka: 'Wysyłka',
-    Magazyn: 'Magazyn',
+    Etykiety: 'Etykiety i druk',
+    Stany: 'Magazyn — stany, rezerwacje, ruchy',
+    Komponenty: 'Magazyn — komponenty i receptury',
+    Dokumenty: 'Magazyn — dokumenty PZ / MM',
     Zamawianie: 'Zamawianie towaru',
     Inwentaryzacja: 'Inwentaryzacja',
     Pulpit: 'Pulpit',
-    Kontrahenci: 'Kontrahenci',
+    Kontrahenci: 'Kontrahenci — klienci i dostawcy',
     Konfiguracja: 'Konfiguracja',
     Użytkownicy: 'Użytkownicy',
-    'Klucze API': 'Klucze API',
+    Integracje: 'Integracje — klucze API, Make / Optima',
     ZKP: 'ZKP AS 75EI — przyjęcia, dostawcy, komponenty krytyczne',
   }
 

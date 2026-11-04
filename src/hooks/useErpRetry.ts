@@ -13,7 +13,7 @@ type RetryTarget = { id: number; order_number?: string | null; category?: string
 
 /**
  * „Ponów wysyłkę do Optimy": edge function erp-retry → webhook Make (adres w
- * Konfiguracja → Integracje). Kolumn erp_* nie dotykamy — status wróci od Make.
+ * Ustawienia → Integracje → Make / Optima). Kolumn erp_* nie dotykamy — status wróci od Make.
  * Blokada 30 s na zlecenie, żeby dwuklik nie założył RO dwa razy.
  */
 export function useErpRetry({ pushToast, enabled }: Params) {

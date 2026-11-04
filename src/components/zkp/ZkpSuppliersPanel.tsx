@@ -171,7 +171,7 @@ export default function ZkpSuppliersPanel({ zkp, canEdit }: { zkp: ZkpData; canE
         rowKey={(r) => r.id}
         columns={columns}
         loading={zkp.loading}
-        emptyText="Brak dostawców. Dodaje ich admin w Konfiguracja → Dostawcy."
+        emptyText="Brak dostawców. Dodaje ich admin w Ustawienia → Kontrahenci → Dostawcy."
         onRowClick={(r) => setExpanded(expanded === r.id ? null : r.id)}
         renderAfterRow={(r) =>
           expanded === r.id ? (

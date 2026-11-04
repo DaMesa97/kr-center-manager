@@ -190,11 +190,13 @@ function baseTabsForUser(
     if (can(role, 'review.handle')) out.push('Weryfikacja')
     if (can(role, 'audit.view')) out.push('Audyt')
     if (isManagerRole(role)) out.push('Archiwum')
-    if (can(role, 'warehouse.movements')) out.push('Magazyn')
+    // Magazyn w menu: Stany / Komponenty / Dokumenty (PZ, MM) dla każdego z ruchami,
+    // Zamawianie (alerty, prognozy, zamówienia do dostawców) i Inwentaryzacja dla zamawiających
+    if (can(role, 'warehouse.movements')) out.push('Stany', 'Komponenty', 'Dokumenty')
     if (can(role, 'warehouse.ordering')) out.push('Zamawianie', 'Inwentaryzacja')
     if (isAdminRole(role)) out.push('Kontrahenci')
     out.push('Etykiety')
-    if (isAdminRole(role)) out.push('Konfiguracja', 'Użytkownicy', 'Klucze API')
+    if (isAdminRole(role)) out.push('Konfiguracja', 'Użytkownicy', 'Integracje')
     else if (can(role, 'users.manageProduction')) out.push('Użytkownicy') // kierownik działu: konta swoich pracowników
     out.push('Zgłoszenia', 'Pomoc')
     return out
@@ -218,9 +220,9 @@ function baseTabsForUser(
     orderTabs = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium']
   }
   const managerOnlyTabs = isMgr ? (['Statystyki', 'Weryfikacja', 'Audyt', 'Archiwum', 'Wysyłka'] as const) : []
-  let result: (typeof TABS)[number][] = [...orderTabs, ...managerOnlyTabs, 'Magazyn', 'Zamawianie', 'Inwentaryzacja', 'Etykiety']
+  let result: (typeof TABS)[number][] = [...orderTabs, ...managerOnlyTabs, 'Stany', 'Komponenty', 'Dokumenty', 'Zamawianie', 'Inwentaryzacja', 'Etykiety']
   if (isMgr) {
-    result = [...result, 'Kontrahenci', 'Konfiguracja', 'Użytkownicy', 'Klucze API']
+    result = [...result, 'Kontrahenci', 'Konfiguracja', 'Użytkownicy', 'Integracje']
   }
   result = [...result, 'Zgłoszenia', 'Pomoc']
   if (isMgr || ['worker', 'manager', 'pracownik_produkcji', 'magazynier'].includes(roleNormalized)) {

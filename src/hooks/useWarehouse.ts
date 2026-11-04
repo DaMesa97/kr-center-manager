@@ -858,7 +858,7 @@ export function useWarehouse({
         console.error('reserve_stock_for_order error:', err)
         pushToast('Ostrzeżenie: nie udało się zarezerwować w magazynie', 'error')
       }
-      if (activeTab === 'Magazyn') {
+      if (activeTab === 'Stany') {
         await fetchWarehouseStock()
       }
       void fetchAlertsBadgeCount()
@@ -1772,12 +1772,6 @@ export function useWarehouse({
       void fetchMmGroups()
     }
   }, [isWarehouseTab, activeWarehouseSubTab, fetchMmGroups])
-
-  useEffect(() => {
-    if (isWarehouseTab && activeWarehouseSubTab === 'Miesięczne zużycie') {
-      void fetchMonthlyConsumption(monthlyConsumptionRange)
-    }
-  }, [isWarehouseTab, activeWarehouseSubTab, monthlyConsumptionRange, fetchMonthlyConsumption])
 
   useEffect(() => {
     if (isWarehouseTab && activeWarehouseSubTab === 'Komponenty') {

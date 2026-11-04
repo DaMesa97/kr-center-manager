@@ -13,7 +13,7 @@ const ROLE_LEGEND: Array<{ role: string; opis: string }> = [
   { role: 'kierownik_dzialu', opis: 'Pełny kierownik (tworzenie/edycja/wydawanie zleceń, etapy, magazyn, weryfikacja, statystyki) — ale TYLKO w przypisanych kategoriach. Np. brygadzista STA. Sam zakłada konta pracowników produkcji w swoich kategoriach, edytuje je, przypisuje etapy i resetuje hasła (nie usuwa kont, nie zmienia ról).' },
   { role: 'kierownik_magazynu', opis: 'Pełna firma, wszystkie kategorie — bez oznaczania „gotowe do fakturowania".' },
   { role: 'kierownik_produkcji', opis: 'Pełna firma, wszystkie kategorie, wszystko poza panelem administracyjnym.' },
-  { role: 'admin', opis: 'Wszystko + panel administracyjny (Użytkownicy, Konfiguracja, Klucze API, Kontrahenci). Ceny widzą tylko kierownicy i admin.' },
+  { role: 'admin', opis: 'Wszystko + grupa Ustawienia (Konfiguracja, Kontrahenci, Użytkownicy, Integracje). Ceny widzą tylko kierownicy i admin.' },
 ]
 
 type UsersViewProps = {

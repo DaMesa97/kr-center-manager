@@ -7,7 +7,6 @@ import type {
   IncomingStockRow,
   MmGroupRow,
   StockReservationRow,
-  MonthlyConsumptionPivot,
   PurchaseOrder,
   PurchaseOrderItem,
   PzGroupRow,
@@ -29,7 +28,6 @@ import ComponentsView from './warehouse/ComponentsView'
 import MovementsView from './warehouse/MovementsView'
 import MmView from './warehouse/MmView'
 import ForecastView from './warehouse/ForecastView'
-import MonthlyConsumptionView from './warehouse/MonthlyConsumptionView'
 import PzView from './warehouse/PzView'
 import RecipesView from './warehouse/RecipesView'
 import StockView from './warehouse/StockView'
@@ -43,6 +41,8 @@ type WarehouseViewProps = {
   activeSubTab: WarehouseSubTab
   onSubTabChange: (tab: WarehouseSubTab) => void
   hideSubTabs?: boolean
+  /** podzakładki tej pozycji menu (WAREHOUSE_TAB_SUBTABS); bez listy = wszystkie */
+  subTabs?: readonly WarehouseSubTab[]
   warehouses: Warehouse[]
   stock: WarehouseStockRow[]
   stockLoading: boolean
@@ -91,12 +91,6 @@ type WarehouseViewProps = {
   mmGroupsLoading: boolean
   onMmCreate: () => void
   onMmPreview: (reference_doc: string) => void
-  monthlyConsumption: MonthlyConsumptionPivot[]
-  monthlyConsumptionMonths: string[]
-  monthlyConsumptionLoading: boolean
-  monthlyConsumptionRange: number
-  onMonthlyConsumptionRefresh: () => void
-  onMonthlyConsumptionRangeChange: (months: number) => void
   alertsBadgeCount?: number
   suppliers: Supplier[]
   canSeeReorderTab: boolean
@@ -121,6 +115,7 @@ function WarehouseView({
   activeSubTab,
   onSubTabChange,
   hideSubTabs,
+  subTabs,
   warehouses,
   stock,
   stockLoading,
@@ -168,12 +163,6 @@ function WarehouseView({
   mmGroupsLoading,
   onMmCreate,
   onMmPreview,
-  monthlyConsumption,
-  monthlyConsumptionMonths,
-  monthlyConsumptionLoading,
-  monthlyConsumptionRange,
-  onMonthlyConsumptionRefresh,
-  onMonthlyConsumptionRangeChange,
   alertsBadgeCount,
   suppliers,
   canSeeReorderTab,
@@ -196,20 +185,20 @@ function WarehouseView({
   const canMovements = isManager || can(currentUser?.role, 'warehouse.movements')
   const warehouseTabs = useMemo(
     () =>
-      WAREHOUSE_SUB_TABS.filter(
+      (subTabs ?? WAREHOUSE_SUB_TABS).filter(
         (t) =>
           (t !== 'Alerty' || isManager) &&
           (t !== 'Zamawianie' || canSeeReorderTab) &&
           (t !== 'Zamówienia' || canSeePurchaseOrdersTab),
       ),
-    [isManager, canSeeReorderTab, canSeePurchaseOrdersTab],
+    [subTabs, isManager, canSeeReorderTab, canSeePurchaseOrdersTab],
   )
 
   return (
     <div
       className={`warehouse-view${isManager ? ' warehouse-view--manager' : ' warehouse-view--readonly'}`}
     >
-      {!hideSubTabs && (
+      {!hideSubTabs && warehouseTabs.length > 1 && (
       <div className="subtab-bar" role="tablist" aria-label="Magazyn — sekcje">
         {warehouseTabs.map((tab) => (
           <button
@@ -318,15 +307,6 @@ function WarehouseView({
           warehouses={warehouses}
           onCreate={onMmCreate}
           onPreview={onMmPreview}
-        />
-      ) : activeSubTab === 'Miesięczne zużycie' ? (
-        <MonthlyConsumptionView
-          data={monthlyConsumption}
-          months={monthlyConsumptionMonths}
-          loading={monthlyConsumptionLoading}
-          onRefresh={onMonthlyConsumptionRefresh}
-          onRangeChange={onMonthlyConsumptionRangeChange}
-          currentMonths={monthlyConsumptionRange}
         />
       ) : activeSubTab === 'Prognozy' ? (
         <ForecastView components={components} isManager={isManager} />

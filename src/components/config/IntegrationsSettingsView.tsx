@@ -21,7 +21,7 @@ const LABELS: Record<string, { title: string; hint: string; placeholder: string 
 }
 
 /**
- * Konfiguracja → Integracje (tylko admin, RLS na integration_settings).
+ * Ustawienia → Integracje → Make / Optima (tylko admin, RLS na integration_settings).
  * Na start jeden klucz: adres webhooka ponawiania RO w Optimie. Edge function
  * erp-retry czyta go service_role — adres nie trafia do klienta ani do repo.
  */

@@ -25,6 +25,15 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Menu po porządkach (beta.86)</h4>
+        <ul>
+          <li><b>Zamówienia</b> — kategorie, a pod nimi <b>Weryfikacja</b> (duble, braki numerów, błędy ERP) i <b>Archiwum</b>.</li>
+          <li><b>Produkcja</b> — Wysyłka, Etykiety i druk, ZKP AS 75EI.</li>
+          <li><b>Magazyn</b> — pięć pozycji zamiast jednej z trzynastoma przyciskami: <b>Stany</b> (stany, rezerwacje, ruchy), <b>Komponenty</b> (kartoteka, receptury), <b>Dokumenty PZ / MM</b>, <b>Zamawianie</b> (sugestie, alerty, prognozy, zamówienia do dostawców), <b>Inwentaryzacja</b>.</li>
+          <li><b>Analizy</b> — Statystyki (także „Zużycie magazynu") i Audyt.</li>
+          <li><b>Ustawienia</b> — Konfiguracja (ze szablonami etykiet), Kontrahenci (klienci <i>i</i> dostawcy), Użytkownicy, Integracje (klucze API, Make / Optima).</li>
+          <li>Plakietki liczą tylko to, co wymaga decyzji: Weryfikacja — rzeczy do sprawdzenia, Wysyłka — po terminie, Zamawianie — alerty braków.</li>
+        </ul>
         <h4>Produkcja</h4>
         <ul>
           <li><b>Reklamacje na „Moje stanowisko"</b> (też na telefonie) — etapy otwartych reklamacji pojawiają się jako zadania z czerwoną plakietką REKLAMACJA. Części do napraw NIE schodzą same z magazynu — rozlicza je kierownik (Zniszczenia / ręczna WZ).</li>
@@ -98,7 +107,7 @@ const SECTIONS: Section[] = [
       <>
         <p>Każde konto ma <b>rolę</b>, która decyduje co widzisz i co możesz zrobić:</p>
         <ul>
-          <li><b>Administrator</b> — pełny dostęp, w tym panel administracyjny (Użytkownicy, Konfiguracja, Klucze API, Kontrahenci).</li>
+          <li><b>Administrator</b> — pełny dostęp, w tym grupa Ustawienia (Konfiguracja, Kontrahenci, Użytkownicy, Integracje).</li>
           <li><b>Kierownik firmowy / produkcji / magazynu</b> — pełne zarządzanie zleceniami, magazynem, wysyłką i statystykami (bez panelu administracyjnego).</li>
           <li><b>Kierownik działu</b> — jak kierownik, ale <b>zawężony do przypisanych kategorii</b> (np. tylko STA + Disting).</li>
           <li><b>Pracownik produkcji</b> — widzi przypisane kategorie, oznacza <b>tylko swoje przypisane etapy</b> (w „Moje stanowisko" i w tabelach), dodaje komentarze.</li>
@@ -281,8 +290,8 @@ const SECTIONS: Section[] = [
         </ol>
         <h4>Konfiguracja (kierownik)</h4>
         <ul>
-          <li><b>Etykiety → Szablony etykiet</b> — szablony HTML per kategoria; edytor ma instrukcję, listę pól (np. <code>{'{{nr_zlecenia}}'}</code>, <code>{'{{qr}}'}</code>, <code>{'{{panel_gorny}}'}</code>) i podgląd w rzeczywistym rozmiarze. ⭐ = szablon domyślny.</li>
-          <li><b>Etykiety → Dokumenty</b> — wgrywasz pliki ZPL (deklaracje) i przypisujesz cechy doboru (system, realizator, szklone/pełne, ościeżnica). Puste pole = „dowolne". „Drukuj paczkę" drukuje wszystkie dokumenty kategorii naraz.</li>
+          <li><b>Ustawienia → Konfiguracja → Szablony etykiet</b> — szablony HTML per kategoria; edytor ma instrukcję, listę pól (np. <code>{'{{nr_zlecenia}}'}</code>, <code>{'{{qr}}'}</code>, <code>{'{{panel_gorny}}'}</code>) i podgląd w rzeczywistym rozmiarze. ⭐ = szablon domyślny.</li>
+          <li><b>Produkcja → Etykiety i druk</b> — wgrywasz pliki ZPL (deklaracje) i przypisujesz cechy doboru (system, realizator, szklone/pełne, ościeżnica). Puste pole = „dowolne". „Drukuj paczkę" drukuje wszystkie dokumenty kategorii naraz.</li>
           <li>Pliki <code>.nlbl</code> (Zebra Designer) trzeba najpierw <b>wyeksportować do ZPL</b> w Zebra Designerze — sam projekt .nlbl nie nadaje się do importu.</li>
         </ul>
       </>
@@ -295,16 +304,15 @@ const SECTIONS: Section[] = [
     keywords: 'magazyn stany komponenty pz mm przyjęcie przesunięcie receptury zamawianie rop inwentaryzacja alerty dostawcy',
     body: (
       <>
+        <p>Grupa <b>Magazyn</b> w menu ma pięć pozycji, każda z krótkim paskiem podzakładek:</p>
         <ul>
-          <li><b>Stany</b> — ilości komponentów w podziale na magazyny (Bukowa, Marklowicka, Wewnętrzne #1/#2).</li>
-          <li><b>Komponenty</b> — kartoteka surowców i drzwi; przy tworzeniu wskazujesz magazyny, do których komponent należy; kod generuje się automatycznie.</li>
-          <li><b>Przyjęcia (PZ)</b> — przyjęcie towaru; filtry po dostawcy i kategorii; jednostki sztukowe przyjmują tylko liczby całkowite, mb/kg — dziesiętne.</li>
-          <li><b>Przesunięcia (MM)</b> — ruchy między magazynami.</li>
-          <li><b>Receptury</b> — definiują co schodzi ze stanu przy realizacji zlecenia (dobór po kategorii/systemie/modelu/kolorze). Zejście następuje automatycznie przy dodaniu zlecenia; anulowanie zwraca komponenty.</li>
-          <li><b>Zamawianie</b> — sugestie zakupów (ROP z prognozą sezonową), lista zakupowa, zamówienia do dostawców z wydrukiem PDF.</li>
+          <li><b>Stany</b> — <i>Stany</i>: ilości komponentów w podziale na magazyny (Bukowa, Marklowicka, Wewnętrzne #1/#2); <i>Rezerwacje</i>: co trzymają otwarte zlecenia; <i>Ruchy</i>: historia wszystkich operacji.</li>
+          <li><b>Komponenty</b> — <i>Komponenty</i>: kartoteka surowców i drzwi (przy tworzeniu wskazujesz magazyny, kod generuje się automatycznie); <i>Receptury</i>: co schodzi ze stanu przy realizacji zlecenia (dobór po kategorii/systemie/modelu/kolorze), zejście automatyczne przy dodaniu zlecenia, anulowanie zwraca komponenty.</li>
+          <li><b>Dokumenty PZ / MM</b> — <i>Przyjęcia (PZ)</i>: przyjęcie towaru, filtry po dostawcy i kategorii, jednostki sztukowe tylko całkowite; <i>Przesunięcia (MM)</i>: ruchy między magazynami.</li>
+          <li><b>Zamawianie</b> — <i>Zamawianie</i>: sugestie zakupów (ROP z prognozą sezonową) i lista zakupowa; <i>Alerty</i>: braki i przewidywane wyczerpanie (licznik przy tej pozycji w menu); <i>Prognozy</i>; <i>Zamówienia</i>: zamówienia do dostawców z wydrukiem PDF.</li>
           <li><b>Inwentaryzacja</b> — remanent: eksport arkusza PDF do liczenia, potem wprowadzenie stanów rzeczywistych.</li>
-          <li><b>Alerty</b> — braki i przewidywane wyczerpanie; licznik przy grupie Magazyn w panelu bocznym.</li>
         </ul>
+        <p className="help-note">Raport „Zużycie magazynu" (miesięczne zejścia per komponent) jest w Analizy → Statystyki. Dostawców dopisujesz w Ustawienia → Kontrahenci → Dostawcy.</p>
       </>
     ),
   },
@@ -359,7 +367,8 @@ const SECTIONS: Section[] = [
       <>
         <ul>
           <li><b>Pulpit</b> — szybki przegląd dnia dla kierownika: liczby, zaległe, skróty.</li>
-          <li><b>Statystyki</b> — produkcja wg kategorii (wykresy statusów, trendy), reklamacje (co i dlaczego reklamowane), drzwi wewnętrzne, produktywność, czasy realizacji.</li>
+          <li><b>Statystyki</b> (Analizy) — produkcja wg kategorii (wykresy statusów, trendy), reklamacje (co i dlaczego reklamowane), drzwi wewnętrzne, produktywność, czasy realizacji, zużycie magazynu (miesięczne zejścia per komponent).</li>
+          <li><b>Audyt</b> (Analizy) — pełna historia zmian: kto, kiedy, co zmienił.</li>
           <li>Wykres statusu pokazuje sumę drzwi w środku, procenty na wycinkach i legendę z wartościami.</li>
         </ul>
       </>
@@ -368,18 +377,17 @@ const SECTIONS: Section[] = [
   // ── 13. Administracja ─────────────────────────────────────────────
   {
     id: 'admin',
-    title: '⚙️ Administracja (admin/kierownik)',
-    keywords: 'konfiguracja słowniki wykluczenia użytkownicy klucze api kontrahenci audyt archiwum czasy realizacji',
+    title: '⚙️ Ustawienia (admin/kierownik)',
+    keywords: 'ustawienia administracja konfiguracja słowniki wykluczenia użytkownicy klucze api integracje make optima webhook kontrahenci dostawcy szablony etykiet czasy realizacji dane firmy',
     body: (
       <>
         <ul>
-          <li><b>Konfiguracja</b> — słowniki pól formularzy (systemy, modele, kolory, okucia…), wykluczenia niedozwolonych kombinacji, wymiary/poszerzenia, czasy realizacji (terminy ostrzeżeń), opcje ościeżnic Bastion (mnożniki etykiet).</li>
-          <li><b>Kontrahenci</b> — baza firm: dni produkcji/tras, dane logistyczne, scalanie aliasów nazw.</li>
+          <li><b>Konfiguracja</b> — słowniki pól formularzy (systemy, modele, kolory, okucia…), wykluczenia niedozwolonych kombinacji, słownik wymiarów, naddatki szyb, dane firmy, terminy realizacji (progi ostrzeżeń), reguły Bastion, szablony etykiet HTML.</li>
+          <li><b>Kontrahenci</b> — <i>Klienci</i>: dni produkcji/tras, dane logistyczne, scalanie aliasów nazw; <i>Dostawcy</i>: firmy, od których kupuje magazyn (zamówienia do dostawców, ZKP).</li>
           <li><b>Użytkownicy</b> — konta, role, przypisane kategorie, przypisane etapy pracowników („Etapy produkcji"). Hasła nadaje się przy tworzeniu konta. Kierownik działu widzi tu tylko pracowników produkcji ze swoich kategorii: zakłada konta, resetuje hasła, przypisuje etapy, dezaktywuje; ról nie zmienia i kont nie usuwa.</li>
-          <li><b>Klucze API</b> — klucze dla integracji (konfigurator, Excel): generowanie, dezaktywacja, statystyki użycia i limity.</li>
-          <li><b>Audyt</b> — pełna historia zmian: kto, kiedy, co zmienił.</li>
-          <li><b>Archiwum</b> — zrealizowane zlecenia (podstawa do tworzenia reklamacji).</li>
+          <li><b>Integracje</b> — <i>Klucze API</i> dla konfiguratora i arkusza Excel (generowanie, dezaktywacja, statystyki użycia i limity) oraz <i>Make / Optima</i>: adres webhooka do „Ponów wysyłkę do Optimy" (RO).</li>
         </ul>
+        <p className="help-note">Archiwum zrealizowanych zleceń jest w grupie Zamówienia, Audyt w Analizach.</p>
       </>
     ),
   },

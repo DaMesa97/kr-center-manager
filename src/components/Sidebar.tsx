@@ -1,5 +1,17 @@
 import { useState, useMemo, useEffect } from 'react'
-import { User, DoorOpen, Factory, Package, Settings, ChevronRight, ChevronLeft, Key, LayoutDashboard, HelpCircle, MessageSquare, ShieldCheck } from 'lucide-react'
+import {
+  User,
+  DoorOpen,
+  Factory,
+  Package,
+  Settings,
+  ChevronRight,
+  ChevronLeft,
+  LayoutDashboard,
+  HelpCircle,
+  MessageSquare,
+  BarChart3,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { CATEGORY_LABELS } from '../constants'
 
@@ -7,73 +19,76 @@ type TabGroupDef =
   | { type: 'standalone'; tab: string; Icon: LucideIcon; label: string }
   | { type: 'group'; id: string; label: string; Icon: LucideIcon; tabs: readonly string[] }
 
-const TAB_GROUPS: TabGroupDef[] = [
-  {
-    type: 'standalone',
-    tab: 'Pulpit',
-    Icon: LayoutDashboard,
-    label: 'Pulpit',
-  },
-  {
-    type: 'standalone',
-    tab: 'Moje stanowisko',
-    Icon: User,
-    label: 'Moje stanowisko',
-  },
+/**
+ * Menu boczne (porządki, beta.86). Zasady:
+ *  - grupa = jedno pytanie użytkownika: „co mam zrobić" (Zamówienia, Produkcja, Magazyn),
+ *    „co chcę wiedzieć" (Analizy), „jak to ustawić" (Ustawienia);
+ *  - każda rzecz w dokładnie jednym miejscu;
+ *  - plakietka tylko tam, gdzie ktoś ma zadziałać, i liczy wyłącznie to, co wymaga decyzji.
+ * Widoczność pozycji per rola decyduje tabsForUserDepartment (utils.ts) — tu tylko układ.
+ */
+export const TAB_GROUPS: TabGroupDef[] = [
+  { type: 'standalone', tab: 'Pulpit', Icon: LayoutDashboard, label: 'Pulpit' },
+  { type: 'standalone', tab: 'Moje stanowisko', Icon: User, label: 'Moje stanowisko' },
   {
     type: 'group',
     id: 'orders',
     label: 'Zamówienia',
     Icon: DoorOpen,
-    tabs: ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'],
+    tabs: ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium', 'Weryfikacja', 'Archiwum'],
   },
   {
     type: 'group',
     id: 'production',
     label: 'Produkcja',
     Icon: Factory,
-    tabs: ['Wysyłka', 'Statystyki', 'Weryfikacja', 'Etykiety'],
+    tabs: ['Wysyłka', 'Etykiety', 'ZKP'],
   },
   {
     type: 'group',
     id: 'warehouse',
     label: 'Magazyn',
     Icon: Package,
-    tabs: ['Magazyn', 'Zamawianie', 'Inwentaryzacja', 'Kontrahenci'],
+    tabs: ['Stany', 'Komponenty', 'Dokumenty', 'Zamawianie', 'Inwentaryzacja'],
   },
   {
     type: 'group',
-    id: 'admin',
-    label: 'Administracja',
+    id: 'analytics',
+    label: 'Analizy',
+    Icon: BarChart3,
+    tabs: ['Statystyki', 'Audyt'],
+  },
+  {
+    type: 'group',
+    id: 'settings',
+    label: 'Ustawienia',
     Icon: Settings,
-    tabs: ['Konfiguracja', 'Użytkownicy', 'Klucze API', 'Audyt', 'Archiwum'],
+    tabs: ['Konfiguracja', 'Kontrahenci', 'Użytkownicy', 'Integracje'],
   },
-  {
-    type: 'standalone',
-    tab: 'ZKP',
-    Icon: ShieldCheck,
-    label: 'ZKP AS 75EI',
-  },
-  {
-    type: 'standalone',
-    tab: 'Zgłoszenia',
-    Icon: MessageSquare,
-    label: 'Zgłoszenia',
-  },
-  {
-    type: 'standalone',
-    tab: 'Pomoc',
-    Icon: HelpCircle,
-    label: 'Pomoc',
-  },
+  { type: 'standalone', tab: 'Zgłoszenia', Icon: MessageSquare, label: 'Zgłoszenia' },
+  { type: 'standalone', tab: 'Pomoc', Icon: HelpCircle, label: 'Pomoc' },
 ]
+
+/** Etykiety pozycji, gdy nazwa zakładki (klucz) różni się od tego, co ma widzieć człowiek */
+const TAB_LABELS: Record<string, string> = {
+  ...CATEGORY_LABELS,
+  Etykiety: 'Etykiety i druk',
+  ZKP: 'ZKP AS 75EI',
+  Dokumenty: 'Dokumenty PZ / MM',
+}
+
+/** Pozycje zaczynające nową sekcję w grupie (cienka linia nad nimi) */
+const SECTION_START = new Set(['Weryfikacja'])
 
 type Props = {
   visibleTabs: string[]
   activeTab: string
   onChange: (tab: string) => void
+  /** Weryfikacja: duble + brak numeru klienta + błędy ERP — rzeczy do decyzji */
   reviewCount?: number
+  /** Zamawianie: alerty braków */
   warehouseAlertsCount?: number
+  /** Wysyłka: zlecenia po terminie */
   overdueCount?: number
 }
 
@@ -123,6 +138,13 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
     }
   }, [activeGroupId])
 
+  const badgeFor = (tab: string): { value: number; alert: boolean } | null => {
+    if (tab === 'Weryfikacja' && reviewCount > 0) return { value: reviewCount, alert: false }
+    if (tab === 'Wysyłka' && overdueCount > 0) return { value: overdueCount, alert: true }
+    if (tab === 'Zamawianie' && warehouseAlertsCount > 0) return { value: warehouseAlertsCount, alert: true }
+    return null
+  }
+
   return (
     <aside className={`app-sidebar ${collapsed ? 'app-sidebar--collapsed' : ''}`}>
       {/* Logo + przycisk zwijania */}
@@ -170,6 +192,10 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
           const isGroupActive = groupTabs.includes(activeTab)
           const isExpanded = expandedGroups.has(entry.id)
           const GroupIcon = entry.Icon
+          // zwinięta grupa: suma plakietek jej pozycji, żeby alert nie znikał z oczu
+          const groupBadge = isExpanded
+            ? 0
+            : groupTabs.reduce((sum, t) => sum + (badgeFor(t)?.value ?? 0), 0)
 
           return (
             <div key={entry.id} className="sidebar-group">
@@ -189,8 +215,8 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
               >
                 <GroupIcon size={15} className="sidebar-item-icon" />
                 <span className="sidebar-group-label">{entry.label}</span>
-                {entry.id === 'warehouse' && warehouseAlertsCount > 0 && (
-                  <span className="sidebar-badge sidebar-badge--alert">{warehouseAlertsCount}</span>
+                {groupBadge > 0 && (
+                  <span className="sidebar-badge sidebar-badge--alert">{groupBadge}</span>
                 )}
                 <ChevronRight
                   size={13}
@@ -200,23 +226,22 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
 
               {!collapsed && isExpanded && (
                 <div className="sidebar-group-items">
-                  {groupTabs.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      className={`sidebar-item sidebar-item--child ${t === activeTab ? 'sidebar-item--active' : ''}`}
-                      onClick={() => onChange(t)}
-                    >
-                      {t === 'Klucze API' && <Key size={13} className="sidebar-item-icon" />}
-                      <span>{CATEGORY_LABELS[t as keyof typeof CATEGORY_LABELS] ?? t}</span>
-                      {t === 'Weryfikacja' && reviewCount > 0 && (
-                        <span className="sidebar-badge">{reviewCount}</span>
-                      )}
-                      {t === 'Wysyłka' && overdueCount > 0 && (
-                        <span className="sidebar-badge sidebar-badge--alert">{overdueCount}</span>
-                      )}
-                    </button>
-                  ))}
+                  {groupTabs.map((t) => {
+                    const badge = badgeFor(t)
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        className={`sidebar-item sidebar-item--child ${t === activeTab ? 'sidebar-item--active' : ''} ${SECTION_START.has(t) ? 'sidebar-item--section-start' : ''}`}
+                        onClick={() => onChange(t)}
+                      >
+                        <span>{TAB_LABELS[t] ?? t}</span>
+                        {badge && (
+                          <span className={`sidebar-badge ${badge.alert ? 'sidebar-badge--alert' : ''}`}>{badge.value}</span>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>

@@ -9,13 +9,11 @@ import type {
   DimensionMap,
   GlassAllowance,
   LeadTimeRule,
-  Supplier,
   ToastVariant,
 } from '../types'
 import SearchableSelect from './SearchableSelect'
-import SuppliersConfigView from './config/SuppliersConfigView'
 import CompanySettingsView from './config/CompanySettingsView'
-import IntegrationsSettingsView from './config/IntegrationsSettingsView'
+import LabelTemplatesEditor from './LabelTemplatesEditor'
 import LeadTimeRulesView from './config/LeadTimeRulesView'
 import BastionRulesSection from './config/BastionRulesSection'
 import Spinner from './Spinner'
@@ -102,11 +100,6 @@ type ConfigViewProps = {
     field: 'allowance_w_mm' | 'allowance_h_mm',
     value: number,
   ) => void | Promise<void>
-  suppliers: Supplier[]
-  suppliersLoading: boolean
-  onCreateSupplier: () => void
-  onEditSupplier: (supplier: Supplier) => void
-  onToggleSupplierActive: (supplier: Supplier) => Promise<void>
   companySettings: CompanySettings | null
   companySettingsLoading: boolean
   onCompanySettingsSaved: () => void
@@ -171,11 +164,6 @@ export default function ConfigView({
   handleDeleteExtensionProfile,
   glassAllowances,
   handleUpdateGlassAllowance,
-  suppliers,
-  suppliersLoading,
-  onCreateSupplier,
-  onEditSupplier,
-  onToggleSupplierActive,
   companySettings,
   companySettingsLoading,
   onCompanySettingsSaved,
@@ -419,13 +407,6 @@ export default function ConfigView({
         >
           Naddatki szyb (naświetla)
         </button>
-        <button
-          type="button"
-          className={`btn btn-sm ${activeConfigSubTab === 'Dostawcy' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setActiveConfigSubTab('Dostawcy')}
-        >
-          Dostawcy
-        </button>
         {isManager && (
           <button
             type="button"
@@ -438,11 +419,11 @@ export default function ConfigView({
         {isManager && (
           <button
             type="button"
-            className={`btn btn-sm ${activeConfigSubTab === 'Integracje' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setActiveConfigSubTab('Integracje')}
-            title="Adresy webhooków Make (np. Ponów wysyłkę do Optimy)"
+            className={`btn btn-sm ${activeConfigSubTab === 'Szablony etykiet' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveConfigSubTab('Szablony etykiet')}
+            title="Szablony HTML etykiet dynamicznych per kategoria (druk z karty zlecenia)"
           >
-            Integracje
+            Szablony etykiet
           </button>
         )}
         {isManager && (
@@ -893,16 +874,6 @@ export default function ConfigView({
           />
         </div>
       )}
-      {activeConfigSubTab === 'Dostawcy' && (
-        <SuppliersConfigView
-          suppliers={suppliers}
-          loading={suppliersLoading}
-          isManager={isManager}
-          onCreate={onCreateSupplier}
-          onEdit={onEditSupplier}
-          onToggleActive={onToggleSupplierActive}
-        />
-      )}
       {activeConfigSubTab === 'Dane firmy' && isManager && (
         <CompanySettingsView
           companySettings={companySettings}
@@ -912,8 +883,8 @@ export default function ConfigView({
           pushToast={pushToast}
         />
       )}
-      {activeConfigSubTab === 'Integracje' && isManager && (
-        <IntegrationsSettingsView pushToast={pushToast} />
+      {activeConfigSubTab === 'Szablony etykiet' && isManager && (
+        <LabelTemplatesEditor isManager={isManager} pushToast={pushToast} />
       )}
       {activeConfigSubTab === 'Terminy realizacji' && isManager && (
         <LeadTimeRulesView
