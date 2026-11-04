@@ -40,3 +40,16 @@ PJ bez uprawnienia IS-01 → też błąd; stanowisko spoza listy → CHECK; audy
 
 Przed pierwszą kartą: admin nadaje stanowiska, Pełnomocnik nadaje uprawnienia (choćby sobie) — bez tego żaden
 etap karty nie da się podpisać. Konta hali są wspólne (decyzja właściciela), więc podpis = inicjały osoby z matrycy.
+
+## Etapy produkcji aluminium zgodne z ZKP (4.11.2026)
+
+Etapy per sztuka na pozycjach zlecenia (`order_alu_positions.production_stages`, tabela Aluminium i Moje
+stanowisko) idą w kolejności z zał. 6.25: **cięcie (IS-01) → składanie / łączenie (IS-03) → okucia (IS-04)
+→ szklenie (IS-05) → pakowanie** (`alu_stage_keys()` i `ALU_STAGE_DEFS`, `migrate/alu_etapy_zkp.sql`;
+wcześniej okuwanie szło przed składaniem). Dla zlecenia ZKP (`alu_order_is_zkp`) `mark_alu_position_stage`
+zamienia inicjały z kafelka na osobę (`zkp_profile_by_initials`) i sprawdza aktywne uprawnienie do operacji
+etapu (`alu_stage_zkp_operation` → `zkp_assert_competency`) — ta sama reguła co podpis etapu karty wyrobu.
+Bez inicjałów („T") zlecenie ZKP odmawia. Pakowanie jest poza matrycą. Wkłady (IS-02) i regulacja (IS-06)
+nie są etapami produkcji — zapisuje się je w karcie wyrobu (cz. C) z partiami i szczelinami.
+Tabela Aluminium: komórki etapów = zrobione/wszystkie sztuki w zleceniu, klik = następna sztuka, komplet =
+pytanie o cofnięcie; tooltip rozbija na pozycje z inicjałami.

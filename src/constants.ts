@@ -666,13 +666,26 @@ export const PURCHASE_ORDER_ITEM_STATUS_LABELS: Record<string, string> = {
 export const ALU_CATEGORY = 'Aluminium' as const
 /** Nazwa zakładki (w bazie kategoria 'Aluminium' — bez spacji/ogonków, jak DrzwiWewnetrzne) */
 export const ALU_TAB_LABEL = 'Stolarka aluminiowa'
+// Kolejność i nazwy ZGODNE Z ZKP AS 75EI (zał. 6.25 / instrukcje stanowiskowe,
+// decyzja Tymka 4.11.2026): IS-01 cięcie → IS-03 łączenie/składanie → IS-04 okucia
+// → IS-05 szklenie → pakowanie. Lustro w bazie: alu_stage_keys() / alu_stage_name()
+// (migrate/alu_etapy_zkp.sql). Dla zlecenia ZKP sztukę może oznaczyć tylko osoba
+// z aktywnym uprawnieniem do operacji w matrycy 6.27 (ALU_STAGE_ZKP_OPERATION).
 export const ALU_STAGE_DEFS: StageDef[] = [
-  { key: 'ciecie', header: 'CIĘCIE', title: 'Cięcie i frezowanie profili' },
-  { key: 'okuwanie', header: 'OKUW', title: 'Okuwanie konstrukcji' },
-  { key: 'skladanie', header: 'SKŁAD', title: 'Składanie konstrukcji' },
-  { key: 'szklenie', header: 'SZKL', title: 'Szklenie konstrukcji' },
-  { key: 'pakowanie', header: 'PAK', title: 'Pakowanie' },
+  { key: 'ciecie', header: 'CIĘCIE', title: 'IS-01 Cięcie i obróbka profili (CNC, piła)' },
+  { key: 'skladanie', header: 'SKŁAD', title: 'IS-03 Łączenie profili, uszczelki, narożniki (składanie)' },
+  { key: 'okuwanie', header: 'OKUCIA', title: 'IS-04 Okucia' },
+  { key: 'szklenie', header: 'SZKL', title: 'IS-05 Szklenie / wypełnienia' },
+  { key: 'pakowanie', header: 'PAK', title: 'Pakowanie (ZKP: po kontroli odbiorczej 6.17.5)' },
 ]
+/** Operacja z matrycy kompetencji 6.27 dla etapu produkcji aluminium (null = poza matrycą). */
+export const ALU_STAGE_ZKP_OPERATION: Record<string, 'IS-01' | 'IS-03' | 'IS-04' | 'IS-05' | null> = {
+  ciecie: 'IS-01',
+  skladanie: 'IS-03',
+  okuwanie: 'IS-04',
+  szklenie: 'IS-05',
+  pakowanie: null,
+}
 export const ALU_REALIZACJA_LABELS: Record<string, string> = { wysylka: 'Wysyłka', montaz: 'Montaż' }
 
 /**

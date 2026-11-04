@@ -424,6 +424,7 @@ mówi co robi i kiedy odpalić. Ważne pliki:
 - `labels.sql`, `feedback.sql`, `notifications.sql`, `order_photos.sql` — tabele modułów.
 - `erp_status_powiadomienia.sql` — status RO z Optimy: trigger powiadomień `erp_error` + indeksy (sekcja 4a).
 - `erp_retry_integracje.sql` — `integration_settings` (webhook „Ponów wysyłkę do Optimy") + kolumny `erp_*` w `orders_archive`.
+- `alu_etapy_zkp.sql` — kolejność etapów aluminium wg ZKP (cięcie → składanie → okucia → szklenie → pakowanie) + sprawdzenie matrycy 6.27 przy oznaczaniu sztuki na zleceniu ZKP (docs/zkp/MATRYCA_6_27.md).
 - `print_documents_dwu.sql`, `bastion_side_top_panel.sql`, `orders_wentylacja.sql` —
   rozszerzenia kolumn.
 

@@ -9,19 +9,20 @@ const ws = (keys: string[]): WorkerStage[] => keys.map((k, i) => ({ id: i, worke
 
 describe('aluStation — przepływ sztukowy', () => {
   it('readyCount: pierwszy etap do ilości, kolejne tylko tyle, ile przepuścił poprzedni', () => {
-    const st = { ciecie: { done: 2, marks: [] }, okuwanie: { done: 1, marks: [] } }
+    // kolejność ZKP: cięcie (IS-01) → składanie (IS-03) → okucia (IS-04) → szklenie (IS-05) → pakowanie
+    const st = { ciecie: { done: 2, marks: [] }, skladanie: { done: 1, marks: [] } }
     expect(aluReadyCount(st, 'ciecie', 3)).toBe(1)
-    expect(aluReadyCount(st, 'okuwanie', 3)).toBe(1)
     expect(aluReadyCount(st, 'skladanie', 3)).toBe(1)
+    expect(aluReadyCount(st, 'okuwanie', 3)).toBe(1)
     expect(aluReadyCount(st, 'szklenie', 3)).toBe(0)
-    expect(aluReadyCount({}, 'okuwanie', 3)).toBe(0)
+    expect(aluReadyCount({}, 'skladanie', 3)).toBe(0)
   })
 
   it('cofnięcie tylko gdy następny etap nie zużył sztuki', () => {
-    const st = { ciecie: { done: 2, marks: [] }, okuwanie: { done: 2, marks: [] } }
+    const st = { ciecie: { done: 2, marks: [] }, skladanie: { done: 2, marks: [] } }
     expect(aluCanUndo(st, 'ciecie', 3)).toBe(false)
-    expect(aluCanUndo(st, 'okuwanie', 3)).toBe(true)
-    expect(aluCanUndo(st, 'skladanie', 3)).toBe(false)
+    expect(aluCanUndo(st, 'skladanie', 3)).toBe(true)
+    expect(aluCanUndo(st, 'okuwanie', 3)).toBe(false)
   })
 
   it('buildAluTasks: tylko przypisane etapy, otwarte zlecenia, niedokończone pozycje; sort po terminie', () => {
@@ -38,8 +39,11 @@ describe('aluStation — przepływ sztukowy', () => {
     expect(tasks[0].readyToWork).toBe(true)
     expect(tasks[0].alu?.readyCount).toBe(3)
     expect(buildAluTasks([o1], byOrder, ws(['e1']))).toEqual([])
+    // drugi etap po cięciu to SKŁADANIE (IS-03); okucia dopiero po nim
+    const skladanie = buildAluTasks([o1], byOrder, ws(['skladanie']))
+    expect(skladanie.map((t) => [t.alu?.posNo, t.readyToWork])).toEqual([[1, false], [2, true]])
     const okuwanie = buildAluTasks([o1], byOrder, ws(['okuwanie']))
-    expect(okuwanie.map((t) => [t.alu?.posNo, t.readyToWork])).toEqual([[1, false], [2, true]])
+    expect(okuwanie.map((t) => [t.alu?.posNo, t.readyToWork])).toEqual([[1, false], [2, false]])
   })
 
   it('mergeAluPositionEvent scala UPDATE i ignoruje obce zlecenia', () => {
