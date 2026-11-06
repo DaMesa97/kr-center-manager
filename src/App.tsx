@@ -69,6 +69,8 @@ import ToastStack from './components/ToastStack'
 import StageRevertPopup from './components/StageRevertPopup'
 import StageSpecialMenu from './components/StageSpecialMenu'
 import { useErpRetry } from './hooks/useErpRetry'
+import { useExcelSync } from './hooks/useExcelSync'
+import type { ReviewFocus } from './components/OrdersNeedingReviewView'
 import { STAGE_NA, holdValue } from './lib/stageSpecial'
 import { dateInRange, resolveDateRange } from './lib/dateRange'
 import ReleaseClearPopup from './components/ReleaseClearPopup'
@@ -888,6 +890,10 @@ function App() {
 
   // „Ponów wysyłkę do Optimy" (RO) — edge erp-retry → webhook Make z Ustawienia → Integracje → Make / Optima
   const { retryErp, retryingId: erpRetryingId } = useErpRetry({ pushToast, enabled: isManager })
+  // Synchronizacja wydań z Excela (#116): wyniki ostatnich przebiegów do sekcji „Do wyjaśnienia"
+  const excelSync = useExcelSync(isManager)
+  // #115: kafelek Pulpitu wskazuje sekcję Weryfikacji, do której przewinąć po wejściu
+  const [reviewFocus, setReviewFocus] = useState<ReviewFocus | null>(null)
 
   const {
     activeStatsSubTab,
@@ -2912,7 +2918,7 @@ function App() {
         visibleTabs={visibleTabs}
         activeTab={activeTab}
         onChange={(tab) => setActiveTab(tab as (typeof TABS)[number])}
-        reviewCount={ordersNeedingReview.length + erpErrors.length}
+        reviewCount={ordersNeedingReview.length + erpErrors.length + excelSync.openCount}
         warehouseAlertsCount={alertsBadgeCount}
         overdueCount={overdueCount + warningCount}
       />
@@ -2945,6 +2951,7 @@ function App() {
           newOrderLabel={activeTab === 'Aluminium' ? '⬆ Wgraj listę produkcyjną' : undefined}
           canCreateOrder={isManager}
           onSignOut={() => void handleSignOut()}
+          pushToast={pushToast}
         />
         <UpdateBanner />
         {minVersionRequired && (
@@ -3334,8 +3341,12 @@ function App() {
             currentUserFullName={currentUser?.full_name ?? ''}
             reviewCount={ordersNeedingReview.length}
             erpErrorCount={erpErrors.length}
+            excelSync={{ openCount: excelSync.openCount, lastSyncAt: excelSync.lastSyncAt, stale: excelSync.stale }}
             alertsBadgeCount={alertsBadgeCount}
-            onNavigate={(tab) => setActiveTab(tab as (typeof TABS)[number])}
+            onNavigate={(tab, focus) => {
+              setReviewFocus(focus ?? null)
+              setActiveTab(tab as (typeof TABS)[number])
+            }}
           />
         ) : isCompaniesTab ? (
           <ContractorsView
@@ -3485,6 +3496,10 @@ function App() {
             onOpenErpOrder={handleOpenReviewOrder}
             onRetryErp={(r) => void retryErp(r)}
             retryingErpId={erpRetryingId}
+            excelSync={excelSync}
+            onCancelOrderById={handleCancelReviewOrder}
+            focusSection={reviewFocus}
+            onFocusConsumed={() => setReviewFocus(null)}
           />
         ) : isAuditTab && isManager ? (
           <AuditLogView

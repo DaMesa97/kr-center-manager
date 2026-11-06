@@ -1,4 +1,5 @@
 import { appAlert } from '../../lib/appDialogs'
+import { useUnsavedGuard } from '../../lib/useUnsavedGuard'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ConfigOptionRecord, Supplier, WarehouseComponent } from '../../types'
@@ -65,6 +66,7 @@ function FinishedDoorComponentFormModal({
   const [minStockLevel, setMinStockLevel] = useState<number | ''>('')
   const [targetStockLevel, setTargetStockLevel] = useState<number | ''>('')
   const [saving, setSaving] = useState(false)
+  const { requestClose } = useUnsavedGuard({ productCategory, wingModel, handleModel, size, frameCode, handleShield, direction, color, handleColor, hingeCoverColor, code, unit, supplierId, unitsPerPallet, palletsPerFullTir, minStockLevel, targetStockLevel }, onClose, { enabled: !saving, escape: open, resetKey: open })
 
   const wingModelOptions = useMemo(
     () =>
@@ -318,11 +320,11 @@ function FinishedDoorComponentFormModal({
   if (!open) return null
 
   return createPortal(
-    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => void requestClose()}>
       <div className="order-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 600 }}>
         <div className="order-modal-header">
           <h2>{mode === 'add' ? 'Dodaj drzwi wewnętrzne' : 'Edytuj pozycję'}</h2>
-          <button type="button" className="btn btn-icon btn-ghost" onClick={onClose}>
+          <button type="button" className="btn btn-icon btn-ghost" onClick={() => void requestClose()}>
             ×
           </button>
         </div>
@@ -508,7 +510,7 @@ function FinishedDoorComponentFormModal({
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             disabled={saving}
           >
             Anuluj

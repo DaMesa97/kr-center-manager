@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { X, Layers, Database, ShieldCheck, Zap, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react'
 import packageJson from '../../package.json'
 import NotificationBell from './NotificationBell'
+import ChangePasswordModal from './ChangePasswordModal'
+import type { ToastVariant } from '../types'
 
 // ---------------------------------------------------------------------------
 // IPC helper (tylko do invoke — bez globalnego augmentowania Window)
@@ -211,6 +213,8 @@ type AppHeaderProps = {
   /** „+ Nowe zamówienie” tylko dla kierowników (pracownik hali / magazynier nie zakłada zleceń) */
   canCreateOrder: boolean
   onSignOut: () => void
+  /** komunikaty (np. po zmianie hasła) */
+  pushToast?: (message: string, variant: ToastVariant) => void
 }
 
 export default function AppHeader({
@@ -235,8 +239,10 @@ export default function AppHeader({
   newOrderLabel,
   canCreateOrder,
   onSignOut,
+  pushToast,
 }: AppHeaderProps) {
   const [showAbout, setShowAbout] = useState(false)
+  const [showChangePassword, setShowChangePassword] = useState(false)
 
   const isNoActionTab =
     isConfigTab ||
@@ -318,6 +324,14 @@ export default function AppHeader({
             >
               v{packageJson.version}
             </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={() => setShowChangePassword(true)}
+              title="Zmień swoje hasło do programu"
+            >
+              Zmień hasło
+            </button>
             <button type="button" className="btn btn-sm btn-secondary" onClick={onSignOut}>
               Wyloguj
             </button>
@@ -326,6 +340,7 @@ export default function AppHeader({
       </header>
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} pushToast={pushToast} />}
     </>
   )
 }

@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { PRODUCTION_DAYS } from '../constants'
 import type { Company, ContractorFormData } from '../types'
 
@@ -23,6 +24,7 @@ export default function ContractorModal({
   onSave,
   submitOnEnterInInput,
 }: ContractorModalProps) {
+  const { requestClose } = useUnsavedGuard(contractorFormData, onClose, { enabled: !isContractorSaving, escape: open, resetKey: open })
   if (!open) return null
 
   return createPortal(
@@ -30,12 +32,12 @@ export default function ContractorModal({
       className="modal-overlay"
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
+      onClick={() => void requestClose()}
     >
       <div className="order-modal" onClick={(e) => e.stopPropagation()}>
         <div className="order-modal-header">
           <h2>{editingCompany === null ? 'Dodaj kontrahenta' : 'Edytuj kontrahenta'}</h2>
-          <button className="btn btn-icon btn-ghost" onClick={onClose}>
+          <button className="btn btn-icon btn-ghost" onClick={() => void requestClose()}>
             X
           </button>
         </div>

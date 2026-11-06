@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import SearchableSelect from './SearchableSelect'
@@ -69,6 +70,7 @@ export default function DamageReportModal({
   const [quantity, setQuantity] = useState('1')
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
+  const { requestClose } = useUnsavedGuard({ selectedStage, selectedKeys, qtyByKey, componentId, warehouseId, quantity, reason }, onClose, { enabled: !saving, escape: false, resetKey: open })
 
   useEffect(() => {
     if (!open) return
@@ -182,11 +184,11 @@ export default function DamageReportModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !saving) onClose()
+      if (e.key === 'Escape' && !saving) void requestClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, saving])
+  }, [requestClose, saving])
 
   if (!open) return null
 
@@ -261,13 +263,13 @@ export default function DamageReportModal({
       role="dialog"
       aria-modal="true"
       onClick={() => {
-        if (!saving) onClose()
+        if (!saving) void requestClose()
       }}
     >
       <div className="order-modal damage-modal" onClick={(e) => e.stopPropagation()}>
         <div className="order-modal-header">
           <h2>⚠️ Zgłoś zniszczenie</h2>
-          <button type="button" className="btn btn-icon btn-ghost" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn btn-icon btn-ghost" onClick={() => void requestClose()} disabled={saving}>
             X
           </button>
         </div>
@@ -438,7 +440,7 @@ export default function DamageReportModal({
                 ? `Zgłoś i zdejmij z magazynu (${selectedCount})`
                 : 'Zgłoś i zdejmij z magazynu'}
           </button>
-          <button type="button" className="btn btn-sm btn-primary" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void requestClose()} disabled={saving}>
             Anuluj
           </button>
         </div>

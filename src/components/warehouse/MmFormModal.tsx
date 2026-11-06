@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useUnsavedGuard } from '../../lib/useUnsavedGuard'
 import { createPortal } from 'react-dom'
 import type { MmFormState, MmItem, Warehouse, WarehouseComponent } from '../../types'
 import SearchableSelect from '../SearchableSelect'
@@ -37,6 +38,7 @@ function MmFormModal({
   onClose,
   saving,
 }: MmFormModalProps) {
+  const { requestClose } = useUnsavedGuard(formData, onClose, { enabled: !saving, escape: open, resetKey: open })
   const componentOptions = useMemo(
     () => components.map((c) => componentOptionLabel(c)),
     [components],
@@ -137,7 +139,7 @@ function MmFormModal({
       aria-modal="true"
       onClick={() => {
         if (saving) return
-        onClose()
+        void requestClose()
       }}
     >
       <div
@@ -146,7 +148,7 @@ function MmFormModal({
       >
         <div className="order-modal-header">
           <h2>{title}</h2>
-          <button type="button" className="btn btn-icon btn-ghost" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn btn-icon btn-ghost" onClick={() => void requestClose()} disabled={saving}>
             X
           </button>
         </div>
@@ -243,7 +245,7 @@ function MmFormModal({
           <button type="button" className="btn btn-primary" onClick={() => void onSave()} disabled={saving}>
             {saving ? 'Zapisywanie…' : 'Zapisz'}
           </button>
-          <button type="button" className="btn btn-sm btn-primary" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void requestClose()} disabled={saving}>
             Anuluj
           </button>
         </div>

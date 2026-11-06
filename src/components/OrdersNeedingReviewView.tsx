@@ -1,10 +1,15 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { ErpErrorRow, Order, OrderNeedingReview } from '../types'
 import { fmtErpDate } from '../lib/erpStatus'
 import type { DuplicateCandidate, DuplicateGroup } from '../lib/duplicateDetect'
 import { countCompletedStages } from '../utils'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
+import ExcelSyncReviewSection from './ExcelSyncReviewSection'
+import type { ExcelSyncState } from '../hooks/useExcelSync'
+
+/** sekcja, do której przewinąć po wejściu z kafelka Pulpitu (#115) */
+export type ReviewFocus = 'review' | 'excel' | 'erp' | 'duplicates'
 
 // Licznik etapów przy zleceniu w grupie dubli — kopia z postępem produkcji
 // powinna ZOSTAĆ, anuluje się tę bez postępu. Kategorie bez etapów → brak licznika.
@@ -27,6 +32,13 @@ type Props = {
   /** „Ponów wysyłkę do Optimy" (kierownik) */
   onRetryErp: (row: ErpErrorRow) => void
   retryingErpId: number | null
+  /** wyniki synchronizacji wydań z Excela (#116) */
+  excelSync: ExcelSyncState
+  /** anulowanie zlecenia po id — ta sama ścieżka co w tabelach (rezerwacje wracają) */
+  onCancelOrderById: (orderId: number) => Promise<void>
+  /** po wejściu z Pulpitu: przewiń do sekcji */
+  focusSection?: ReviewFocus | null
+  onFocusConsumed?: () => void
 }
 
 const sourceBadge = (source: string | null | undefined) => {
@@ -49,7 +61,42 @@ const formatWhen = (value: string | null): string => {
   return `${absolute} (${diffMinutes} min temu)`
 }
 
-export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMarkVerified, onCancel, duplicates, erpErrors, onOpenErpOrder, onRetryErp, retryingErpId }: Props) {
+export default function OrdersNeedingReviewView({
+  orders,
+  loading,
+  onEdit,
+  onMarkVerified,
+  onCancel,
+  duplicates,
+  erpErrors,
+  onOpenErpOrder,
+  onRetryErp,
+  retryingErpId,
+  excelSync,
+  onCancelOrderById,
+  focusSection,
+  onFocusConsumed,
+}: Props) {
+  const excelRef = useRef<HTMLDivElement>(null)
+  const erpRef = useRef<HTMLDivElement>(null)
+  const duplicatesRef = useRef<HTMLDivElement>(null)
+
+  // #115: kafelek na Pulpicie prowadził na górę Weryfikacji — teraz przewija do sekcji
+  useEffect(() => {
+    if (!focusSection || loading) return
+    const target =
+      focusSection === 'excel' ? excelRef.current
+      : focusSection === 'erp' ? erpRef.current
+      : focusSection === 'duplicates' ? duplicatesRef.current
+      : null
+    const t = window.setTimeout(() => {
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      else window.scrollTo({ top: 0, behavior: 'smooth' })
+      onFocusConsumed?.()
+    }, 60)
+    return () => window.clearTimeout(t)
+  }, [focusSection, loading, onFocusConsumed])
+
   const reviewColumns = useMemo<DataTableColumn<OrderNeedingReview>[]>(
     () => [
       { key: 'idx', label: '#', render: (_o, index) => index + 1 },
@@ -237,7 +284,14 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
         />
       )}
 
-      <div className="orders-review-header" style={{ marginTop: 32 }}>
+      <ExcelSyncReviewSection
+        data={excelSync}
+        onOpenOrder={onOpenErpOrder}
+        onCancelOrder={onCancelOrderById}
+        sectionRef={excelRef}
+      />
+
+      <div className="orders-review-header" style={{ marginTop: 32 }} ref={erpRef} id="review-erp">
         <h2>🧾 Błędy ERP (Optima)</h2>
         <p>
           Zamówienia z konfiguratora, dla których Make nie zdołał założyć RO w Optimie (najczęściej: brak towaru
@@ -259,7 +313,7 @@ export default function OrdersNeedingReviewView({ orders, loading, onEdit, onMar
         />
       )}
 
-      <div className="orders-review-header" style={{ marginTop: 32 }}>
+      <div className="orders-review-header" style={{ marginTop: 32 }} ref={duplicatesRef} id="review-duplicates">
         <h2>🔁 Podejrzane duble</h2>
         <p>
           Zlecenia o tym samym numerze zamówienia klienta, firmie i kategorii, z których co najmniej jedno

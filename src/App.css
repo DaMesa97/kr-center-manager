@@ -8671,3 +8671,28 @@ body:has(.app--large) .toast-message { font-size: 1.1rem; font-weight: 600; }
   padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* ── Wspólne drobiazgi formularzy (beta.87) ───────────────────────── */
+.order-modal--narrow { max-width: 460px; width: min(460px, 96vw); }
+.form-error { color: #b91c1c; font-size: 0.85rem; margin: 4px 0 0; }
+
+/* Pulpit: podtytuł w kafelku (np. godzina ostatniej synchronizacji) */
+.dashboard-alert-sub { font-size: 0.72rem; opacity: 0.75; font-weight: 400; margin-top: 2px; }
+
+/* ── Weryfikacja → Do wyjaśnienia po synchronizacji z Excelem (#116) ── */
+.excel-sync-groups { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.excel-sync-group { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 10px 12px; }
+.excel-sync-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 0.86rem; color: #334155; margin-bottom: 8px; }
+.excel-sync-group-head strong { color: #0f172a; }
+.excel-sync-group-hint { margin-left: auto; font-size: 0.78rem; color: #64748b; }
+.excel-sync-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.excel-sync-card { border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px; }
+.excel-sync-card--keep { border-color: #86efac; background: #f0fdf4; }
+.excel-sync-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.excel-sync-card-cat { font-size: 0.75rem; color: #64748b; }
+.excel-sync-card-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.76rem; color: #475569; }
+.excel-sync-progress--started { color: #b45309; font-weight: 600; }
+.excel-sync-card-actions { display: flex; gap: 6px; margin-top: 2px; }
+.excel-sync-runs { font-size: 0.8rem; color: #64748b; }
+
+.print-docs-edit-hint { grid-column: 1 / -1; font-size: 0.82rem; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px; }

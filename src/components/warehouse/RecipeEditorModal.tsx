@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useUnsavedGuard } from '../../lib/useUnsavedGuard'
 import { createPortal } from 'react-dom'
 import { RECIPE_CRITERIA_FIELD_DEFS, RECIPE_PARTS } from '../../constants'
 import type {
@@ -62,6 +63,7 @@ function RecipeEditorModal({
   saving,
   orderModalOptionsByType,
 }: RecipeEditorModalProps) {
+  const { requestClose } = useUnsavedGuard(formData, onClose, { enabled: !saving, escape: open, resetKey: open })
   const componentOptions = useMemo(
     () => warehouseComponents.map((c) => componentOptionLabel(c)),
     [warehouseComponents],
@@ -130,7 +132,7 @@ function RecipeEditorModal({
       aria-modal="true"
       onClick={() => {
         if (saving) return
-        onClose()
+        void requestClose()
       }}
     >
       <div
@@ -139,7 +141,7 @@ function RecipeEditorModal({
       >
         <div className="order-modal-header">
           <h2>{mode === 'create' ? 'Nowa receptura' : 'Edycja receptury'}</h2>
-          <button type="button" className="btn btn-icon btn-ghost" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn btn-icon btn-ghost" onClick={() => void requestClose()} disabled={saving}>
             X
           </button>
         </div>
@@ -424,7 +426,7 @@ function RecipeEditorModal({
           <button type="button" className="btn btn-primary" onClick={() => void onSave()} disabled={saving}>
             {saving ? 'Zapisywanie…' : 'Zapisz'}
           </button>
-          <button type="button" className="btn btn-sm btn-primary" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void requestClose()} disabled={saving}>
             Anuluj
           </button>
         </div>

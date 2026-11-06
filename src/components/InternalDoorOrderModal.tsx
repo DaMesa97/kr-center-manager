@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import type { Order, WarehouseComponent, InternalDoorItem, ToastVariant } from '../types'
@@ -47,6 +48,7 @@ function InternalDoorOrderModal({
   const [items, setItems] = useState<ItemDraft[]>([])
   const [stocks, setStocks] = useState<Record<number, number>>({})
   const [saving, setSaving] = useState(false)
+  const { requestClose } = useUnsavedGuard({ companyName, notes, wentylacja, items }, onClose, { enabled: !saving, escape: open, resetKey: open })
 
   const internalDoorComponents = useMemo(() => {
     return components.filter((c) => c.is_active && c.product_category !== 'raw')
@@ -351,7 +353,7 @@ function InternalDoorOrderModal({
   if (!open) return null
 
   return createPortal(
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={() => void requestClose()}>
       <div
         className="order-modal"
         onClick={(e) => e.stopPropagation()}
@@ -359,7 +361,7 @@ function InternalDoorOrderModal({
       >
         <div className="order-modal-header">
           <h2>{mode === 'create' ? 'Nowe zamówienie - Drzwi wewnętrzne' : 'Edytuj zamówienie'}</h2>
-          <button className="btn btn-icon btn-ghost" onClick={onClose}>
+          <button className="btn btn-icon btn-ghost" onClick={() => void requestClose()}>
             x
           </button>
         </div>
@@ -504,7 +506,7 @@ function InternalDoorOrderModal({
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             disabled={saving}
           >
             Anuluj

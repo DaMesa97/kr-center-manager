@@ -1,6 +1,6 @@
 import { appConfirm } from '../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Printer, Plus, Trash2, Upload } from 'lucide-react'
+import { Printer, Plus, Trash2, Upload, Pencil } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import type { DopDocument } from '../lib/dopMatch'
 import { renderPdfForPrint, uint8ToBase64 } from '../lib/pdfPrint'
@@ -50,6 +50,8 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
   const [newGlazing, setNewGlazing] = useState('')
   const [newFrameKind, setNewFrameKind] = useState('')
   const [saving, setSaving] = useState(false)
+  /** #102: edycja istniejącego dokumentu (ten sam formularz co dodawanie) */
+  const [editingId, setEditingId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -141,31 +143,57 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
     }
   }
 
+  // #101: „Anuluj" zamyka formularz i czyści pola — wcześniej trzeba było zmienić zakładkę
+  const resetForm = () => {
+    setAddOpen(false)
+    setEditingId(null)
+    setNewName(''); setNewZpl(''); setNewPdfB64(''); setNewPdfInfo('')
+    setNewSystem(''); setNewWykonawca(''); setNewGlazing(''); setNewFrameKind('')
+  }
+
+  const startEdit = (doc: PrintDocument) => {
+    setEditingId(doc.id)
+    setNewName(doc.name)
+    setNewSystem(doc.system ?? '')
+    setNewWykonawca(doc.wykonawca ?? '')
+    setNewGlazing(doc.glazing_type ?? '')
+    setNewFrameKind(doc.frame_kind ?? '')
+    setNewZpl(doc.doc_type === 'pdf' ? '' : (doc.zpl_content ?? ''))
+    setNewPdfB64('')
+    setNewPdfInfo(doc.doc_type === 'pdf' ? 'obecny PDF zostaje, jeśli nie wgrasz nowego' : '')
+    setAddOpen(true)
+  }
+
   const handleAddDocument = async () => {
     const name = newName.trim()
     const zpl = newZpl.trim()
     const isPdf = !!newPdfB64
-    if (!name || (!zpl && !isPdf)) {
+    const editing = editingId != null
+    if (!name || (!editing && !zpl && !isPdf)) {
       pushToast('Podaj nazwę i treść ZPL albo wgraj PDF', 'error')
       return
     }
     setSaving(true)
     try {
-      const { error } = await supabase.from('print_documents').insert([
-        {
-          category, name,
-          doc_type: isPdf ? 'pdf' : 'zpl',
-          zpl_content: isPdf ? null : zpl,
-          pdf_base64: isPdf ? newPdfB64 : null,
-          system: newSystem.trim() || null,
-          wykonawca: newWykonawca || null,
-          glazing_type: newGlazing || null,
-          frame_kind: newFrameKind || null,
-        },
-      ])
+      const attrs = {
+        name,
+        system: newSystem.trim() || null,
+        wykonawca: newWykonawca || null,
+        glazing_type: newGlazing || null,
+        frame_kind: newFrameKind || null,
+      }
+      // treść: nowy PDF albo ZPL nadpisuje; przy edycji bez nowej treści stara zostaje
+      const content = isPdf
+        ? { doc_type: 'pdf', zpl_content: null, pdf_base64: newPdfB64 }
+        : zpl
+          ? { doc_type: 'zpl', zpl_content: zpl, pdf_base64: null }
+          : {}
+      const { error } = editing
+        ? await supabase.from('print_documents').update({ ...attrs, ...content }).eq('id', editingId)
+        : await supabase.from('print_documents').insert([{ category, ...attrs, ...content }])
       if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
-      pushToast('Dokument dodany', 'success')
-      setAddOpen(false); setNewName(''); setNewZpl(''); setNewPdfB64(''); setNewPdfInfo(''); setNewSystem(''); setNewWykonawca(''); setNewGlazing(''); setNewFrameKind('')
+      pushToast(editing ? 'Dokument zapisany' : 'Dokument dodany', 'success')
+      resetForm()
       await load()
     } finally {
       if (mountedRef.current) setSaving(false)
@@ -250,6 +278,11 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
 
       {isManager && addOpen && (
         <div className="print-docs-add">
+          {editingId != null && (
+            <div className="print-docs-edit-hint">
+              Edytujesz dokument <strong>{newName || `#${editingId}`}</strong> — nowa treść (ZPL lub PDF) podmieni obecną, puste pole ją zostawia.
+            </div>
+          )}
           <input type="text" placeholder="Nazwa dokumentu (np. DoP STA 90)" value={newName} onChange={(e) => setNewName(e.target.value)} />
           <input type="text" placeholder="System (puste = dowolny, np. NORMAL PLUS)" value={newSystem} onChange={(e) => setNewSystem(e.target.value)} />
           <div className="print-docs-dwu-attrs">
@@ -302,7 +335,10 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
               <button type="button" className="btn btn-sm btn-success" disabled={saving} onClick={() => void handleAddDocument()}>
-                {saving ? 'Zapisywanie…' : 'Zapisz dokument'}
+                {saving ? 'Zapisywanie…' : editingId != null ? 'Zapisz zmiany' : 'Zapisz dokument'}
+              </button>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={resetForm}>
+                Anuluj
               </button>
             </div>
           </div>
@@ -348,7 +384,12 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
                   <Printer size={14} /> {printingId === doc.id ? 'Drukuję…' : 'Drukuj'}
                 </button>
                 {isManager && (
-                  <button type="button" className="btn btn-sm btn-danger" onClick={() => void handleDeleteDocument(doc)}>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => startEdit(doc)} title="Edytuj nazwę, kryteria doboru lub podmień treść">
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {isManager && (
+                  <button type="button" className="btn btn-sm btn-danger" onClick={() => void handleDeleteDocument(doc)} title="Usuń dokument">
                     <Trash2 size={14} />
                   </button>
                 )}

@@ -748,11 +748,19 @@ export default function ShippingView({
             onChange={(e) => setOnlyOverdue(e.target.checked)}
           />
           <span>Tylko opóźnione</span>
-          {warningCount > 0 && (
-            <span className="overdue-filter-pill overdue-filter-pill--warning">{warningCount}</span>
-          )}
+          {/* #92/#120: same liczby bez podpisu myliły — każda plakietka mówi, co liczy */}
           {overdueCount > 0 && (
-            <span className="overdue-filter-pill">{overdueCount}</span>
+            <span className="overdue-filter-pill" title="Zlecenia po terminie realizacji (czerwone wiersze)">
+              {overdueCount} po terminie
+            </span>
+          )}
+          {warningCount > 0 && (
+            <span
+              className="overdue-filter-pill overdue-filter-pill--warning"
+              title="Zlecenia zbliżające się do terminu — ostrzeżenie (żółte wiersze)"
+            >
+              {warningCount} blisko terminu
+            </span>
           )}
         </label>
 

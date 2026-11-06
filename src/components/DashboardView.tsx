@@ -11,8 +11,11 @@ type Props = {
   reviewCount: number
   /** zlecenia z erp_status = NIEPOMYŚLNY (RO w Optimie nie powstało) */
   erpErrorCount?: number
+  /** synchronizacja wydań z Excela (#116): ile do decyzji, kiedy ostatnia, czy przeterminowana */
+  excelSync?: { openCount: number; lastSyncAt: string | null; stale: boolean }
   alertsBadgeCount: number
-  onNavigate: (tab: string) => void
+  /** drugi argument = sekcja Weryfikacji, do której przewinąć (#115) */
+  onNavigate: (tab: string, focus?: 'review' | 'excel' | 'erp' | 'duplicates') => void
 }
 
 const ORDER_CATEGORIES = [
@@ -53,6 +56,7 @@ export default function DashboardView({
   currentUserFullName,
   reviewCount,
   erpErrorCount = 0,
+  excelSync,
   alertsBadgeCount,
   onNavigate,
 }: Props) {
@@ -115,7 +119,7 @@ export default function DashboardView({
         <button
           type="button"
           className={`dashboard-alert-card ${reviewCount > 0 ? 'dashboard-alert-card--warn' : ''}`}
-          onClick={() => onNavigate('Weryfikacja')}
+          onClick={() => onNavigate('Weryfikacja', 'review')}
         >
           <ClipboardCheck size={22} />
           <div className="dashboard-alert-num">{reviewCount}</div>
@@ -125,13 +129,37 @@ export default function DashboardView({
         <button
           type="button"
           className={`dashboard-alert-card ${erpErrorCount > 0 ? 'dashboard-alert-card--danger' : ''}`}
-          onClick={() => onNavigate('Weryfikacja')}
+          onClick={() => onNavigate('Weryfikacja', 'erp')}
           title="Zamówienia z konfiguratora, dla których nie powstało RO w Optimie (poprawka w Airtable → Ponów wysyłkę)"
         >
           <FileX2 size={22} />
           <div className="dashboard-alert-num">{erpErrorCount}</div>
           <div className="dashboard-alert-label">Błędy ERP (Optima)</div>
         </button>
+
+        {excelSync && (
+          <button
+            type="button"
+            className={`dashboard-alert-card ${excelSync.stale ? 'dashboard-alert-card--danger' : excelSync.openCount > 0 ? 'dashboard-alert-card--warn' : ''}`}
+            onClick={() => onNavigate('Weryfikacja', 'excel')}
+            title={
+              excelSync.lastSyncAt
+                ? `Ostatnia synchronizacja wydań z arkuszy Excel: ${new Date(excelSync.lastSyncAt).toLocaleString('pl-PL')}${excelSync.stale ? ' — starsza niż 3 h, sprawdź scenariusz Make' : ''}`
+                : 'Brak przebiegów synchronizacji z Excelem'
+            }
+          >
+            <RefreshCw size={22} />
+            <div className="dashboard-alert-num">{excelSync.openCount}</div>
+            <div className="dashboard-alert-label">
+              Do wyjaśnienia (Excel)
+              <div className="dashboard-alert-sub">
+                {excelSync.lastSyncAt
+                  ? `sync ${new Date(excelSync.lastSyncAt).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}${excelSync.stale ? ' ⚠' : ''}`
+                  : 'brak synchronizacji'}
+              </div>
+            </div>
+          </button>
+        )}
 
         <button
           type="button"

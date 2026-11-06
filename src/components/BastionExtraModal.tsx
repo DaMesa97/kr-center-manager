@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { createPortal } from 'react-dom'
 import { emptyBastionExtraForm, type BastionExtra, type BastionExtraForm, bastionExtraToForm } from '../lib/bastionExtras'
 import type { Company } from '../types'
@@ -22,6 +23,7 @@ const DAYS = ['PONIEDZIAŁEK', 'WTOREK', 'ŚRODA', 'CZWARTEK', 'PIĄTEK']
 /** Formularz pozycji „Reszty": bez modelu i wymiarów drzwi — opis, kolor, szer./strona, system, ilość, do zlecenia. */
 export default function BastionExtraModal({ open, extra, companies, systems, colors, presets, busy, onClose, onSave }: Props) {
   const [form, setForm] = useState<BastionExtraForm>(emptyBastionExtraForm())
+  const { requestClose } = useUnsavedGuard(form, onClose, { enabled: !busy, escape: open, resetKey: open })
   const [companyQuery, setCompanyQuery] = useState('')
 
   useEffect(() => {
@@ -47,11 +49,11 @@ export default function BastionExtraModal({ open, extra, companies, systems, col
 
   if (!open) return null
   return createPortal(
-    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => void requestClose()}>
       <div className="order-modal bastion-extra-modal" onClick={(e) => e.stopPropagation()} style={{ width: '92vw', maxWidth: 860 }}>
         <div className="order-modal-header">
           <h2>{extra ? `Reszta ${extra.extra_no} — edycja` : 'Reszta — nowa pozycja'}</h2>
-          <button type="button" className="btn btn-icon btn-ghost" onClick={onClose}>
+          <button type="button" className="btn btn-icon btn-ghost" onClick={() => void requestClose()}>
             X
           </button>
         </div>
@@ -161,7 +163,7 @@ export default function BastionExtraModal({ open, extra, companies, systems, col
           )}
         </div>
         <div className="bastion-extra-modal-footer">
-          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
+          <button type="button" className="btn btn-secondary" onClick={() => void requestClose()} disabled={busy}>
             Anuluj
           </button>
           <button

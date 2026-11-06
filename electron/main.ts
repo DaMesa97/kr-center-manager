@@ -472,6 +472,7 @@ function createWindow() {
 
   win = new BrowserWindow({
     icon: iconPath,
+    title: 'KR Center Manager',
     // zmaksymalizowane od startu — domyślne 800×600 mieściło ~520 px tabeli
     show: false,
     autoHideMenuBar: true,
@@ -595,4 +596,19 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+// Jedna instancja programu na komputer (zgłoszenie #79): druga próba
+// uruchomienia nie otwiera nowego okna, tylko przywołuje istniejące.
+// Dwa okna = dwie sesje, dwa zestawy kanałów realtime i ryzyko pracy
+// na dwóch kontach naraz na jednym stanowisku.
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (!win) return
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  })
+  app.whenReady().then(createWindow)
+}

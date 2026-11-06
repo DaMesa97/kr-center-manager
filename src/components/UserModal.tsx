@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import type { UserFormState } from '../types'
 import { ROLE_LABELS, isCategoryScoped } from '../lib/permissions'
 import { ZKP_ROLE_LABELS } from '../constants'
@@ -39,16 +40,17 @@ export default function UserModal({
   canEditZkpRoles,
   scopedCategories = null,
 }: UserModalProps) {
+  const { requestClose } = useUnsavedGuard(userForm, onClose, { enabled: !userModalSaving, escape: open, resetKey: open })
   if (!open) return null
   const roleOptions = scopedCategories != null ? ['pracownik_produkcji'] : ROLE_OPTIONS
   const categoryOptions = scopedCategories ?? USER_CATEGORIES
 
   return createPortal(
-    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => void requestClose()}>
       <div className="order-modal user-management-modal" onClick={(e) => e.stopPropagation()}>
         <div className="order-modal-header">
           <h2>{userModalMode === 'add' ? 'Dodaj użytkownika' : 'Edytuj użytkownika'}</h2>
-          <button type="button" className="btn btn-icon btn-ghost" onClick={onClose}>
+          <button type="button" className="btn btn-icon btn-ghost" onClick={() => void requestClose()}>
             X
           </button>
         </div>

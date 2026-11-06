@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { WHAT_COMPLAINED_OPTIONS } from '../constants'
 import type { ArchivedOrder, ComplaintFormData, Order } from '../types'
 
@@ -31,6 +32,7 @@ export default function ComplaintFormModal({
   onSave,
   submitOnEnterInInput,
 }: ComplaintFormModalProps) {
+  const { requestClose } = useUnsavedGuard(complaintFormData, onClose, { enabled: !complaintFormLoading, escape: open, resetKey: open })
   if (!open) return null
 
   return createPortal(
@@ -38,7 +40,7 @@ export default function ComplaintFormModal({
       className="modal-overlay"
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
+      onClick={() => void requestClose()}
     >
       <div className="order-modal order-modal--sta" onClick={(e) => e.stopPropagation()}>
         <div className="order-modal-header">
@@ -46,7 +48,7 @@ export default function ComplaintFormModal({
           <button
             type="button"
             className="btn btn-icon btn-ghost"
-            onClick={onClose}
+            onClick={() => void requestClose()}
           >
             X
           </button>
