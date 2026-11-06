@@ -80,10 +80,16 @@ function AuditDetailsModal({ row, userLabel, onClose }: DetailsModalProps) {
   const oldData = useMemo(() => row.old_data ?? {}, [row.old_data])
   const newData = useMemo(() => row.new_data ?? {}, [row.new_data])
 
-  const updateKeys = useMemo(() => {
+  const allUpdateKeys = useMemo(() => {
     const keys = new Set([...Object.keys(oldData), ...Object.keys(newData)])
     return Array.from(keys).sort((a, b) => a.localeCompare(b))
   }, [oldData, newData])
+  // #103: domyślnie tylko pola, które faktycznie się zmieniły (reszta na życzenie)
+  const [onlyChanged, setOnlyChanged] = useState(true)
+  const updateKeys = useMemo(
+    () => (onlyChanged && changedSet.size > 0 ? allUpdateKeys.filter((k) => changedSet.has(k)) : allUpdateKeys),
+    [allUpdateKeys, changedSet, onlyChanged],
+  )
 
   const insertDeleteData = row.operation === 'INSERT' ? newData : oldData
   const insertDeleteKeys = useMemo(
@@ -105,6 +111,14 @@ function AuditDetailsModal({ row, userLabel, onClose }: DetailsModalProps) {
           {userLabel}
         </p>
 
+        {row.operation === 'UPDATE' && changedSet.size > 0 && (
+          <label className="audit-only-changed">
+            <input type="checkbox" checked={onlyChanged} onChange={(e) => setOnlyChanged(e.target.checked)} />
+            <span>
+              Pokaż tylko zmienione pola ({changedSet.size} z {allUpdateKeys.length})
+            </span>
+          </label>
+        )}
         {row.operation === 'UPDATE' ? (
           <table className="audit-diff-table">
             <thead>

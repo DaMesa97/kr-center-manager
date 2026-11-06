@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useUnsavedGuard } from '../lib/useUnsavedGuard'
+import SearchableSelect from './SearchableSelect'
 import { WHAT_COMPLAINED_OPTIONS } from '../constants'
 import type { ArchivedOrder, ComplaintFormData, Order } from '../types'
 
@@ -59,48 +60,44 @@ export default function ComplaintFormModal({
         >
           <label className="order-field-full">
             <span className="order-field-label-text">Zamówienie</span>
-            <select
-              value={(() => {
-                if (complaintFormData.order_id != null) return `id:${complaintFormData.order_id}`
+            {/* #97/#107: lista zleceń z wyszukiwaniem po numerze i firmie zamiast
+                zwykłego selecta z tysiącem pozycji */}
+            {(() => {
+              type Entry = (typeof ordersForComplaintSelect)[number]
+              const labelFor = (o: Entry) => `${o.isArchived ? '📁 ' : ''}${o.order_number} — ${o.company}`
+              const byLabel = new Map<string, Entry>()
+              for (const o of ordersForComplaintSelect) byLabel.set(labelFor(o), o)
+              const current = (() => {
+                if (complaintFormData.order_id != null) {
+                  return ordersForComplaintSelect.find((o) => !o.isArchived && o.id === complaintFormData.order_id)
+                }
                 if (complaintFormData.order_number) {
-                  const isArch = archivedOrdersForComplaints.some(
-                    (a) => a.order_number === complaintFormData.order_number,
-                  )
-                  if (isArch) return `arch:${complaintFormData.order_number}`
+                  return ordersForComplaintSelect.find((o) => o.isArchived && o.order_number === complaintFormData.order_number)
                 }
-                return ''
-              })()}
-              onChange={(e) => {
-                const v = e.target.value
-                if (!v) {
-                  onFormChange({ order_id: null, order_number: '', company: '' })
-                  return
-                }
-                if (v.startsWith('id:')) {
-                  const id = Number(v.slice(3))
-                  const o = orders.find((x) => x.id === id)
-                  if (o) onSelectOrder(o)
-                } else if (v.startsWith('arch:')) {
-                  const orderNum = v.slice(5)
-                  const a = archivedOrdersForComplaints.find((x) => x.order_number === orderNum)
-                  if (a) onSelectArchived(a)
-                }
-              }}
-            >
-              <option value="">— wybierz —</option>
-              {ordersForComplaintSelect.map((o) => {
-                const key = o.isArchived ? `arch:${o.order_number}` : `id:${o.id}`
-                const value = key
-                const prefix = o.isArchived ? '📁 ' : ''
-                const styleProp = o.isArchived ? { color: '#9ca3af' } : undefined
-                return (
-                  <option key={key} value={value} style={styleProp}>
-                    {prefix}
-                    {o.order_number} — {o.company}
-                  </option>
-                )
-              })}
-            </select>
+                return undefined
+              })()
+              return (
+                <SearchableSelect
+                  value={current ? labelFor(current) : ''}
+                  options={[...byLabel.keys()]}
+                  placeholder="— wpisz numer zlecenia lub firmę —"
+                  onChange={(label) => {
+                    const o = byLabel.get(label)
+                    if (!o) {
+                      onFormChange({ order_id: null, order_number: '', company: '' })
+                      return
+                    }
+                    if (o.isArchived) {
+                      const a = archivedOrdersForComplaints.find((x) => x.order_number === o.order_number)
+                      if (a) onSelectArchived(a)
+                    } else {
+                      const full = orders.find((x) => x.id === o.id)
+                      if (full) onSelectOrder(full)
+                    }
+                  }}
+                />
+              )
+            })()}
             <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>📁 = zamówienie archiwalne</span>
           </label>
           <label className="order-field-full">

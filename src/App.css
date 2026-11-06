@@ -2164,7 +2164,7 @@ html, body, #root {
 }
 
 .orders-table .col-notes {
-  max-width: 150px;
+  max-width: 480px; /* #113: szerokosc zmienia sie przeciaganiem naglowka, czapka tylko zeby nie rozsadzic tabeli */
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -8696,3 +8696,19 @@ body:has(.app--large) .toast-message { font-size: 1.1rem; font-weight: 600; }
 .excel-sync-runs { font-size: 0.8rem; color: #64748b; }
 
 .print-docs-edit-hint { grid-column: 1 / -1; font-size: 0.82rem; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px; }
+
+/* ── Paczka UX ze zgłoszeń 6.11 ─────────────────────────────────────── */
+/* #88 inwentaryzacja: wiersz z aktywnym polem */
+.inventory-table tr.inventory-row--active td { background: #fef9c3 !important; box-shadow: inset 3px 0 0 #f59e0b; }
+/* #103 audyt: przełącznik „tylko zmienione" */
+.audit-only-changed { display: inline-flex; align-items: center; gap: 8px; margin: 4px 0 10px; font-size: 0.85rem; color: #334155; cursor: pointer; }
+/* #93 modal bez siatki formularza — własny padding treści */
+.order-modal--padded > :not(.order-modal-header) { padding-left: 16px; padding-right: 16px; }
+.order-modal--padded > :last-child { padding-bottom: 16px; }
+/* #80/#81 dymek niedoboru: otwierany klikiem, zamykany krzyżykiem, przewijalny */
+.stock-badge-tooltip--click { max-height: min(60vh, 520px); overflow-y: auto; padding-right: 28px; position: relative; }
+.stock-badge-tooltip-close { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border: 0; border-radius: 4px; background: transparent; color: inherit; font-size: 16px; line-height: 1; cursor: pointer; opacity: 0.7; }
+.stock-badge-tooltip-close:hover { opacity: 1; background: rgba(0, 0, 0, 0.12); }
+
+/* #86 Moje stanowisko: szukajka w pasku liczników */
+.my-station-search { max-width: 320px; min-width: 200px; }

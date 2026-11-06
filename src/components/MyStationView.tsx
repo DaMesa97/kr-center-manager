@@ -140,11 +140,22 @@ export default function MyStationView({
       /* ignore */
     }
   }
-  const shownTasks = useMemo(
-    () => (showWaiting ? tasks : tasks.filter(isTaskShownByDefault)),
-    [tasks, showWaiting],
-  )
-  const hiddenCount = tasks.length - shownTasks.length
+  // #86: szukajka po numerze zlecenia / firmie / modelu / numerze klienta
+  const [search, setSearch] = useState('')
+  const shownTasks = useMemo(() => {
+    const base = showWaiting ? tasks : tasks.filter(isTaskShownByDefault)
+    const q = search.trim().toLowerCase()
+    if (!q) return base
+    return base.filter((t) => {
+      const o = t.order
+      const hay = [o.order_number, o.company, o.model, o.client_order_number, t.complaintNumber]
+        .map((v) => String(v ?? '').toLowerCase())
+        .join(' | ')
+      return hay.includes(q)
+    })
+  }, [tasks, showWaiting, search])
+  // ukryte = czekające schowane przełącznikiem (szukajka tego nie zmienia)
+  const hiddenCount = showWaiting ? 0 : tasks.length - tasks.filter(isTaskShownByDefault).length
 
   // ── Grupowanie po etapie ──────────────────────────────────────────
   // Kto ma kilka etapów (np. składa skrzydła E3 i pakuje E5), widział je
@@ -301,7 +312,10 @@ export default function MyStationView({
                   setConfirmTask(task)
                 }}
               >
-                {task.alu ? `✓ Sztuka ${Math.min(task.alu.done + 1, task.alu.quantity)}/${task.alu.quantity}` : '✓ Zrobione'}
+                {/* #89: „Zrobione" wyglądało jak status — przycisk mówi, który etap oznacza */}
+                {task.alu
+                  ? `✓ Sztuka ${Math.min(task.alu.done + 1, task.alu.quantity)}/${task.alu.quantity}`
+                  : `✓ Oznacz ${task.stageHeader} jako zrobione`}
               </button>
             ) : (
               // Szary nieaktywny przycisk nic nie tłumaczył („kliknąłem i nie działa") —
@@ -396,6 +410,14 @@ export default function MyStationView({
         </div>
       )}
       <div className="my-station-meta">
+        <input
+          type="search"
+          className="search-input my-station-search"
+          placeholder="Szukaj: nr zlecenia, firma, model…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Szukaj zadania"
+        />
         <div>
           Do zrobienia: <strong>{tasks.length}</strong>
         </div>

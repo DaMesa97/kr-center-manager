@@ -342,6 +342,10 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
 
   // ŚLEPY SPIS: bez stanu systemowego i różnicy — liczący wpisuje to, co widzi
   // na półce; różnice zobaczy kierownik przy zatwierdzaniu zamknięcia
+  // #88: podświetlenie całego wiersza, w którym stoi kursor — przy liczeniu z kartki
+  // łatwo zgubić, który komponent się wpisuje
+  const [activeLineId, setActiveLineId] = useState<number | null>(null)
+
   const lineColumns = useMemo((): DataTableColumn<InventoryLine>[] => [
     {
       key: 'lp',
@@ -386,6 +390,8 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
             step="0.001"
             placeholder="—"
             onChange={(e) => handleCountChange(line.id, e.target.value)}
+            onFocus={() => setActiveLineId(line.id)}
+            onBlur={() => setActiveLineId((cur) => (cur === line.id ? null : cur))}
           />
           {saving.has(line.id) && <span className="inventory-saving-dot" title="Zapisywanie…">●</span>}
           {failed.has(line.id) && !saving.has(line.id) && (
@@ -486,6 +492,7 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
                   rowKey={(line) => line.id}
                   columns={lineColumns}
                   className="inventory-table"
+                  rowClassName={(line) => (line.id === activeLineId ? 'inventory-row--active' : undefined)}
                 />
 
                 {/* Dopisanie pozycji spoza listy (towar znaleziony na półce, nowy komponent) */}

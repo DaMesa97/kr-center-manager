@@ -290,7 +290,7 @@ function setupPrinting(mainWin: BrowserWindow) {
           const { canceled, filePath } = await dialog.showSaveDialog(mainWin, {
             title: 'Zapisz PDF',
             defaultPath: path.join(app.getPath('documents'), `${baseName}.pdf`),
-            filters: [{ name: 'PDF', extensions: ['pdf'] }],
+            filters: [{ name: 'Dokument PDF (*.pdf)', extensions: ['pdf'] }],
           })
           if (canceled || !filePath) return { success: false, failureReason: 'Zapis PDF anulowany' }
           writeFileSync(filePath, pdfData)
@@ -356,7 +356,7 @@ function setupPrinting(mainWin: BrowserWindow) {
         const { canceled, filePath } = await dialog.showSaveDialog(mainWin, {
           title: 'Zapisz PDF',
           defaultPath: path.join(app.getPath('documents'), `${safeName}.pdf`),
-          filters: [{ name: 'PDF', extensions: ['pdf'] }],
+          filters: [{ name: 'Dokument PDF (*.pdf)', extensions: ['pdf'] }],
         })
         if (canceled || !filePath) return { success: false, error: 'Zapis PDF anulowany' }
         writeFileSync(filePath, pdfData)

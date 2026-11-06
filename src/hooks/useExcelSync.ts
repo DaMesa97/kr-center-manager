@@ -188,9 +188,27 @@ export function useExcelSync(enabled: boolean): ExcelSyncState {
     }
   }, [refresh])
 
-  const derived = useMemo(() => {
+  const derived = useMemo(() => deriveExcelSync(runs, ordersById), [runs, ordersById])
+
+  return { loading, error, runs, refresh, ...derived }
+}
+
+/**
+ * Czysta część logiki (testowalna): z ostatnich przebiegów i zleceń z bazy
+ * buduje listy do decyzji. Zasady:
+ *  - grupa duplikatów = jeden wiersz Excela → kilka zleceń; znika, gdy zostało ≤ 1 otwarte;
+ *  - w grupie pierwsze jest zlecenie z BOTA (to ono zostaje), potem po dacie utworzenia;
+ *  - „anulowane w Excelu" znika, gdy zlecenie jest już anulowane w aplikacji;
+ *  - „inne" znika, gdy zlecenie jest anulowane albo wydane.
+ */
+export function deriveExcelSync(
+  runs: ExcelSyncRun[],
+  ordersById: Map<number, ExcelSyncOrderInfo>,
+  now: number = Date.now(),
+): Pick<ExcelSyncState, 'lastSyncAt' | 'stale' | 'duplicates' | 'cancelledInExcel' | 'other' | 'openCount'> {
+  {
     const lastSyncAt = runs.reduce<string | null>((acc, r) => (!acc || r.created_at > acc ? r.created_at : acc), null)
-    const stale = lastSyncAt ? Date.now() - new Date(lastSyncAt).getTime() > STALE_MS : false
+    const stale = lastSyncAt ? now - new Date(lastSyncAt).getTime() > STALE_MS : false
 
     const groups = new Map<string, ExcelSyncDuplicateGroup>()
     const cancelledInExcel: ExcelSyncState['cancelledInExcel'] = []
@@ -254,7 +272,5 @@ export function useExcelSync(enabled: boolean): ExcelSyncState {
       other,
       openCount: duplicates.length + cancelledInExcel.length + other.length,
     }
-  }, [runs, ordersById])
-
-  return { loading, error, runs, refresh, ...derived }
+  }
 }

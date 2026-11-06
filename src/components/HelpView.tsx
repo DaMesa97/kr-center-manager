@@ -25,6 +25,15 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Po testach z 6.11 (beta.87)</h4>
+        <ul>
+          <li><b>Weryfikacja → „Do wyjaśnienia po synchronizacji z Excelem"</b> — duplikaty, anulowane w arkuszu i inne rozbieżności z godzinowej synchronizacji wydań; kafelek na Pulpicie z czasem ostatniej synchronizacji. Kafelki Pulpitu przewijają prosto do właściwej sekcji.</li>
+          <li><b>Zmień hasło</b> — przycisk w prawym górnym rogu, każdy zmienia swoje.</li>
+          <li>Program otwiera się tylko raz na komputerze (druga próba przywołuje istniejące okno); okno ma tytuł „KR Center Manager".</li>
+          <li>Formularze pytają przed zamknięciem z niezapisanymi zmianami (wszystkie okna, nie tylko zlecenie).</li>
+          <li>Moje stanowisko: <b>szukajka</b> i przycisk „✓ Oznacz E3 jako zrobione" zamiast mylącego „Zrobione".</li>
+          <li>Dymek niedoboru magazynowego otwiera się klikiem, ma krzyżyk i przewija się; Wysyłka: plakietki „po terminie" / „blisko terminu" z podpisem; Audyt: „tylko zmienione pola"; Inwentaryzacja: podświetlony wiersz z kursorem; reklamacja: zlecenie wybierasz z wyszukiwaniem; Etykiety i druk: „Anuluj" i edycja dokumentu; kolumna UWAGI daje się poszerzyć.</li>
+        </ul>
         <h4>Menu po porządkach (beta.86)</h4>
         <ul>
           <li><b>Zamówienia</b> — kategorie, a pod nimi <b>Weryfikacja</b> (duble, braki numerów, błędy ERP) i <b>Archiwum</b>.</li>
@@ -235,7 +244,8 @@ const SECTIONS: Section[] = [
           <li>Na górze widać, <b>kto jest zalogowany</b>. To nie Ty? Kliknij „To nie ja — zmień osobę" i zaloguj się na siebie.</li>
           <li>Pierwsze gotowe zlecenie w kolejce ma plakietkę <b>NASTĘPNE</b>. Pilne i „na dziś" są zawsze na górze.</li>
           <li>Kliknij wiersz, żeby zobaczyć <b>wymiary, kolory, szklenia</b> dla Twojego etapu.</li>
-          <li>Po robocie kliknij <b>✓ Zrobione</b>, a potem <b>kafelek ze SWOIMI inicjałami</b>. Zapis widać od razu u kierownika.</li>
+          <li>Po robocie kliknij zielony przycisk <b>✓ Oznacz E3 jako zrobione</b> (nazwa etapu jest na przycisku), a potem <b>kafelek ze SWOIMI inicjałami</b>. Zapis widać od razu u kierownika.</li>
+          <li>Dużo zadań? W pasku liczników jest <b>szukajka</b> — wpisz numer zlecenia, firmę albo model.</li>
           <li>Pomyłka? Na górze przez 5 minut jest pasek <b>Cofnij</b>. Później cofniesz w tabeli zlecenia (klik w zieloną komórkę) — ale tylko <b>swoje</b> inicjały; cudze cofa kierownik.</li>
           <li>Okno „W magazynie brakuje części" — jeśli etap jest zrobiony, kliknij <b>Zrobione mimo braku</b>. Magazyn dostanie informację, nic nie psujesz.</li>
           <li>Napis „⏳ Czeka na E1" = jeszcze nie Twoja kolej; zadanie samo zmieni się na gotowe, gdy kolega skończy.</li>
@@ -332,7 +342,8 @@ const SECTIONS: Section[] = [
         <ul>
           <li>Zlecenie z brakami (brak modelu, firmy, nieznana kategoria) dostaje flagę i trafia do zakładki <b>Weryfikacja</b> — kierownik uzupełnia dane i zatwierdza.</li>
           <li>Automaty same tworzą pary Disting Plus i trójki Titan — tak jak formularz.</li>
-          <li><b>Optima (RO)</b>: zamówienia z konfiguratora zakłada w Optimie automat. Przy numerze zlecenia widać zieloną plakietkę z numerem RO albo czerwoną <b>Błąd ERP</b> (najedź — zobaczysz powód, np. brak towaru w Optimie). Lista błędów jest w Weryfikacji w sekcji „Błędy ERP (Optima)", a kierownicy dostają powiadomienie w dzwonku. Po usunięciu przyczyny (np. dodaniu towaru w Optimie) kierownik klika <b>„Ponów wysyłkę do Optimy"</b> w oknie zlecenia albo na liście błędów — Make zakłada RO jeszcze raz i status sam się odświeży. Adres webhooka Make ustawia administrator w Konfiguracja → <b>Integracje</b>. Numer RO działa też w wyszukiwarce zleceń (wpisz np. „231/11").</li>
+          <li><b>Optima (RO)</b>: zamówienia z konfiguratora zakłada w Optimie automat. Przy numerze zlecenia widać zieloną plakietkę z numerem RO albo czerwoną <b>Błąd ERP</b> (najedź — zobaczysz powód, np. brak towaru w Optimie). Lista błędów jest w Weryfikacji w sekcji „Błędy ERP (Optima)", a kierownicy dostają powiadomienie w dzwonku. Po usunięciu przyczyny (np. dodaniu towaru w Optimie) kierownik klika <b>„Ponów wysyłkę do Optimy"</b> w oknie zlecenia albo na liście błędów — Make zakłada RO jeszcze raz i status sam się odświeży. Adres webhooka Make ustawia administrator w Ustawienia → <b>Integracje</b>. Numer RO działa też w wyszukiwarce zleceń (wpisz np. „231/11").</li>
+          <li><b>Synchronizacja wydań z Excela</b>: co godzinę automat czyta arkusze „Zamówienia *.xlsm" i zamyka zlecenia wydane w Excelu (zwalnia też ich rezerwacje). Czego nie rozstrzygnął, ląduje w Weryfikacji w sekcji <b>„Do wyjaśnienia po synchronizacji z Excelem"</b>: <i>Duplikaty</i> (jeden wiersz arkusza → kilka zleceń; zostaje zlecenie z konfiguratora, kopię z Excela anulujesz przyciskiem), <i>Anulowane w Excelu</i> (w arkuszu ANULOWANE, w programie jeszcze otwarte), <i>Inne</i> (np. WSTRZYMANE). Kafelek na Pulpicie pokazuje godzinę ostatniej synchronizacji i ostrzega, gdy jest starsza niż 3 godziny.</li>
         </ul>
         <h4>Dopasowanie kontrahenta</h4>
         <ul>

@@ -54,6 +54,28 @@ function StockStatusBadge({ status, issues, category, glassAllowances }: Props) 
     }
   }, [open])
 
+  // zamknięcie klikiem poza dymkiem albo Esc (dymek jest w portalu, więc nasłuch globalny)
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.closest('.stock-badge-tooltip') || triggerRef.current?.contains(t))) return
+      setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey, true)
+    }
+  }, [open])
+
   if (!status || status === 'ok') return null
   const isNoRecipe = status === 'no_recipe'
   const isInsufficient = status === 'insufficient'
@@ -62,11 +84,12 @@ function StockStatusBadge({ status, issues, category, glassAllowances }: Props) 
 
   return (
     <>
+      {/* #80/#81: dymek otwiera się KLIKIEM (nie po najechaniu) i ma krzyżyk —
+          lista braków bywa długa, a przy niskiej rozdzielczości hover uciekał */}
       <span
         ref={triggerRef}
         className="stock-badge-wrapper"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
+        title="Kliknij, żeby zobaczyć szczegóły"
         onClick={(e) => {
           e.stopPropagation()
           setOpen((o) => !o)
@@ -82,10 +105,23 @@ function StockStatusBadge({ status, issues, category, glassAllowances }: Props) 
       {open &&
         createPortal(
           <div
-            className="stock-badge-tooltip"
+            className="stock-badge-tooltip stock-badge-tooltip--click"
             style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10000 }}
             onClick={(e) => e.stopPropagation()}
+            data-no-esc-close
           >
+            <button
+              type="button"
+              className="stock-badge-tooltip-close"
+              aria-label="Zamknij"
+              title="Zamknij"
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpen(false)
+              }}
+            >
+              ×
+            </button>
             {isNoRecipe && (
               <div className="stock-badge-tooltip-title">Brak pasujących receptur</div>
             )}

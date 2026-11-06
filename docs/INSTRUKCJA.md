@@ -36,7 +36,7 @@ Tworzy **trzy** powiązane rekordy: STA + ST + Bastion.
 Twoje zadania — etapy gotowe do zrobienia (pilne i gotowe na górze, pierwsze ma plakietkę **NASTĘPNE**).
 1. Sprawdź u góry, **kto jest zalogowany** („To nie ja — zmień osobę").
 2. Klik w wiersz = szczegóły dla Twojego etapu.
-3. **✓ Zrobione** → kafelek ze **swoimi inicjałami**.
+3. Zielony przycisk **✓ Oznacz E3 jako zrobione** (na przycisku jest nazwa etapu) → kafelek ze **swoimi inicjałami**. Dużo zadań? W pasku liczników jest szukajka (numer zlecenia, firma, model).
 4. Pomyłka: pasek **Cofnij** przez 5 min; później klik w zieloną komórkę w tabeli (tylko swoje inicjały).
 5. „W magazynie brakuje części" → **Zrobione mimo braku** (magazyn dostaje informację).
 6. Za małe litery: **A− / A+** w prawym górnym rogu (zostaje na tym komputerze).
@@ -49,7 +49,8 @@ Zlecenia gotowe do wydania.
 
 ## 🧭 Menu boczne (od beta.86)
 - **Pulpit**, **Moje stanowisko** — na górze, bez grupy.
-- **Zamówienia** — kategorie (STA, Disting, ST, Techniczne, Bastion, Drzwi wewnętrzne, Stolarka aluminiowa), a pod nimi **Weryfikacja** (duble, brak numeru klienta, błędy ERP) i **Archiwum**.
+- **Zamówienia** — kategorie (STA, Disting, ST, Techniczne, Bastion, Drzwi wewnętrzne, Stolarka aluminiowa), a pod nimi **Weryfikacja** (duble, brak numeru klienta, błędy ERP, „Do wyjaśnienia po synchronizacji z Excelem") i **Archiwum**.
+- **Synchronizacja wydań z Excela** — co godzinę automat czyta arkusze „Zamówienia *.xlsm" i zamyka zlecenia wydane w Excelu (zwalnia rezerwacje). Czego nie rozstrzygnął, jest w Weryfikacji: *Duplikaty* (jeden wiersz arkusza → kilka zleceń; zostaje zlecenie z konfiguratora, kopię z Excela anulujesz przyciskiem), *Anulowane w Excelu*, *Inne*. Kafelek na Pulpicie pokazuje godzinę ostatniej synchronizacji i ostrzega, gdy starsza niż 3 h.
 - **Produkcja** — Wysyłka, Etykiety i druk, ZKP AS 75EI.
 - **Magazyn** — Stany, Komponenty, Dokumenty PZ / MM, Zamawianie, Inwentaryzacja.
 - **Analizy** — Statystyki, Audyt.
@@ -72,6 +73,8 @@ Pięć pozycji w menu, każda z krótkim paskiem podzakładek:
 
 ## 🔔 Powiadomienia i aktualizacje
 - **Dzwonek** — m.in. nowe zamówienia z konfiguratora do weryfikacji.
+- **Zmień hasło** — przycisk w prawym górnym rogu; każdy zmienia swoje (min. 8 znaków). Program uruchamia się tylko raz na komputerze — druga próba przywołuje otwarte okno.
+- **Formularze** pytają przed zamknięciem, gdy masz niezapisane zmiany (klik poza oknem, X, Esc).
 - **Aktualizacje** — program sprawdza nową wersję po zalogowaniu i proponuje update.
 
 ## ⚙️ Ustawienia (kierownik / admin)

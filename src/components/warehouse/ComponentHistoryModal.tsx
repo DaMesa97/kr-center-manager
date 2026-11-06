@@ -173,7 +173,8 @@ function ComponentHistoryModal({ open, component, stockRows, movements, onClose,
 
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>
-      <div className="order-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1120 }}>
+      {/* #93: treść kleiła się do krawędzi — ten modal nie używa siatki formularza z własnym paddingiem */}
+      <div className="order-modal order-modal--padded" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1120 }}>
         <div className="order-modal-header">
           <h2>Historia: {component.name}</h2>
           <button className="btn btn-icon btn-ghost" onClick={onClose}>

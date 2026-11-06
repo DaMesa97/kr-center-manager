@@ -193,6 +193,26 @@ przejdzie — takie resztki łapie sekcja „Podejrzane duble" w zakładce Weryf
 
 ---
 
+### 4b. Synchronizacja wydań z Excela — widok w aplikacji (od 6.11.2026)
+Backend żyje poza aplikacją: Make (scenariusz 10117480) co godzinę pobiera
+pliki „Zamówienia *.xlsm" z OneDrive → edge function `excel-sync` (nagłówek
+`x-sync-secret` = `integration_settings.excel_sync_secret`) → RPC
+`sync_releases_from_excel` → wiersz per plik/kategoria w `excel_sync_runs`
+(RLS: SELECT dla kierowników; `details` = tablica pozycji ze statusami
+`do_zamkniecia / zamknieto / w_realizacji / duplikat / anulowane_w_excelu / inne`,
+`powiazane_id` = pozostałe zlecenia dopasowane do tego samego wiersza).
+Aplikacja NICZEGO nie dopasowuje ani nie zamyka: `hooks/useExcelSync.ts`
+czyta ostatni przebieg każdej kategorii (limit 21 wierszy, grupowanie po
+`summary.kategoria`), dociąga zlecenia z `orders` i w `deriveExcelSync` (czysta
+funkcja, test `excelSync.test.ts`) buduje listy do decyzji: grupy duplikatów
+po `excel_row` (znikają, gdy zostało ≤ 1 otwarte; BOT pierwszy = zostaje),
+anulowane w Excelu (znikają po anulowaniu w aplikacji), inne (znikają po
+anulowaniu/wydaniu). UI: `ExcelSyncReviewSection` w Weryfikacji (akcja
+„Anuluj zlecenie" = istniejąca ścieżka `handleCancelReviewOrder`), kafelek na
+Pulpicie (czas ostatniego przebiegu, ostrzeżenie > 3 h), licznik w menu.
+Odświeżanie co 5 min + ręcznie. Trigger `trg_zz_flag_possible_duplicate`
+(BEFORE INSERT) flaguje duble przy imporcie — dziś 0 otwartych.
+
 ## 5. Rekordy łączone (Disting Plus, Titan)
 
 Rekordy łączone to **osobne wiersze** w `orders` spięte `linked_order_id`
