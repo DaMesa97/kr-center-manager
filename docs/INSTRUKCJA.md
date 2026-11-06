@@ -69,7 +69,7 @@ Pięć pozycji w menu, każda z krótkim paskiem podzakładek:
 ## 🏷️ Etykiety
 - **Etykieta zlecenia (dynamiczna)** — otwórz zlecenie → „🏷️ Drukuj etykietę". Auto-szablon wg kategorii + dane + QR (ID), podgląd, druk.
 - **Dokumenty (DoP/ZPL)** — Produkcja → Etykiety i druk: gotowe pliki ZPL per kategoria, druk N kopii na Zebrę; tu też wgrywasz pliki ZPL i cechy doboru.
-- **Szablony etykiet (kierownik):** Ustawienia → Konfiguracja → Szablony etykiet (HTML per kategoria, instrukcja + lista pól).
+- **Szablony etykiet (kierownik):** Ustawienia → Konfiguracja → Szablony etykiet (HTML per kategoria, instrukcja + lista pól). Warunek `{if pole}…{/if}` drukuje fragment tylko, gdy pole ma wartość (pusty wiersz znika zamiast „-"); `{if !pole}…{/if}` odwrotnie; warunki można zagnieżdżać.
 
 ## 🔔 Powiadomienia i aktualizacje
 - **Dzwonek** — m.in. nowe zamówienia z konfiguratora do weryfikacji.
@@ -81,5 +81,5 @@ Pięć pozycji w menu, każda z krótkim paskiem podzakładek:
 - **Konfiguracja** — słowniki, wykluczenia, słownik wymiarów, naddatki szyb, dane firmy, terminy realizacji, reguły Bastion, szablony etykiet.
 - **Kontrahenci** — *Klienci* (firmy, aliasy nazw, dni tras) i *Dostawcy* (firmy, od których kupuje magazyn).
 - **Użytkownicy** — konta, role (kierownik/pracownik/sprzedawca), działy (decydują co kto widzi). Kierownik działu widzi tu tylko pracowników produkcji ze swoich kategorii: zakłada im konta, resetuje hasła, przypisuje etapy („Etapy produkcji"), dezaktywuje. Ról nie zmienia, kont nie usuwa — to admin.
-- **Integracje** (admin) — *Klucze API* (konfigurator, arkusz Excel) oraz *Make / Optima*: adres webhooka do „Ponów wysyłkę do Optimy". Status RO z Optimy widać przy numerze zlecenia (zielony numer RO albo czerwony „Błąd ERP"), lista błędów jest w Zamówienia → Weryfikacja, kierownik ponawia wysyłkę przyciskiem po usunięciu przyczyny.
+- **Integracje** (admin) — *Klucze API* (konfigurator, arkusz Excel) oraz *Make / Optima*: adres webhooka do „Ponów wysyłkę do Optimy". Status RO z Optimy widać przy numerze zlecenia (zielony numer RO albo czerwona plakietka „błąd"; klik w plakietkę = szczegóły, data, treść błędu), lista błędów jest w Zamówienia → Weryfikacja, kierownik ponawia wysyłkę przyciskiem po usunięciu przyczyny.
 - **Audyt** jest w Analizach, **Archiwum** w Zamówieniach.

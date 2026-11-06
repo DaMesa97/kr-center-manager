@@ -394,15 +394,15 @@ function StaDistingOrdersTableView({
       // z Distingiem piętrowanym pod spodem. Zakładka Disting: bez zmian.
       ...(activeTab === 'STA'
         ? [
-            sheetCol('st_sheet', 'NR. W ARKUSZU ST', 'STA', (v) => `Przejdź do zamówienia ST — Titan (${v})`, handleStaTitanStSheetNavigate),
+            sheetCol('st_sheet', 'NR W ARKUSZU ST', 'STA', (v) => `Przejdź do zamówienia ST — Titan (${v})`, handleStaTitanStSheetNavigate),
             {
-              ...sheetCol('disting_sheet', 'NR. W ARKUSZU DISTING', 'STA', (v) => `Przejdź do zamówienia Disting (${v})`, handleStaDistingSheetNavigate),
+              ...sheetCol('disting_sheet', 'NR W ARKUSZU DISTING', 'STA', (v) => `Przejdź do zamówienia Disting (${v})`, handleStaDistingSheetNavigate),
               stackUnder: 'st_sheet',
             },
           ]
         : [
-            sheetCol('sta_sheet', 'NR. W ARKUSZU STA', 'Disting', (v) => `Przejdź do zamówienia STA (${v})`, handleDistingStaSheetNavigate),
-            sheetCol('disting_sheet', 'NR. W ARKUSZU DISTING', 'STA', (v) => `Przejdź do zamówienia Disting (${v})`, handleStaDistingSheetNavigate),
+            sheetCol('sta_sheet', 'NR W ARKUSZU STA', 'Disting', (v) => `Przejdź do zamówienia STA (${v})`, handleDistingStaSheetNavigate),
+            sheetCol('disting_sheet', 'NR W ARKUSZU DISTING', 'STA', (v) => `Przejdź do zamówienia Disting (${v})`, handleStaDistingSheetNavigate),
           ]),
       textCol('notes', 'UWAGI', (o) => o.notes, { className: 'col-notes' }),
       textCol('client_order_number', 'NUMER ZAMÓWIENIA KLIENTA', (o) => o.client_order_number),

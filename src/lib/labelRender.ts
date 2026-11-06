@@ -130,9 +130,42 @@ async function qrImage(order: Order): Promise<string> {
   }
 }
 
+// Warunki w szablonie (#91): `{if pole}…{/if}` zostaje tylko, gdy pole ma wartość;
+// pusty blok znika razem z otoczką (np. cały wiersz tabeli bez „-"). `{if !pole}` odwrotnie.
+// Bloki można zagnieżdżać — podmieniamy od najbardziej wewnętrznego.
+const IF_BLOCK_RE = /\{if\s+(!?)\s*([\wąćęłńóśźż.-]+)\s*\}((?:(?!\{if\s)[\s\S])*?)\{\/if\}/gi
+const STRAY_IF_RE = /\{(?:if\s+!?\s*[\wąćęłńóśźż.-]+\s*|\/if)\}/gi
+
+export function applyLabelConditionals(html: string, hasValue: (key: string) => boolean): string {
+  let out = html
+  for (let guard = 0; guard < 50; guard++) {
+    const next = out.replace(IF_BLOCK_RE, (_m, neg: string, key: string, inner: string) => {
+      const truthy = hasValue(key.toLowerCase())
+      return (neg ? !truthy : truthy) ? inner : ''
+    })
+    if (next === out) break
+    out = next
+  }
+  // niedomknięte / osierocone znaczniki nie trafiają na druk
+  return out.replace(STRAY_IF_RE, '')
+}
+
+function fieldHasValue(order: Order, alu: AluLabelCtx | undefined): (key: string) => boolean {
+  return (key) => {
+    if (key === 'qr') return Boolean(str(order.id) || str(order.order_number))
+    const f = LABEL_FIELDS.find((x) => x.key === key)
+    if (f) return f.value(order).trim() !== ''
+    if (alu) {
+      const a = ALU_LABEL_FIELDS.find((x) => x.key === key)
+      if (a) return a.value(order, alu).trim() !== ''
+    }
+    return false
+  }
+}
+
 async function substituteFields(template: LabelTemplate, order: Order, alu?: AluLabelCtx): Promise<string> {
   const qrImg = await qrImage(order)
-  let body = template.html
+  let body = applyLabelConditionals(template.html, fieldHasValue(order, alu))
   if (alu) {
     for (const field of ALU_LABEL_FIELDS) body = body.split(`{{${field.key}}}`).join(escapeHtml(field.value(order, alu)) || '-')
   }

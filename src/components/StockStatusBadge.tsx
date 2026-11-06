@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom'
-import { useRef, useEffect, useState } from 'react'
 import type { GlassAllowance, Order } from '../types'
 import { calcGlassIssueDim } from '../utils'
+import { useClickTooltip } from '../lib/useClickTooltip'
 
 const PART_LABELS: Record<string, string> = {
   wing: 'Skrzydło',
@@ -40,41 +40,8 @@ type Props = {
 }
 
 function StockStatusBadge({ status, issues, category, glassAllowances }: Props) {
-  const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
-  const triggerRef = useRef<HTMLSpanElement>(null)
-
-  useEffect(() => {
-    if (open && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect()
-      setPos({
-        top: rect.bottom + 4,
-        left: rect.left,
-      })
-    }
-  }, [open])
-
-  // zamknięcie klikiem poza dymkiem albo Esc (dymek jest w portalu, więc nasłuch globalny)
-  useEffect(() => {
-    if (!open) return
-    const onDocClick = (e: MouseEvent) => {
-      const t = e.target as HTMLElement | null
-      if (t && (t.closest('.stock-badge-tooltip') || triggerRef.current?.contains(t))) return
-      setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDocClick)
-    document.addEventListener('keydown', onKey, true)
-    return () => {
-      document.removeEventListener('mousedown', onDocClick)
-      document.removeEventListener('keydown', onKey, true)
-    }
-  }, [open])
+  // dymek klikany; zamknięcie klikiem poza nim albo Esc — wspólny hook z plakietką RO
+  const { open, pos, triggerRef, toggle, close } = useClickTooltip<HTMLSpanElement>()
 
   if (!status || status === 'ok') return null
   const isNoRecipe = status === 'no_recipe'
@@ -90,10 +57,7 @@ function StockStatusBadge({ status, issues, category, glassAllowances }: Props) 
         ref={triggerRef}
         className="stock-badge-wrapper"
         title="Kliknij, żeby zobaczyć szczegóły"
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen((o) => !o)
-        }}
+        onClick={toggle}
       >
         <span
           className={`stock-badge ${isNoRecipe ? 'stock-badge--no-recipe' : 'stock-badge--insufficient'}`}
@@ -117,7 +81,7 @@ function StockStatusBadge({ status, issues, category, glassAllowances }: Props) 
               title="Zamknij"
               onClick={(e) => {
                 e.stopPropagation()
-                setOpen(false)
+                close()
               }}
             >
               ×

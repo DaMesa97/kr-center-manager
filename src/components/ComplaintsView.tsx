@@ -126,8 +126,8 @@ export default function ComplaintsView({
   const leadColumns = (opts: { cancelledBadge: boolean; modelClass: string }): DataTableColumn<Complaint>[] => [
     {
       key: 'complaint_number',
-      label: 'NR. REKLAMACJI',
-      title: 'NR. REKLAMACJI',
+      label: 'NR REKLAMACJI',
+      title: 'NR REKLAMACJI',
       className: 'sticky-col sticky-1 col-order-number',
       tdTitle: (c) => orderCellTooltip(c.complaint_number),
       sortValue: (c) => c.complaint_number,
@@ -142,8 +142,8 @@ export default function ComplaintsView({
     },
     {
       key: 'order_number',
-      label: 'NR. ZLECENIA',
-      title: 'NR. ZLECENIA',
+      label: 'NR ZLECENIA',
+      title: 'NR ZLECENIA',
       className: 'sticky-col sticky-2 col-order-number',
       tdTitle: (c) => orderCellTooltip(c.order_number),
       sortValue: (c) => c.order_number,
@@ -401,8 +401,8 @@ export default function ComplaintsView({
     releaseColumn('col-order-text release-date-th'),
     {
       key: 'sta_sheet',
-      label: 'NR. W ARKUSZU STA',
-      title: 'NR. W ARKUSZU STA',
+      label: 'NR W ARKUSZU STA',
+      title: 'NR W ARKUSZU STA',
       className: 'col-order-text',
       tdTitle: (c) => orderCellTooltip(c.sta_sheet),
       sortValue: (c) => c.sta_sheet,
@@ -410,8 +410,8 @@ export default function ComplaintsView({
     },
     {
       key: 'disting_sheet',
-      label: 'NR. W ARKUSZU DISTING',
-      title: 'NR. W ARKUSZU DISTING',
+      label: 'NR W ARKUSZU DISTING',
+      title: 'NR W ARKUSZU DISTING',
       className: 'col-order-text',
       tdTitle: (c) => orderCellTooltip(c.disting_sheet),
       sortValue: (c) => c.disting_sheet,

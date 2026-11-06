@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Drobiazgi po testach (beta.88)</h4>
+        <ul>
+          <li><b>Plakietka RO</b> przy numerze zlecenia otwiera szczegóły (status, pełny numer, treść błędu, data) <b>klikiem</b> — tak samo jak dymek niedoboru magazynowego obok.</li>
+          <li><b>Szablony etykiet:</b> warunek <code>{'{if pole}…{/if}'}</code> — fragment drukuje się tylko, gdy pole ma wartość (pusty wiersz znika zamiast „-"); <code>{'{if !pole}'}</code> odwrotnie.</li>
+          <li>„Zgłoś zniszczenie": kontrolki w jednym stylu; ikona komentarza z wyraźniejszą ramką; nagłówki „NR ZLECENIA" bez kropki; dymek wstrzymanego etapu pokazuje tylko „Wstrzymane: powód".</li>
+        </ul>
         <h4>Po testach z 6.11 (beta.87)</h4>
         <ul>
           <li><b>Weryfikacja → „Do wyjaśnienia po synchronizacji z Excelem"</b> — duplikaty, anulowane w arkuszu i inne rozbieżności z godzinowej synchronizacji wydań; kafelek na Pulpicie z czasem ostatniej synchronizacji. Kafelki Pulpitu przewijają prosto do właściwej sekcji.</li>
@@ -300,7 +306,7 @@ const SECTIONS: Section[] = [
         </ol>
         <h4>Konfiguracja (kierownik)</h4>
         <ul>
-          <li><b>Ustawienia → Konfiguracja → Szablony etykiet</b> — szablony HTML per kategoria; edytor ma instrukcję, listę pól (np. <code>{'{{nr_zlecenia}}'}</code>, <code>{'{{qr}}'}</code>, <code>{'{{panel_gorny}}'}</code>) i podgląd w rzeczywistym rozmiarze. ⭐ = szablon domyślny.</li>
+          <li><b>Ustawienia → Konfiguracja → Szablony etykiet</b> — szablony HTML per kategoria; edytor ma instrukcję, listę pól (np. <code>{'{{nr_zlecenia}}'}</code>, <code>{'{{qr}}'}</code>, <code>{'{{panel_gorny}}'}</code>), warunki <code>{'{if pole}…{/if}'}</code> (fragment tylko, gdy pole ma wartość) i podgląd w rzeczywistym rozmiarze. ⭐ = szablon domyślny.</li>
           <li><b>Produkcja → Etykiety i druk</b> — wgrywasz pliki ZPL (deklaracje) i przypisujesz cechy doboru (system, realizator, szklone/pełne, ościeżnica). Puste pole = „dowolne". „Drukuj paczkę" drukuje wszystkie dokumenty kategorii naraz.</li>
           <li>Pliki <code>.nlbl</code> (Zebra Designer) trzeba najpierw <b>wyeksportować do ZPL</b> w Zebra Designerze — sam projekt .nlbl nie nadaje się do importu.</li>
         </ul>

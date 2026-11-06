@@ -2115,16 +2115,18 @@ html, body, #root {
 
 .order-comments-inline-btn {
   line-height: 1;
+  /* #112: wyraźniejsza ramka — ikona „dodaj komentarz" ginęła w kolumnie */
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
 }
 
-
-
 .order-comments-inline-btn--empty {
-  opacity: 0.35;
+  opacity: 0.55;
 }
 
 .order-comments-inline-btn--empty:hover {
-  opacity: 0.7;
+  opacity: 0.9;
+  border-color: #475569;
 }
 
 .order-comments-inline-btn--unread {
@@ -3634,11 +3636,38 @@ html, body, #root {
   flex-direction: column;
   gap: 5px;
 }
+/* #109: wszystkie kontrolki okna w jednym stylu (te same zmienne co .form-input
+   i SearchableSelect) — wcześniej select/input/textarea miały trzy różne wyglądy */
 .damage-field > textarea,
 .damage-field > select,
-.damage-field > input {
+.damage-field > input,
+.damage-comp-qty {
   width: 100%;
   box-sizing: border-box;
+  min-height: var(--input-height);
+  padding: var(--input-padding-y) var(--input-padding-x);
+  border: var(--input-border);
+  border-radius: var(--input-radius);
+  background: var(--input-bg);
+  color: var(--color-text);
+  font-size: var(--input-font-size);
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.damage-field > textarea:focus,
+.damage-field > select:focus,
+.damage-field > input:focus,
+.damage-comp-qty:focus {
+  outline: none;
+  border-color: var(--input-focus-border);
+  box-shadow: var(--input-focus-shadow);
+}
+.damage-field > select:disabled,
+.damage-field > input:disabled,
+.damage-comp-qty:disabled {
+  background: var(--input-disabled-bg);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
 }
 .damage-comp-list {
   border: 1px solid var(--color-border, #e2e8f0);
@@ -3679,7 +3708,6 @@ html, body, #root {
   flex: 0 0 90px;
   width: 90px;
   text-align: right;
-  padding: 5px 8px;
 }
 .damage-stage-pills {
   display: flex;
@@ -3706,19 +3734,9 @@ html, body, #root {
   font-weight: 600;
 }
 .damage-reason-textarea {
-  border: 1px solid var(--color-border, #cbd5e1);
-  border-radius: 8px;
-  padding: 9px 12px;
-  font-size: 0.9rem;
-  font-family: inherit;
   line-height: 1.45;
   resize: vertical;
   min-height: 68px;
-}
-.damage-reason-textarea:focus {
-  outline: none;
-  border-color: #b45309;
-  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.15);
 }
 .damage-reason-hints {
   display: flex;
@@ -8620,8 +8638,13 @@ body:has(.app--large) .toast-message { font-size: 1.1rem; font-weight: 600; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: help;
+  cursor: pointer; /* #82: szczegóły w dymku po kliknięciu, jak dymek magazynu */
 }
+/* dymek RO: zielony tytuł przy sukcesie, czerwony przy błędzie; linie bez punktorów */
+.erp-tooltip .erp-tooltip-title { color: #1b5e20; }
+.erp-tooltip--err .erp-tooltip-title { color: #b71c1c; }
+.erp-tooltip .stock-badge-tooltip-list { list-style: none; padding-left: 0; }
+.erp-tooltip .stock-badge-tooltip-list li { margin-bottom: 3px; word-break: break-word; }
 .erp-badge-tag {
   display: inline-block;
   padding: 0 0.3rem;

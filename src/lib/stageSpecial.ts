@@ -83,7 +83,7 @@ export function stageSpecialTitle(v: unknown): string | undefined {
   if (isStageNA(v)) return 'Nie dotyczy — ten etap nie jest potrzebny w tym zleceniu (ustawia kierownik)'
   if (isStageHold(v)) {
     const r = stageHoldReason(v)
-    return `Wstrzymane${r ? `: ${r}` : ''} — czekamy, nie rób tego etapu (zdejmuje kierownik)`
+    return `Wstrzymane${r ? `: ${r}` : ''}`
   }
   return undefined
 }

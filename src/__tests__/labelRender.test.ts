@@ -123,3 +123,23 @@ describe('etykieta aluminium (per sztuka pozycji)', () => {
     expect(html.match(/page-break-after:always/g)?.length).toBe(1)
   })
 })
+
+describe('warunki {if pole}…{/if} (#91)', () => {
+  it('blok zostaje, gdy pole ma wartość; znika razem z otoczką, gdy puste', async () => {
+    const t = tpl('A{if nr_klienta}<tr><td>{{nr_klienta}}</td></tr>{/if}B')
+    expect(await renderLabelHtml(t, order({ id: 1, client_order_number: 'K-7' }))).toContain('A<tr><td>K-7</td></tr>B')
+    expect(await renderLabelHtml(t, order({ id: 1, client_order_number: '' }))).toContain('AB')
+  })
+
+  it('{if !pole} odwraca warunek, a zagnieżdżenia działają od środka', async () => {
+    const t = tpl('[{if !uwagi}brak uwag{/if}][{if firma}F{if model}+M{/if}{/if}]')
+    expect(await renderLabelHtml(t, order({ id: 1, company: 'TORA' }))).toContain('[brak uwag][F]')
+    expect(await renderLabelHtml(t, order({ id: 1, company: 'TORA', model: 'X', notes: 'u' }))).toContain('[][F+M]')
+  })
+
+  it('nieznane pole = brak wartości; osierocone znaczniki nie trafiają na druk', async () => {
+    const html = await renderLabelHtml(tpl('[{if literowka}X{/if}]{/if}{if firma}'), order({ id: 1, company: 'T' }))
+    expect(html).toContain('[]')
+    expect(html).not.toMatch(/\{\/?if/)
+  })
+})

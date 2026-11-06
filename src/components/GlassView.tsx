@@ -187,7 +187,7 @@ export default function GlassView({
   const columns: DataTableColumn<GlassRow>[] = [
     {
       key: 'order_number',
-      label: 'NR. ZLECENIA',
+      label: 'NR ZLECENIA',
       className: 'sticky-col sticky-1 col-order-number',
       render: (r) => r.order.order_number,
       sortValue: (r) => r.order.order_number,

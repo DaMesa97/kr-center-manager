@@ -201,8 +201,8 @@ type OrderNumberOpts = {
 export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): DataTableColumn<Order> {
   return {
     key: 'order_number',
-    label: 'NR. ZLECENIA',
-    title: 'NR. ZLECENIA',
+    label: 'NR ZLECENIA',
+    title: 'NR ZLECENIA',
     thClassName: 'sticky-col sticky-1 col-order-number',
     tdClassName: (o) => {
       const released = !isReleaseDateEmpty(o.release_date)

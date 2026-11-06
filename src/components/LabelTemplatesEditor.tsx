@@ -143,6 +143,9 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
             <li><strong>Pola w podwójnych klamrach</strong> podstawiają dane zlecenia, np. <code>{'{{nr_zlecenia}}'}</code>, <code>{'{{firma}}'}</code>. Pełna lista pod edytorem.</li>
             <li><strong>{'{{qr}}'}</strong> wstawia kod QR (z ID zlecenia). Umieść go w pojemniku o ustalonym rozmiarze, np.:<br />
               <code>{'<div style="width:18mm;height:18mm">{{qr}}</div>'}</code></li>
+            <li><strong>Warunek {'{if pole}…{/if}'}</strong> — fragment drukuje się tylko, gdy pole ma wartość (pusty wiersz znika zamiast „-"), np.:<br />
+              <code>{'{if nr_klienta}<div>NR KLIENTA: {{nr_klienta}}</div>{/if}'}</code>.
+              <code>{'{if !pole}…{/if}'}</code> drukuje się, gdy pole jest puste. Warunki można zagnieżdżać.</li>
             <li><strong>Pozycjonowanie:</strong> używaj <code>position:absolute</code> względem etykiety (np. QR w rogu: <code>position:absolute;right:3mm;top:3mm</code>).</li>
             <li>Po prawej masz <strong>podgląd na żywo</strong> z przykładowymi danymi — zmienia się gdy edytujesz.</li>
             <li>Możesz mieć kilka szablonów na kategorię; <strong>⭐ domyślny</strong> jest wybierany automatycznie przy druku.</li>
