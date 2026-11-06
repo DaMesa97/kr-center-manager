@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Receptury magazynowe (beta.91)</h4>
+        <ul>
+          <li><b>Dopasowanie receptur nie patrzy już na polskie znaki</b> — wiersze z Excela mają kolory typu „DAB ZLOTY", słownik „DĄB ZŁOTY"; wcześniej takie zlecenia wisiały jako „częściowa receptura". Po przeliczeniu: Disting 45 → 3, STA 18 → 2 zleceń z częściową recepturą.</li>
+          <li>Receptury <b>STA TITAN</b> (skrzydło i ościeżnica, 56 szt.) miały szerokość „80N TITAN" / „90E TITAN", której żadne zlecenie nie ma — przyjmują teraz także „80N" / „90E". Titany w STA mają komplet receptur.</li>
+          <li>Co zostało do założenia ręcznie w Magazyn → Receptury, jest wypisane w Zgłoszeniach #65 / #66 / #64 (6 zleceń).</li>
+        </ul>
         <h4>Po uwagach Mariusza do tabel (beta.90)</h4>
         <ul>
           <li><b>Kolumny PILNE nie ma</b> (#84) — pilne zlecenie poznasz po <b>niebieskim tle</b> wiersza, zlecenie z uwagami po <b>żółtym</b>; nad tabelą jest legenda. Kierownik oznacza pilne przyciskiem <b>⚡</b> w kolumnie Akcje.</li>
