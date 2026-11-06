@@ -144,7 +144,7 @@ export default function DashboardView({
             onClick={() => onNavigate('Weryfikacja', 'excel')}
             title={
               excelSync.lastSyncAt
-                ? `Ostatnia synchronizacja wydań z arkuszy Excel: ${new Date(excelSync.lastSyncAt).toLocaleString('pl-PL')}${excelSync.stale ? ' — starsza niż 3 h, sprawdź scenariusz Make' : ''}`
+                ? `Ostatnia synchronizacja wydań z arkuszy Excel: ${new Date(excelSync.lastSyncAt).toLocaleString('pl-PL')}${excelSync.stale ? ' — starsza niż dobę, sprawdź scenariusz Make (codziennie 20:00)' : ''}`
                 : 'Brak przebiegów synchronizacji z Excelem'
             }
           >

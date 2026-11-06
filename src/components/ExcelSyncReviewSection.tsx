@@ -131,15 +131,15 @@ export default function ExcelSyncReviewSection({ data, onOpenOrder, onCancelOrde
       <div className="orders-review-header" style={{ marginTop: 32 }}>
         <h2>📗 Do wyjaśnienia po synchronizacji z Excelem</h2>
         <p>
-          Co godzinę automat czyta arkusze „Zamówienia *.xlsm" i zamyka zlecenia wydane w Excelu. Tu ląduje to, czego
+          Codziennie o 20:00 automat czyta arkusze „Zamówienia *.xlsm" i zamyka zlecenia wydane w Excelu. Tu ląduje to, czego
           sam nie rozstrzygnął. Przy duplikatach zasada jest jedna: <b>zostaje zlecenie z konfiguratora (BOT), kopię
           z Excela anulujemy</b>.
         </p>
         <div className="orders-review-count">
           {data.openCount} do decyzji · ostatnia synchronizacja {fmtWhen(data.lastSyncAt)}
           {data.stale && (
-            <span className="badge badge-warning" style={{ marginLeft: 8 }} title="Make synchronizuje co godzinę — sprawdź scenariusz">
-              starsza niż 3 h
+            <span className="badge badge-warning" style={{ marginLeft: 8 }} title="Make synchronizuje codziennie o 20:00 — sprawdź scenariusz">
+              starsza niż dobę
             </span>
           )}
           {data.runs.length > 0 && (

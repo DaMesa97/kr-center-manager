@@ -103,11 +103,13 @@ describe('deriveExcelSync — anulowane w Excelu, inne, świeżość', () => {
     expect(out.openCount).toBe(2)
   })
 
-  it('ostatnia synchronizacja = najnowszy przebieg; starsza niż 3 h = stale', () => {
+  it('ostatnia synchronizacja = najnowszy przebieg; starsza niż 26 h = stale (Make raz dziennie)', () => {
     const fresh = deriveExcelSync([run('STA', [], '2026-11-06T16:57:00Z'), run('ST', [], '2026-11-06T15:00:00Z')], new Map(), NOW)
     expect(fresh.lastSyncAt).toBe('2026-11-06T16:57:00Z')
     expect(fresh.stale).toBe(false)
-    const old = deriveExcelSync([run('STA', [], '2026-11-06T12:00:00Z')], new Map(), NOW)
+    const yesterday = deriveExcelSync([run('STA', [], '2026-11-05T19:00:00Z')], new Map(), NOW)
+    expect(yesterday.stale).toBe(false)
+    const old = deriveExcelSync([run('STA', [], '2026-11-04T19:00:00Z')], new Map(), NOW)
     expect(old.stale).toBe(true)
     expect(deriveExcelSync([], new Map(), NOW).lastSyncAt).toBeNull()
   })

@@ -75,7 +75,7 @@ export type ExcelSyncState = {
   runs: ExcelSyncRun[]
   /** najnowszy przebieg spośród kategorii */
   lastSyncAt: string | null
-  /** true, gdy najnowszy przebieg starszy niż 3 h (Make co godzinę) */
+  /** true, gdy najnowszy przebieg starszy niż 26 h (Make: codziennie o 20:00; ręcznie częściej) */
   stale: boolean
   duplicates: ExcelSyncDuplicateGroup[]
   cancelledInExcel: Array<ExcelSyncItem & { order: ExcelSyncOrderInfo | null }>
@@ -86,7 +86,7 @@ export type ExcelSyncState = {
 }
 
 const ACTION_STATUSES = new Set(['duplikat', 'anulowane_w_excelu', 'inne'])
-const STALE_MS = 3 * 60 * 60 * 1000
+const STALE_MS = 26 * 60 * 60 * 1000
 const REFRESH_MS = 5 * 60 * 1000
 
 function toInfo(row: Record<string, unknown>): ExcelSyncOrderInfo {

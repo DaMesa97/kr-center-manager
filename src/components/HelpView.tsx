@@ -25,15 +25,16 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
-        <h4>Drobiazgi po testach (beta.88)</h4>
+        <h4>Drobiazgi po testach (beta.89)</h4>
         <ul>
+          <li><b>Synchronizacja z Excelem jest raz dziennie o 20:00</b> (tak ustawiony jest scenariusz Make), nie co godzinę — kafelek na Pulpicie ostrzega dopiero, gdy ostatni przebieg jest starszy niż dobę. Opisy w Pomocy i Weryfikacji poprawione.</li>
           <li><b>Plakietka RO</b> przy numerze zlecenia otwiera szczegóły (status, pełny numer, treść błędu, data) <b>klikiem</b> — tak samo jak dymek niedoboru magazynowego obok.</li>
           <li><b>Szablony etykiet:</b> warunek <code>{'{if pole}…{/if}'}</code> — fragment drukuje się tylko, gdy pole ma wartość (pusty wiersz znika zamiast „-"); <code>{'{if !pole}'}</code> odwrotnie.</li>
           <li>„Zgłoś zniszczenie": kontrolki w jednym stylu; ikona komentarza z wyraźniejszą ramką; nagłówki „NR ZLECENIA" bez kropki; dymek wstrzymanego etapu pokazuje tylko „Wstrzymane: powód".</li>
         </ul>
         <h4>Po testach z 6.11 (beta.87)</h4>
         <ul>
-          <li><b>Weryfikacja → „Do wyjaśnienia po synchronizacji z Excelem"</b> — duplikaty, anulowane w arkuszu i inne rozbieżności z godzinowej synchronizacji wydań; kafelek na Pulpicie z czasem ostatniej synchronizacji. Kafelki Pulpitu przewijają prosto do właściwej sekcji.</li>
+          <li><b>Weryfikacja → „Do wyjaśnienia po synchronizacji z Excelem"</b> — duplikaty, anulowane w arkuszu i inne rozbieżności z codziennej synchronizacji wydań (20:00); kafelek na Pulpicie z czasem ostatniej synchronizacji. Kafelki Pulpitu przewijają prosto do właściwej sekcji.</li>
           <li><b>Zmień hasło</b> — przycisk w prawym górnym rogu, każdy zmienia swoje.</li>
           <li>Program otwiera się tylko raz na komputerze (druga próba przywołuje istniejące okno); okno ma tytuł „KR Center Manager".</li>
           <li>Formularze pytają przed zamknięciem z niezapisanymi zmianami (wszystkie okna, nie tylko zlecenie).</li>
@@ -349,7 +350,7 @@ const SECTIONS: Section[] = [
           <li>Zlecenie z brakami (brak modelu, firmy, nieznana kategoria) dostaje flagę i trafia do zakładki <b>Weryfikacja</b> — kierownik uzupełnia dane i zatwierdza.</li>
           <li>Automaty same tworzą pary Disting Plus i trójki Titan — tak jak formularz.</li>
           <li><b>Optima (RO)</b>: zamówienia z konfiguratora zakłada w Optimie automat. Przy numerze zlecenia widać zieloną plakietkę z numerem RO albo czerwoną <b>Błąd ERP</b> (najedź — zobaczysz powód, np. brak towaru w Optimie). Lista błędów jest w Weryfikacji w sekcji „Błędy ERP (Optima)", a kierownicy dostają powiadomienie w dzwonku. Po usunięciu przyczyny (np. dodaniu towaru w Optimie) kierownik klika <b>„Ponów wysyłkę do Optimy"</b> w oknie zlecenia albo na liście błędów — Make zakłada RO jeszcze raz i status sam się odświeży. Adres webhooka Make ustawia administrator w Ustawienia → <b>Integracje</b>. Numer RO działa też w wyszukiwarce zleceń (wpisz np. „231/11").</li>
-          <li><b>Synchronizacja wydań z Excela</b>: co godzinę automat czyta arkusze „Zamówienia *.xlsm" i zamyka zlecenia wydane w Excelu (zwalnia też ich rezerwacje). Czego nie rozstrzygnął, ląduje w Weryfikacji w sekcji <b>„Do wyjaśnienia po synchronizacji z Excelem"</b>: <i>Duplikaty</i> (jeden wiersz arkusza → kilka zleceń; zostaje zlecenie z konfiguratora, kopię z Excela anulujesz przyciskiem), <i>Anulowane w Excelu</i> (w arkuszu ANULOWANE, w programie jeszcze otwarte), <i>Inne</i> (np. WSTRZYMANE). Kafelek na Pulpicie pokazuje godzinę ostatniej synchronizacji i ostrzega, gdy jest starsza niż 3 godziny.</li>
+          <li><b>Synchronizacja wydań z Excela</b>: codziennie o 20:00 automat czyta arkusze „Zamówienia *.xlsm" i zamyka zlecenia wydane w Excelu (zwalnia też ich rezerwacje). Czego nie rozstrzygnął, ląduje w Weryfikacji w sekcji <b>„Do wyjaśnienia po synchronizacji z Excelem"</b>: <i>Duplikaty</i> (jeden wiersz arkusza → kilka zleceń; zostaje zlecenie z konfiguratora, kopię z Excela anulujesz przyciskiem), <i>Anulowane w Excelu</i> (w arkuszu ANULOWANE, w programie jeszcze otwarte), <i>Inne</i> (np. WSTRZYMANE). Kafelek na Pulpicie pokazuje godzinę ostatniej synchronizacji i ostrzega, gdy jest starsza niż dobę.</li>
         </ul>
         <h4>Dopasowanie kontrahenta</h4>
         <ul>

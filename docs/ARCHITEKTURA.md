@@ -194,7 +194,7 @@ przejdzie — takie resztki łapie sekcja „Podejrzane duble" w zakładce Weryf
 ---
 
 ### 4b. Synchronizacja wydań z Excela — widok w aplikacji (od 6.11.2026)
-Backend żyje poza aplikacją: Make (scenariusz 10117480) co godzinę pobiera
+Backend żyje poza aplikacją: Make (scenariusz 10117480, harmonogram daily 20:00) pobiera
 pliki „Zamówienia *.xlsm" z OneDrive → edge function `excel-sync` (nagłówek
 `x-sync-secret` = `integration_settings.excel_sync_secret`) → RPC
 `sync_releases_from_excel` → wiersz per plik/kategoria w `excel_sync_runs`
@@ -209,7 +209,7 @@ po `excel_row` (znikają, gdy zostało ≤ 1 otwarte; BOT pierwszy = zostaje),
 anulowane w Excelu (znikają po anulowaniu w aplikacji), inne (znikają po
 anulowaniu/wydaniu). UI: `ExcelSyncReviewSection` w Weryfikacji (akcja
 „Anuluj zlecenie" = istniejąca ścieżka `handleCancelReviewOrder`), kafelek na
-Pulpicie (czas ostatniego przebiegu, ostrzeżenie > 3 h), licznik w menu.
+Pulpicie (czas ostatniego przebiegu, ostrzeżenie > 26 h), licznik w menu.
 Odświeżanie co 5 min + ręcznie. Trigger `trg_zz_flag_possible_duplicate`
 (BEFORE INSERT) flaguje duble przy imporcie — dziś 0 otwartych.
 

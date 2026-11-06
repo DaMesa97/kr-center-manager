@@ -50,7 +50,7 @@ Zlecenia gotowe do wydania.
 ## 🧭 Menu boczne (od beta.86)
 - **Pulpit**, **Moje stanowisko** — na górze, bez grupy.
 - **Zamówienia** — kategorie (STA, Disting, ST, Techniczne, Bastion, Drzwi wewnętrzne, Stolarka aluminiowa), a pod nimi **Weryfikacja** (duble, brak numeru klienta, błędy ERP, „Do wyjaśnienia po synchronizacji z Excelem") i **Archiwum**.
-- **Synchronizacja wydań z Excela** — co godzinę automat czyta arkusze „Zamówienia *.xlsm" i zamyka zlecenia wydane w Excelu (zwalnia rezerwacje). Czego nie rozstrzygnął, jest w Weryfikacji: *Duplikaty* (jeden wiersz arkusza → kilka zleceń; zostaje zlecenie z konfiguratora, kopię z Excela anulujesz przyciskiem), *Anulowane w Excelu*, *Inne*. Kafelek na Pulpicie pokazuje godzinę ostatniej synchronizacji i ostrzega, gdy starsza niż 3 h.
+- **Synchronizacja wydań z Excela** — codziennie o 20:00 automat czyta arkusze „Zamówienia *.xlsm" i zamyka zlecenia wydane w Excelu (zwalnia rezerwacje). Czego nie rozstrzygnął, jest w Weryfikacji: *Duplikaty* (jeden wiersz arkusza → kilka zleceń; zostaje zlecenie z konfiguratora, kopię z Excela anulujesz przyciskiem), *Anulowane w Excelu*, *Inne*. Kafelek na Pulpicie pokazuje godzinę ostatniej synchronizacji i ostrzega, gdy starsza niż dobę.
 - **Produkcja** — Wysyłka, Etykiety i druk, ZKP AS 75EI.
 - **Magazyn** — Stany, Komponenty, Dokumenty PZ / MM, Zamawianie, Inwentaryzacja.
 - **Analizy** — Statystyki, Audyt.
