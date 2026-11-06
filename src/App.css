@@ -46,10 +46,17 @@
   --color-bg-alt: #f1f5fb;
 
   /* === Priority rows === */
-  --color-priority-row: #fff1f0;
-  --color-priority-border: #b3261e;
-  --orders-sticky-priority-bg: #fff1f0;
-  --orders-sticky-priority-hover-bg: #ffd7d4;
+  /* #84 (Mariusz 6.11.2026): pilne = delikatne niebieskie tło z alpha (sticky dostaje odpowiednik kryjący) */
+  --color-priority-row: rgba(30, 136, 229, 0.1);
+  --color-priority-row-hover: rgba(30, 136, 229, 0.18);
+  --color-priority-border: #1e88e5;
+  --orders-sticky-priority-bg: #e9f3fd;
+  --orders-sticky-priority-hover-bg: #d6e8fa;
+  /* #84: wiersz z UWAGAMI = delikatne żółte tło */
+  --color-notes-row: rgba(251, 192, 45, 0.16);
+  --color-notes-row-hover: rgba(251, 192, 45, 0.28);
+  --orders-sticky-notes-bg: #fdf3d2;
+  --orders-sticky-notes-hover-bg: #fbe9b5;
   --orders-sticky-actions-priority-bg: #fff1f0;
   --orders-sticky-actions-priority-hover-bg: #ffd7d4;
 
@@ -2241,7 +2248,81 @@ html, body, #root {
 }
 
 .orders-table tbody tr.orders-table-row--priority:hover {
-  background: #ffcdd2;
+  background: var(--color-priority-row-hover);
+}
+
+/* #84: UWAGI — żółtawe tło; pilne (niebieskie) ma pierwszeństwo, wydane (zielone) nad oboma */
+.orders-table tbody tr.orders-table-row--has-notes:not(.orders-table-row--priority):not(.orders-table-row--released) {
+  background: var(--color-notes-row);
+}
+
+.orders-table tbody tr.orders-table-row--has-notes:not(.orders-table-row--priority):not(.orders-table-row--released):hover {
+  background: var(--color-notes-row-hover);
+}
+
+.orders-table tbody tr.orders-table-row--has-notes:not(.orders-table-row--priority):not(.orders-table-row--released) .sticky-col {
+  background-color: var(--orders-sticky-notes-bg);
+}
+
+.orders-table tbody tr.orders-table-row--has-notes:not(.orders-table-row--priority):not(.orders-table-row--released):hover .sticky-col {
+  background-color: var(--orders-sticky-notes-hover-bg);
+}
+
+/* Legenda kolorów wierszy nad tabelą (OrdersRowLegend) */
+.orders-row-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 1.1rem;
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  color: #5f6368;
+}
+
+.orders-row-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: default;
+}
+
+.orders-row-legend-swatch {
+  display: inline-block;
+  width: 20px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.orders-row-legend-swatch--priority {
+  background: var(--orders-sticky-priority-bg);
+  border-left: 3px solid var(--color-priority-border);
+}
+
+.orders-row-legend-swatch--notes {
+  background: var(--orders-sticky-notes-bg);
+}
+
+.orders-row-legend-swatch--released {
+  background: #e8f5e9;
+  border-left: 3px solid #2e7d32;
+}
+
+.orders-row-legend-swatch--cancelled {
+  background: #fff0f0;
+}
+
+/* ⚡ PILNE w kolumnie Akcje (zastępuje kolumnę PILNE, #84) */
+.orders-table .col-order-actions .rush-toggle {
+  min-width: 2rem;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+
+.orders-table .col-order-actions .rush-toggle--on {
+  background: var(--color-priority-border);
+  border-color: var(--color-priority-border);
+  color: #fff;
 }
 
 /* Partner DISTING PLUS anulowany po usunięciu drugiej strony (bez opacity na <tr> — sticky ma pełne, nieprzezroczyste tło) */

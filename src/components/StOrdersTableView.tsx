@@ -12,7 +12,6 @@ import {
   productionDayCol,
   quantityCol,
   releaseCol,
-  rushCol,
   modelSystemCol,
   textCol,
   useStickyCol1Width,
@@ -160,7 +159,6 @@ function StOrdersTableView({
       productionDayCol(),
       quantityCol(),
       textCol('sequence', 'KOLEJNOŚĆ', (o) => o.sequence, { cellTooltip: false }),
-      rushCol(ctx),
       // Pracownik hali: etapy zaraz za FIRMĄ
       ...(workerMode ? stageCols : []),
       modelSystemCol(),

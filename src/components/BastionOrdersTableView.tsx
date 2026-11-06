@@ -15,7 +15,6 @@ import {
   productionDayCol,
   quantityCol,
   releaseCol,
-  rushCol,
   colorWithWfCol,
   modelSystemCol,
   textCol,
@@ -231,7 +230,6 @@ function BastionOrdersTableView({
       orderDateCol(),
       productionDayCol(),
       quantityCol(),
-      rushCol(ctx),
       // Pracownik hali: etapy zaraz za FIRMĄ (pełny układ: ~27. kolumna)
       ...(workerMode ? stageCols : []),
       textCol('collection', 'KOLEKCJA', f('bastion_collection')),

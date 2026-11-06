@@ -288,7 +288,11 @@ export const productionDayCol = (): DataTableColumn<Order> =>
 
 export const quantityCol = (): DataTableColumn<Order> => textCol('quantity', 'ILOŚĆ', (o) => o.quantity)
 
-/** PILNE — checkbox (zmienia tylko kierownik); klik nie otwiera edycji. */
+/**
+ * PILNE — checkbox (zmienia tylko kierownik); klik nie otwiera edycji.
+ * Od beta.90 (#84) NIEUŻYWANA w tabelach zleceń: pilne ustawia się ⚡ w kolumnie
+ * Akcje, a widać je po niebieskim tle wiersza (legenda nad tabelą).
+ */
 export function rushCol(ctx: OrderTableCtx): DataTableColumn<Order> {
   return {
     key: 'rush',
@@ -405,6 +409,18 @@ export function actionsCol(ctx: OrderTableCtx): DataTableColumn<Order> {
             🖨️
           </button>
         )}
+        {!isCancelledOwn(o) && (
+          <button
+            type="button"
+            className={`btn btn-sm rush-toggle ${isRushOrderSequence(o.sequence) ? 'rush-toggle--on' : 'btn-secondary'}`}
+            disabled={o.id === undefined || ctx.rushUpdatingOrderId === o.id}
+            aria-pressed={isRushOrderSequence(o.sequence)}
+            onClick={() => void ctx.onHandleRushToggle(o, !isRushOrderSequence(o.sequence))}
+            title={isRushOrderSequence(o.sequence) ? 'Zdejmij oznaczenie PILNE' : 'Oznacz jako PILNE (zlecenie idzie na górę listy)'}
+          >
+            ⚡
+          </button>
+        )}
         {ctx.onShowHistory && (
           <button
             type="button"
@@ -473,6 +489,7 @@ export function orderRowClassName(
     'orders-table-row',
     isManager && 'orders-table-row--clickable',
     isRushOrderSequence(order.sequence) && 'orders-table-row--priority',
+    String(order.notes ?? '').trim() !== '' && 'orders-table-row--has-notes',
     ...(opts.extra ?? []),
     released && 'orders-table-row--released',
     released && 'orders-table-row--completed',
@@ -496,9 +513,8 @@ const ORDER_STACK: Record<string, string> = {
   entered_by: 'client_order_number',
   airtable_id: 'client_order_number',
   info: 'notes',
-  // Titan nie ma szklenia — wtedy w komórce widać panel i intarsję (STA: szklenie + panel)
-  decorative_panel: 'glazing',
-  intarsja: 'glazing',
+  // #85 (Mariusz, 6.11.2026): PANEL DEKORACYJNY i INTARSJA zawsze jako osobne kolumny —
+  // nie piętrujemy ich pod SZKLENIEM (w jednej komórce nie było widać, co jest czym)
   top_light_glazing: 'top_light',
   side_panel_a_glazing: 'side_panel_a',
   side_panel_b_glazing: 'side_panel_b',

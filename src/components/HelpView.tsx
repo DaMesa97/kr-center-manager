@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Po uwagach Mariusza do tabel (beta.90)</h4>
+        <ul>
+          <li><b>Kolumny PILNE nie ma</b> (#84) — pilne zlecenie poznasz po <b>niebieskim tle</b> wiersza, zlecenie z uwagami po <b>żółtym</b>; nad tabelą jest legenda. Kierownik oznacza pilne przyciskiem <b>⚡</b> w kolumnie Akcje.</li>
+          <li><b>PANEL DEKORACYJNY i INTARSJA</b> to zawsze osobne kolumny (#85) — nie zwijają się już do jednej komórki pod SZKLENIEM.</li>
+          <li><b>Bastion → „Tylko TITAN"</b> — przełącznik nad tabelą pokazuje same trójki Titan (modele G-: skrzydło z STA, ościeżnica z ST, okuwanie i montaż na Bastionie). Każdy Titan ma swój wiersz w Bastionie od momentu dodania w STA.</li>
+          <li>Porządki w bazie (6.11): 21 zleceń starszych niż 90 dni bez wiersza w Excelu i bez żadnego etapu anulowano (powód w historii), 2 zamknięto datą wydania powiązanej nogi; rekord testowy ERP wyczyszczony.</li>
+        </ul>
         <h4>Drobiazgi po testach (beta.89)</h4>
         <ul>
           <li><b>Synchronizacja z Excelem jest raz dziennie o 20:00</b> (tak ustawiony jest scenariusz Make), nie co godzinę — kafelek na Pulpicie ostrzega dopiero, gdy ostatni przebieg jest starszy niż dobę. Opisy w Pomocy i Weryfikacji poprawione.</li>
@@ -169,7 +176,7 @@ const SECTIONS: Section[] = [
         </ul>
         <h4>Pilne i wydanie</h4>
         <ul>
-          <li><b>PILNE ⚡</b> — checkbox podbija zlecenie na górę listy i wyróżnia kolorem.</li>
+          <li><b>PILNE ⚡</b> — przycisk ⚡ w kolumnie Akcje (kierownik) podbija zlecenie na górę listy; pilny wiersz ma niebieskie tło. Osobnej kolumny PILNE już nie ma — legenda kolorów stoi nad tabelą.</li>
           <li><b>WYDANIE</b> — klik wstawia dzisiejszą datę = zlecenie zrealizowane (kierownik). Wydanie jest <b>niezależne per kategoria</b> — np. w Titanie STA wydaje skrzydło, ST ościeżnicę, Bastion komplet.</li>
         </ul>
         <h4>Komentarze i wyszukiwanie</h4>
@@ -180,7 +187,7 @@ const SECTIONS: Section[] = [
         </ul>
         <h4>Kolory wierszy</h4>
         <ul>
-          <li><b>Czerwonawy</b> — pilne. <b>Zielonkawy / ZREALIZOWANE</b> — wydane. <b>Wyszarzony</b> — anulowane.</li>
+          <li><b>Niebieskawy</b> — pilne. <b>Żółtawy</b> — zlecenie ma wpis w UWAGACH. <b>Zielonkawy / ZREALIZOWANE</b> — wydane. <b>Wyszarzony</b> — anulowane. Legenda z tymi kolorami jest nad każdą tabelą zleceń.</li>
           <li>Plakietka <b>BOT</b> — zlecenie przyszło automatycznie (konfigurator / Excel).</li>
         </ul>
       </>

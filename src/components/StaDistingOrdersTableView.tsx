@@ -14,7 +14,6 @@ import {
   productionDayCol,
   quantityCol,
   releaseCol,
-  rushCol,
   modelSystemCol,
   textCol,
   type OrderTableCtx,
@@ -348,7 +347,6 @@ function StaDistingOrdersTableView({
       orderDateCol(),
       productionDayCol(),
       quantityCol(),
-      rushCol(ctx),
       // Pracownik hali: etapy zaraz za FIRMĄ (w pełnym układzie są ~30. kolumną
       // i każdy klik wymagał przewinięcia ~1000 px)
       ...(workerMode ? stageCols : []),

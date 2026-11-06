@@ -142,6 +142,7 @@ import IntegrationsView from './components/IntegrationsView'
 import UpdateBanner from './components/UpdateBanner'
 import UpdateBlocker from './components/UpdateBlocker'
 import OverdueBanner from './components/OverdueBanner'
+import OrdersRowLegend from './components/OrdersRowLegend'
 import GlobalSearch, { type SearchResult } from './components/GlobalSearch'
 import DashboardView from './components/DashboardView'
 import Spinner from './components/Spinner'
@@ -245,6 +246,8 @@ function LoginScreen({
 function App() {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('STA')
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('Zamówienia')
+  // Bastion: przełącznik „Tylko TITAN" (#117) — nogi Bastion trójek Titan (modele G-)
+  const [bastionTitanOnly, setBastionTitanOnly] = useState(false)
   const [activeWarehouseSubTab, setActiveWarehouseSubTab] = useState<WarehouseSubTab>('Stany')
   const { toasts, pushToast, dismissToast } = useToasts()
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null)
@@ -1623,11 +1626,24 @@ function App() {
     })
   }, [activeTab, orders, searchTerm, selectedProductionDay, dateFilter, hideCompletedOrders, showCancelledOrders])
 
+  // Titan w Bastionie: noga z titan_group albo model G- (Guard / Core)
+  const isTitanOrderRow = (order: Order): boolean => {
+    const g = Number((order.extra_fields as Record<string, unknown> | null)?.titan_group)
+    return (Number.isFinite(g) && g > 0) || /^G-/i.test(String(order.model ?? '').trim())
+  }
+  const bastionTitanCount = useMemo(
+    () => (activeTab === 'Bastion' ? categoryFilteredOrders.filter(isTitanOrderRow).length : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeTab, categoryFilteredOrders],
+  )
+
   const filteredOrders = useMemo(() => {
     // Filtr wykonawcy widać tylko w STA/Disting — w innych zakładkach nie może
     // działać po cichu (wybrany w STA chował wszystko np. w Technicznych: 0/589)
     const useWykonawca = wykonawcaFilter.length > 0 && (activeTab === 'STA' || activeTab === 'Disting')
+    const titanOnly = bastionTitanOnly && activeTab === 'Bastion'
     return categoryFilteredOrders.filter((order) => {
+      if (titanOnly && !isTitanOrderRow(order)) return false
       if (sourceFilter !== 'all') {
         if (sourceFilter === 'manual' && order.source === 'bot') return false
         if (sourceFilter === 'bot' && order.source !== 'bot') return false
@@ -1638,7 +1654,8 @@ function App() {
       }
       return true
     })
-  }, [categoryFilteredOrders, sourceFilter, wykonawcaFilter, activeTab])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilteredOrders, sourceFilter, wykonawcaFilter, activeTab, bastionTitanOnly])
 
   const sourceFilterCounts = useMemo(
     () => ({
@@ -3745,10 +3762,22 @@ function App() {
                         })()}
                       </button>
                     )}
+                    {activeTab === 'Bastion' && activeSubTab === 'Zamówienia' && (
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${bastionTitanOnly ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setBastionTitanOnly((v) => !v)}
+                        aria-pressed={bastionTitanOnly}
+                        title="Pokaż tylko Bastion TITAN (modele G-, Guard / Core): skrzydło przychodzi z STA, ościeżnica z ST, tu okuwanie, montaż i pakowanie"
+                      >
+                        Tylko TITAN{bastionTitanCount > 0 ? ` (${bastionTitanCount})` : ''}
+                      </button>
+                    )}
                   </div>
                 )}
                 {activeSubTab === 'Zamówienia' && (
                   <>
+                    {usesStructuredOrderForm && <OrdersRowLegend />}
                 {(activeTab === 'STA' || activeTab === 'Disting') && (
                   <StaDistingOrdersTableView
                     onPrintOrder={can(currentUser?.role, 'labels.print') ? setPrintComboOrder : undefined}
