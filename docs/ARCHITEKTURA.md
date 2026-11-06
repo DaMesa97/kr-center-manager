@@ -120,6 +120,9 @@ Magazyn/rezerwacje: `reserve_stock_for_order`, `preview_order_stock`,
 `release_stock_for_stage`, `release_remaining_for_order`, `cancel_reservation`,
 `cancel_order_reservations`, `report_damage`, `open_inventory_session`,
 `close_inventory_session`, `get_stock_alerts`, `match_recipes_for_order`.
+Dopasowanie receptur (`match_recipes_for_order`, `preview_order_stock`) porównuje kryteria
+przez `_recipe_norm()` — bez polskich znaków i podwójnych spacji („DAB ZLOTY" z Excela = „DĄB ZŁOTY"
+ze słownika); od 7.11.2026, zob. `supabase/sql/recipe_match_diacritics.sql`.
 
 ⚠️ Starsze RPC żyją TYLKO w Supabase (nie w repo) — przed zmianą wyciągnij aktualną
 wersję: `select pg_get_functiondef(oid) from pg_proc where proname='NAZWA';`
