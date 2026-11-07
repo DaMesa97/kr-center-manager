@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Legenda jako przełączniki (beta.92)</h4>
+        <ul>
+          <li><b>Klik w „pilne" lub „uwagi" w legendzie nad tabelą wyłącza dane podświetlenie</b> na tym komputerze (pozycja przekreślona, „wył."); drugi klik włącza z powrotem. Kto nie chce żółtych wierszy z uwagami, po prostu je gasi — reszta widzi po staremu.</li>
+          <li>Kolumna Akcje w pilnym wierszu jest niebieska jak reszta wiersza (była różowa po beta.90).</li>
+        </ul>
         <h4>Receptury magazynowe (beta.91)</h4>
         <ul>
           <li><b>Dopasowanie receptur nie patrzy już na polskie znaki</b> — wiersze z Excela mają kolory typu „DAB ZLOTY", słownik „DĄB ZŁOTY"; wcześniej takie zlecenia wisiały jako „częściowa receptura". Po przeliczeniu: Disting 45 → 3, STA 18 → 2 zleceń z częściową recepturą.</li>
@@ -194,6 +199,7 @@ const SECTIONS: Section[] = [
         <h4>Kolory wierszy</h4>
         <ul>
           <li><b>Niebieskawy</b> — pilne. <b>Żółtawy</b> — zlecenie ma wpis w UWAGACH. <b>Zielonkawy / ZREALIZOWANE</b> — wydane. <b>Wyszarzony</b> — anulowane. Legenda z tymi kolorami jest nad każdą tabelą zleceń.</li>
+          <li><b>Nie chcesz któregoś koloru?</b> Kliknij „pilne" albo „uwagi" w legendzie — podświetlenie gaśnie (pozycja przekreślona, „wył."), drugi klik je przywraca. Ustawienie pamięta ten komputer, każdy ma swoje.</li>
           <li>Plakietka <b>BOT</b> — zlecenie przyszło automatycznie (konfigurator / Excel).</li>
         </ul>
       </>

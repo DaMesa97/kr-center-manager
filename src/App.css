@@ -57,8 +57,8 @@
   --color-notes-row-hover: rgba(251, 192, 45, 0.28);
   --orders-sticky-notes-bg: #fdf3d2;
   --orders-sticky-notes-hover-bg: #fbe9b5;
-  --orders-sticky-actions-priority-bg: #fff1f0;
-  --orders-sticky-actions-priority-hover-bg: #ffd7d4;
+  --orders-sticky-actions-priority-bg: #e9f3fd; /* #84: jak reszta pilnego wiersza (było różowe) */
+  --orders-sticky-actions-priority-hover-bg: #d6e8fa;
 
   /* === SPACING SCALE === */
   --space-1: 4px;
@@ -2268,6 +2268,58 @@ html, body, #root {
   background-color: var(--orders-sticky-notes-hover-bg);
 }
 
+/* Przełączniki w legendzie (OrdersRowLegend): podświetlenie wyłączone na tym
+   komputerze = klasa hl-off-* na <html>; wiersz wraca do białego / zwykłego hover. */
+html.hl-off-notes .orders-table tbody tr.orders-table-row--has-notes:not(.orders-table-row--priority):not(.orders-table-row--released) {
+  background: #ffffff;
+}
+
+html.hl-off-notes .orders-table tbody tr.orders-table-row--has-notes:not(.orders-table-row--priority):not(.orders-table-row--released):hover {
+  background: var(--color-row-hover);
+}
+
+html.hl-off-notes .orders-table tbody tr.orders-table-row--has-notes:not(.orders-table-row--priority):not(.orders-table-row--released) .sticky-col {
+  background-color: #ffffff;
+}
+
+html.hl-off-notes .orders-table tbody tr.orders-table-row--has-notes:not(.orders-table-row--priority):not(.orders-table-row--released):hover .sticky-col {
+  background-color: var(--orders-table-row-hover-bg);
+}
+
+html.hl-off-priority .orders-table tbody tr.orders-table-row--priority:not(.orders-table-row--released) {
+  background: #ffffff;
+  border-left: 0;
+}
+
+html.hl-off-priority .orders-table tbody tr.orders-table-row--priority:not(.orders-table-row--released):hover {
+  background: var(--color-row-hover);
+}
+
+html.hl-off-priority .orders-table tbody tr.orders-table-row--priority:not(.orders-table-row--released) .sticky-col {
+  background-color: #ffffff;
+}
+
+html.hl-off-priority .orders-table tbody tr.orders-table-row--priority:not(.orders-table-row--released):hover .sticky-col {
+  background-color: var(--orders-table-row-hover-bg);
+}
+
+html.hl-off-priority .orders-table tbody tr.orders-table-row--priority:not(.orders-table-row--released) .col-order-actions {
+  background-color: var(--orders-table-header-bg);
+}
+
+html.hl-off-priority .orders-table tbody tr.orders-table-row--priority:not(.orders-table-row--released):hover .col-order-actions {
+  background-color: var(--orders-table-row-hover-bg);
+}
+
+/* pilne wyłączone, uwagi włączone: pilny wiersz z uwagami świeci na żółto */
+html.hl-off-priority:not(.hl-off-notes) .orders-table tbody tr.orders-table-row--priority.orders-table-row--has-notes:not(.orders-table-row--released) {
+  background: var(--color-notes-row);
+}
+
+html.hl-off-priority:not(.hl-off-notes) .orders-table tbody tr.orders-table-row--priority.orders-table-row--has-notes:not(.orders-table-row--released) .sticky-col {
+  background-color: var(--orders-sticky-notes-bg);
+}
+
 /* Legenda kolorów wierszy nad tabelą (OrdersRowLegend) */
 .orders-row-legend {
   display: flex;
@@ -2284,6 +2336,38 @@ html, body, #root {
   align-items: center;
   gap: 0.35rem;
   cursor: default;
+}
+
+.orders-row-legend-item--toggle {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin: -2px -6px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.orders-row-legend-item--toggle:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.orders-row-legend-item--off {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.orders-row-legend-item--off .orders-row-legend-swatch--priority,
+.orders-row-legend-item--off .orders-row-legend-swatch--notes {
+  background: #ffffff;
+  border-left-color: rgba(0, 0, 0, 0.12);
+}
+
+.orders-row-legend-offmark {
+  text-decoration: none;
+  font-size: 0.72rem;
 }
 
 .orders-row-legend-swatch {

@@ -10,7 +10,7 @@ Każda kategoria drzwi ma zakładkę: **STA, Disting, ST, Techniczne, Bastion, D
 - **Nowe zlecenie** — przycisk „Nowe zamówienie", pola częściowo ze słowników.
 - **Edycja** — klik w wiersz (kierownik/sprzedawca).
 - **Etapy produkcji** — klik pustej komórki = Twoje **inicjały** (zrobione); klik wypełnionej = cofnięcie (z potwierdzeniem).
-- **Pilne ⚡** — przycisk ⚡ w kolumnie Akcje (kierownik) podbija zlecenie na górę; pilny wiersz ma niebieskie tło, wiersz z uwagami żółte, wydany zielone — legenda nad tabelą. Osobnej kolumny PILNE nie ma.
+- **Pilne ⚡** — przycisk ⚡ w kolumnie Akcje (kierownik) podbija zlecenie na górę; pilny wiersz ma niebieskie tło, wiersz z uwagami żółte, wydany zielone — legenda nad tabelą. Osobnej kolumny PILNE nie ma. Klik w „pilne" / „uwagi" w legendzie gasi dane podświetlenie na tym komputerze (drugi klik przywraca).
 - **Wydanie** — klik w kolumnie WYDANIE = data dzisiejsza; zlecenie znika z listy (→ Wysyłka/Archiwum).
 - **Anuluj / Przywróć** — kolumna Akcje (kierownik).
 - **Komentarze 💬** — przy numerze; oznaczanie osób przez `@`.
