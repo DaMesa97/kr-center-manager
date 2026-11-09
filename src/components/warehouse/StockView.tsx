@@ -2,7 +2,7 @@
 // Magazyn → Stany: poziomy braków. Reguły (krytyczny / pokryty dostawą / niski /
 // OK / nieaktywny) i „do zamówienia” liczy BAZA — widok v_stock_levels
 // (migrate/magazyn_poziomy_brakow.sql). Tu: filtry, liczniki, sortowanie
-// „od najgorszych”, minimum półki (inline + hurtowo), eksport braków.
+// „najpierw braki”, minimum półki (inline + hurtowo), eksport braków.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
@@ -285,7 +285,7 @@ function StockView({
     [expandedValues, pushToast, saveMinimums],
   )
 
-  // ── eksport / lista zakupów — braki w bieżącym filtrze (półki), od najgorszych
+  // ── eksport / lista zakupów — braki w bieżącym filtrze (półki), najpierw braki
   const shortageRows = useMemo(
     () => [...shelfRowsBase.filter((r) => isStockProblem(r.level))].sort(compareByStockLevel),
     [shelfRowsBase],
@@ -642,7 +642,7 @@ function StockView({
           <input type="checkbox" checked={hideInactive} onChange={(e) => setPrefs((p) => ({ ...p, hideInactive: e.target.checked }))} />
           <span>Ukryj nieaktywne</span>
         </label>
-        <button type="button" className="btn btn-secondary" onClick={exportShortages} title="CSV z brakami w bieżącym filtrze (półki, od najgorszych)">
+        <button type="button" className="btn btn-secondary" onClick={exportShortages} title="CSV z brakami w bieżącym filtrze (półki, najpierw braki)">
           Eksportuj braki (CSV)
         </button>
         {onAddToShoppingList ? (
@@ -668,7 +668,7 @@ function StockView({
         {levelChip('inactive', 'Nieaktywne', counts.inactive)}
         <span className="stock-level-bar__sep" aria-hidden />
         <span className="stock-min-src">Sortuj:</span>
-        <button type="button" className={`btn btn-sm ${sortMode === 'worst' && !sort ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSortMode('worst')}>Od najgorszych</button>
+        <button type="button" className={`btn btn-sm ${sortMode === 'worst' && !sort ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSortMode('worst')}>Najpierw braki</button>
         <button type="button" className={`btn btn-sm ${sortMode === 'alpha' && !sort ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSortMode('alpha')}>Alfabetycznie</button>
       </div>
 

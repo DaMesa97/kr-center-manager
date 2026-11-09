@@ -311,7 +311,7 @@ Reguła poziomu jest **tylko w bazie** — aplikacja nie liczy jej sama
   (admin / manager / kierownik_magazynu, dedup 24 h po tytule, `link_tab = 'Stany'`) **tylko przy
   przejściu** półki w `critical`; wyjście z krytycznego i `low` nie powiadamiają.
 - UI (`StockView`): tło wiersza + tekst statusu, pasek liczników = filtr (klik gasi), domyślnie
-  „od najgorszych” (krytyczne wg minusa → pokryte → niskie wg braku → OK → nieaktywne),
+  „najpierw braki” (krytyczne wg minusa → pokryte → niskie wg braku → OK → nieaktywne),
   kolumna DO ZAMÓWIENIA, minimum inline (klik w MINIMUM) i hurtowo (checkboxy, tryb jednego
   magazynu), w trybie „Wszystkie” edytor per magazyn pod wierszem, CSV braków, „Braki → lista zakupowa”.
   Filtr / sortowanie / magazyn pamiętane w `localStorage` (`kr-stock-view`).

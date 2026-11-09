@@ -31,7 +31,7 @@ describe('stockLevels — agregacja i kolejność', () => {
     expect(agg.find((a) => a.component_id === 2)!.shortage).toBe(18)
   })
 
-  it('sortowanie od najgorszych: krytyczne wg największego minusa, niskie wg braku, potem OK i nieaktywne', () => {
+  it('sortowanie najpierw braki: krytyczne wg największego minusa, niskie wg braku, potem OK i nieaktywne', () => {
     const rows = [
       row({ component_name: 'ok', level: 'ok' }),
       row({ component_name: 'low2', level: 'low', shortage: 2 }),

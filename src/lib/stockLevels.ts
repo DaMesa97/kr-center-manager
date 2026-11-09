@@ -2,7 +2,7 @@
 // Poziomy braków w Stanach — strona aplikacji. Reguły poziomu i „do zamówienia”
 // liczy BAZA (stock_level / stock_shortage w widoku v_stock_levels); tu tylko:
 // etykiety, kolejność, agregacja po komponencie (widok „Wszystkie”), liczniki,
-// sortowanie „od najgorszych” i CSV braków. Testy: __tests__/stockLevels.test.ts
+// sortowanie „najpierw braki” i CSV braków. Testy: __tests__/stockLevels.test.ts
 // =====================================================================
 import type { StockLevel, StockLevelRow, StockMinSource } from '../types'
 
@@ -162,7 +162,7 @@ function worstAvailableOf(r: Sortable): number {
 }
 
 /**
- * „Od najgorszych”: krytyczne (największy minus na górze) → pokryte dostawą →
+ * „Najpierw braki”: krytyczne (największy minus na górze) → pokryte dostawą →
  * niskie (największy brak na górze) → OK → nieaktywne; w obrębie poziomu po nazwie.
  */
 export function compareByStockLevel(a: Sortable, b: Sortable): number {
