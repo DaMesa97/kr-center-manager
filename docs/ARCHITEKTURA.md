@@ -98,7 +98,7 @@ aplikacji, automatyczne wyłącznie przez `orders-intake` (konfigurator).
 | `lead_time_rules` | Czasy realizacji (terminy ostrzeżeń/zaległości). |
 | `companies` | Kontrahenci: dni produkcji/tras. |
 | `company_aliases` | Zapamiętane dopasowania nazw z konfiguratora → kontrahent (trigger podmienia przy INSERT z bota). |
-| `warehouse_components` / `warehouse_stock` / `warehouse_movements` | Kartoteka, stany per magazyn, ruchy. `warehouse_stock` ma `reserved_quantity` + `available_quantity` (kolumna GENERATED: fizyczny − zarezerwowane). Typy ruchów: `PZ`/`WZ`/`MM`/`ZWR`/`INW`/`ZN` (+ legacy `in`/`out`); ruchy grupowane w dokumenty po `reference`. |
+| `warehouse_components` / `warehouse_stock` / `warehouse_movements` | Kartoteka, stany per magazyn, ruchy. `warehouse_stock` ma `reserved_quantity` + `available_quantity` (kolumna GENERATED: fizyczny − zarezerwowane) oraz `min_quantity` (minimum półki, null = nie pilnujemy; §6a). Typy ruchów: `PZ`/`WZ`/`MM`/`ZWR`/`INW`/`ZN` (+ legacy `in`/`out`); ruchy grupowane w dokumenty po `reference`. |
 | `stock_reservations` | Rezerwacje komponentów per zlecenie (model dwustopniowy — sekcja 6). |
 | `warehouse_recipes` / `warehouse_recipe_components` / `warehouse_recipe_criteria` | Receptury — co schodzi na zlecenie. Dobór po **dynamicznych kryteriach** (dowolne pole zlecenia + dozwolone wartości; wygrywa najbardziej szczegółowa). Pozycja komponentu ma `stage_key` = etap wydania. |
 | `warehouses` | Definicje magazynów (Bukowa, Marklowicka, Wewnętrzne #1/#2). |
@@ -288,6 +288,34 @@ zlecenia) już nie obowiązuje dla kategorii z etapami.
 Starsze funkcje `consume_stock_for_order` / `return_stock_for_order` pozostają
 w bazie i są jeszcze używane w części ścieżek (m.in. drzwi wewnętrzne) — nie
 kasować.
+
+### 6a. Ostrzeżenia o brakach w Stanach (od 9.11.2026)
+
+Migracje: `migrate/magazyn_poziomy_brakow.sql`, `migrate/magazyn_powiadomienia_krytyczne.sql`.
+Reguła poziomu jest **tylko w bazie** — aplikacja nie liczy jej sama
+(`src/lib/stockLevels.ts` tylko etykietuje, agreguje i sortuje).
+
+- `warehouse_stock.min_quantity` — minimum **półki** (magazyn × komponent); null = nie pilnujemy.
+  Hierarchia progu (`stock_min_effective`): minimum półki → Smart ROP (jak `get_all_smart_rop`)
+  → `warehouse_components.min_stock_level` → brak.
+- `stock_level(qty, reserved, incoming, min)` / `stock_shortage(...)` (IMMUTABLE):
+  `critical` = dostępne < 0 i dostępne + w drodze < 0; `covered` = dostępne < 0, ale otwarte ZD
+  pokrywają; `low` = dostępne ≥ 0, jest minimum i dostępne + w drodze < minimum;
+  `inactive` = 0 / 0 / brak minimum / nic w drodze; inaczej `ok`.
+  „Do zamówienia” = max(0, minimum − (dostępne + w drodze)).
+- Widok `v_stock_levels` (security_invoker → RLS jak `warehouse_stock`): jedna półka = jeden wiersz,
+  „w drodze” per magazyn (`stock_incoming_for`, filtr 1:1 z `get_incoming_stock_per_warehouse`),
+  ok. 80 ms dla ~850 półek. Hook `useWarehouse.fetchWarehouseStock` dociąga go razem ze stanami.
+- RPC `set_stock_minimums(jsonb)` — tylko kierownik (`current_user_is_manager`), upsert, brak półki → zakłada 0/0.
+- Trigger `trg_stock_critical_notify` na `warehouse_stock`: powiadomienie `stock_critical`
+  (admin / manager / kierownik_magazynu, dedup 24 h po tytule, `link_tab = 'Stany'`) **tylko przy
+  przejściu** półki w `critical`; wyjście z krytycznego i `low` nie powiadamiają.
+- UI (`StockView`): tło wiersza + tekst statusu, pasek liczników = filtr (klik gasi), domyślnie
+  „od najgorszych” (krytyczne wg minusa → pokryte → niskie wg braku → OK → nieaktywne),
+  kolumna DO ZAMÓWIENIA, minimum inline (klik w MINIMUM) i hurtowo (checkboxy, tryb jednego
+  magazynu), w trybie „Wszystkie” edytor per magazyn pod wierszem, CSV braków, „Braki → lista zakupowa”.
+  Filtr / sortowanie / magazyn pamiętane w `localStorage` (`kr-stock-view`).
+- Zakładka **Alerty** liczy po staremu (stan − wszystkie rezerwacje) — nieruszona.
 
 ---
 
