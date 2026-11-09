@@ -445,6 +445,8 @@ function App() {
     shoppingListModalOpen,
     setShoppingListModalOpen,
     smartRopData,
+    stockLevels,
+    setStockMinimums,
     smartRopLoading,
     purchaseOrders,
     purchaseOrderItems,
@@ -3606,6 +3608,8 @@ function App() {
               pushToast('Zwolniono rezerwacje zlecenia', 'success')
             }}
             onRefreshStock={fetchWarehouseStock}
+            stockLevels={stockLevels}
+            onSetStockMinimums={setStockMinimums}
             components={warehouseComponents}
             componentsLoading={warehouseComponentsLoading}
             onCreateComponent={handleCreateWarehouseComponent}

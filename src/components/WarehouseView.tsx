@@ -6,7 +6,7 @@ import type {
   CurrentUser,
   IncomingStockRow,
   MmGroupRow,
-  StockReservationRow,
+  StockLevelRow, StockMinimumInput, StockReservationRow,
   PurchaseOrder,
   PurchaseOrderItem,
   PzGroupRow,
@@ -55,6 +55,9 @@ type WarehouseViewProps = {
   onReleaseReservation?: (reservationId: number) => Promise<void>
   onReleaseOrderReservations?: (orderId: number) => Promise<void>
   onRefreshStock?: () => void
+  /** poziomy braków per półka (v_stock_levels) — widok Stany */
+  stockLevels?: StockLevelRow[]
+  onSetStockMinimums?: (items: StockMinimumInput[]) => Promise<boolean>
   components: WarehouseComponent[]
   componentsLoading: boolean
   onCreateComponent: (data: WarehouseComponentCreateInput, warehouseIds?: number[]) => Promise<void>
@@ -123,6 +126,8 @@ function WarehouseView({
   incomingStockLoading = false,
   onRefreshIncoming = () => {},
   stockReservations = [],
+  stockLevels = [],
+  onSetStockMinimums,
   stockReservationsLoading = false,
   onRefreshReservations = () => {},
   onReleaseReservation = async () => {},
@@ -241,12 +246,14 @@ function WarehouseView({
         <StockView
           warehouses={warehouses}
           components={components}
-          stock={stock}
           suppliers={suppliers}
-          incoming={incomingStock}
           smartRopData={smartRopData}
+          levels={stockLevels}
           loading={stockLoading}
           isManager={isManager}
+          canEditMin={isManager || can(currentUser?.role, 'warehouse.manage')}
+          onSetMinimums={onSetStockMinimums}
+          onAddToShoppingList={canSeeReorderTab ? onAddToShoppingList : undefined}
           canAddPz={canMovements}
           onAddPz={onAddPzFromStock}
           onShowHistory={onShowHistory}

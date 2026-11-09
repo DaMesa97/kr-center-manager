@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { appConfirm } from '../lib/appDialogs'
 import { fetchAllPages } from '../lib/fetchPaged'
+import { normalizeStockLevelRow } from '../lib/stockLevels'
 
 /** Ruchy: pierwsza porcja i krok „Wczytaj starsze" */
 const MOVEMENTS_PAGE = 500
@@ -14,7 +15,7 @@ import type {
   StockReservationRow,
   MonthlyConsumptionPivot, MonthlyConsumptionRow, Order, OrderNeedingReview,
   PurchaseOrder, PurchaseOrderItem, PzFormState, PzGroupRow, PzItem,
-  RecipeFormState, ShoppingListItem, SmartRopRow, Supplier,
+  RecipeFormState, ShoppingListItem, SmartRopRow, StockLevelRow, StockMinimumInput, Supplier,
   ToastVariant, Warehouse, WarehouseComponent, WarehouseComponentCreateInput,
   WarehouseComponentUpdateInput, WarehouseMovementRow, WarehouseRecipe,
   WarehouseRecipeComponent, WarehouseStockRow, WarehouseSubTab, ErpErrorRow } from '../types'
@@ -100,6 +101,8 @@ export function useWarehouse({
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([])
   const [shoppingListModalOpen, setShoppingListModalOpen] = useState(false)
   const [smartRopData, setSmartRopData] = useState<SmartRopRow[]>([])
+  /** Poziomy braków per półka — liczy baza (v_stock_levels); odświeżane razem ze stanami */
+  const [stockLevels, setStockLevels] = useState<StockLevelRow[]>([])
   const [smartRopLoading, setSmartRopLoading] = useState(false)
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
   const [purchaseOrderItems, setPurchaseOrderItems] = useState<PurchaseOrderItem[]>([])
@@ -271,7 +274,32 @@ export function useWarehouse({
       return (a.component_code ?? '').localeCompare(b.component_code ?? '')
     })
     setWarehouseStock(mapped)
+    // Poziomy braków (krytyczny / pokryty dostawą / niski / OK / nieaktywny) + „do zamówienia”
+    // — jedno zapytanie do widoku v_stock_levels, reguły wyłącznie w bazie (stock_level / stock_shortage)
+    const lv = await fetchAllPages<Record<string, unknown>>((from, to) =>
+      supabase.from('v_stock_levels').select('*').order('stock_id').range(from, to),
+    )
+    if (lv.error) pushToast(`Błąd poziomów stanów: ${lv.error.message}`, 'error')
+    else setStockLevels((lv.data ?? []).map(normalizeStockLevelRow))
   }, [pushToast, touchSession])
+
+  /** Minimum półki (magazyn × komponent); null = nie pilnujemy. RPC set_stock_minimums — tylko kierownik. */
+  const setStockMinimums = useCallback(
+    async (items: StockMinimumInput[]): Promise<boolean> => {
+      touchSession()
+      if (items.length === 0) return true
+      const { data, error } = await supabase.rpc('set_stock_minimums', { p_items: items })
+      if (error) {
+        pushToast(`Nie udało się zapisać minimum: ${error.message}`, 'error')
+        return false
+      }
+      const n = Number(data ?? items.length)
+      pushToast(n === 1 ? 'Zapisano minimum półki' : `Zapisano minimum dla ${n} półek`, 'success')
+      await fetchWarehouseStock()
+      return true
+    },
+    [pushToast, touchSession, fetchWarehouseStock],
+  )
 
   const fetchWarehouseMovements = useCallback(async () => {
     touchSession()
@@ -1898,6 +1926,8 @@ export function useWarehouse({
     setShoppingListModalOpen,
     smartRopData,
     smartRopLoading,
+    stockLevels,
+    setStockMinimums,
     purchaseOrders,
     purchaseOrderItems,
     purchaseOrdersLoading,
