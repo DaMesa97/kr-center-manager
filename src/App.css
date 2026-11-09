@@ -8900,3 +8900,46 @@ body:has(.app--large) .toast-message { font-size: 1.1rem; font-weight: 600; }
 
 /* #86 Moje stanowisko: szukajka w pasku liczników */
 .my-station-search { max-width: 320px; min-width: 200px; }
+
+/* ── Magazyn — poziomy braków w Stanach ─────────────────────────────── */
+.orders-table tr.stock-row--critical td { background: #fde8e8; }
+.orders-table tr.stock-row--covered td { background: #fff7d6; }
+.orders-table tr.stock-row--low td { background: #ffedd5; }
+.orders-table tr.stock-row--inactive td { color: #94a3b8; }
+.orders-table tr.stock-row--inactive td strong { color: #94a3b8; font-weight: 500; }
+.stock-level-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.stock-level-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  border: 1.5px solid #cbd5e1; background: #fff; font-size: 0.82rem; font-weight: 700; color: #334155; cursor: pointer;
+}
+.stock-level-chip:hover { border-color: #94a3b8; }
+.stock-level-chip--critical { border-color: #fca5a5; color: #b91c1c; }
+.stock-level-chip--covered { border-color: #fcd34d; color: #92400e; }
+.stock-level-chip--low { border-color: #fdba74; color: #c2410c; }
+.stock-level-chip--active { background: #1e293b; color: #fff; border-color: #1e293b; }
+.stock-level-chip__count { background: rgba(0,0,0,0.08); border-radius: 999px; padding: 0 7px; }
+.stock-level-chip--active .stock-level-chip__count { background: rgba(255,255,255,0.2); }
+.stock-level-bar__sep { width: 1px; height: 22px; background: #e2e8f0; }
+.stock-level-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.stock-level-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.stock-level-dot--critical { background: #c62828; }
+.stock-level-dot--covered { background: #f9a825; }
+.stock-level-dot--low { background: #ea580c; }
+.stock-level-dot--ok { background: #2e7d32; }
+.stock-level-dot--inactive { background: #cbd5e1; }
+.stock-min-cell { display: inline-flex; align-items: center; gap: 6px; }
+.stock-min-cell--editable { cursor: pointer; border-bottom: 1px dashed #94a3b8; }
+.stock-min-cell--editable:hover { border-bottom-color: #005faf; }
+.stock-min-src { font-size: 0.68rem; color: #64748b; }
+.stock-min-input { width: 72px; padding: 2px 6px; font-size: 0.85rem; }
+.stock-bulk-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; padding: 8px 12px;
+  background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 8px; font-size: 0.88rem;
+}
+.stock-shortage { font-weight: 700; color: #b91c1c; }
+.stock-min-editor { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 8px 4px; }
+.stock-min-editor label { display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; color: #475569; }
+.orders-table td.stock-cell--critical { color: #b91c1c; font-weight: 700; }
+.orders-table td.stock-cell--covered { color: #92400e; font-weight: 700; }
+.orders-table td.stock-cell--low { color: #c2410c; font-weight: 700; }
+.orders-table tr.stock-row--editor td { background: #f8fafc; }
