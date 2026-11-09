@@ -1359,3 +1359,44 @@ export type AluDossierItem = {
   r_by: string | null
   r_na_allowed: boolean
 }
+
+// =====================================================================
+// MAGAZYN — poziomy braków (widok v_stock_levels, reguły w bazie: stock_level()).
+// Półka = komponent × magazyn. Próg efektywny: minimum półki → Smart ROP → minimum
+// komponentu → brak. Poziom i „do zamówienia” liczy baza — UI tylko pokazuje.
+// =====================================================================
+
+export type StockLevel = 'critical' | 'covered' | 'low' | 'ok' | 'inactive'
+export type StockMinSource = 'shelf' | 'smart' | 'component' | null
+
+/** Wiersz widoku v_stock_levels (jedna półka) */
+export type StockLevelRow = {
+  stock_id: number
+  warehouse_id: number
+  warehouse_code: string
+  component_id: number
+  component_code: string
+  component_name: string
+  component_unit: string | null
+  component_category: string | null
+  supplier_id: number | null
+  is_active: boolean
+  quantity: number
+  reserved_quantity: number
+  available_quantity: number
+  /** w drodze DO TEGO magazynu (otwarte ZD) */
+  incoming_qty: number
+  earliest_eta: string | null
+  open_pos: number
+  /** minimum półki (null = nie pilnujemy tej półki) */
+  min_quantity: number | null
+  min_source: StockMinSource
+  /** próg użyty do poziomu (wg hierarchii) */
+  min_effective: number | null
+  level: StockLevel
+  /** ile dokupić, żeby wyjść na minimum (albo na zero) z uwzględnieniem w drodze */
+  shortage: number
+  updated_at: string | null
+}
+
+export type StockMinimumInput = { warehouse_id: number; component_id: number; min_quantity: number | null }
