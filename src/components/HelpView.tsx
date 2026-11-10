@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Magazyn → Stany: ostrzeżenia o brakach (beta.93)</h4>
+        <ul>
+          <li><b>Każda półka ma poziom</b> liczony w jednym miejscu (w bazie): <b>Krytyczny</b> (czerwony — dostępne poniżej zera i nic tego nie pokrywa), <b>Pokryty dostawą</b> (żółty — minus, ale otwarte zamówienia do dostawcy go pokrywają; przy statusie widać najbliższą dostawę), <b>Niski</b> (pomarańczowy — dostępne plus w drodze poniżej minimum), OK oraz Nieaktywny (zero, bez rezerwacji, bez minimum — szary). Tło wiersza i tekst w kolumnie STATUS mówią to samo.</li>
+          <li><b>Pasek liczników nad tabelą to filtr</b> — klik w „Krytyczne", „Pokryte dostawą", „Niskie" (albo zbiorczo „Problemy") pokazuje tylko te wiersze, drugi klik zdejmuje filtr. Domyślnie tabela jest sortowana <b>„Najpierw braki"</b> (największy minus na górze), obok przełącznik „Alfabetycznie". Filtr, sortowanie i magazyn pamiętają się na tym komputerze.</li>
+          <li><b>Minimum półki</b> — kierownik klika w komórkę MINIMUM, wpisuje liczbę, Enter (Esc cofa; puste = nie pilnujemy). Hurtowo: zaznacz wiersze checkboxami (widok jednego magazynu) i „Ustaw minimum" / „Wyczyść minimum". Gdy półka nie ma własnego minimum, obowiązuje Smart ROP (🤖) albo minimum z kartoteki komponentu („komp.").</li>
+          <li>Nowa kolumna <b>DO ZAMÓWIENIA</b> = ile brakuje do minimum po uwzględnieniu tego, co w drodze. Przyciski <b>„Eksportuj braki (CSV)"</b> (gotowa lista do zamówienia) i <b>„Braki → lista zakupowa"</b> (wrzuca braki do Zamawiania).</li>
+          <li>Gdy półka <b>przechodzi w stan krytyczny</b>, kierownicy magazynu i administratorzy dostają powiadomienie w dzwonku (raz na dobę na półkę); klik otwiera Stany. ⚠ przy nazwie jest tylko przy krytycznych; zgłoszenie zniszczenia to teraz przycisk <b>ZN</b> w kolumnie Akcje.</li>
+        </ul>
         <h4>Legenda jako przełączniki (beta.92)</h4>
         <ul>
           <li><b>Klik w „pilne" lub „uwagi" w legendzie nad tabelą wyłącza dane podświetlenie</b> na tym komputerze (pozycja przekreślona, „wył."); drugi klik włącza z powrotem. Kto nie chce żółtych wierszy z uwagami, po prostu je gasi — reszta widzi po staremu.</li>
@@ -342,7 +350,7 @@ const SECTIONS: Section[] = [
       <>
         <p>Grupa <b>Magazyn</b> w menu ma pięć pozycji, każda z krótkim paskiem podzakładek:</p>
         <ul>
-          <li><b>Stany</b> — <i>Stany</i>: ilości komponentów w podziale na magazyny (Bukowa, Marklowicka, Wewnętrzne #1/#2); <i>Rezerwacje</i>: co trzymają otwarte zlecenia; <i>Ruchy</i>: historia wszystkich operacji.</li>
+          <li><b>Stany</b> — <i>Stany</i>: ilości komponentów w podziale na magazyny (Bukowa, Marklowicka, Wewnętrzne #1/#2) z poziomem każdej półki (Krytyczny / Pokryty dostawą / Niski / OK — tło wiersza, liczniki nad tabelą jako filtr, sortowanie „Najpierw braki"), minimum półki do ustawienia przez kierownika (klik w MINIMUM lub hurtowo), kolumna DO ZAMÓWIENIA, eksport braków do CSV i na listę zakupową; <i>Rezerwacje</i>: co trzymają otwarte zlecenia; <i>Ruchy</i>: historia wszystkich operacji.</li>
           <li><b>Komponenty</b> — <i>Komponenty</i>: kartoteka surowców i drzwi (przy tworzeniu wskazujesz magazyny, kod generuje się automatycznie); <i>Receptury</i>: co schodzi ze stanu przy realizacji zlecenia (dobór po kategorii/systemie/modelu/kolorze), zejście automatyczne przy dodaniu zlecenia, anulowanie zwraca komponenty.</li>
           <li><b>Dokumenty PZ / MM</b> — <i>Przyjęcia (PZ)</i>: przyjęcie towaru, filtry po dostawcy i kategorii, jednostki sztukowe tylko całkowite; <i>Przesunięcia (MM)</i>: ruchy między magazynami.</li>
           <li><b>Zamawianie</b> — <i>Zamawianie</i>: sugestie zakupów (ROP z prognozą sezonową) i lista zakupowa; <i>Alerty</i>: braki i przewidywane wyczerpanie (licznik przy tej pozycji w menu); <i>Prognozy</i>; <i>Zamówienia</i>: zamówienia do dostawców z wydrukiem PDF.</li>
