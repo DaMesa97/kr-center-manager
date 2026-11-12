@@ -479,7 +479,7 @@ export function useWarehouse({
     // Raport = komponenty × miesiące (12 mies. ≈ 1600+ wierszy) — bez stronicowania
     // PostgREST ucinał do 1000 i kategorie z końca alfabetu (SKRZYDŁA…) ginęły (12.11).
     const { data, error } = await fetchAllPages<MonthlyConsumptionRow>((from, to) =>
-      supabase.rpc('monthly_consumption_report', { p_months: months }).range(from, to),
+      supabase.rpc('monthly_consumption_report', { p_months: months }).order('r_component_id').order('r_month').range(from, to),
     )
     setMonthlyConsumptionLoading(false)
     if (error) {
@@ -578,7 +578,9 @@ export function useWarehouse({
 
   const fetchSmartRop = useCallback(async () => {
     setSmartRopLoading(true)
-    const { data, error } = await supabase.rpc('get_all_smart_rop')
+    const { data, error } = await fetchAllPages<SmartRopRow>((from, to) =>
+      supabase.rpc('get_all_smart_rop').order('component_id').range(from, to),
+    )
     setSmartRopLoading(false)
     if (error) {
       pushToast(`Błąd smart ROP: ${error.message}`, 'error')
@@ -589,7 +591,9 @@ export function useWarehouse({
 
   const fetchOrdersNeedingReviewInternal = useCallback(async () => {
     setReviewLoading(true)
-    const { data, error } = await supabase.rpc('get_orders_needing_review')
+    const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) =>
+      supabase.rpc('get_orders_needing_review').order('id').range(from, to),
+    )
     setReviewLoading(false)
     if (error) {
       pushToast(`Błąd: ${error.message}`, 'error')
@@ -611,6 +615,8 @@ export function useWarehouse({
           : null,
       source: row.source == null ? null : String(row.source),
     }))
+    // kolejność jak w RPC (najstarsze z bota pierwsze); stronicujemy po id, więc sortujemy tu
+    mapped.sort((a, b) => (a.bot_received_at ?? '9').localeCompare(b.bot_received_at ?? '9') || a.id - b.id)
     setOrdersNeedingReview(mapped)
 
     // Błędy ERP — najnowsze na górze; kolumny erp_* pisze wyłącznie Make

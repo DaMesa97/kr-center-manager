@@ -5,7 +5,7 @@
 
 export const PG_PAGE = 1000
 
-type PageResponse<T> = { data: T[] | null; error: { message: string } | null }
+type PageResponse<T> = { data: T[] | null; error: { message: string; code?: string } | null }
 
 export async function fetchAllPages<T>(
   page: (from: number, to: number) => PromiseLike<PageResponse<T>>,
@@ -17,6 +17,8 @@ export async function fetchAllPages<T>(
   for (let from = 0; from < max; from += size) {
     const to = Math.min(from + size, max) - 1
     const { data, error } = await page(from, to)
+    // PGRST103 = offset poza zakresem: poprzednia porcja była pełna i była ostatnia (wierszy = wielokrotność 1000)
+    if (error && error.code === 'PGRST103' && from > 0) break
     if (error) return { data: rows, error }
     rows.push(...(data ?? []))
     if (!data || data.length < to - from + 1) break

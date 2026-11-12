@@ -1,6 +1,7 @@
 import { appAlert } from '../../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabaseClient'
+import { fetchAllPages } from '../../lib/fetchPaged'
 import type { AlertThresholds, StockAlert } from '../../types'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
@@ -84,13 +85,28 @@ function AlertsView({ isManager }: Props) {
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase.rpc('get_stock_alerts')
+    // alert = półka (komponent × magazyn), ~850+ wierszy — PostgREST ucina do 1000, więc
+    // dociągamy porcjami po stabilnym kluczu i odtwarzamy kolejność RPC (poziom → minus → dni → nazwa)
+    const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) =>
+      supabase.rpc('get_stock_alerts').order('r_component_id').order('r_warehouse_id').range(from, to),
+    )
     setLoading(false)
     if (error) {
       console.error(error)
       return
     }
-    const mapped = (data ?? []).map((row: Record<string, unknown>) => mapRpcRow(row))
+    const mapped = (data ?? []).map((row) => mapRpcRow(row))
+    mapped.sort((a, b) => {
+      const d = (LEVEL_RANK[a.alert_level] ?? 9) - (LEVEL_RANK[b.alert_level] ?? 9)
+      if (d !== 0) return d
+      const na = a.available < 0 ? 0 : 1
+      const nb = b.available < 0 ? 0 : 1
+      if (na !== nb) return na - nb
+      const da = a.days_until_empty ?? Number.POSITIVE_INFINITY
+      const db = b.days_until_empty ?? Number.POSITIVE_INFINITY
+      if (da !== db) return da - db
+      return a.component_name.localeCompare(b.component_name, 'pl')
+    })
     setAlerts(mapped)
   }, [])
 
