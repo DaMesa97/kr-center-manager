@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Zużycie magazynu pokazywało ułamek prawdy (beta.94)</h4>
+        <ul>
+          <li><b>Statystyki → Zużycie magazynu:</b> raport za 12 miesięcy ma ponad 1600 wierszy, a baza oddawała tylko pierwszy tysiąc — kategorie z końca listy (SKRZYDŁA, SZKLENIE, PROGI, ZAMKI I OKUCIA) były obcięte. Za listopad widać było 4 skrzydła zamiast 44. Teraz dane dociągane są w całości.</li>
+          <li>Pod tabelą jest wiersz <b>RAZEM</b>: suma każdego miesiąca, SUMA i ŚREDNIA dla tego, co masz przefiltrowane (kategoria / szukajka), z liczbą komponentów.</li>
+          <li>Ten sam limit zabezpieczony w <b>Alertach</b> magazynowych, Smart ROP i liście zleceń do weryfikacji, zanim urosną.</li>
+        </ul>
         <h4>Magazyn → Stany: ostrzeżenia o brakach (beta.93)</h4>
         <ul>
           <li><b>Każda półka ma poziom</b> liczony w jednym miejscu (w bazie): <b>Krytyczny</b> (czerwony — dostępne poniżej zera i nic tego nie pokrywa), <b>Pokryty dostawą</b> (żółty — minus, ale otwarte zamówienia do dostawcy go pokrywają; przy statusie widać najbliższą dostawę), <b>Niski</b> (pomarańczowy — dostępne plus w drodze poniżej minimum), OK oraz Nieaktywny (zero, bez rezerwacji, bez minimum — szary). Tło wiersza i tekst w kolumnie STATUS mówią to samo.</li>
