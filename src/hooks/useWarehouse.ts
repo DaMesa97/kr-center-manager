@@ -476,9 +476,11 @@ export function useWarehouse({
   const fetchMonthlyConsumption = useCallback(async (months: number) => {
     touchSession()
     setMonthlyConsumptionLoading(true)
-    const { data, error } = await supabase.rpc('monthly_consumption_report', {
-      p_months: months,
-    })
+    // Raport = komponenty × miesiące (12 mies. ≈ 1600+ wierszy) — bez stronicowania
+    // PostgREST ucinał do 1000 i kategorie z końca alfabetu (SKRZYDŁA…) ginęły (12.11).
+    const { data, error } = await fetchAllPages<MonthlyConsumptionRow>((from, to) =>
+      supabase.rpc('monthly_consumption_report', { p_months: months }).range(from, to),
+    )
     setMonthlyConsumptionLoading(false)
     if (error) {
       pushToast(`Błąd: ${error.message}`, 'error')
