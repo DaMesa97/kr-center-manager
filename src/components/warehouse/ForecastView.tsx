@@ -10,13 +10,14 @@ import {
   YAxis,
 } from 'recharts'
 import { supabase } from '../../supabaseClient'
-import type { ConsumptionHistoryPoint, ForecastRun, WarehouseComponent } from '../../types'
+import type { ConsumptionHistoryPoint, ForecastRun, Supplier, WarehouseComponent } from '../../types'
 import SeasonalFactorsEditor from './SeasonalFactorsEditor'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 
 type Props = {
   components: WarehouseComponent[]
+  suppliers?: Supplier[]
   isManager: boolean
 }
 
@@ -114,10 +115,13 @@ function mapForecastRunRow(row: Record<string, unknown>): ForecastRun {
   }
 }
 
-export default function ForecastView({ components, isManager }: Props) {
+export default function ForecastView({ components, suppliers = [], isManager }: Props) {
   const [selectedComponentId, setSelectedComponentId] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'raw' | 'doors_internal'>('all')
+  // filtry jak w Stanach (Tymek 12.11): kategoria z kartoteki + dostawca
+  const [componentCategory, setComponentCategory] = useState('')
+  const [supplierFilter, setSupplierFilter] = useState<number | ''>('')
   const [history, setHistory] = useState<ConsumptionHistoryPoint[]>([])
   const [forecast, setForecast] = useState<ForecastRun | null>(null)
   const [loading, setLoading] = useState(false)
@@ -216,8 +220,23 @@ export default function ForecastView({ components, isManager }: Props) {
     [activeComponents],
   )
 
+  const uniqueCategories = useMemo(() => {
+    const set = new Set<string>()
+    for (const c of activeComponents) {
+      const cat = (c.category ?? '').trim()
+      if (cat) set.add(cat)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pl'))
+  }, [activeComponents])
+
+  const suppliersSorted = useMemo(() => [...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'pl')), [suppliers])
+
   const filteredComponents = useMemo(() => {
     let result = activeComponents
+    if (componentCategory) {
+      result = result.filter((c) => (c.category ?? '').trim().toLowerCase() === componentCategory.toLowerCase())
+    }
+    if (supplierFilter !== '') result = result.filter((c) => c.supplier_id === supplierFilter)
     if (categoryFilter !== 'all') {
       result = result.filter((c) =>
         categoryFilter === 'raw'
@@ -235,7 +254,7 @@ export default function ForecastView({ components, isManager }: Props) {
       )
     }
     return result
-  }, [activeComponents, searchTerm, categoryFilter])
+  }, [activeComponents, searchTerm, categoryFilter, componentCategory, supplierFilter])
 
   return (
     <div className={`forecast-view-container${isManager ? '' : ' forecast-view--readonly'}`}>
@@ -276,6 +295,33 @@ export default function ForecastView({ components, isManager }: Props) {
             </button>
           </div>
           <div className="forecast-sidebar-search">
+            <select
+              className="day-filter"
+              value={componentCategory}
+              onChange={(e) => setComponentCategory(e.target.value)}
+              title="Kategoria komponentu"
+            >
+              <option value="">Wszystkie kategorie</option>
+              {uniqueCategories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <select
+              className="day-filter"
+              value={supplierFilter === '' ? '' : String(supplierFilter)}
+              onChange={(e) => setSupplierFilter(e.target.value === '' ? '' : Number(e.target.value))}
+              title="Dostawca"
+              disabled={suppliersSorted.length === 0}
+            >
+              <option value="">Wszyscy dostawcy</option>
+              {suppliersSorted.map((s) => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
             <input
               type="text"
               className="search-input"

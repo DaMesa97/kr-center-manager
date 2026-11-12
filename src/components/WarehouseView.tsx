@@ -316,7 +316,7 @@ function WarehouseView({
           onPreview={onMmPreview}
         />
       ) : activeSubTab === 'Prognozy' ? (
-        <ForecastView components={components} isManager={isManager} />
+        <ForecastView components={components} suppliers={suppliers} isManager={isManager} />
       ) : activeSubTab === 'Alerty' ? (
         <AlertsView isManager={isManager} />
       ) : activeSubTab === 'Zamawianie' ? (

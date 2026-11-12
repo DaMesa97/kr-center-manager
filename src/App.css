@@ -8952,3 +8952,7 @@ body:has(.app--large) .toast-message { font-size: 1.1rem; font-weight: 600; }
   position: sticky;
   bottom: 0;
 }
+
+/* Prognozy: filtry kategoria / dostawca nad szukajką (12.11) */
+.forecast-sidebar-search { display: flex; flex-direction: column; gap: 6px; }
+.forecast-sidebar-search select.day-filter { width: 100%; box-sizing: border-box; }
