@@ -4,6 +4,7 @@ import { Printer, X } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
 import type { Order, ToastVariant } from '../types'
+import { printFailureToast, type PrintIpcResult } from '../lib/printResult'
 
 type Props = {
   order: Order
@@ -82,12 +83,14 @@ export default function PrintLabelModal({ order, onClose, pushToast }: Props) {
         copies: Math.max(1, copies),
         widthMm: Number(selectedTemplate.width_mm) || 100,
         heightMm: Number(selectedTemplate.height_mm) || 50,
-      })) as { success: boolean; failureReason?: string }
+      })) as PrintIpcResult
       if (res?.success) {
         pushToast(`Wydrukowano etykietę (${copies} szt.)`, 'success')
         onClose()
       } else {
-        pushToast(`Błąd druku: ${res?.failureReason ?? 'nieznany'}`, 'error')
+        // #128: zamknięte okno drukarki = informacja, nie „błąd: nieznany”
+        const t = printFailureToast(res)
+        pushToast(t.message, t.variant)
       }
     } finally {
       if (mountedRef.current) setPrinting(false)

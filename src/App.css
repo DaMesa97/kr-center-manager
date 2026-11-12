@@ -9247,3 +9247,17 @@ html:not(.hl-off-problem) .orders-table tbody tr.orders-table-row--problem:not(.
   .sidebar-group-header { padding: 4px 7px; font-size: 0.76rem; }
   .sidebar-item--child { padding: 3px 7px 3px 1.4rem; font-size: 0.72rem; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   beta.96 — drobne zgłoszenia Łukasza z 12.11.2026 (#131 #136 #137/#138)
+   ───────────────────────────────────────────────────────────────────────── */
+/* #138 (poprawka #137): małe przyciski — ikona/tekst optycznie na środku,
+   dolny padding o 0.15rem większy od górnego */
+.btn-sm { padding: 0.3rem 0.6rem 0.45rem; }
+/* #131: plakietki RO i braków magazynowych nie kleją się do sąsiadów (2px);
+   wersja inline i sekcja RO w oknie zamówienia mają własne marginesy */
+.stock-badge,
+.erp-badge:not(.erp-badge--inline):not(.erp-section .erp-badge) { margin-left: 0.125rem; }
+/* #136: sekcja „🤖 Pochodzenie” (BOT) w edycji zamówienia — margines boczny
+   i górny 15px, dolny 0 (poniżej jest już odstęp formularza) */
+.bot-origin-section { margin: 15px 15px 0; }

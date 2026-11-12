@@ -6,6 +6,7 @@ import { supabase } from '../supabaseClient'
 import type { DopDocument } from '../lib/dopMatch'
 import { renderPdfForPrint, uint8ToBase64 } from '../lib/pdfPrint'
 import type { CurrentUser, ToastVariant } from '../types'
+import { printFailureToast, type PrintIpcResult } from '../lib/printResult'
 
 type Props = {
   isManager: boolean
@@ -122,14 +123,16 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
     [documents, category],
   )
 
-  const printZplRaw = async (zpl: string, n: number): Promise<{ success: boolean; error?: string }> => {
+  const printZplRaw = async (zpl: string, n: number): Promise<PrintIpcResult> => {
     const ipc = getIpc()
     if (!ipc) return { success: false, error: 'Druk dostępny tylko w aplikacji desktop' }
-    return (await ipc.invoke('label:printRaw', { deviceName: printerName, zpl, copies: n })) as { success: boolean; error?: string }
+    return (await ipc.invoke('label:printRaw', { deviceName: printerName, zpl, copies: n })) as PrintIpcResult
   }
 
-  // Dokument PDF: pdfjs renderuje strony → druk jak etykieta (label:printHtml)
-  const printPdfDoc = async (doc: PrintDocument, n: number): Promise<{ success: boolean; error?: string }> => {
+  // Dokument PDF: pdfjs renderuje strony → druk jak etykieta (label:printHtml).
+  // Uwaga #128: ten kanał zwraca powód w `failureReason`, nie `error` — dlatego
+  // wcześniej każda odmowa druku PDF kończyła się „Błąd druku: nieznany”.
+  const printPdfDoc = async (doc: PrintDocument, n: number): Promise<PrintIpcResult> => {
     const ipc = getIpc()
     if (!ipc) return { success: false, error: 'Druk dostępny tylko w aplikacji desktop' }
     if (!doc.pdf_base64) return { success: false, error: 'Dokument nie ma zapisanego PDF-a' }
@@ -137,7 +140,7 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
       const { html, widthMm, heightMm } = await renderPdfForPrint(doc.pdf_base64, doc.name)
       return (await ipc.invoke('label:printHtml', {
         html, deviceName: printerName, copies: n, widthMm, heightMm,
-      })) as { success: boolean; error?: string }
+      })) as PrintIpcResult
     } catch (e) {
       return { success: false, error: (e as Error).message }
     }
@@ -154,7 +157,10 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
     try {
       const res = await printDoc(doc, n)
       if (res?.success) pushToast(`Wysłano ${n} szt. „${doc.name}" na ${printerName}`, 'success')
-      else pushToast(`Błąd druku: ${res?.error ?? 'nieznany'}`, 'error')
+      else {
+        const t = printFailureToast(res)
+        pushToast(t.message, t.variant)
+      }
     } finally {
       if (mountedRef.current) setPrintingId(null)
     }

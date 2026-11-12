@@ -253,6 +253,19 @@ function setupPrinting(mainWin: BrowserWindow) {
     }
   })
 
+  // #128 (Łukasz 12.11.2026): zamknięcie okna drukarki (np. wybór pliku
+  // wirtualnej drukarki, której nie rozpoznaliśmy po nazwie) nie jest błędem.
+  // Chromium oddaje wtedy pusty powód albo „cancelled” — renderer dostaje
+  // `cancelled: true` i pokazuje informację zamiast „Błąd druku: nieznany”.
+  const printOutcome = (success: boolean, failureReason?: string) => {
+    if (success) return { success: true as const }
+    const reason = (failureReason || '').trim()
+    if (!reason || /cancel/i.test(reason)) {
+      return { success: false as const, cancelled: true, failureReason: 'Zamknięto okno bez wydruku' }
+    }
+    return { success: false as const, failureReason: reason }
+  }
+
   // Druk etykiety HTML (dynamiczne) — ukryte okno renderuje HTML i drukuje na wybraną drukarkę.
   // widthMm/heightMm → rozmiar etykiety (Electron pageSize w mikronach: 1mm = 1000µm).
   ipcMain.handle(
@@ -292,7 +305,7 @@ function setupPrinting(mainWin: BrowserWindow) {
             defaultPath: path.join(app.getPath('documents'), `${baseName}.pdf`),
             filters: [{ name: 'Dokument PDF (*.pdf)', extensions: ['pdf'] }],
           })
-          if (canceled || !filePath) return { success: false, failureReason: 'Zapis PDF anulowany' }
+          if (canceled || !filePath) return { success: false, cancelled: true, failureReason: 'Zapis PDF anulowany' }
           writeFileSync(filePath, pdfData)
           return { success: true }
         }
@@ -309,7 +322,7 @@ function setupPrinting(mainWin: BrowserWindow) {
             : undefined
         // bezpiecznik: druk nie może wisieć w nieskończoność (przycisk "Drukuję…")
         const result = await Promise.race([
-          new Promise<{ success: boolean; failureReason?: string; printerDown?: boolean }>((resolve) => {
+          new Promise<{ success: boolean; failureReason?: string; printerDown?: boolean; cancelled?: boolean }>((resolve) => {
             printWin.webContents.print(
               {
                 silent: true,
@@ -319,10 +332,10 @@ function setupPrinting(mainWin: BrowserWindow) {
                 margins: { marginType: 'none' },
                 ...(pageSize ? { pageSize } : {}),
               },
-              (success, failureReason) => resolve({ success, failureReason }),
+              (success, failureReason) => resolve(printOutcome(success, failureReason)),
             )
           }),
-          new Promise<{ success: boolean; failureReason?: string; printerDown?: boolean }>((resolve) =>
+          new Promise<{ success: boolean; failureReason?: string; printerDown?: boolean; cancelled?: boolean }>((resolve) =>
             setTimeout(() => resolve({ success: false, failureReason: 'Drukarka nie odpowiedziała (timeout 90 s)', printerDown: true }), 90000),
           ),
         ])
@@ -358,7 +371,7 @@ function setupPrinting(mainWin: BrowserWindow) {
           defaultPath: path.join(app.getPath('documents'), `${safeName}.pdf`),
           filters: [{ name: 'Dokument PDF (*.pdf)', extensions: ['pdf'] }],
         })
-        if (canceled || !filePath) return { success: false, error: 'Zapis PDF anulowany' }
+        if (canceled || !filePath) return { success: false, cancelled: true, error: 'Zapis PDF anulowany' }
         writeFileSync(filePath, pdfData)
         return { success: true, filePath }
       } catch (err) {

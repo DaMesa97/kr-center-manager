@@ -33,7 +33,7 @@ const PDF_EXPORT = '::pdf-export'
 const VIRTUAL_PDF_RE = /print to pdf|adobe pdf|pdfcreator|pdf24|dopdf|foxit|nitro pdf|cutepdf|bullzip|primopdf|novapdf|tinypdf|pdf995/i
 const PDF_SAVE_CANCELLED = 'Zapis PDF anulowany'
 
-type PrintRes = { success: boolean; failureReason?: string; error?: string; printerDown?: boolean }
+type PrintRes = { success: boolean; failureReason?: string; error?: string; printerDown?: boolean; cancelled?: boolean }
 
 export default function BatchPrintComboModal({ orders, onClose, onDone, initialMode = 'all', pushToast }: Props) {
   const [templates, setTemplates] = useState<LabelTemplate[]>([])
@@ -180,7 +180,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
         ? [String(single.company ?? '').trim(), String(single.order_number ?? '').trim()].filter(Boolean).join(' ') || 'wydruk'
         : `komplet ${new Date().toISOString().slice(0, 10)} (${orders.length} zam.)`
       const html = buildCombinedPdfHtml(sections, defaultName)
-      const res = (await ipc.invoke('print:exportPdf', { html, defaultName })) as { success: boolean; error?: string }
+      const res = (await ipc.invoke('print:exportPdf', { html, defaultName })) as PrintRes
       if (res?.success) {
         const notes: string[] = []
         if (labelsSkip) notes.push(`${labelsSkip} bez szablonu etykiety`)
@@ -189,8 +189,8 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
         pushToast(`Zapisano PDF${notes.length ? ` (${notes.join(', ')})` : ''}`, 'success')
         onDone?.()
         onClose()
-      } else if (res?.error !== 'Zapis PDF anulowany') {
-        pushToast(`Błąd eksportu PDF: ${res?.error ?? 'nieznany'}`, 'error')
+      } else if (!res?.cancelled && res?.error !== PDF_SAVE_CANCELLED) {
+        pushToast(`Błąd eksportu PDF: ${res?.error || 'brak powodu w odpowiedzi'}`, 'error')
       }
       } catch (e) {
         // każdy zonk (pdfjs, render, IPC) ląduje w toaście zamiast wiecznego "Drukuję…"
@@ -228,7 +228,8 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
     let zplNotSent = 0
     let processed = 0 // licznik lokalny — stan `progress` w closure byłby nieświeży
     const failMsg = (res: PrintRes | undefined, fallback: string) => res?.failureReason || res?.error || fallback
-    const isFatal = (res: PrintRes | undefined) => !!res?.printerDown || res?.failureReason === PDF_SAVE_CANCELLED
+    // #128: zamknięte okno (zapis PDF / drukarka) przerywa partię jako informacja, nie błąd
+    const isFatal = (res: PrintRes | undefined) => !!res?.printerDown || !!res?.cancelled || res?.failureReason === PDF_SAVE_CANCELLED
     try {
       // ZPL zbieramy do JEDNEJ paczki — każde wywołanie printRaw to osobny
       // PowerShell z kompilacją C# (sekundy!), więc paczka = jeden strzał
@@ -315,7 +316,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
       if (stopReason) {
         pushToast(
           `Druk zatrzymany${stopOrderNr ? ` na zam. ${stopOrderNr}` : ''} (${processed}/${orders.length} gotowe) — ${stopReason.slice(0, 200)} | ${parts.join(', ')}`,
-          stopReason === PDF_SAVE_CANCELLED ? 'info' : 'error',
+          stopReason === PDF_SAVE_CANCELLED || /zamknięto okno/i.test(stopReason) ? 'info' : 'error',
         )
         return
       }

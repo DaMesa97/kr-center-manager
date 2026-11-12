@@ -7,6 +7,7 @@ import { ALU_CATEGORY } from '../constants'
 import { formatAluDims } from '../lib/alu'
 import { constructionNoForPiece } from '../lib/aluConstructions'
 import type { AluConstruction, AluPosition, Order, ToastVariant } from '../types'
+import { printFailureToast, type PrintIpcResult } from '../lib/printResult'
 
 // Etykiety stolarki aluminiowej: JEDNA etykieta na SZTUKĘ pozycji („SZT. 2/5”),
 // jak hala klika sztuki. Wszystkie wybrane sztuki idą jednym zadaniem druku
@@ -123,15 +124,14 @@ export default function AluLabelPrintModal({ order, positions, constructions, on
       } catch {
         /* ignore */
       }
-      const res = (await ipc.invoke('label:printHtml', { html, deviceName: printerName, copies: 1, widthMm: w, heightMm: h })) as {
-        success: boolean
-        failureReason?: string
-      }
+      const res = (await ipc.invoke('label:printHtml', { html, deviceName: printerName, copies: 1, widthMm: w, heightMm: h })) as PrintIpcResult
       if (res?.success) {
         pushToast(`Wydrukowano ${pieces.length} etykiet(y)`, 'success')
         onClose()
       } else {
-        pushToast(`Błąd druku: ${res?.failureReason ?? 'nieznany'}`, 'error')
+        // #128: zamknięte okno drukarki = informacja, nie „błąd: nieznany”
+        const t = printFailureToast(res)
+        pushToast(t.message, t.variant)
       }
     } catch (e) {
       pushToast(`Błąd druku: ${(e as Error).message}`, 'error')

@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Drobne poprawki po zgłoszeniach Łukasza (beta.96)</h4>
+        <ul>
+          <li><b>Zamknięcie okna drukarki bez wydruku</b> (#128) to już nie „Błąd druku: nieznany", tylko informacja „Zamknięto okno bez wydruku". Przy okazji Etykiety → Dokumenty pokazują prawdziwy powód odmowy druku PDF (np. drukarka offline) — wcześniej zawsze „nieznany", bo czytały złe pole odpowiedzi.</li>
+          <li><b>Kosmetyka:</b> plakietki RO i braków mają odstęp od sąsiadów (#131), sekcja „Pochodzenie (BOT)" w edycji zamówienia ma margines boczny (#136), małe przyciski trzymają ikonę optycznie na środku (#137/#138).</li>
+        </ul>
         <h4>Po zgłoszeniach Łukasza i Mariusza (beta.95)</h4>
         <ul>
           <li><b>Flaga „problem" na zleceniu (#87).</b> Hala w Moim stanowisku klika „⚠ Problem" i wpisuje powód (brak szyby, uszkodzony profil…), kierownik widzi <b>pomarańczowy wiersz</b> z ⚠ za numerem (powód, kto, kiedy w podpowiedzi). Zdejmuje hala przyciskiem „załatwione" albo kierownik z menu ⋯. W legendzie nad tabelą można ją wyłączyć jak pilne i uwagi.</li>
