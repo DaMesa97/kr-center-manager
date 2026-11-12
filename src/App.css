@@ -8943,3 +8943,12 @@ body:has(.app--large) .toast-message { font-size: 1.1rem; font-weight: 600; }
 .orders-table td.stock-cell--covered { color: #92400e; font-weight: 700; }
 .orders-table td.stock-cell--low { color: #c2410c; font-weight: 700; }
 .orders-table tr.stock-row--editor td { background: #f8fafc; }
+
+/* Statystyki → Zużycie magazynu: wiersz RAZEM pod tabelą */
+.monthly-consumption-table tfoot tr.monthly-consumption-totals td {
+  font-weight: 700;
+  background: #f1f5f9;
+  border-top: 2px solid #cbd5e1;
+  position: sticky;
+  bottom: 0;
+}

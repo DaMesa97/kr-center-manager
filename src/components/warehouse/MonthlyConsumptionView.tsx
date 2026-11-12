@@ -125,6 +125,32 @@ export default function MonthlyConsumptionView({
     ]
   }, [months])
 
+  // wiersz RAZEM — suma każdej kolumny dla bieżącego filtra (kategoria / szukaj)
+  const totals = useMemo(() => {
+    const byMonth: Record<string, number> = {}
+    let total = 0
+    for (const row of rowsSortedFiltered) {
+      for (const ym of months) {
+        const v = Number(row.byMonth[ym] ?? 0)
+        if (Number.isFinite(v)) byMonth[ym] = (byMonth[ym] ?? 0) + v
+      }
+      total += Number(row.total) || 0
+    }
+    return { byMonth, total, average: months.length > 0 ? total / months.length : 0 }
+  }, [rowsSortedFiltered, months])
+
+  const footer =
+    rowsSortedFiltered.length > 0 ? (
+      <tr className="monthly-consumption-totals">
+        <td>RAZEM ({rowsSortedFiltered.length})</td>
+        {months.map((ym) => (
+          <td key={ym}>{formatQty(totals.byMonth[ym] ?? 0) || '—'}</td>
+        ))}
+        <td>{formatQty(totals.total) || '—'}</td>
+        <td>{totals.average !== 0 ? totals.average.toLocaleString('pl-PL', { maximumFractionDigits: 2 }) : '—'}</td>
+      </tr>
+    ) : null
+
   return (
     <div className="monthly-consumption-view">
       <div className="monthly-consumption-toolbar">
@@ -184,6 +210,7 @@ export default function MonthlyConsumptionView({
           loading={loading}
           loadingText={<Spinner center label="Ładowanie…" />}
           emptyText="Brak danych"
+          footer={footer}
         />
       </div>
     </div>
