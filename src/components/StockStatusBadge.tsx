@@ -41,7 +41,7 @@ type Props = {
 
 function StockStatusBadge({ status, issues, category, glassAllowances }: Props) {
   // dymek klikany; zamknięcie klikiem poza nim albo Esc — wspólny hook z plakietką RO
-  const { open, pos, triggerRef, toggle, close } = useClickTooltip<HTMLSpanElement>()
+  const { open, pos, triggerRef, tooltipRef, toggle, close } = useClickTooltip<HTMLSpanElement>()
 
   if (!status || status === 'ok') return null
   const isNoRecipe = status === 'no_recipe'
@@ -69,6 +69,7 @@ function StockStatusBadge({ status, issues, category, glassAllowances }: Props) 
       {open &&
         createPortal(
           <div
+            ref={tooltipRef}
             className="stock-badge-tooltip stock-badge-tooltip--click"
             style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10000 }}
             onClick={(e) => e.stopPropagation()}

@@ -2259,6 +2259,39 @@ export function useOrders({
     [isManager, pushToast],
   )
 
+  /**
+   * #87 (Mariusz): flaga „problem" na zleceniu — powód + kiedy + kto.
+   * `reason` null = zdejmij. Może każdy zalogowany (hala zgłasza brak materiału
+   * z Mojego stanowiska), zdejmuje zwykle kierownik z menu Akcje.
+   * Zapis przez merge_order_extra_fields (nie nadpisujemy całego JSONB).
+   */
+  const handleProblemToggle = useCallback(
+    async (order: Order, reason: string | null) => {
+      const id = order.id
+      if (id === undefined) {
+        pushToast('Brak identyfikatora zamówienia', 'error')
+        return
+      }
+      const problem = reason && reason.trim()
+        ? { reason: reason.trim(), at: new Date().toISOString(), by: (currentUser?.initials ?? '').trim() || (currentUser?.full_name ?? '') }
+        : null
+      const { error } = await supabase.rpc('merge_order_extra_fields', { p_order_id: id, p_patch: { problem } })
+      if (error) {
+        pushToast(`Nie zapisano flagi problemu: ${error.message}`, 'error')
+        return
+      }
+      setOrders((prev) =>
+        prev.map((o) => {
+          if (o.id !== id) return o
+          const ef = typeof o.extra_fields === 'object' && o.extra_fields !== null ? (o.extra_fields as Record<string, unknown>) : {}
+          return { ...o, extra_fields: { ...ef, problem } }
+        }),
+      )
+      pushToast(problem ? `Zlecenie ${order.order_number} oznaczone jako problem` : `Zdjęto flagę problemu ze zlecenia ${order.order_number}`, 'success')
+    },
+    [pushToast, currentUser?.initials, currentUser?.full_name],
+  )
+
   const handleBastionSalesChangesUpdate = useCallback(
     async (orderId: number, value: string) => {
       const { error } = await supabase
@@ -3063,6 +3096,7 @@ export function useOrders({
     openInternalDoorDetails,
     closeInternalDoorDetails,
     handleRushToggle,
+    handleProblemToggle,
     handleBastionSalesChangesUpdate,
     handleBastionProductionPriorityUpdate,
     handleBastionLabelToggle,

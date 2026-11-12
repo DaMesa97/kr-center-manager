@@ -755,6 +755,7 @@ function App() {
     openInternalDoorDetails,
     closeInternalDoorDetails,
     handleRushToggle,
+    handleProblemToggle,
     handleBastionSalesChangesUpdate,
     handleBastionProductionPriorityUpdate,
     handleBastionLabelToggle,
@@ -2724,6 +2725,21 @@ function App() {
             details={[o.company, o.model, [o.width, o.height].filter(Boolean).join('×'), o.quantity ? `${o.quantity} szt.` : '']
               .filter((x) => String(x ?? '').trim())
               .join(' · ')}
+            facts={[
+              [
+                { label: 'Zlecenie nr', value: String(o.order_number ?? '') },
+                { label: 'Etap', value: `${def?.header ?? tableStageConfirm.stageKey} — ${def?.title ?? ''}`.trim() },
+              ],
+              [
+                { label: 'Klient', value: String(o.company ?? '') },
+                {
+                  label: 'Produkt',
+                  value: [o.model, [o.width, o.height].filter(Boolean).join('×'), o.quantity ? `${o.quantity} szt.` : '']
+                    .filter((x) => String(x ?? '').trim())
+                    .join(' · '),
+                },
+              ],
+            ]}
             workers={tableStageConfirm.workers}
             lastWorkerId={lastWorkerId}
             saving={tableStageConfirmSaving}
@@ -3549,6 +3565,7 @@ function App() {
             onStageUndo={handleStageUndo}
             aluPositionsByOrder={stationAluPositions}
             onAluStageClick={handleAluStageClick}
+            onProblemToggle={handleProblemToggle}
             loading={myStationLoading}
             pushToast={pushToast}
             isManager={isManager}
@@ -3805,6 +3822,7 @@ function App() {
                     onOpenCommentsPanel={handleOpenCommentsPanel}
                     onOpenEditOrderModal={openEditOrderModal}
                     onHandleRushToggle={handleRushToggle}
+                    onHandleProblemToggle={handleProblemToggle}
                     onMarkProductionStageWithProfileInitials={guardedMarkProductionStage}
                     onSetStageRevertTarget={guardedSetStageRevertTarget}
                     onApplyReleaseDateUpdate={applyReleaseDateUpdate}
@@ -3839,6 +3857,7 @@ function App() {
                     tableWrapperRef={ordersTableWrapperRef}
                     onOpenEditOrderModal={openEditOrderModal}
                     onHandleRushToggle={handleRushToggle}
+                    onHandleProblemToggle={handleProblemToggle}
                     onMarkProductionStageWithProfileInitials={guardedMarkProductionStage}
                     onSetStageRevertTarget={guardedSetStageRevertTarget}
                     onApplyReleaseDateUpdate={applyReleaseDateUpdate}
@@ -3875,6 +3894,7 @@ function App() {
                     onOpenCommentsPanel={handleOpenCommentsPanel}
                     onOpenEditOrderModal={openEditOrderModal}
                     onHandleRushToggle={handleRushToggle}
+                    onHandleProblemToggle={handleProblemToggle}
                     onMarkProductionStageWithProfileInitials={guardedMarkProductionStage}
                     onSetStageRevertTarget={guardedSetStageRevertTarget}
                     onApplyReleaseDateUpdate={applyReleaseDateUpdate}
@@ -3903,6 +3923,7 @@ function App() {
                     onOpenCommentsPanel={handleOpenCommentsPanel}
                     onOpenEditOrderModal={openEditOrderModal}
                     onHandleRushToggle={handleRushToggle}
+                    onHandleProblemToggle={handleProblemToggle}
                     onApplyReleaseDateUpdate={applyReleaseDateUpdate}
                     onSetReleaseClearTarget={setReleaseClearTarget}
                     onHandleCancelOrderClick={handleCancelOrderClick}
@@ -4039,6 +4060,7 @@ function App() {
                       tableWrapperRef={ordersTableWrapperRef}
                       onOpenEditOrderModal={openEditOrderModal}
                       onHandleRushToggle={handleRushToggle}
+                    onHandleProblemToggle={handleProblemToggle}
                       onMarkProductionStageWithProfileInitials={guardedMarkProductionStage}
                       onSetStageRevertTarget={guardedSetStageRevertTarget}
                       onApplyReleaseDateUpdate={applyReleaseDateUpdate}

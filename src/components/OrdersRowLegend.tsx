@@ -10,9 +10,9 @@
 // =====================================================================
 import { memo, useCallback, useEffect, useState } from 'react'
 
-type ToggleKey = 'priority' | 'notes'
+type ToggleKey = 'priority' | 'notes' | 'problem'
 const STORAGE_KEY = 'kr-row-highlights-off'
-const TOGGLABLE: ToggleKey[] = ['priority', 'notes']
+const TOGGLABLE: ToggleKey[] = ['priority', 'notes', 'problem']
 
 const readOff = (): Set<ToggleKey> => {
   try {
@@ -36,6 +36,7 @@ if (typeof document !== 'undefined') applyOff(readOff())
 const ITEMS: { cls: string; label: string; title: string; toggle?: ToggleKey }[] = [
   { cls: 'priority', label: 'pilne', toggle: 'priority', title: 'Zlecenie oznaczone jako PILNE (⚡ w kolumnie Akcje) — zawsze na górze listy' },
   { cls: 'notes', label: 'uwagi', toggle: 'notes', title: 'Zlecenie ma wpis w kolumnie UWAGI — przeczytaj przed produkcją' },
+  { cls: 'problem', label: 'problem', toggle: 'problem', title: 'Zlecenie oznaczone jako PROBLEM (⚠ za numerem — powód, kto i kiedy) — ustawia hala z Mojego stanowiska albo kierownik z menu ⋯ w Akcjach' },
   { cls: 'released', label: 'wydane', title: 'Zlecenie z datą wydania (widoczne po włączeniu „pokaż zrealizowane")' },
   { cls: 'cancelled', label: 'anulowane', title: 'Zlecenie anulowane (widoczne po włączeniu „pokaż anulowane")' },
 ]

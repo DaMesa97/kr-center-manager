@@ -12,7 +12,10 @@ Każda kategoria drzwi ma zakładkę: **STA, Disting, ST, Techniczne, Bastion, D
 - **Etapy produkcji** — klik pustej komórki = Twoje **inicjały** (zrobione); klik wypełnionej = cofnięcie (z potwierdzeniem).
 - **Pilne ⚡** — przycisk ⚡ w kolumnie Akcje (kierownik) podbija zlecenie na górę; pilny wiersz ma niebieskie tło, wiersz z uwagami żółte, wydany zielone — legenda nad tabelą. Osobnej kolumny PILNE nie ma. Klik w „pilne" / „uwagi" w legendzie gasi dane podświetlenie na tym komputerze (drugi klik przywraca).
 - **Wydanie** — klik w kolumnie WYDANIE = data dzisiejsza; zlecenie znika z listy (→ Wysyłka/Archiwum).
-- **Anuluj / Przywróć** — kolumna Akcje (kierownik).
+- **Menu ⋯ w kolumnie Akcje** (beta.93) — Historia zmian, „⚠ Zgłoś problem…" / „✔ Zdejmij flagę problemu", Anuluj (czerwone) albo Przywróć. Ikony 🖨️ (etykieta) i ⚡ (pilne) zostają osobno.
+- **Problem na zleceniu** — hala w Moim stanowisku klika „⚠ Problem" przy etapie i wpisuje powód (brak materiału, uszkodzony element); wiersz w tabelach robi się pomarańczowy, za numerem jest ⚠ z powodem, inicjałami i godziną. Zdejmuje hala („załatwione") albo kierownik z menu ⋯. Podświetlenie wyłączalne w legendzie jak pilne/uwagi.
+- **Zgłoszenia** — zrzut ekranu wklejasz Ctrl+V w pole treści (albo przeciągasz plik / wybierasz z dysku); własne zgłoszenie poprawisz ołówkiem, dopóki nie jest „zrobione".
+- **Etykiety → Dokumenty → Podgląd** — zobacz dokument przed drukiem (PDF 1:1, ZPL przez labelary.com — wymaga internetu).
 - **Komentarze 💬** — przy numerze; oznaczanie osób przez `@`.
 - **Szukajka** — `Ctrl+K` (globalna).
 

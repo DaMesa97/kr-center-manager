@@ -11,11 +11,20 @@ import type { StationWorker } from '../lib/stationLogic'
 // „zrobione"), druga linia ze szczegółami zlecenia (firma/model/wymiar),
 // pierwsze 400 ms bez reakcji na kliki (dwuklik w „Zrobione" trafiał w tło
 // albo w przypadkowy kafelek), klik w tło NIE zamyka.
+//
+// #133 (Mariusz 12.11.2026): zamiast jednego zlewającego się akapitu — `facts`:
+// grupy wierszy „etykieta | pogrubiona wartość" (zlecenie+etap, klient+produkt),
+// szersze okno, żeby długa nazwa etapu się nie łamała. `message`/`details`
+// zostają jako zapas (alu — etap per sztuka).
+export type StageConfirmFact = { label: string; value: string }
+
 type Props = {
   title: string
   message: string
   /** druga linia: firma · model · wymiar · ilość — żeby pomyłkę wiersza było widać */
   details?: string
+  /** #133: grupy wierszy etykieta/wartość; gdy podane, zastępują message/details */
+  facts?: StageConfirmFact[][]
   workers: StationWorker[]
   /** Ostatnio wybrana osoba na tym komputerze — podświetlona podpowiedź */
   lastWorkerId?: string | null
@@ -32,6 +41,7 @@ export default function StageWorkerConfirmDialog({
   title,
   message,
   details,
+  facts,
   workers,
   lastWorkerId,
   saving = false,
@@ -64,6 +74,10 @@ export default function StageWorkerConfirmDialog({
     onCancel()
   }
 
+  const factGroups = (facts ?? [])
+    .map((g) => g.filter((f) => String(f.value ?? '').trim() !== ''))
+    .filter((g) => g.length > 0)
+
   return createPortal(
     <div className="confirm-dialog-overlay" role="presentation">
       <div
@@ -71,6 +85,7 @@ export default function StageWorkerConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
+        aria-describedby="stage-confirm-desc"
         onClick={(e) => e.stopPropagation()}
       >
         <div
@@ -83,8 +98,25 @@ export default function StageWorkerConfirmDialog({
         <h2 id="confirm-dialog-title" className="stage-confirm-title">
           {title}
         </h2>
-        <p className="confirm-dialog-message stage-confirm-message">{message}</p>
-        {details && <p className="stage-confirm-details">{details}</p>}
+        {factGroups.length > 0 ? (
+          <div id="stage-confirm-desc" className="stage-confirm-meta">
+            {factGroups.map((group, gi) => (
+              <div key={gi} className={gi === 0 ? 'stage-confirm-block stage-confirm-block--primary' : 'stage-confirm-block'}>
+                {group.map((f) => (
+                  <p key={f.label} className="stage-confirm-row">
+                    <span className="stage-confirm-label">{f.label}</span>
+                    <strong className="stage-confirm-strong">{f.value}</strong>
+                  </p>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div id="stage-confirm-desc">
+            <p className="confirm-dialog-message stage-confirm-message">{message}</p>
+            {details && <p className="stage-confirm-details">{details}</p>}
+          </div>
+        )}
 
         {workers.length > 0 ? (
           <>

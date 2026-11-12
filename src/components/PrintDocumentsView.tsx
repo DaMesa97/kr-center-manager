@@ -1,6 +1,7 @@
 import { appConfirm } from '../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Printer, Plus, Trash2, Upload, Pencil } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Printer, Plus, Trash2, Upload, Pencil, Eye, X } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import type { DopDocument } from '../lib/dopMatch'
 import { renderPdfForPrint, uint8ToBase64 } from '../lib/pdfPrint'
@@ -52,6 +53,44 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
   const [saving, setSaving] = useState(false)
   /** #102: edycja istniejącego dokumentu (ten sam formularz co dodawanie) */
   const [editingId, setEditingId] = useState<number | null>(null)
+  /** #127 (Łukasz): podgląd przed drukiem — PDF przez pdfjs (ten sam HTML, który idzie na drukarkę),
+   *  ZPL przez labelary.com (render etykiety do PNG; treść dokumentu to szablon, nie dane osobowe) */
+  const [preview, setPreview] = useState<{ doc: PrintDocument; html?: string; img?: string; note: string; loading: boolean; error?: string } | null>(null)
+
+  const openPreview = async (doc: PrintDocument) => {
+    setPreview({ doc, note: '', loading: true })
+    try {
+      if (doc.doc_type === 'pdf') {
+        if (!doc.pdf_base64) throw new Error('Dokument nie ma zapisanego PDF-a')
+        const { html, widthMm, heightMm, pages } = await renderPdfForPrint(doc.pdf_base64, doc.name)
+        setPreview({ doc, html, note: `PDF · ${pages} str. · ${widthMm}×${heightMm} mm — dokładnie to, co pójdzie na drukarkę`, loading: false })
+        return
+      }
+      const zpl = (doc.zpl_content ?? '').trim()
+      if (!zpl) throw new Error('Dokument nie ma treści ZPL')
+      // rozmiar z ^PW (szerokość w punktach) i ^LL (długość) przy 203 dpi; domyślnie 4×6"
+      const pw = Number(/\^PW(\d+)/.exec(zpl)?.[1] ?? 0)
+      const ll = Number(/\^LL(\d+)/.exec(zpl)?.[1] ?? 0)
+      const wIn = pw > 0 ? Math.min(15, Math.max(1, Math.round((pw / 203) * 100) / 100)) : 4
+      const hIn = ll > 0 ? Math.min(15, Math.max(1, Math.round((ll / 203) * 100) / 100)) : 6
+      const res = await fetch(`https://api.labelary.com/v1/printers/8dpmm/labels/${wIn}x${hIn}/0/`, {
+        method: 'POST',
+        headers: { Accept: 'image/png', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: zpl,
+      })
+      if (!res.ok) throw new Error(`labelary.com odpowiedział ${res.status} — ${(await res.text()).slice(0, 200)}`)
+      const blob = await res.blob()
+      const img = URL.createObjectURL(blob)
+      setPreview({ doc, img, note: `ZPL · podgląd ${Math.round(wIn * 25.4)}×${Math.round(hIn * 25.4)} mm przez labelary.com (wymaga internetu; wygląd zbliżony do wydruku)`, loading: false })
+    } catch (e) {
+      setPreview({ doc, note: '', loading: false, error: (e as Error).message })
+    }
+  }
+
+  const closePreview = () => {
+    if (preview?.img) URL.revokeObjectURL(preview.img)
+    setPreview(null)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -345,6 +384,44 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
         </div>
       )}
 
+      {preview &&
+        createPortal(
+          <div className="modal-overlay" role="dialog" aria-modal="true" onClick={closePreview}>
+            <div className="order-modal order-modal--sta print-docs-preview-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="order-modal-header">
+                <h2>Podgląd — {preview.doc.name}</h2>
+                <button type="button" className="btn btn-icon btn-ghost" onClick={closePreview} title="Zamknij"><X size={18} /></button>
+              </div>
+              <div className="print-docs-preview-body">
+                {preview.loading ? (
+                  <p className="no-results">Generuję podgląd…</p>
+                ) : preview.error ? (
+                  <p className="no-results">Nie udało się wygenerować podglądu: {preview.error}</p>
+                ) : (
+                  <>
+                    <div className="print-docs-preview-meta">{preview.note}</div>
+                    {preview.html && <iframe title="Podgląd dokumentu" className="print-docs-preview-frame" srcDoc={preview.html} />}
+                    {preview.img && <img className="print-docs-preview-img" src={preview.img} alt={`Podgląd etykiety ${preview.doc.name}`} />}
+                  </>
+                )}
+              </div>
+              <div className="order-form-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={preview.loading || !!preview.error || printingId === preview.doc.id || !printerName}
+                  title={printerName ? `Drukuj na ${printerName}` : 'Najpierw wybierz drukarkę'}
+                  onClick={() => { const d = preview.doc; closePreview(); void handlePrint(d) }}
+                >
+                  <Printer size={16} /> Drukuj
+                </button>
+                <button type="button" className="btn btn-sm btn-secondary" onClick={closePreview}>Zamknij</button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
       {loading ? (
         <p className="no-results">Ładowanie…</p>
       ) : docsForCat.length === 0 ? (
@@ -375,6 +452,14 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
                   onChange={(e) => setCopies((p) => ({ ...p, [doc.id]: Math.max(1, Number(e.target.value) || 1) }))}
                   title="Liczba kopii"
                 />
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  title="Podgląd bez drukowania (#127) — oszczędza papier przy niepewnym dokumencie"
+                  onClick={() => void openPreview(doc)}
+                >
+                  <Eye size={14} /> Podgląd
+                </button>
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"

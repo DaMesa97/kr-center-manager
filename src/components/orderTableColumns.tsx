@@ -8,7 +8,9 @@ import StockStatusBadge from './StockStatusBadge'
 import ErpStatusBadge from './ErpStatusBadge'
 import { hasErpInfo } from '../lib/erpStatus'
 import OrderCommentsButton from './OrderCommentsButton'
-import { appConfirm } from '../lib/appDialogs'
+import ActionsMenu, { type ActionsMenuItem } from './ActionsMenu'
+import { appConfirm, appPrompt } from '../lib/appDialogs'
+import { getOrderProblem, hasOrderProblem, orderProblemText } from '../lib/orderProblem'
 import type { DataTableColumn } from './DataTable'
 import type { GlassAllowance, Order, ToastVariant } from '../types'
 import { getBotWarnings, needsBotReview } from '../utils/botOrder'
@@ -31,6 +33,8 @@ export type OrderTableCtx = {
   orderCommentsCounts: Map<number, { total: number; unread: number }>
   onOpenCommentsPanel: (order: Order) => void
   onHandleRushToggle: (order: Order, checked: boolean) => void | Promise<void>
+  /** #87: flaga „problem" (reason null = zdejmij); brak = pozycji nie ma w menu Akcje */
+  onHandleProblemToggle?: (order: Order, reason: string | null) => void | Promise<void>
   onApplyReleaseDateUpdate: (orderId: number, date: string) => void | Promise<void>
   onSetReleaseClearTarget: (target: { orderId: number }) => void
   onHandleCancelOrderClick: (order: Order) => void
@@ -74,6 +78,7 @@ export const orderCtxDeps = (c: OrderTableCtx): unknown[] => [
   c.orderCommentsCounts,
   c.onOpenCommentsPanel,
   c.onHandleRushToggle,
+  c.onHandleProblemToggle,
   c.onApplyReleaseDateUpdate,
   c.onSetReleaseClearTarget,
   c.onHandleCancelOrderClick,
@@ -259,6 +264,15 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
               counts={o.id !== undefined ? ctx.orderCommentsCounts.get(o.id) : undefined}
               onOpen={ctx.onOpenCommentsPanel}
             />
+            {(() => {
+              // #87: plakietka problemu — powód, kto i kiedy w podpowiedzi
+              const p = getOrderProblem(o)
+              return p ? (
+                <span className="problem-badge" title={p ? orderProblemText(p) : undefined} aria-label="Zlecenie z problemem">
+                  ⚠
+                </span>
+              ) : null
+            })()}
           </span>
           <StockStatusBadge
             status={o.stock_status}
@@ -421,28 +435,53 @@ export function actionsCol(ctx: OrderTableCtx): DataTableColumn<Order> {
             ⚡
           </button>
         )}
-        {ctx.onShowHistory && (
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            onClick={() => ctx.onShowHistory?.(o)}
-            title="Historia zmian"
-          >
-            Historia
-          </button>
-        )}
-        {isCancelledOwn(o) ? (
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => void ctx.onHandleRestoreOrder(o)}>
-            Przywróć
-          </button>
-        ) : (
-          <button type="button" className="btn btn-sm btn-danger" onClick={() => ctx.onHandleCancelOrderClick(o)}>
-            Anuluj
-          </button>
-        )}
+        {/* #132 (Łukasz): Historia / Problem / Anuluj pod jednym „⋯" — mniej
+            przypadkowych kliknięć w Anuluj, węższa kolumna. */}
+        <ActionsMenu items={actionMenuItems(ctx, o)} buttonClassName={hasOrderProblem(o) ? 'actions-menu-btn--problem' : ''} />
       </>
     ),
   }
+}
+
+/** Pozycje menu „⋯" dla wiersza (#132 + #87). */
+function actionMenuItems(ctx: OrderTableCtx, o: Order): ActionsMenuItem[] {
+  const items: ActionsMenuItem[] = []
+  if (ctx.onShowHistory) {
+    items.push({ key: 'history', label: 'Historia zmian', onClick: () => ctx.onShowHistory?.(o) })
+  }
+  const cancelled = isCancelledOwn(o)
+  const problem = getOrderProblem(o)
+  if (ctx.onHandleProblemToggle && !cancelled) {
+    if (problem) {
+      items.push({
+        key: 'problem-off',
+        label: '✔ Zdejmij flagę problemu',
+        title: orderProblemText(problem),
+        onClick: () => void ctx.onHandleProblemToggle?.(o, null),
+      })
+    } else {
+      items.push({
+        key: 'problem-on',
+        label: '⚠ Zgłoś problem…',
+        title: 'Brak materiału, uszkodzony element, niejasny rysunek — zlecenie dostanie pomarańczowe tło z powodem',
+        onClick: () => {
+          void (async () => {
+            const reason = await appPrompt('Co jest nie tak z tym zleceniem? (np. brak szyby, uszkodzony profil)', {
+              title: `Problem — zlecenie ${o.order_number}`,
+              confirmLabel: 'Oznacz',
+            })
+            if (reason && reason.trim()) await ctx.onHandleProblemToggle?.(o, reason)
+          })()
+        },
+      })
+    }
+  }
+  if (cancelled) {
+    items.push({ key: 'restore', label: 'Przywróć zlecenie', onClick: () => void ctx.onHandleRestoreOrder(o) })
+  } else {
+    items.push({ key: 'cancel', label: 'Anuluj zlecenie', danger: true, onClick: () => ctx.onHandleCancelOrderClick(o) })
+  }
+  return items
 }
 
 /**
@@ -490,6 +529,7 @@ export function orderRowClassName(
     isManager && 'orders-table-row--clickable',
     isRushOrderSequence(order.sequence) && 'orders-table-row--priority',
     String(order.notes ?? '').trim() !== '' && 'orders-table-row--has-notes',
+    hasOrderProblem(order) && 'orders-table-row--problem',
     ...(opts.extra ?? []),
     released && 'orders-table-row--released',
     released && 'orders-table-row--completed',

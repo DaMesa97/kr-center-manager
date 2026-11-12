@@ -17,6 +17,8 @@ import {
 } from '../lib/stationLogic'
 import type { StageCompleteResult, StockReleaseRow } from '../hooks/useMyStation'
 import StageWorkerConfirmDialog from './StageWorkerConfirmDialog'
+import { appConfirm, appPrompt } from '../lib/appDialogs'
+import { getOrderProblem, orderProblemText } from '../lib/orderProblem'
 import StockShortageDialog from './StockShortageDialog'
 import DamageReportModal from './DamageReportModal'
 import Spinner from './Spinner'
@@ -49,6 +51,8 @@ type Props = {
   onAluStageClick: (task: MyTask, markInitials?: string) => Promise<boolean>
   /** „Cofnij” tuż po oznaczeniu (pomyłka) — etap + zwrot wydanego towaru */
   onStageUndo: (task: MyTask) => Promise<boolean>
+  /** #87 (Mariusz): hala zgłasza problem ze zleceniem (brak materiału…); reason null = zdejmij */
+  onProblemToggle?: (order: Order, reason: string | null) => void | Promise<void>
   loading: boolean
   pushToast: (msg: string, variant: ToastVariant) => void
   /** zgłaszanie zniszczeń tylko dla kierownika (wyprowadza towar ze stanu) */
@@ -71,6 +75,7 @@ export default function MyStationView({
   aluPositionsByOrder,
   onAluStageClick,
   onStageUndo,
+  onProblemToggle,
   loading,
   pushToast,
   isManager,
@@ -363,6 +368,52 @@ export default function MyStationView({
                 </button>
               </>
             )}
+            {onProblemToggle && !task.alu && (() => {
+              // #87 (Mariusz): hala sama oznacza problem (brak materiału, uszkodzony
+              // element) — kierownik zobaczy pomarańczowy wiersz z powodem w tabeli.
+              const p = getOrderProblem(task.order)
+              return p ? (
+                <div className="my-station-problem-text" title={orderProblemText(p)}>
+                  ⚠ Problem: {p.reason}
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost my-station-problem-btn"
+                    title={`Zgłosił(a): ${p.by || '—'}. Klik zdejmuje flagę, gdy sprawa załatwiona.`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void (async () => {
+                        if (await appConfirm(`Zdjąć flagę problemu ze zlecenia ${task.order.order_number}?\n„${p.reason}"`)) {
+                          await onProblemToggle(task.order, null)
+                        }
+                      })()
+                    }}
+                  >
+                    załatwione
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost my-station-problem-btn"
+                    title="Zgłoś problem ze zleceniem (brak materiału, uszkodzony element, niejasny rysunek) — kierownik zobaczy pomarańczowy wiersz z powodem"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void (async () => {
+                        const reason = await appPrompt('Co jest nie tak z tym zleceniem? (np. brak szyby, uszkodzony profil)', {
+                          title: `Problem — zlecenie ${task.order.order_number}`,
+                          confirmLabel: 'Zgłoś',
+                        })
+                        if (reason && reason.trim()) await onProblemToggle(task.order, reason)
+                      })()
+                    }}
+                  >
+                    ⚠ Problem
+                  </button>
+                </>
+              )
+            })()}
           </>
         ),
       },
@@ -582,6 +633,31 @@ export default function MyStationView({
                 ]
                   .filter((x) => String(x ?? '').trim())
                   .join(' · ')
+          }
+          facts={
+            confirmTask.alu
+              ? undefined
+              : [
+                  [
+                    confirmTask.isComplaint
+                      ? { label: 'Reklamacja', value: `${confirmTask.complaintNumber ?? ''} (zlecenie ${confirmTask.order.order_number})` }
+                      : { label: 'Zlecenie nr', value: String(confirmTask.order.order_number ?? '') },
+                    { label: 'Etap', value: `${confirmTask.stageHeader} — ${confirmTask.stageTitle}` },
+                  ],
+                  [
+                    { label: 'Klient', value: String(confirmTask.order.company ?? '') },
+                    {
+                      label: 'Produkt',
+                      value: [
+                        confirmTask.order.model,
+                        [confirmTask.order.width, confirmTask.order.height].filter(Boolean).join('×'),
+                        confirmTask.order.quantity ? `${confirmTask.order.quantity} szt.` : '',
+                      ]
+                        .filter((x) => String(x ?? '').trim())
+                        .join(' · '),
+                    },
+                  ],
+                ]
           }
           workers={workersForTask(confirmTask, allWorkerStages, stationProfiles)}
           lastWorkerId={lastWorkerId}

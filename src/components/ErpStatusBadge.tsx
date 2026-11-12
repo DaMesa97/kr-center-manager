@@ -24,7 +24,7 @@ export const shortRoNumber = (ro: string | null | undefined): string =>
  * Tylko odczyt — status pisze Make, poprawki w Airtable / „Ponów wysyłkę".
  */
 export default function ErpStatusBadge({ order, inline = false }: Props) {
-  const { open, pos, triggerRef, toggle, close } = useClickTooltip<HTMLSpanElement>()
+  const { open, pos, triggerRef, tooltipRef, toggle, close } = useClickTooltip<HTMLSpanElement>()
   const ok = isErpOk(order)
   const err = isErpError(order)
   if (!ok && !err) return null
@@ -48,6 +48,7 @@ export default function ErpStatusBadge({ order, inline = false }: Props) {
       {open &&
         createPortal(
           <div
+            ref={tooltipRef}
             className={`stock-badge-tooltip stock-badge-tooltip--click erp-tooltip${err ? ' erp-tooltip--err' : ''}`}
             style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10000 }}
             onClick={(e) => e.stopPropagation()}

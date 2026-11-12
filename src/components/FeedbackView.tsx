@@ -1,8 +1,17 @@
 import { appConfirm } from '../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Trash2, RefreshCw } from 'lucide-react'
+import { Trash2, RefreshCw, Pencil } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import type { CurrentUser, ToastVariant } from '../types'
+import {
+  imageFilesFromClipboard,
+  mergePendingFiles,
+  parseAttachments,
+  removeFeedbackAttachments,
+  uploadFeedbackAttachments,
+  type FeedbackAttachment,
+} from '../lib/feedbackAttachments'
+import { FeedbackAttachmentList, FeedbackAttachmentsInput } from './FeedbackAttachments'
 
 type Props = {
   isManager: boolean
@@ -16,9 +25,12 @@ export type FeedbackItem = {
   kind: string
   page: string | null
   author_name: string | null
+  author_id: string | null
   status: string
   created_at: string
   resolved_at: string | null
+  /** #125: [{path,url,name,size}] */
+  attachments?: unknown
 }
 
 const KINDS = [
@@ -41,7 +53,11 @@ export default function FeedbackView({ isManager, currentUser, pushToast }: Prop
   const [filter, setFilter] = useState<string>('otwarte')
   const [content, setContent] = useState('')
   const [kind, setKind] = useState('bug')
+  const [pending, setPending] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
+  // #125: edycja własnego zgłoszenia (autor do zamknięcia, kierownik zawsze)
+  const [editing, setEditing] = useState<{ id: number; content: string; attachments: FeedbackAttachment[]; removed: string[]; files: File[] } | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
   const mountedRef = useRef(true)
 
   const load = useCallback(async () => {
@@ -77,18 +93,31 @@ export default function FeedbackView({ isManager, currentUser, pushToast }: Prop
     [items],
   )
 
+  const addPending = (incoming: File[]) => {
+    if (incoming.length === 0) return
+    const { files, skipped } = mergePendingFiles(pending, incoming)
+    if (skipped) pushToast(skipped, 'error')
+    setPending(files)
+  }
+
   const handleAdd = async () => {
     const text = content.trim()
     if (!text) { pushToast('Wpisz treść zgłoszenia', 'error'); return }
     setSaving(true)
     try {
+      const attachments = await uploadFeedbackAttachments(pending, { prefix: 'new', onError: (m) => pushToast(m, 'error') })
       const { error } = await supabase.from('feedback').insert([{
         content: text, kind, author_name: currentUser?.full_name || currentUser?.initials || null,
-        author_id: currentUser?.id ?? null, status: 'nowe',
+        author_id: currentUser?.id ?? null, status: 'nowe', attachments,
       }])
-      if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
-      pushToast('Zgłoszenie dodane', 'success')
+      if (error) {
+        await removeFeedbackAttachments(attachments.map((a) => a.path))
+        pushToast(`Błąd: ${error.message}`, 'error')
+        return
+      }
+      pushToast(attachments.length ? `Zgłoszenie dodane (${attachments.length} zrzut.)` : 'Zgłoszenie dodane', 'success')
       setContent('')
+      setPending([])
       await load()
     } finally {
       if (mountedRef.current) setSaving(false)
@@ -108,7 +137,37 @@ export default function FeedbackView({ isManager, currentUser, pushToast }: Prop
     if (!(await appConfirm('Usunąć to zgłoszenie?'))) return
     const { error } = await supabase.from('feedback').delete().eq('id', item.id)
     if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
+    await removeFeedbackAttachments(parseAttachments(item.attachments).map((a) => a.path))
     await load()
+  }
+
+  const canEdit = (item: FeedbackItem) =>
+    isManager || (!!currentUser?.id && item.author_id === currentUser.id && item.status !== 'zrobione')
+
+  const startEdit = (item: FeedbackItem) =>
+    setEditing({ id: item.id, content: item.content, attachments: parseAttachments(item.attachments), removed: [], files: [] })
+
+  const saveEdit = async () => {
+    if (!editing) return
+    const text = editing.content.trim()
+    if (!text) { pushToast('Treść nie może być pusta', 'error'); return }
+    setEditSaving(true)
+    try {
+      const uploaded = await uploadFeedbackAttachments(editing.files, { prefix: String(editing.id), onError: (m) => pushToast(m, 'error') })
+      const attachments = [...editing.attachments, ...uploaded]
+      const { error } = await supabase.rpc('feedback_update_own', { p_id: editing.id, p_content: text, p_attachments: attachments })
+      if (error) {
+        await removeFeedbackAttachments(uploaded.map((a) => a.path))
+        pushToast(`Nie zapisano: ${error.message}`, 'error')
+        return
+      }
+      await removeFeedbackAttachments(editing.removed)
+      pushToast('Zgłoszenie zapisane', 'success')
+      setEditing(null)
+      await load()
+    } finally {
+      if (mountedRef.current) setEditSaving(false)
+    }
   }
 
   return (
@@ -120,14 +179,18 @@ export default function FeedbackView({ isManager, currentUser, pushToast }: Prop
           </select>
           <input
             type="text"
-            placeholder="Opisz bug / pomysł / uwagę…"
+            placeholder="Opisz bug / pomysł / uwagę… (zrzut ekranu: Ctrl+V)"
             value={content}
             onChange={(e) => setContent(e.target.value)}
+            onPaste={(e) => { const imgs = imageFilesFromClipboard(e); if (imgs.length) { e.preventDefault(); addPending(imgs) } }}
             onKeyDown={(e) => { if (e.key === 'Enter') void handleAdd() }}
           />
           <button type="button" className="btn btn-success" disabled={saving} onClick={() => void handleAdd()}>
             {saving ? 'Dodaję…' : 'Dodaj'}
           </button>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <FeedbackAttachmentsInput files={pending} onChange={setPending} onSkipped={(m) => pushToast(m, 'error')} disabled={saving} compact />
         </div>
       </div>
 
@@ -160,14 +223,66 @@ export default function FeedbackView({ isManager, currentUser, pushToast }: Prop
         <div className="feedback-list">
           {filtered.map((item) => {
             const k = KINDS.find((x) => x.value === item.kind) ?? KINDS[2]
+            const isEditing = editing?.id === item.id
+            const attachments = parseAttachments(item.attachments)
             return (
               <div key={item.id} className={`feedback-item ${item.status === 'zrobione' ? 'feedback-item--done' : ''}`}>
                 <div className="feedback-item-main">
                   <span className="feedback-kind" style={{ background: k.color }}>{k.label}</span>
-                  <span className="feedback-content">{item.content}</span>
+                  {isEditing && editing ? (
+                    <div style={{ flex: 1 }}>
+                      <textarea
+                        className="feedback-edit-textarea"
+                        value={editing.content}
+                        autoFocus
+                        disabled={editSaving}
+                        onChange={(e) => setEditing({ ...editing, content: e.target.value })}
+                        onPaste={(e) => {
+                          const imgs = imageFilesFromClipboard(e)
+                          if (!imgs.length) return
+                          e.preventDefault()
+                          const { files, skipped } = mergePendingFiles(editing.files, imgs)
+                          if (skipped) pushToast(skipped, 'error')
+                          setEditing({ ...editing, files })
+                        }}
+                        onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null) }}
+                      />
+                      <FeedbackAttachmentList
+                        items={editing.attachments}
+                        onRemove={(a) => setEditing({ ...editing, attachments: editing.attachments.filter((x) => x.path !== a.path), removed: [...editing.removed, a.path] })}
+                      />
+                      <div style={{ marginTop: 6 }}>
+                        <FeedbackAttachmentsInput
+                          files={editing.files}
+                          onChange={(files) => setEditing({ ...editing, files })}
+                          onSkipped={(m) => pushToast(m, 'error')}
+                          disabled={editSaving}
+                          compact
+                        />
+                      </div>
+                      <div className="feedback-edit-actions">
+                        <button type="button" className="btn btn-sm btn-primary" disabled={editSaving} onClick={() => void saveEdit()}>
+                          {editSaving ? 'Zapisuję…' : 'Zapisz'}
+                        </button>
+                        <button type="button" className="btn btn-sm btn-secondary" disabled={editSaving} onClick={() => setEditing(null)}>
+                          Anuluj
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="feedback-content">
+                      {item.content}
+                      <FeedbackAttachmentList items={attachments} />
+                    </span>
+                  )}
                 </div>
                 <div className="feedback-item-meta">
-                  <span className="feedback-author">{item.author_name || '—'} · {fmt(item.created_at)}</span>
+                  <span className="feedback-author">#{item.id} · {item.author_name || '—'} · {fmt(item.created_at)}{item.page ? ` · ${item.page}` : ''}</span>
+                  {!isEditing && canEdit(item) && (
+                    <button type="button" className="btn btn-sm btn-ghost" title={isManager ? 'Edytuj treść / zrzuty' : 'Popraw swoje zgłoszenie (do czasu zamknięcia)'} onClick={() => startEdit(item)}>
+                      <Pencil size={14} />
+                    </button>
+                  )}
                   <select
                     className="feedback-status"
                     style={{ borderColor: STATUS_COLOR[item.status] ?? '#cbd5e1', color: STATUS_COLOR[item.status] }}

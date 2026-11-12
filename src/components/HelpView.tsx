@@ -25,6 +25,16 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Po zgłoszeniach Łukasza i Mariusza (beta.95)</h4>
+        <ul>
+          <li><b>Flaga „problem" na zleceniu (#87).</b> Hala w Moim stanowisku klika „⚠ Problem" i wpisuje powód (brak szyby, uszkodzony profil…), kierownik widzi <b>pomarańczowy wiersz</b> z ⚠ za numerem (powód, kto, kiedy w podpowiedzi). Zdejmuje hala przyciskiem „załatwione" albo kierownik z menu ⋯. W legendzie nad tabelą można ją wyłączyć jak pilne i uwagi.</li>
+          <li><b>Kolumna Akcje: 🖨️ ⚡ i menu „⋯"</b> (#132) — Historia, Zgłoś/zdejmij problem, Anuluj (na czerwono) albo Przywróć pod jednym przyciskiem. Mniej przypadkowych kliknięć, węższa kolumna; menu zamyka Esc, klik obok i przewinięcie tabeli.</li>
+          <li><b>Dialog „Oznaczyć etap jako zrobiony?"</b> (#133) — dwa czytelne bloki: zlecenie + etap, klient + produkt; etykieta po lewej, pogrubiona wartość po prawej; szersze okno, długie nazwy etapów się nie łamią.</li>
+          <li><b>Zgłoszenia: zrzuty ekranu i edycja</b> (#125) — w „Zgłoś uwagę" i w zakładce Zgłoszenia wklejasz zrzut <b>Ctrl+V</b>, przeciągasz plik albo wybierasz z dysku (do 6, po 10 MB); miniatura powiększa się po kliknięciu. Autor poprawia swoje zgłoszenie ołówkiem, dopóki nie jest „zrobione"; kierownik — każde.</li>
+          <li><b>Etykiety → Dokumenty: „Podgląd"</b> (#127) przed Drukuj — PDF dokładnie tak, jak pójdzie na drukarkę; ZPL renderowany przez labelary.com (potrzebny internet). Oszczędza papier przy niepewnym dokumencie.</li>
+          <li><b>Dymki RO i braków magazynowych</b> (#126) nie uciekają poza ekran: gdy pod ikoną nie ma miejsca, otwierają się nad nią, w poziomie trzymają się okna, przewinięcie tabeli je zamyka.</li>
+          <li><b>Menu boczne na laptopach</b> (#135) — przy 1366×768 i mniejszych pasek jest węższy, a pozycje ciaśniejsze; nic nie wystaje poza ekran. Selecty w oknach druku etykiet wyglądają jak reszta pól (#129).</li>
+        </ul>
         <h4>Zużycie magazynu pokazywało ułamek prawdy (beta.94)</h4>
         <ul>
           <li><b>Statystyki → Zużycie magazynu:</b> raport za 12 miesięcy ma ponad 1600 wierszy, a baza oddawała tylko pierwszy tysiąc — kategorie z końca listy (SKRZYDŁA, SZKLENIE, PROGI, ZAMKI I OKUCIA) były obcięte. Za listopad widać było 4 skrzydła zamiast 44. Teraz dane dociągane są w całości.</li>
