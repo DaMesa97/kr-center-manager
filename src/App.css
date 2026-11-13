@@ -9004,6 +9004,34 @@ html.hl-off-problem .problem-badge { display: none; }
 html.hl-off-problem .order-slot-review .bot-badge--review { display: none; }
 html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-border); color: var(--color-text); }
 
+/* #119 (Tymek 13.11): szara plakietka „ark. N" — numer tego zlecenia w arkuszu Excel,
+   gdy różni się od numeru w aplikacji (wiążący jest numer z aplikacji). Wariant --import:
+   numer z chwili importu, jeszcze niepotwierdzony synchronizacją (kreskowana ramka). */
+.sheet-no-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: #f3f4f6;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: help;
+}
+.sheet-no-badge--import {
+  border-style: dashed;
+  background: transparent;
+}
+.my-station-cell-main .sheet-no-badge {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 /* plakietka ⚠ za numerem zlecenia (powód / kto / kiedy w podpowiedzi) */
 .problem-badge {
   display: inline-flex;

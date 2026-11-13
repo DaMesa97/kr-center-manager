@@ -2,6 +2,7 @@ import QRCode from 'qrcode'
 import type { AluPosition, Order } from '../types'
 import { ALU_CONSTRUCTION_LABELS, ALU_REALIZACJA_LABELS } from '../constants'
 import { aluLoadingDate, aluOrderExtra, formatAluDims, formatAluGlass, formatPlDateWithDow } from './alu'
+import { getSheetNumber } from '../utils/botOrder'
 
 export type LabelTemplate = {
   id: number
@@ -80,7 +81,8 @@ export const LABEL_FIELDS: { key: string; label: string; value: (o: Order) => st
   { key: 'data',            label: 'Data zlecenia',          value: (o) => str(o.order_date) },
   { key: 'nr_klienta',      label: 'Nr zamówienia klienta',  value: (o) => str(o.client_order_number) },
   { key: 'nr_partnera',     label: 'Nr zam. powiązanego',    value: (o) => partnerNumber(o) },
-  { key: 'nr_arkusza',      label: 'Nr z arkusza (konflikt)',value: (o) => str(extraField(o, 'sheet_number_conflict')) },
+  // #119: ostatni numer z synchronizacji Excela, a przed nią numer z chwili importu
+  { key: 'nr_arkusza',      label: 'Nr z arkusza (gdy inny)',value: (o) => getSheetNumber(o)?.number ?? '' },
   { key: 'uwagi',           label: 'Uwagi',                  value: (o) => str(o.notes) },
   { key: 'kategoria',       label: 'Kategoria',              value: (o) => str(o.category) },
   { key: 'qr',              label: 'Kod QR (ID zlecenia)',   value: () => '' },

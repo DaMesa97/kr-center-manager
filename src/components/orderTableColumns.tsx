@@ -14,6 +14,7 @@ import { getOrderProblem, hasOrderProblem, orderProblemText } from '../lib/order
 import type { DataTableColumn } from './DataTable'
 import type { GlassAllowance, Order, ToastVariant } from '../types'
 import { getBotWarnings, needsBotReview } from '../utils/botOrder'
+import SheetNumberBadge from './SheetNumberBadge'
 import {
   isReleaseDateEmpty,
   isRushOrderSequence,
@@ -258,6 +259,8 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
                 </span>
               )}
             </span>
+            {/* #119: numer tego zlecenia w arkuszu Excel, gdy inny niż w aplikacji */}
+            <SheetNumberBadge order={o} />
             {opts.afterNumber?.(o)}
             <OrderCommentsButton
               order={o}

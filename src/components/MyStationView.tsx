@@ -22,6 +22,7 @@ import { getOrderProblem, orderProblemText } from '../lib/orderProblem'
 import StockShortageDialog from './StockShortageDialog'
 import DamageReportModal from './DamageReportModal'
 import Spinner from './Spinner'
+import SheetNumberBadge from './SheetNumberBadge'
 import DataTable, { type DataTableColumn } from './DataTable'
 import type { ToastVariant } from '../types'
 
@@ -248,6 +249,7 @@ export default function MyStationView({
             <div className="my-station-cell-main">
               <span className="my-station-expand-icon">{expandedKey === taskKey(task) ? '▾' : '▸'}</span>{' '}
               {task.order.order_number}
+              <SheetNumberBadge order={task.order} />
               {nextKeys.has(taskKey(task)) && (
                 <span className="my-station-next-badge" title="Pierwsze gotowe zadanie w kolejce">
                   NASTĘPNE

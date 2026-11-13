@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Numer z arkusza Excel obok numeru zlecenia (beta.100)</h4>
+        <ul>
+          <li><b>Szara plakietka „ark. N" za numerem zlecenia</b> (tabele zleceń, Moje stanowisko) pokazuje numer, pod którym to zlecenie figuruje w arkuszu Excel, gdy różni się od numeru w aplikacji. Podpowiedź mówi, skąd numer i kiedy go odczytano. <b>Wiążący dla hali jest numer z aplikacji</b> (decyzja Tymka 13.11) — plakietka jest informacją, żeby biuro i hala mówiły o tym samym zleceniu.</li>
+          <li><b>Codzienna synchronizacja z Excela (20:00) odświeża ten numer</b> dla każdego dopasowanego otwartego zlecenia, więc po przesunięciu wierszy w arkuszu plakietka nadąża. Kreskowana ramka = numer z chwili importu, jeszcze niepotwierdzony synchronizacją.</li>
+          <li>Na etykietach pole „Nr z arkusza" bierze ten sam numer.</li>
+        </ul>
         <h4>Słowniki bez kasowania, „Zakończone", kontrast i odstępy (beta.97)</h4>
         <ul>
           <li><b>Pozycji słownika i kontrahenta użytych w zamówieniach nie da się usunąć</b> (#105). Przy próbie usunięcia aplikacja mówi, w ilu zamówieniach (aktywnych i w archiwum) wartość występuje, i proponuje zmianę nazwy. Pilnuje tego też baza, więc nic nie zniknie z historii.</li>
