@@ -8996,6 +8996,11 @@ html:not(.hl-off-problem) .orders-table tbody tr.orders-table-row--problem:not(.
   border-left-color: rgba(0, 0, 0, 0.12);
 }
 
+/* Wyłącznik „problem” w legendzie gasi też plakietkę ⚠ za numerem i pomarańczowy
+   przycisk ⋯ w Akcjach (Tymek 13.11: „wyłączam problemy, a wykrzykniki zostają”) */
+html.hl-off-problem .problem-badge { display: none; }
+html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-border); color: var(--color-text); }
+
 /* plakietka ⚠ za numerem zlecenia (powód / kto / kiedy w podpowiedzi) */
 .problem-badge {
   display: inline-flex;
