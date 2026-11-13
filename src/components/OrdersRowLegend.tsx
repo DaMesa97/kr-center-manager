@@ -36,7 +36,7 @@ if (typeof document !== 'undefined') applyOff(readOff())
 const ITEMS: { cls: string; label: string; title: string; toggle?: ToggleKey }[] = [
   { cls: 'priority', label: 'pilne', toggle: 'priority', title: 'Zlecenie oznaczone jako PILNE (⚡ w kolumnie Akcje) — zawsze na górze listy' },
   { cls: 'notes', label: 'uwagi', toggle: 'notes', title: 'Zlecenie ma wpis w kolumnie UWAGI — przeczytaj przed produkcją' },
-  { cls: 'problem', label: 'problem', toggle: 'problem', title: 'Zlecenie oznaczone jako PROBLEM (⚠ za numerem — powód, kto i kiedy) — ustawia hala z Mojego stanowiska albo kierownik z menu ⋯ w Akcjach' },
+  { cls: 'problem', label: 'problem / ⚠️', toggle: 'problem', title: 'Zlecenie oznaczone jako PROBLEM (pomarańczowe ⚠ za numerem — powód, kto i kiedy; ustawia hala z Mojego stanowiska albo kierownik z menu ⋯) oraz żółte ⚠️ „wymaga weryfikacji" po imporcie z Excela/bota. Wyłączenie chowa je tylko na tym komputerze — zlecenia i zakładka Weryfikacja bez zmian' },
   { cls: 'released', label: 'wydane', title: 'Zlecenie z datą wydania (widoczne po włączeniu „pokaż zrealizowane")' },
   { cls: 'cancelled', label: 'anulowane', title: 'Zlecenie anulowane (widoczne po włączeniu „pokaż anulowane")' },
 ]

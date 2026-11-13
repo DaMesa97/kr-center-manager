@@ -8999,6 +8999,9 @@ html:not(.hl-off-problem) .orders-table tbody tr.orders-table-row--problem:not(.
 /* Wyłącznik „problem” w legendzie gasi też plakietkę ⚠ za numerem i pomarańczowy
    przycisk ⋯ w Akcjach (Tymek 13.11: „wyłączam problemy, a wykrzykniki zostają”) */
 html.hl-off-problem .problem-badge { display: none; }
+/* Tymek 13.11: ten sam wyłącznik chowa też żółte ⚠️ „wymaga weryfikacji” (import
+   Excel/bot) — tylko wizualnie na tym komputerze; zlecenia i Weryfikacja bez zmian */
+html.hl-off-problem .order-slot-review .bot-badge--review { display: none; }
 html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-border); color: var(--color-text); }
 
 /* plakietka ⚠ za numerem zlecenia (powód / kto / kiedy w podpowiedzi) */

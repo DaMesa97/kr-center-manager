@@ -32,6 +32,7 @@ const SECTIONS: Section[] = [
           <li><b>Wysyłka: plakietki „po terminie" i „blisko terminu"</b> (#122) mają biały tekst — wcześniej reguła koloru filtra malowała je na czerwono na czerwonym tle.</li>
           <li><b>Nagłówek kolumny Akcje</b> (#130) nie chowa się już pod komórkami przy przewijaniu tabeli w pionie — miał niższą warstwę niż przyklejone komórki Akcji poniżej.</li>
           <li><b>Pasek podzakładek</b> (#124) ma odstęp od linii i od tabeli lub filtrów pod nią.</li>
+          <li><b>Wyłącznik „problem / ⚠️" w legendzie</b> (beta.98–99) chowa razem pomarańczowe oznaczenie problemu i żółte ⚠️ „wymaga weryfikacji" po imporcie. Tylko wizualnie, na tym komputerze — zlecenia i zakładka Weryfikacja bez zmian.</li>
         </ul>
         <h4>Drobne poprawki po zgłoszeniach Łukasza (beta.96)</h4>
         <ul>
