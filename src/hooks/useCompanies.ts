@@ -4,6 +4,7 @@ import { INITIAL_CONTRACTOR_FORM } from '../constants'
 import type { Company, ContractorFormData, CurrentUser, DeleteConfirmState } from '../types'
 import type { ToastVariant } from '../types'
 import { isManagerRole } from '../lib/permissions'
+import { appAlert } from '../lib/appDialogs'
 
 type UseCompaniesParams = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -125,8 +126,22 @@ export function useCompanies({ pushToast, touchSession, setDeleteConfirm, curren
     setIsContractorSaving(false)
   }
 
-  const handleDeleteContractor = (company: Company) => {
+  const handleDeleteContractor = async (company: Company) => {
     if (!isManager) return
+    // #105 (Łukasz): kontrahent z zamówieniami nie znika — zamówienia trzymają
+    // nazwę jako tekst, więc liczymy po nazwie (aktywne + archiwum)
+    const { data: usage, error: usageErr } = await supabase.rpc('company_usage', { p_name: company.name })
+    if (usageErr) {
+      pushToast(`Nie udało się sprawdzić zamówień kontrahenta: ${usageErr.message}`, 'error')
+      return
+    }
+    const u = (usage ?? {}) as { orders?: number; archive?: number; total?: number }
+    if ((u.total ?? 0) > 0) {
+      await appAlert(
+        `Kontrahent „${company.name}" ma ${u.total} zamówień (${u.orders ?? 0} aktywnych, ${u.archive ?? 0} w archiwum) — nie można go usunąć.\n\nPopraw dane kontrahenta zamiast usuwać.`,
+      )
+      return
+    }
     setDeleteConfirm({
       message: `Czy na pewno chcesz usunąć kontrahenta „${company.name}"?`,
       runDelete: async () => {

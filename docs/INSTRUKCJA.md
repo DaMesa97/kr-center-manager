@@ -11,7 +11,7 @@ Każda kategoria drzwi ma zakładkę: **STA, Disting, ST, Techniczne, Bastion, D
 - **Edycja** — klik w wiersz (kierownik/sprzedawca).
 - **Etapy produkcji** — klik pustej komórki = Twoje **inicjały** (zrobione); klik wypełnionej = cofnięcie (z potwierdzeniem).
 - **Pilne ⚡** — przycisk ⚡ w kolumnie Akcje (kierownik) podbija zlecenie na górę; pilny wiersz ma niebieskie tło, wiersz z uwagami żółte, wydany zielone — legenda nad tabelą. Osobnej kolumny PILNE nie ma. Klik w „pilne" / „uwagi" w legendzie gasi dane podświetlenie na tym komputerze (drugi klik przywraca).
-- **Wydanie** — klik w kolumnie WYDANIE = data dzisiejsza; zlecenie znika z listy (→ Wysyłka/Archiwum).
+- **Wydanie** — klik w kolumnie WYDANIE = data dzisiejsza; zlecenie znika z listy (→ Wysyłka/Zakończone).
 - **Menu ⋯ w kolumnie Akcje** (beta.93) — Historia zmian, „⚠ Zgłoś problem…" / „✔ Zdejmij flagę problemu", Anuluj (czerwone) albo Przywróć. Ikony 🖨️ (etykieta) i ⚡ (pilne) zostają osobno.
 - **Problem na zleceniu** — hala w Moim stanowisku klika „⚠ Problem" przy etapie i wpisuje powód (brak materiału, uszkodzony element); wiersz w tabelach robi się pomarańczowy, za numerem jest ⚠ z powodem, inicjałami i godziną. Zdejmuje hala („załatwione") albo kierownik z menu ⋯. Podświetlenie wyłączalne w legendzie jak pilne/uwagi.
 - **Zgłoszenia** — zrzut ekranu wklejasz Ctrl+V w pole treści (albo przeciągasz plik / wybierasz z dysku); własne zgłoszenie poprawisz ołówkiem, dopóki nie jest „zrobione".
@@ -52,7 +52,7 @@ Zlecenia gotowe do wydania.
 
 ## 🧭 Menu boczne (od beta.86)
 - **Pulpit**, **Moje stanowisko** — na górze, bez grupy.
-- **Zamówienia** — kategorie (STA, Disting, ST, Techniczne, Bastion, Drzwi wewnętrzne, Stolarka aluminiowa), a pod nimi **Weryfikacja** (duble, brak numeru klienta, błędy ERP, „Do wyjaśnienia po synchronizacji z Excelem") i **Archiwum**.
+- **Zamówienia** — kategorie (STA, Disting, ST, Techniczne, Bastion, Drzwi wewnętrzne, Stolarka aluminiowa), a pod nimi **Weryfikacja** (duble, brak numeru klienta, błędy ERP, „Do wyjaśnienia po synchronizacji z Excelem") i **Zakończone** (archiwum zrealizowanych zamówień).
 - **Synchronizacja wydań z Excela** — codziennie o 20:00 automat czyta arkusze „Zamówienia *.xlsm" i zamyka zlecenia wydane w Excelu (zwalnia rezerwacje). Czego nie rozstrzygnął, jest w Weryfikacji: *Duplikaty* (jeden wiersz arkusza → kilka zleceń; zostaje zlecenie z konfiguratora, kopię z Excela anulujesz przyciskiem), *Anulowane w Excelu*, *Inne*. Kafelek na Pulpicie pokazuje godzinę ostatniej synchronizacji i ostrzega, gdy starsza niż dobę.
 - **Produkcja** — Wysyłka, Etykiety i druk, ZKP AS 75EI.
 - **Magazyn** — Stany, Komponenty, Dokumenty PZ / MM, Zamawianie, Inwentaryzacja.
@@ -85,4 +85,4 @@ Pięć pozycji w menu, każda z krótkim paskiem podzakładek:
 - **Kontrahenci** — *Klienci* (firmy, aliasy nazw, dni tras) i *Dostawcy* (firmy, od których kupuje magazyn).
 - **Użytkownicy** — konta, role (kierownik/pracownik/sprzedawca), działy (decydują co kto widzi). Kierownik działu widzi tu tylko pracowników produkcji ze swoich kategorii: zakłada im konta, resetuje hasła, przypisuje etapy („Etapy produkcji"), dezaktywuje. Ról nie zmienia, kont nie usuwa — to admin.
 - **Integracje** (admin) — *Klucze API* (konfigurator, arkusz Excel) oraz *Make / Optima*: adres webhooka do „Ponów wysyłkę do Optimy". Status RO z Optimy widać przy numerze zlecenia (zielony numer RO albo czerwona plakietka „błąd"; klik w plakietkę = szczegóły, data, treść błędu), lista błędów jest w Zamówienia → Weryfikacja, kierownik ponawia wysyłkę przyciskiem po usunięciu przyczyny.
-- **Audyt** jest w Analizach, **Archiwum** w Zamówieniach.
+- **Audyt** jest w Analizach, **Zakończone** (archiwum) w Zamówieniach.

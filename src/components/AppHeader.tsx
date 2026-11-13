@@ -269,7 +269,7 @@ export default function AppHeader({
     Statystyki: 'Statystyki',
     Weryfikacja: 'Weryfikacja — duble, braki numerów, błędy ERP',
     Audyt: 'Audyt',
-    Archiwum: 'Archiwum',
+    Archiwum: 'Zakończone — zrealizowane zamówienia (archiwum)',
     Wysyłka: 'Wysyłka',
     Etykiety: 'Etykiety i druk',
     Stany: 'Magazyn — stany, rezerwacje, ruchy',

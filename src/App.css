@@ -9261,3 +9261,17 @@ html:not(.hl-off-problem) .orders-table tbody tr.orders-table-row--problem:not(.
 /* #136: sekcja „🤖 Pochodzenie” (BOT) w edycji zamówienia — margines boczny
    i górny 15px, dolny 0 (poniżej jest już odstęp formularza) */
 .bot-origin-section { margin: 15px 15px 0; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   beta.97 — zgłoszenia Łukasza z 12.11.2026 (#122 #124 #130)
+   ───────────────────────────────────────────────────────────────────────── */
+/* #122: `.orders-filter-checkbox--overdue span { color: #ef4444 }` wygrywało
+   z `.overdue-filter-pill { color: #fff }` — czerwony tekst na czerwonej plakietce */
+.orders-filter-checkbox--overdue .overdue-filter-pill { color: #fff; }
+/* #130: nagłówek Akcje — `.table-wrapper .orders-table thead th { z-index: 4 }`
+   (sticky top) przebijało `.orders-table thead .col-order-actions { z-index: 7 }`,
+   a komórki Akcji w tbody mają z-index 5 → przy przewijaniu w pionie zasłaniały nagłówek */
+.table-wrapper .orders-table thead th.col-order-actions { z-index: 7; }
+/* #124: pasek podzakładek — oddech nad linią i pod nią (tabela / filtry nie kleją się);
+   aktywna zakładka dalej nakłada podkreślenie na linię (margin-bottom -2px) */
+.subtab-bar { padding: 10px 12px 0; margin-bottom: 10px; }

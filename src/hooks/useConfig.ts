@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { appConfirm } from '../lib/appDialogs'
+import { appAlert, appConfirm } from '../lib/appDialogs'
 import { CONFIG_DICTIONARIES } from '../constants'
 import type {
   ConfigExclusion,
@@ -598,7 +598,25 @@ export function useConfig({
     }
   }
 
-  const handleDeleteConfigOption = (row: ConfigOptionRecord) => {
+  const handleDeleteConfigOption = async (row: ConfigOptionRecord) => {
+    // #105 (Łukasz): niepusta pozycja słownika nie znika — najpierw liczymy użycia
+    // w zamówieniach (aktywne + archiwum); trigger w bazie pilnuje tego też poza aplikacją
+    const { data: usage, error: usageErr } = await supabase.rpc('config_option_usage', {
+      p_category: row.category,
+      p_type: row.type,
+      p_value: row.value,
+    })
+    if (usageErr) {
+      pushToast(`Nie udało się sprawdzić, czy wartość jest używana: ${usageErr.message}`, 'error')
+      return
+    }
+    const u = (usage ?? {}) as { orders?: number; archive?: number; total?: number }
+    if ((u.total ?? 0) > 0) {
+      await appAlert(
+        `Wartość „${row.value}" jest użyta w ${u.total} zamówieniach (${u.orders ?? 0} aktywnych, ${u.archive ?? 0} w archiwum) — nie można jej usunąć.\n\nZmień nazwę wartości albo zostaw ją w słowniku.`,
+      )
+      return
+    }
     setDeleteConfirm({
       message: `Czy na pewno chcesz usunąć wartość „${row.value}"?`,
       runDelete: async () => {

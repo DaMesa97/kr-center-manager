@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Słowniki bez kasowania, „Zakończone", kontrast i odstępy (beta.97)</h4>
+        <ul>
+          <li><b>Pozycji słownika i kontrahenta użytych w zamówieniach nie da się usunąć</b> (#105). Przy próbie usunięcia aplikacja mówi, w ilu zamówieniach (aktywnych i w archiwum) wartość występuje, i proponuje zmianę nazwy. Pilnuje tego też baza, więc nic nie zniknie z historii.</li>
+          <li><b>Zakładka „Archiwum" nazywa się „Zakończone"</b> (#108) — to zrealizowane zamówienia po archiwizacji, nie koniec gwarancji. Uprawnienia i wyszukiwanie bez zmian.</li>
+          <li><b>Wysyłka: plakietki „po terminie" i „blisko terminu"</b> (#122) mają biały tekst — wcześniej reguła koloru filtra malowała je na czerwono na czerwonym tle.</li>
+          <li><b>Nagłówek kolumny Akcje</b> (#130) nie chowa się już pod komórkami przy przewijaniu tabeli w pionie — miał niższą warstwę niż przyklejone komórki Akcji poniżej.</li>
+          <li><b>Pasek podzakładek</b> (#124) ma odstęp od linii i od tabeli lub filtrów pod nią.</li>
+        </ul>
         <h4>Drobne poprawki po zgłoszeniach Łukasza (beta.96)</h4>
         <ul>
           <li><b>Zamknięcie okna drukarki bez wydruku</b> (#128) to już nie „Błąd druku: nieznany", tylko informacja „Zamknięto okno bez wydruku". Przy okazji Etykiety → Dokumenty pokazują prawdziwy powód odmowy druku PDF (np. drukarka offline) — wcześniej zawsze „nieznany", bo czytały złe pole odpowiedzi.</li>
@@ -90,7 +98,7 @@ const SECTIONS: Section[] = [
         </ul>
         <h4>Menu po porządkach (beta.86)</h4>
         <ul>
-          <li><b>Zamówienia</b> — kategorie, a pod nimi <b>Weryfikacja</b> (duble, braki numerów, błędy ERP) i <b>Archiwum</b>.</li>
+          <li><b>Zamówienia</b> — kategorie, a pod nimi <b>Weryfikacja</b> (duble, braki numerów, błędy ERP) i <b>Zakończone</b> (archiwum zrealizowanych zamówień).</li>
           <li><b>Produkcja</b> — Wysyłka, Etykiety i druk, ZKP AS 75EI.</li>
           <li><b>Magazyn</b> — pięć pozycji zamiast jednej z trzynastoma przyciskami: <b>Stany</b> (stany, rezerwacje, ruchy), <b>Komponenty</b> (kartoteka, receptury), <b>Dokumenty PZ / MM</b>, <b>Zamawianie</b> (sugestie, alerty, prognozy, zamówienia do dostawców), <b>Inwentaryzacja</b>.</li>
           <li><b>Analizy</b> — Statystyki (także „Zużycie magazynu") i Audyt.</li>
@@ -198,7 +206,7 @@ const SECTIONS: Section[] = [
         <p>
           Każda kategoria produkcyjna ma swoją zakładkę: <b>STA, Disting, ST, Techniczne, Bastion,
           Drzwi wewnętrzne</b>. Tabela pokazuje aktywne zlecenia (wydane trafiają na dół z oznaczeniem
-          ZREALIZOWANE, a docelowo do Archiwum).
+          ZREALIZOWANE, a po archiwizacji do zakładki Zakończone).
         </p>
         <h4>Praca ze zleceniem</h4>
         <ul>
@@ -453,7 +461,7 @@ const SECTIONS: Section[] = [
           <li><b>Użytkownicy</b> — konta, role, przypisane kategorie, przypisane etapy pracowników („Etapy produkcji"). Hasła nadaje się przy tworzeniu konta. Kierownik działu widzi tu tylko pracowników produkcji ze swoich kategorii: zakłada konta, resetuje hasła, przypisuje etapy, dezaktywuje; ról nie zmienia i kont nie usuwa.</li>
           <li><b>Integracje</b> — <i>Klucze API</i> dla konfiguratora i arkusza Excel (generowanie, dezaktywacja, statystyki użycia i limity) oraz <i>Make / Optima</i>: adres webhooka do „Ponów wysyłkę do Optimy" (RO).</li>
         </ul>
-        <p className="help-note">Archiwum zrealizowanych zleceń jest w grupie Zamówienia, Audyt w Analizach.</p>
+        <p className="help-note">Zakończone (archiwum zrealizowanych zleceń) są w grupie Zamówienia, Audyt w Analizach.</p>
       </>
     ),
   },
@@ -507,7 +515,7 @@ const SECTIONS: Section[] = [
           </li>
           <li>
             <b>Zamówienie „zniknęło" z listy.</b> — Najczęściej zostało <b>wydane</b> (ma datę w WYDANIE)
-            albo anulowane. Sprawdź na dole tabeli (ZREALIZOWANE), w Archiwum albo przez Ctrl+K.
+            albo anulowane. Sprawdź na dole tabeli (ZREALIZOWANE), w zakładce Zakończone albo przez Ctrl+K.
           </li>
           <li>
             <b>Nie mogę oznaczyć etapu.</b> — Pracownik produkcji oznacza tylko <b>przypisane mu</b> etapy;

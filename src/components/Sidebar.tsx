@@ -72,6 +72,9 @@ export const TAB_GROUPS: TabGroupDef[] = [
 /** Etykiety pozycji, gdy nazwa zakładki (klucz) różni się od tego, co ma widzieć człowiek */
 const TAB_LABELS: Record<string, string> = {
   ...CATEGORY_LABELS,
+  // #108 (Łukasz): „Archiwum” kojarzy się z końcem gwarancji; to zamówienia zakończone.
+  // Id zakładki zostaje 'Archiwum' (uprawnienia, nawigacja z lupki).
+  Archiwum: 'Zakończone',
   Etykiety: 'Etykiety i druk',
   ZKP: 'ZKP AS 75EI',
   Dokumenty: 'Dokumenty PZ / MM',
