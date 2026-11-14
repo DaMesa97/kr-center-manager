@@ -7,8 +7,9 @@
 // ofert (nowa wersja po poprawce, mail, cena) robi Edge Function drugiej sesji.
 // =====================================================================
 import { supabase } from '../supabaseClient'
-import type { CrmLead, CrmOferta, CrmRozmowa, CrmZdarzenie } from '../types/crm'
+import type { CrmLead, CrmOferta, CrmPoczta, CrmPocztaSprawdzenie, CrmPocztaTest, CrmRozmowa, CrmZdarzenie } from '../types/crm'
 import { CRM_FOLLOW_UP_DAYS, CRM_OPEN_STATUSES } from '../types/crm'
+import { fnErrorMessage } from '../lib/fnError'
 
 const crm = () => supabase.schema('crm')
 
@@ -235,4 +236,53 @@ export async function grantCrmDostep(userId: string, grantedBy: string): Promise
 export async function revokeCrmDostep(userId: string): Promise<CrmError | null> {
   const { error } = await crm().from('dostep').delete().eq('user_id', userId)
   return crmErrorFrom(error)
+}
+
+// ---- Skrzynka pocztowa (crm.poczta, brief pkt 10) ----
+// Hasło: nigdy nie logujemy, nie trzymamy dłużej niż do zapisu, idzie TYLKO do
+// rpc ustaw_poczte (vault) i do funkcji crm-mail-sent (test połączenia).
+
+export async function fetchPoczta(): Promise<Result<CrmPoczta | null>> {
+  const { data, error } = await crm().from('poczta').select('*').eq('id', 1).maybeSingle()
+  return { data: (data ?? null) as CrmPoczta | null, error: crmErrorFrom(error) }
+}
+
+export type PocztaForm = { host: string; port: number; login: string; folder: string; aktywna: boolean }
+
+/** `haslo`: null = zostaw dotychczasowe, '' = usuń, tekst = ustaw (semantyka rpc). */
+export async function savePoczta(form: PocztaForm, haslo: string | null): Promise<Result<CrmPoczta | null>> {
+  const { data, error } = await crm().rpc('ustaw_poczte', {
+    p_host: form.host.trim(),
+    p_port: form.port,
+    p_login: form.login.trim(),
+    p_folder: form.folder.trim(),
+    p_haslo: haslo,
+    p_aktywna: form.aktywna,
+  })
+  const row = Array.isArray(data) ? (data[0] ?? null) : (data ?? null)
+  return { data: row as CrmPoczta | null, error: crmErrorFrom(error) }
+}
+
+async function invokeMailSent<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke<T>('crm-mail-sent', { body })
+  if (error) throw new Error(await fnErrorMessage(error, 'Funkcja crm-mail-sent nie odpowiada'))
+  if (!data) throw new Error('Pusta odpowiedź funkcji crm-mail-sent')
+  return data
+}
+
+/** Puste pola dopełnia funkcja zapisanymi (hasło z sejfu), więc test zapisanej konfiguracji nie wymaga hasła. */
+export async function testPoczta(form: PocztaForm, haslo: string): Promise<CrmPocztaTest> {
+  return invokeMailSent<CrmPocztaTest>({
+    akcja: 'test_poczty',
+    host: form.host.trim() || undefined,
+    port: form.port || undefined,
+    login: form.login.trim() || undefined,
+    haslo: haslo || undefined,
+    folder: form.folder.trim() || undefined,
+  })
+}
+
+/** Ręczne „Sprawdź teraz” (działa też przy aktywna=false; cron pomija wyłączoną). */
+export async function sprawdzPoczte(): Promise<CrmPocztaSprawdzenie> {
+  return invokeMailSent<CrmPocztaSprawdzenie>({ akcja: 'sprawdz_poczte' })
 }

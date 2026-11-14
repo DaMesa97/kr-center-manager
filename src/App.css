@@ -9199,6 +9199,30 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-access-name { font-weight: 600; }
 .crm-access-meta { color: var(--color-text-muted); font-size: 0.8rem; margin-left: auto; }
 
+/* CRM → Poczta (skrzynka IMAP, brief pkt 10) */
+.crm-box { padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 10px; background: #fff; }
+.crm-box--bad { border-color: #fecaca; background: #fff7f7; }
+.crm-box--ok { border-left: 5px solid #16a34a; }
+.crm-poczta { max-width: 880px; }
+.crm-poczta-status-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.95rem; line-height: 1.5; }
+.crm-poczta-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; font-size: 0.9rem; }
+.crm-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px 18px; }
+.crm-field { display: flex; flex-direction: column; gap: 4px; }
+.crm-field--short { max-width: 180px; }
+.crm-field--check { flex-direction: row; align-items: center; gap: 8px; align-self: end; padding-bottom: 6px; }
+.crm-field-label { font-size: 0.8rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.crm-field input[type='text'], .crm-field input[type='email'], .crm-field input[type='password'], .crm-field input[type='number'], .crm-field select {
+  padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff;
+}
+.crm-field input:disabled, .crm-field select:disabled { background: #f8fafc; color: var(--color-text-muted); }
+.crm-field input:focus, .crm-field select:focus { outline: none; border-color: var(--pd-accent); box-shadow: 0 0 0 2px rgba(167, 157, 128, 0.25); }
+.crm-field-hint { font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.4; }
+.crm-field-hint .crm-link { font-size: inherit; }
+.crm-poczta-test { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; line-height: 1.5; }
+.crm-poczta-test--ok { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.crm-poczta-test--bad { background: #fff7f7; border: 1px solid #fecaca; }
+.crm-poczta-log { margin: 6px 0 0; padding: 8px; background: #f8fafc; border-radius: 6px; font-size: 0.75rem; max-height: 240px; overflow: auto; white-space: pre-wrap; }
+
 @media (max-width: 900px) {
   .crm-tech-grid, .crm-lead-grid { grid-template-columns: 1fr; }
   .crm-timeline-item { grid-template-columns: 1fr; gap: 2px; }

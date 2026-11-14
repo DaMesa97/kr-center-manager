@@ -47,6 +47,7 @@ import { appConfirm } from '../../lib/appDialogs'
 import { openExternalUrl } from '../../hooks/useAluOrders'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
+import CrmPocztaScreen from './CrmPocztaScreen'
 
 /**
  * Tryb widoku (Tymek 14.11.2026): handlowiec ma dostać kolejkę „do zrobienia” z jednym
@@ -61,7 +62,7 @@ type Props = {
   mode?: CrmMode
 }
 
-type Screen = { kind: 'zadania' } | { kind: 'oferty' } | { kind: 'oferta'; id: string } | { kind: 'lead'; id: string }
+type Screen = { kind: 'zadania' } | { kind: 'oferty' } | { kind: 'poczta' } | { kind: 'oferta'; id: string } | { kind: 'lead'; id: string }
 
 /** co ile odpytywać bazę, gdy coś jest w przeliczaniu (brief pkt 7: 30–90 s na wynik) */
 const POLL_MS = 10_000
@@ -1189,11 +1190,11 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
 
   const openOferta = useCallback((id: string) => go({ kind: 'oferta', id }), [go])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
-  const goTop = (kind: 'zadania' | 'oferty') => {
+  const goTop = (kind: 'zadania' | 'oferty' | 'poczta') => {
     setStack([])
     setScreen({ kind })
   }
-  const topKind = screen.kind === 'oferty' ? 'oferty' : 'zadania'
+  const topKind = screen.kind === 'oferty' || screen.kind === 'poczta' ? screen.kind : 'zadania'
 
   return (
     <div className={`crm-view crm-view--${mode}`}>
@@ -1201,17 +1202,22 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       <div className="crm-brand">
         <span className="crm-brand-name">PO DRZWI</span>
         <nav className="crm-nav" aria-label="Sekcje CRM">
-          <button type="button" className={`crm-nav-btn${topKind === 'zadania' && screen.kind !== 'oferty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('zadania')}>
+          <button type="button" className={`crm-nav-btn${topKind === 'zadania' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('zadania')}>
             Do zrobienia
           </button>
-          <button type="button" className={`crm-nav-btn${screen.kind === 'oferty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('oferty')}>
+          <button type="button" className={`crm-nav-btn${topKind === 'oferty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('oferty')}>
             Oferty
+          </button>
+          {/* skrzynka IMAP (brief pkt 10): status widzi każdy z CRM, edytuje superadmin */}
+          <button type="button" className={`crm-nav-btn${topKind === 'poczta' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('poczta')} title="Ustawienia skrzynki pocztowej">
+            Poczta
           </button>
         </nav>
         {currentUser && <span className="crm-brand-user">{currentUser.full_name}</span>}
       </div>
       {screen.kind === 'zadania' && <ZadaniaScreen mode={mode} currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'oferty' && <OfertyList mode={mode} onOpenOferta={openOferta} onOpenLead={openLead} />}
+      {screen.kind === 'poczta' && <CrmPocztaScreen canEdit={mode === 'pelny'} pushToast={pushToast} />}
       {screen.kind === 'oferta' && (
         <OfertaScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
       )}

@@ -203,5 +203,52 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   blad: 'Błąd',
 }
 
+/**
+ * Konfiguracja skrzynki IMAP Magdy (brief pkt 10, 14.11.2026): jeden wiersz id=1 w crm.poczta.
+ * Hasła w tabeli NIE ma (vault); `ma_haslo` mówi tylko, czy jest zapisane.
+ * Zapis wyłącznie przez rpc ustaw_poczte (superadmin); odczyt — każdy z dostępem do CRM.
+ */
+export type CrmPoczta = {
+  id: number
+  aktywna: boolean
+  host: string | null
+  port: number | null
+  login: string | null
+  folder: string | null
+  ma_haslo: boolean
+  uidvalidity: number | null
+  ostatni_uid: number | null
+  ostatnie_sprawdzenie_at: string | null
+  ostatni_sukces_at: string | null
+  ostatni_blad: string | null
+  ostatni_blad_at: string | null
+  przetworzono_maili: number | null
+  updated_at: string | null
+  updated_by: string | null
+}
+
+export type CrmPocztaFolder = { nazwa: string; wyslane?: boolean }
+
+/** Odpowiedź crm-mail-sent na akcję test_poczty */
+export type CrmPocztaTest =
+  | {
+      ok: true
+      foldery?: CrmPocztaFolder[]
+      folder_podpowiedz?: string | null
+      folder_sprawdzony?: string | null
+      maili_w_folderze?: number | null
+      blad_folderu?: string | null
+    }
+  | { ok: false; blad?: string; dziennik?: unknown }
+
+/** Odpowiedź crm-mail-sent na akcję sprawdz_poczte */
+export type CrmPocztaSprawdzenie =
+  | { ok: true; start: true; folder?: string; maili_w_folderze?: number; od_uid?: number }
+  | { ok: true; start?: false; nowych?: number; wyniki?: Array<{ uid?: number; temat?: string; wyniki?: unknown[] }> }
+  | { ok: false; blad?: string }
+
+export const CRM_POCZTA_DEFAULT_PORT = 993
+export const CRM_POCZTA_DEFAULT_FOLDER = 'Sent'
+
 /** Statusy ofert „do roboty” — domyślny filtr listy (brief pkt 3). */
 export const CRM_OPEN_STATUSES = ['do_sprawdzenia', 'przelicz'] as const

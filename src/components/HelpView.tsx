@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: ustawienia skrzynki pocztowej w aplikacji (beta.110)</h4>
+        <ul>
+          <li><b>CRM → Poczta</b>: skrzynkę handlowca czyta teraz sam system (co 5 minut), bez Make. Superadministrator wpisuje serwer IMAP, port (993), login, hasło i folder Wysłane, klika „Testuj połączenie" (lista folderów z serwera z podpowiedzią), „Zapisz" i w razie potrzeby „Sprawdź teraz". Każdy z dostępem do CRM widzi stan: ostatnie sprawdzenie, ostatni sukces, liczbę przetworzonych maili i na czerwono ostatni błąd. Hasło trafia do sejfu i nigdy nie jest wyświetlane; puste pole przy edycji = bez zmiany.</li>
+        </ul>
         <h4>CRM Po Drzwi: wysyłka wykrywana w poczcie (beta.109)</h4>
         <ul>
           <li><b>Mail wysłany z Thunderbirda zamyka ofertę sam</b>: gdy backend znajdzie w folderze Wysłane mail do adresu z oferty, w ciągu 5 minut oferta dostaje status wysłana z datą maila (karta pokazuje „wykryto automatycznie w poczcie"), a zadanie dopytaj lub follow-up zamyka się. Przycisk „Wysłane" zostaje awaryjnie — podwójne oznaczenie niczego nie psuje.</li>
