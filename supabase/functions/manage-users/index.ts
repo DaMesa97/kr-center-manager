@@ -54,8 +54,11 @@ serve(async (req) => {
     // resetuje hasła i dezaktywuje — ale TYLKO pracowników produkcji, których
     // wszystkie kategorie mieszczą się w jego kategoriach. Profil zakłada
     // klient; pilnują tego polityki profiles_insert/update w bazie.
+    // Superadmin (CRM Po Drzwi, 14.11.2026) ma przy zarządzaniu kontami prawa admina;
+    // dodatkowo tylko on rusza konta innych superadminów (superadminDenyReason).
     const callerRole = String(profile?.role ?? '')
-    const isAdmin = ['manager', 'admin'].includes(callerRole)
+    const isAdmin = ['manager', 'admin', 'superadmin'].includes(callerRole)
+    const isSuperadmin = callerRole === 'superadmin'
     const isKd = callerRole === 'kierownik_dzialu'
     if (profErr || (!isAdmin && !isKd)) {
       return new Response(JSON.stringify({ error: 'Brak uprawnień' }), {
@@ -82,6 +85,16 @@ serve(async (req) => {
         cats.every((c) => kdCategories.includes(c))
       return ok ? null : 'Kierownik działu zarządza tylko kontami pracowników produkcji w swoich kategoriach'
     }
+    // Konto superadministratora: dezaktywacja (ban) i reset hasła idą kluczem
+    // service_role poza RLS, więc baza ich nie zablokuje — pilnuje tego funkcja.
+    // Usunięcie profilu blokuje też trigger trg_protect_superadmin_role.
+    const superadminDenyReason = async (user_id: string): Promise<string | null> => {
+      if (isSuperadmin) return null
+      const { data: target } = await supabaseAdmin.from('profiles').select('role').eq('id', user_id).maybeSingle()
+      return String(target?.role ?? '') === 'superadmin'
+        ? 'Kontem superadministratora zarządza tylko superadministrator'
+        : null
+    }
     const deny = (reason: string) =>
       new Response(JSON.stringify({ error: reason }), {
         status: 403,
@@ -102,8 +115,10 @@ serve(async (req) => {
         })
       }
 
-      if (!email.endsWith('@krcenter.pl')) {
-        return new Response(JSON.stringify({ error: 'Dozwolona jest tylko domena @krcenter.pl' }), {
+      // @podrzwi.pl: handlowiec Po Drzwi (moduł CRM) ma adres w tej domenie
+      const ALLOWED_DOMAINS = ['@krcenter.pl', '@podrzwi.pl']
+      if (!ALLOWED_DOMAINS.some((d) => email.endsWith(d))) {
+        return new Response(JSON.stringify({ error: `Dozwolone są tylko domeny: ${ALLOWED_DOMAINS.join(', ')}` }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
@@ -150,6 +165,8 @@ serve(async (req) => {
       }
       const kdReason = await kdDenyReason(user_id, false)
       if (kdReason) return deny(kdReason)
+      const saReason = await superadminDenyReason(user_id)
+      if (saReason) return deny(saReason)
       const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
         // 100 lat = dezaktywacja; 'none' zdejmuje bana
         ban_duration: action === 'deactivate' ? '876000h' : 'none',
@@ -184,6 +201,8 @@ serve(async (req) => {
       }
       const kdReason = await kdDenyReason(user_id, false)
       if (kdReason) return deny(kdReason)
+      const saReason = await superadminDenyReason(user_id)
+      if (saReason) return deny(saReason)
       const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(user_id, { password })
       if (pwErr) {
         return new Response(JSON.stringify({ error: pwErr.message }), {
@@ -217,6 +236,8 @@ serve(async (req) => {
         const { data: target } = await supabaseAdmin.from('profiles').select('id').eq('id', user_id).maybeSingle()
         if (target) return deny('Usuwanie kont — tylko administrator. Użyj „Dezaktywuj".')
       }
+      const saReason = await superadminDenyReason(user_id)
+      if (saReason) return deny(saReason)
 
       const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(user_id)
       if (delErr) {

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import type { DbProfileRow } from '../types'
+import type { DbProfileRow, ToastVariant } from '../types'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 import { appConfirm, appPrompt } from '../lib/appDialogs'
+import CrmAccessSection from './crm/CrmAccessSection'
 
 // Legenda ról — to samo, co macierz w lib/permissions.ts, ludzkim językiem.
 // Aktualizować przy zmianach macierzy!
@@ -13,7 +14,8 @@ const ROLE_LEGEND: Array<{ role: string; opis: string }> = [
   { role: 'kierownik_dzialu', opis: 'Pełny kierownik (tworzenie/edycja/wydawanie zleceń, etapy, magazyn, weryfikacja, statystyki) — ale TYLKO w przypisanych kategoriach. Np. brygadzista STA. Sam zakłada konta pracowników produkcji w swoich kategoriach, edytuje je, przypisuje etapy i resetuje hasła (nie usuwa kont, nie zmienia ról).' },
   { role: 'kierownik_magazynu', opis: 'Pełna firma, wszystkie kategorie — bez oznaczania „gotowe do fakturowania".' },
   { role: 'kierownik_produkcji', opis: 'Pełna firma, wszystkie kategorie, wszystko poza panelem administracyjnym.' },
-  { role: 'admin', opis: 'Wszystko + grupa Ustawienia (Konfiguracja, Kontrahenci, Użytkownicy, Integracje). Ceny widzą tylko kierownicy i admin.' },
+  { role: 'admin', opis: 'Wszystko + grupa Ustawienia (Konfiguracja, Kontrahenci, Użytkownicy, Integracje). Ceny widzą tylko kierownicy i admin. NIE widzi CRM Po Drzwi, chyba że superadministrator nada mu dostęp.' },
+  { role: 'superadmin', opis: 'Właściciel: wszystko co administrator + moduł CRM Po Drzwi i nadawanie do niego dostępu. Tylko superadministrator nadaje i odbiera tę rolę oraz zarządza kontami innych superadministratorów.' },
 ]
 
 type UsersViewProps = {
@@ -31,6 +33,11 @@ type UsersViewProps = {
   canDelete: boolean
   /** null = admin (wszyscy); tablica = kierownik działu widzi tylko pracowników produkcji z tych kategorii */
   scopedCategories: string[] | null
+  /** superadmin: sekcja „Dostęp do CRM Po Drzwi” i przyciski przy kontach innych superadminów */
+  isSuperadmin?: boolean
+  pushToast?: (message: string, variant: ToastVariant) => void
+  /** po zmianie listy dostępu do CRM (App odświeża widoczność zakładki) */
+  onCrmAccessChanged?: () => void
 }
 
 export default function UsersView({
@@ -46,6 +53,9 @@ export default function UsersView({
   getDepartmentLabel,
   canDelete,
   scopedCategories,
+  isSuperadmin = false,
+  pushToast,
+  onCrmAccessChanged,
 }: UsersViewProps) {
   // Kierownik działu: tylko konta, którymi baza pozwoli mu zarządzać
   // (pracownik produkcji, wszystkie kategorie w jego kategoriach) — inaczej
@@ -73,7 +83,24 @@ export default function UsersView({
       {
         key: 'actions',
         label: 'Akcje',
-        render: (row) => (
+        render: (row) => {
+          // Konto superadministratora: hasło / dezaktywacja / usunięcie tylko dla
+          // superadmina (manage-users odpowiada 403, baza blokuje usunięcie) — nie-superadmin
+          // widzi tylko Edytuj (imię, inicjały; roli i tak nie zmieni)
+          const lockedSuperadmin = row.role === 'superadmin' && !isSuperadmin
+          if (lockedSuperadmin) {
+            return (
+              <div className="contractor-actions">
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => onEditUser(row)}>
+                  Edytuj
+                </button>
+                <span className="user-modal-hint" title="Hasło, dezaktywację i usunięcie konta superadministratora obsługuje tylko superadministrator">
+                  konto superadministratora
+                </span>
+              </div>
+            )
+          }
+          return (
           <div className="contractor-actions">
             {/* Kierownik działu też pracuje na stanowisku (brygadzista) —
                 bez przypisań jego „Moje stanowisko" było puste */}
@@ -146,10 +173,11 @@ export default function UsersView({
               </button>
             )}
           </div>
-        ),
+          )
+        },
       },
     ]
-  }, [currentUserId, canDelete, onEditUser, onDeleteUser, onDeactivateUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
+  }, [currentUserId, canDelete, isSuperadmin, onEditUser, onDeleteUser, onDeactivateUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
 
   const [legendOpen, setLegendOpen] = useState(false)
 
@@ -189,6 +217,11 @@ export default function UsersView({
           className="contractors-table users-table"
           emptyText={scopedCategories != null ? 'Brak kont pracowników produkcji w Twoich kategoriach. Dodaj pierwsze przyciskiem „Dodaj użytkownika".' : 'Brak użytkowników w bazie.'}
         />
+      )}
+
+      {/* CRM Po Drzwi: kto widzi moduł — tylko superadmin (RLS crm.dostep) */}
+      {isSuperadmin && !profilesLoading && pushToast && (
+        <CrmAccessSection profiles={profiles} currentUserId={currentUserId} pushToast={pushToast} onChanged={onCrmAccessChanged} />
       )}
     </>
   )

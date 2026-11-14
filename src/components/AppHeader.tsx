@@ -255,7 +255,8 @@ export default function AppHeader({
     isShippingTab ||
     isApiKeysTab ||
     activeTab === 'Pulpit' ||
-    activeTab === 'ZKP'
+    activeTab === 'ZKP' ||
+    activeTab === 'CRM'
 
   const sectionTitle: Record<string, string> = {
     'Moje stanowisko': 'Moje stanowisko',
@@ -283,6 +284,7 @@ export default function AppHeader({
     Użytkownicy: 'Użytkownicy',
     Integracje: 'Integracje — klucze API, Make / Optima',
     ZKP: 'ZKP AS 75EI — przyjęcia, dostawcy, komponenty krytyczne',
+    CRM: 'CRM Po Drzwi — oferty, leady, rozmowy',
   }
 
   return (

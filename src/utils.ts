@@ -154,12 +154,19 @@ export function tabsForUserDepartment(
   role?: string,
   categories?: string[],
   zkpRoles?: string[],
+  hasCrm?: boolean,
 ): (typeof TABS)[number][] {
   const tabs = baseTabsForUser(dept, isMgr, role, categories)
   // ZKP AS 75EI: zakładka dla osób z rolą ZKP na koncie i admina (podgląd)
   if ((zkpRoles ?? []).length > 0 || isAdminRole(role)) {
     const at = tabs.indexOf('Zgłoszenia')
     tabs.splice(at >= 0 ? at : tabs.length, 0, 'ZKP')
+  }
+  // CRM Po Drzwi: WYŁĄCZNIE wg rpc current_user_has_crm() (superadmin albo wpis
+  // w crm.dostep) — nie wg roli; admin bez wpisu nie widzi zakładki w ogóle
+  if (hasCrm) {
+    const at = tabs.indexOf('Zgłoszenia')
+    tabs.splice(at >= 0 ? at : tabs.length, 0, 'CRM')
   }
   return tabs
 }

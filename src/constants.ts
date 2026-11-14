@@ -87,6 +87,8 @@ export const TABS = [
   'Konfiguracja',
   'Użytkownicy',
   'Integracje',
+  // CRM Po Drzwi — tylko gdy rpc current_user_has_crm() = true (useCrmAccess)
+  'CRM',
   'Zgłoszenia',
   'Pomoc',
 ] as const

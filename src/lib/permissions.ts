@@ -11,6 +11,11 @@ export const ROLES = {
   KIER_PRODUKCJI: 'kierownik_produkcji',
   KIER_FIRMOWY: 'kierownik_firmowy',
   ADMIN: 'admin',
+  // Właściciel (CRM Po Drzwi, 14.11.2026): wszystko co admin + moduł CRM i nadawanie
+  // dostępu do niego. Rolę nadaje/odbiera tylko superadmin (trigger
+  // trg_protect_superadmin_role w bazie). Widoczność CRM NIE wynika z roli, tylko
+  // z rpc current_user_has_crm() (superadmin albo wpis w crm.dostep).
+  SUPERADMIN: 'superadmin',
 } as const
 
 export type Role = (typeof ROLES)[keyof typeof ROLES]
@@ -24,6 +29,7 @@ export const ROLE_LABELS: Record<string, string> = {
   kierownik_produkcji: 'Kierownik produkcji',
   kierownik_firmowy: 'Kierownik firmowy',
   admin: 'Administrator',
+  superadmin: 'Superadministrator',
 }
 
 export type Permission =
@@ -91,27 +97,36 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
   ],
 
-  // Admin obsłużony osobno (wszystko) — pusta lista nie ma znaczenia
+  // Admin i superadmin obsłużone osobno (wszystko) — pusta lista nie ma znaczenia
   [R.ADMIN]: [],
+  [R.SUPERADMIN]: [],
 }
 
 // Stare role (zgodność wsteczna w okresie przejściowym, zanim wszyscy przemigrują)
 const LEGACY_MANAGER = new Set(['manager'])
 
+// Admin ALBO superadmin — superadmin ma w całej reszcie systemu to samo, co admin
+// (tak jak current_user_is_admin() w bazie).
 export function isAdminRole(role: string | null | undefined): boolean {
-  return role === R.ADMIN
+  return role === R.ADMIN || role === R.SUPERADMIN
+}
+
+// Tylko superadmin: nadaje rolę superadmin, nadaje dostęp do CRM Po Drzwi,
+// zarządza kontami innych superadminów.
+export function isSuperadminRole(role: string | null | undefined): boolean {
+  return role === R.SUPERADMIN
 }
 
 // "Kierownik" = role z szerokimi uprawnieniami (do gate'ów typu dawne isManager).
 export function isManagerRole(role: string | null | undefined): boolean {
   const r = String(role ?? '')
   if (LEGACY_MANAGER.has(r)) return true
-  return r === R.ADMIN || r === R.KIER_DZIALU || r === R.KIER_MAGAZYNU || r === R.KIER_PRODUKCJI || r === R.KIER_FIRMOWY
+  return isAdminRole(r) || r === R.KIER_DZIALU || r === R.KIER_MAGAZYNU || r === R.KIER_PRODUKCJI || r === R.KIER_FIRMOWY
 }
 
 export function can(role: string | null | undefined, perm: Permission): boolean {
   const r = String(role ?? '')
-  if (r === R.ADMIN) return true // superrola
+  if (isAdminRole(r)) return true // superrola (admin, superadmin)
   if (LEGACY_MANAGER.has(r)) return true // stary 'manager' ~ pełny dostęp (okres przejściowy)
   return (ROLE_PERMISSIONS[r] ?? []).includes(perm)
 }

@@ -11,6 +11,7 @@ import {
   HelpCircle,
   MessageSquare,
   BarChart3,
+  Contact,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { CATEGORY_LABELS } from '../constants'
@@ -65,6 +66,9 @@ export const TAB_GROUPS: TabGroupDef[] = [
     Icon: Settings,
     tabs: ['Konfiguracja', 'Kontrahenci', 'Użytkownicy', 'Integracje'],
   },
+  // CRM Po Drzwi: pozycja istnieje tylko dla osób z rpc current_user_has_crm() = true
+  // (visibleTabs); dla reszty nie ma jej w ogóle — nie „szara”, nie „brak uprawnień”
+  { type: 'standalone', tab: 'CRM', Icon: Contact, label: 'CRM Po Drzwi' },
   { type: 'standalone', tab: 'Zgłoszenia', Icon: MessageSquare, label: 'Zgłoszenia' },
   { type: 'standalone', tab: 'Pomoc', Icon: HelpCircle, label: 'Pomoc' },
 ]

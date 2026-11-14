@@ -26,6 +26,8 @@ type UserModalProps = {
   canEditZkpRoles: boolean
   /** null = admin (każda rola, każda kategoria); tablica = kierownik działu: tylko pracownik produkcji w tych kategoriach */
   scopedCategories?: string[] | null
+  /** rola „superadmin” do wyboru tylko dla superadmina (baza i tak odrzuci — UI nie ma kusić) */
+  canAssignSuperadmin?: boolean
 }
 
 export default function UserModal({
@@ -39,10 +41,19 @@ export default function UserModal({
   submitOnEnterInInput,
   canEditZkpRoles,
   scopedCategories = null,
+  canAssignSuperadmin = false,
 }: UserModalProps) {
   const { requestClose } = useUnsavedGuard(userForm, onClose, { enabled: !userModalSaving, escape: open, resetKey: open })
   if (!open) return null
-  const roleOptions = scopedCategories != null ? ['pracownik_produkcji'] : ROLE_OPTIONS
+  // Konto superadmina edytowane przez nie-superadmina: rola widoczna, ale zablokowana
+  // (trigger trg_protect_superadmin_role odrzuciłby zmianę)
+  const editingSuperadminAsOther = userForm.role === 'superadmin' && !canAssignSuperadmin
+  const roleOptions =
+    scopedCategories != null
+      ? ['pracownik_produkcji']
+      : canAssignSuperadmin || editingSuperadminAsOther
+        ? [...ROLE_OPTIONS, 'superadmin']
+        : ROLE_OPTIONS
   const categoryOptions = scopedCategories ?? USER_CATEGORIES
 
   return createPortal(
@@ -69,6 +80,7 @@ export default function UserModal({
                 disabled={userModalSaving}
                 placeholder="np. jan.kowalski"
               />
+              <span className="user-modal-hint">Sam login = konto @krcenter.pl. Inna domena (np. @podrzwi.pl) — wpisz pełny adres e-mail.</span>
             </label>
           )}
           {userModalMode === 'edit' && (
@@ -110,7 +122,7 @@ export default function UserModal({
             <select
               value={userForm.role}
               onChange={(e) => onFormChange({ role: e.target.value })}
-              disabled={userModalSaving || scopedCategories != null}
+              disabled={userModalSaving || scopedCategories != null || editingSuperadminAsOther}
             >
               {roleOptions.map((r) => (
                 <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
@@ -118,6 +130,12 @@ export default function UserModal({
             </select>
             {scopedCategories != null && (
               <span className="user-modal-hint">Kierownik działu zakłada tylko konta pracowników produkcji. Inne role — administrator.</span>
+            )}
+            {editingSuperadminAsOther && (
+              <span className="user-modal-hint">Rolę superadministratora nadaje i odbiera tylko superadministrator.</span>
+            )}
+            {canAssignSuperadmin && userForm.role === 'superadmin' && (
+              <span className="user-modal-hint">Superadministrator: wszystko co administrator + moduł CRM Po Drzwi i nadawanie do niego dostępu.</span>
             )}
           </label>
           {isCategoryScoped(userForm.role) ? (

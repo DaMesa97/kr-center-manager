@@ -201,9 +201,10 @@ export function useAuth({ pushToast, onLogout }: UseAuthParams) {
         setLoginError('Wpisz hasło.')
         return
       }
-      const email = username.toLowerCase().endsWith('@krcenter.pl')
-        ? username.toLowerCase()
-        : `${username.toLowerCase()}@krcenter.pl`
+      // Login bez domeny = @krcenter.pl. Konta w innej domenie (np. @podrzwi.pl,
+      // handlowiec CRM Po Drzwi) logują się pełnym adresem e-mail.
+      const lowerUsername = username.toLowerCase()
+      const email = lowerUsername.includes('@') ? lowerUsername : `${lowerUsername}@krcenter.pl`
       touchSession()
       setLoginSubmitting(true)
       try {

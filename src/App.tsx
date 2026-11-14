@@ -119,10 +119,12 @@ import LabelsView from './components/LabelsView'
 import HelpView from './components/HelpView'
 import FeedbackView from './components/FeedbackView'
 import ZkpView from './components/zkp/ZkpView'
+import CrmView from './components/crm/CrmView'
+import { useCrmAccess } from './hooks/useCrmAccess'
 import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
-import { can, canManageUsers, isAdminRole, isCategoryScoped, isManagerRole, usersScopeFor } from './lib/permissions'
+import { can, canManageUsers, isAdminRole, isCategoryScoped, isManagerRole, isSuperadminRole, usersScopeFor } from './lib/permissions'
 import { findCompanyInfo } from './lib/companyMatch'
 import { mergeIncomingStages } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
@@ -385,6 +387,9 @@ function App() {
   }, [authUserId])
 
   const isManager = isManagerRole(currentUser?.role)
+  // CRM Po Drzwi: widoczność WYŁĄCZNIE z rpc current_user_has_crm() (superadmin
+  // albo wpis w crm.dostep). Brak funkcji w bazie / brak dostępu = brak zakładki.
+  const { hasCrm, refreshCrmAccess } = useCrmAccess(currentUser?.id)
   // Ceny: legacy role bez zmian (manager/worker/sprzedawca widzą), nowe role wg uprawnień
   const canSeePrices = (() => {
     const r = currentUser?.role ?? ''
@@ -1217,7 +1222,7 @@ function App() {
       setComplaints([])
       return
     }
-    if (activeTab === 'Pulpit' || activeTab === 'ZKP' || activeTab === 'Integracje') {
+    if (activeTab === 'Pulpit' || activeTab === 'ZKP' || activeTab === 'Integracje' || activeTab === 'CRM') {
       setOrders([])
       setComplaints([])
       return
@@ -1250,6 +1255,7 @@ function App() {
         'Archiwum',
         'Wysyłka',
         'ZKP',
+        'CRM',
       ].includes(activeTab)
     )
       return
@@ -1571,7 +1577,8 @@ function App() {
       activeTab === 'Etykiety' ||
       activeTab === 'Pomoc' ||
       activeTab === 'Zgłoszenia' ||
-      activeTab === 'ZKP'
+      activeTab === 'ZKP' ||
+      activeTab === 'CRM'
     ) {
       return []
     }
@@ -1793,6 +1800,7 @@ function App() {
   const isHelpTab = activeTab === 'Pomoc'
   const isFeedbackTab = activeTab === 'Zgłoszenia'
   const isZkpTab = activeTab === 'ZKP'
+  const isCrmTab = activeTab === 'CRM'
   const [printLabelOrder, setPrintLabelOrder] = useState<Order | null>(null)
   // #21 — masowy druk etykiet: zaznaczanie zamówień w tabelach
   const [labelSelection, setLabelSelection] = useState<Set<number>>(new Set())
@@ -2173,8 +2181,8 @@ function App() {
 
   const visibleTabs = useMemo(() => {
     if (!currentUser) return [] as (typeof TABS)[number][]
-    return tabsForUserDepartment(currentUser.department, isManager, currentUser.role, currentUser.categories, currentUser.zkp_roles)
-  }, [currentUser, isManager])
+    return tabsForUserDepartment(currentUser.department, isManager, currentUser.role, currentUser.categories, currentUser.zkp_roles, hasCrm)
+  }, [currentUser, isManager, hasCrm])
 
   useEffect(() => {
     if (!currentUser) return
@@ -3350,6 +3358,7 @@ function App() {
             submitOnEnterInInput={submitOnEnterInInput}
             canEditZkpRoles={isAdminRole(currentUser?.role)}
             scopedCategories={usersScopeFor(currentUser?.role, currentUser?.categories)}
+            canAssignSuperadmin={isSuperadminRole(currentUser?.role)}
           />
         )}
 
@@ -3483,6 +3492,9 @@ function App() {
             getDepartmentLabel={profileDepartmentLabel}
             canDelete={isAdminRole(currentUser?.role) || currentUser?.role === 'manager'}
             scopedCategories={usersScopeFor(currentUser?.role, currentUser?.categories)}
+            isSuperadmin={isSuperadminRole(currentUser?.role)}
+            pushToast={pushToast}
+            onCrmAccessChanged={() => void refreshCrmAccess()}
           />
         ) : isApiKeysTab && (isAdminRole(currentUser?.role) || currentUser?.role === 'manager') ? (
           <IntegrationsView
@@ -3602,6 +3614,8 @@ function App() {
           <FeedbackView isManager={isManager} currentUser={currentUser} pushToast={pushToast} />
         ) : isZkpTab ? (
           <ZkpView currentUser={currentUser} isManager={isManager} pushToast={pushToast} />
+        ) : isCrmTab && hasCrm ? (
+          <CrmView currentUser={currentUser} pushToast={pushToast} />
         ) : isWarehouseTab ? (
           <WarehouseView
             isManager={isManager}

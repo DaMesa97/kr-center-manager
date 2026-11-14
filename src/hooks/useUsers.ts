@@ -161,7 +161,9 @@ export function useUsers({
         pushToast('Podaj hasło', 'error')
         return
       }
-      const email = `${username}@krcenter.pl`
+      // Login bez domeny = @krcenter.pl; pełny adres (np. @podrzwi.pl — handlowiec
+      // CRM Po Drzwi) idzie jak jest. Listę dozwolonych domen pilnuje manage-users.
+      const email = username.includes('@') ? username.toLowerCase() : `${username}@krcenter.pl`
       setUserModalSaving(true)
       const { data, error } = await supabase.functions.invoke<{
         error?: string
