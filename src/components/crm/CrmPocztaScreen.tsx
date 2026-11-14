@@ -251,11 +251,11 @@ export default function CrmPocztaScreen({ canEdit, pushToast }: Props) {
               onChange={(e) => set('port', Number.parseInt(e.target.value, 10) || 0)}
               disabled={!canEdit}
             />
-            {/* czytnik łączy się od razu po TLS (IMAPS); 143 = tekst jawny → „received corrupt message of type InvalidContentType” (wpadka 14.11) */}
-            <span className={`crm-field-hint${form.port !== CRM_POCZTA_DEFAULT_PORT ? ' crm-text-bad' : ''}`}>
+            {/* crm-mail-sent v6 (14.11): 993 = TLS od razu, inne porty = STARTTLS; oba działają na mydevil, zalecamy 993 */}
+            <span className="crm-field-hint">
               {form.port === CRM_POCZTA_DEFAULT_PORT
-                ? '993 = połączenie szyfrowane (IMAPS)'
-                : `System łączy się tylko szyfrowanie od razu (IMAPS) — ustaw ${CRM_POCZTA_DEFAULT_PORT}. Port 143 (bez szyfrowania) kończy się błędem.`}
+                ? '993 = połączenie szyfrowane (SSL/TLS), zalecane'
+                : `Zalecany port ${CRM_POCZTA_DEFAULT_PORT} (SSL/TLS). Inne porty, np. 143, łączą się przez STARTTLS — też działa.`}
             </span>
           </label>
           <label className="crm-field">
