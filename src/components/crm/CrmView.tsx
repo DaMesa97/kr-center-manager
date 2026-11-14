@@ -887,8 +887,10 @@ function OfertaScreen({
   const isRecalc = oferta.status === 'przelicz'
   // brief pkt 21: oferta oficjalna z montażem (PDF) — pozycje przepisane z konfiguracji, VAT wg obiektu, bez koszyka
   const oficjalna = oferta.rodzaj === 'oficjalna'
-  // brak treści = ingest założył wersję, backend jeszcze nie policzył (albo stara pusta robocza)
-  const pending = isRecalc || (oficjalna ? oferta.brutto == null && !oferta.plik_pdf : !oferta.mail_tresc && !oferta.produkt && oferta.cena_razem == null)
+  // brak treści = ingest założył wersję, backend jeszcze nie policzył (albo stara pusta robocza).
+  // Oficjalna: crm-oferta-pdf zapisuje brutto, PDF, mail i status jednym update'em, więc znacznikiem jest sam status
+  // 'przelicz' (zimny start funkcji 2–3 min to nie błąd); błąd = do_sprawdzenia + sprawdz[0] „BŁĄD systemu” + brutto null → sekcja błędu, nie „w przygotowaniu”
+  const pending = isRecalc || (!oficjalna && !oferta.mail_tresc && !oferta.produkt && oferta.cena_razem == null)
   const dobor = oferta.dobor ?? {}
   const analiza = oferta.analiza ?? {}
   const pw = oferta.poprawka_wynik ?? {}
@@ -951,7 +953,7 @@ function OfertaScreen({
           <p className="crm-pending-text">
             <Spinner inline size={14} /> {oficjalna ? 'System przepisuje pozycje z konfiguracji, liczy VAT, robi PDF i pisze mail' : 'System liczy cenę, robi koszyk w sklepie i pisze mail'}
             {oferta.poprawka ? <> po poprawce: <em>„{oferta.poprawka}”</em></> : zNotatki ? ' z notatki handlowca' : oferta.mail_id ? ' po mailu' : ' po rozmowie'}.
-            {oferta.liczenie_od ? ` Liczenie trwa od ${fmtTime(oferta.liczenie_od)}.` : ' Zwykle 30–90 s.'} Ekran odświeży się sam; nie ma tu jeszcze nic do sprawdzenia.
+            {oferta.liczenie_od ? ` Liczenie trwa od ${fmtTime(oferta.liczenie_od)}.` : oficjalna ? ' Zwykle 20–40 s, przy zimnym starcie do 3 min.' : ' Zwykle 30–90 s.'} Ekran odświeży się sam; nie ma tu jeszcze nic do sprawdzenia.
           </p>
           {oferta.mail_do && <p className="crm-muted">Adres do wysyłki: {oferta.mail_do}</p>}
         </section>
