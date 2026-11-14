@@ -206,9 +206,17 @@ export default function CrmPocztaScreen({ canEdit, pushToast }: Props) {
         )}
         {configured && (
           <div className="crm-poczta-actions">
-            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onCheck()} disabled={busy !== null} title="Sprawdź folder Wysłane teraz, nie czekając na automat">
+            {/* sprawdzenie idzie po ZAPISANEJ konfiguracji — przy niezapisanych zmianach wprowadzałoby w błąd (wpadka 14.11: test OK na 993, sprawdzenie padło na zapisanym 143) */}
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={() => void onCheck()}
+              disabled={busy !== null || (canEdit && dirty)}
+              title={canEdit && dirty ? 'Najpierw zapisz zmiany — sprawdzenie używa zapisanych ustawień' : 'Sprawdź folder Wysłane teraz, nie czekając na automat'}
+            >
               {busy === 'check' ? <Spinner inline size={14} /> : <MailCheck size={14} />} Sprawdź teraz
             </button>
+            {canEdit && dirty && <span className="crm-muted">Najpierw kliknij „Zapisz” — sprawdzenie używa zapisanych ustawień.</span>}
             {sprawdzenie && sprawdzenie.ok && 'start' in sprawdzenie && sprawdzenie.start && (
               <span className="crm-muted">Punkt startu: folder „{sprawdzenie.folder}”, {sprawdzenie.maili_w_folderze ?? 0} maili w folderze; starsze nie są przetwarzane.</span>
             )}
@@ -243,7 +251,12 @@ export default function CrmPocztaScreen({ canEdit, pushToast }: Props) {
               onChange={(e) => set('port', Number.parseInt(e.target.value, 10) || 0)}
               disabled={!canEdit}
             />
-            <span className="crm-field-hint">993 = połączenie szyfrowane</span>
+            {/* czytnik łączy się od razu po TLS (IMAPS); 143 = tekst jawny → „received corrupt message of type InvalidContentType” (wpadka 14.11) */}
+            <span className={`crm-field-hint${form.port !== CRM_POCZTA_DEFAULT_PORT ? ' crm-text-bad' : ''}`}>
+              {form.port === CRM_POCZTA_DEFAULT_PORT
+                ? '993 = połączenie szyfrowane (IMAPS)'
+                : `System łączy się tylko szyfrowanie od razu (IMAPS) — ustaw ${CRM_POCZTA_DEFAULT_PORT}. Port 143 (bez szyfrowania) kończy się błędem.`}
+            </span>
           </label>
           <label className="crm-field">
             <span className="crm-field-label">Login (pełny adres skrzynki)</span>

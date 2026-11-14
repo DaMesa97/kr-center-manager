@@ -28,6 +28,7 @@ const SECTIONS: Section[] = [
         <h4>CRM Po Drzwi: ustawienia skrzynki pocztowej w aplikacji (beta.110)</h4>
         <ul>
           <li><b>CRM → Poczta</b>: skrzynkę handlowca czyta teraz sam system (co 5 minut), bez Make. Superadministrator wpisuje serwer IMAP, port (993), login, hasło i folder Wysłane, klika „Testuj połączenie" (lista folderów z serwera z podpowiedzią), „Zapisz" i w razie potrzeby „Sprawdź teraz". Każdy z dostępem do CRM widzi stan: ostatnie sprawdzenie, ostatni sukces, liczbę przetworzonych maili i na czerwono ostatni błąd. Hasło trafia do sejfu i nigdy nie jest wyświetlane; puste pole przy edycji = bez zmiany.</li>
+          <li><b>Port musi być 993</b> (beta.111): system łączy się tylko szyfrowanie od razu (IMAPS). Port 143 kończy się błędem „received corrupt message of type InvalidContentType" — formularz ostrzega o tym na czerwono. „Sprawdź teraz" używa zapisanych ustawień, więc przy niezapisanych zmianach jest zablokowane z podpowiedzią „najpierw Zapisz".</li>
         </ul>
         <h4>CRM Po Drzwi: wysyłka wykrywana w poczcie (beta.109)</h4>
         <ul>
