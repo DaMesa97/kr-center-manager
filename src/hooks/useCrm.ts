@@ -7,8 +7,23 @@
 // ofert (nowa wersja po poprawce, mail, cena) robi Edge Function drugiej sesji.
 // =====================================================================
 import { supabase } from '../supabaseClient'
-import type { CrmEtykieta, CrmLead, CrmMail, CrmOferta, CrmPocztaTest, CrmPomocStrona, CrmRozmowa, CrmSkrzynka, CrmSprawdzenieSkrzynek, CrmZdarzenie } from '../types/crm'
-import { CRM_FOLLOW_UP_DAYS, CRM_OPEN_STATUSES } from '../types/crm'
+import type {
+  CrmAlertTest,
+  CrmEtykieta,
+  CrmLead,
+  CrmMail,
+  CrmOferta,
+  CrmPocztaTest,
+  CrmPomocStrona,
+  CrmPoprawkaRow,
+  CrmRozmowa,
+  CrmSkrzynka,
+  CrmSprawdzenieSkrzynek,
+  CrmUstawienie,
+  CrmZasada,
+  CrmZdarzenie,
+} from '../types/crm'
+import { CRM_FOLLOW_UP_DAYS, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
 
@@ -480,6 +495,71 @@ export async function zlecOferteZNotatki(leadId: string, notatka: string | null)
   const n = notatka?.trim() || null
   const { error } = await crm().rpc('zlec_oferte_z_notatki', { p_lead_id: leadId, p_notatka: n })
   return crmErrorFrom(error)
+}
+
+// ---- Notatka głosowa (brief pkt 18): upload do Storage + rpc crm.zlec_oferte_z_nagrania ----
+
+/**
+ * Wgrywa nagranie do bucketu crm-nagrania (`${leadId}/${Date.now()}.webm`) i zleca transkrypcję + ofertę.
+ * Po ~20 s transkrypcja ląduje w leady.podsumowanie (zdarzenie notatka_glosowa), dalej jak „Zleć ofertę”.
+ */
+export async function zlecOferteZNagrania(leadId: string, blob: Blob, contentType: string): Promise<CrmError | null> {
+  const ext = contentType.includes('mp4') ? 'mp4' : contentType.includes('ogg') ? 'ogg' : 'webm'
+  const sciezka = `${leadId}/${Date.now()}.${ext}`
+  const up = await supabase.storage.from(CRM_NAGRANIE_BUCKET).upload(sciezka, blob, { contentType, upsert: false })
+  if (up.error) return { kind: 'other', message: `Nie udało się wgrać nagrania: ${up.error.message}` }
+  const { error } = await crm().rpc('zlec_oferte_z_nagrania', { p_lead_id: leadId, p_sciezka: sciezka })
+  return crmErrorFrom(error)
+}
+
+// ---- Zasady domyślne ofert (crm.zasady, brief pkt 16) — czyta każdy z CRM, pisze superadmin ----
+
+export async function fetchZasady(): Promise<Result<CrmZasada[]>> {
+  const { data, error } = await crm().from('zasady').select('*').order('grupa').order('kolejnosc').order('created_at')
+  return { data: (data ?? []) as unknown as CrmZasada[], error: crmErrorFrom(error) }
+}
+
+export async function addZasada(grupa: string, tresc: string, kolejnosc: number, userId: string): Promise<CrmError | null> {
+  const { error } = await crm().from('zasady').insert({ grupa, tresc: tresc.trim(), kolejnosc, aktywna: true, updated_by: userId })
+  return crmErrorFrom(error)
+}
+
+export async function updateZasada(id: string, patch: Partial<Pick<CrmZasada, 'tresc' | 'aktywna' | 'kolejnosc'>>, userId: string): Promise<CrmError | null> {
+  const p: Record<string, unknown> = { ...patch, updated_by: userId, updated_at: new Date().toISOString() }
+  if (typeof patch.tresc === 'string') p.tresc = patch.tresc.trim()
+  const { error } = await crm().from('zasady').update(p).eq('id', id)
+  return crmErrorFrom(error)
+}
+
+export async function deleteZasada(id: string): Promise<CrmError | null> {
+  const { error } = await crm().from('zasady').delete().eq('id', id)
+  return crmErrorFrom(error)
+}
+
+// ---- Ustawienia CRM (crm.ustawienia, brief pkt 16: alerty) ----
+
+export async function fetchUstawienia(): Promise<Result<CrmUstawienie[]>> {
+  const { data, error } = await crm().from('ustawienia').select('*').order('klucz')
+  return { data: (data ?? []) as unknown as CrmUstawienie[], error: crmErrorFrom(error) }
+}
+
+/** Zapis kilku kluczy naraz (upsert po kluczu); opis zostaje z bazy. */
+export async function saveUstawienia(values: Record<string, string>): Promise<CrmError | null> {
+  const rows = Object.entries(values).map(([klucz, wartosc]) => ({ klucz, wartosc, updated_at: new Date().toISOString() }))
+  const { error } = await crm().from('ustawienia').upsert(rows, { onConflict: 'klucz' })
+  return crmErrorFrom(error)
+}
+
+/** „Wyślij mail próbny” (superadmin): crm-mail-sent wysyła alert testowy na alert_email przez alert_skrzynka_id. */
+export async function testAlert(): Promise<CrmAlertTest> {
+  return invokeMailSent<CrmAlertTest>({ akcja: 'test_alertu' })
+}
+
+// ---- Przegląd poprawek (widok crm.poprawki_ostatnie, 30 dni, brief pkt 17) ----
+
+export async function fetchPoprawkiOstatnie(): Promise<Result<CrmPoprawkaRow[]>> {
+  const { data, error } = await crm().from('poprawki_ostatnie').select('*').order('created_at', { ascending: false }).limit(500)
+  return { data: (data ?? []) as unknown as CrmPoprawkaRow[], error: crmErrorFrom(error) }
 }
 
 /** „Analizuj ponownie”: status → 'nowy', trigger w bazie sam zleca analizę (tylko przychodzące). */

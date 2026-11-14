@@ -428,5 +428,55 @@ export type CrmPomocStrona = {
   updated_by: string | null
 }
 
+/** Zasady domyślne ofert (crm.zasady, brief pkt 16): jedno zdanie = jedna zasada, idzie wprost do promptów AI. */
+export type CrmZasada = {
+  id: string
+  /** dobor = dobór produktu, mail = treść maila */
+  grupa: 'dobor' | 'mail' | string
+  tresc: string
+  aktywna: boolean
+  kolejnosc: number
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+export const CRM_ZASADA_GRUPA: Record<string, { label: string; hint: string }> = {
+  dobor: { label: 'Dobór produktu', hint: 'Co system przyjmuje, gdy klient czegoś nie ustalił (kolor, rozmiar, okucia…). Trafia do „Przyjęte domyślnie” w ofercie, nie na listę „sprawdź tylko to”.' },
+  mail: { label: 'Treść maila', hint: 'Jak system pisze mail do klienta (czego nie podawać, jak informować o założeniach).' },
+}
+
+/** Ustawienia CRM (crm.ustawienia: klucz/wartość, brief pkt 16) — dziś alerty o błędach systemu. */
+export type CrmUstawienie = { klucz: string; wartosc: string | null; opis: string | null; updated_at: string | null }
+export const CRM_ALERT_KEYS = {
+  email: 'alert_email',
+  port: 'alert_smtp_port',
+  skrzynka: 'alert_skrzynka_id',
+  ostatniAt: 'alert_ostatni_at',
+  ostatniBlad: 'alert_ostatni_blad',
+  ostatnieZdarzenie: 'alert_ostatnie_zdarzenie_id',
+} as const
+export type CrmAlertTest = { ok: boolean; wyslano_do?: string[] | string; blad?: string }
+
+/** Wiersz widoku crm.poprawki_ostatnie (30 dni, brief pkt 17): co handlowiec poprawia w ofertach. */
+export type CrmPoprawkaRow = {
+  created_at: string
+  klient: string | null
+  telefon: string | null
+  wersja: number | null
+  poprawka: string | null
+  streszczenie: string | null
+  zmiany: unknown
+  usuniete: unknown
+  do_maila: string | null
+  niezrozumiane: unknown
+  handlowiec: string | null
+  oferta_id: string | null
+  lead_id: string | null
+}
+
+/** Nagranie notatki głosowej (brief pkt 18): bucket crm-nagrania, maks. 3 min, webm/opus. */
+export const CRM_NAGRANIE_BUCKET = 'crm-nagrania'
+export const CRM_NAGRANIE_MAX_S = 180
+
 /** Statusy ofert „do roboty” — domyślny filtr listy (brief pkt 3). */
 export const CRM_OPEN_STATUSES = ['do_sprawdzenia', 'przelicz'] as const

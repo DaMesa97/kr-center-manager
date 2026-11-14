@@ -8,7 +8,7 @@
 // liczy funkcja crm-oferta po triggerze na status 'przelicz'; tu tylko odpytujemy
 // co 10 s, póki coś jest w przeliczaniu.
 // =====================================================================
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
@@ -44,15 +44,19 @@ import {
   requestOfertaPrzelicz,
   retryOfertaPrzelicz,
   zlecOferteZNotatki,
+  zlecOferteZNagrania,
   type CrmError,
   type CrmZadanieRow,
 } from '../../hooks/useCrm'
+import { supabase } from '../../supabaseClient'
 import { appConfirm } from '../../lib/appDialogs'
 import { openExternalUrl } from '../../hooks/useAluOrders'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
 import CrmPocztaScreen from './CrmPocztaScreen'
 import CrmPomocScreen from './CrmPomocScreen'
+import CrmUstawieniaScreen from './CrmUstawieniaScreen'
+import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
 import { EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
 import CrmNowyKlient from './CrmNowyKlient'
@@ -77,12 +81,14 @@ type Screen =
   | { kind: 'maile' }
   | { kind: 'poczta' }
   | { kind: 'pomoc' }
+  | { kind: 'ustawienia' }
   | { kind: 'oferta'; id: string }
   | { kind: 'lead'; id: string }
   | { kind: 'mail'; id: string }
 
 /** co ile odpytywać bazę, gdy coś jest w przeliczaniu (brief pkt 7: 30–90 s na wynik) */
-const POLL_MS = 10_000
+// brief pkt 19: zmiany przychodzą realtime (postgres_changes na crm.leady/oferty/zdarzenia); odpytywanie zostaje awaryjnie co 60 s
+const POLL_MS = 60_000
 
 // ---- pomocnicze ----
 
@@ -264,6 +270,47 @@ function usePolling(active: boolean, fn: () => void) {
   }, [active, fn])
 }
 
+type CrmRtTable = 'leady' | 'oferty' | 'zdarzenia'
+type CrmRtRow = Record<string, unknown>
+
+/**
+ * Realtime (brief pkt 19): jedna subskrypcja na crm.leady/oferty/zdarzenia (RLS obowiązuje — widzimy to, co zwykle).
+ * `onChange` dostaje tabelę i wiersz (new, przy DELETE old); ekran sam decyduje, czy go to dotyczy, i przeładowuje się
+ * z opóźnieniem (debounce), bo jedno przeliczenie oferty to kilka UPDATE-ów pod rząd.
+ */
+function useCrmRealtime(onChange: (table: CrmRtTable, row: CrmRtRow) => void) {
+  const cb = useRef(onChange)
+  cb.current = onChange
+  useEffect(() => {
+    const ch = supabase.channel(`crm:${Math.random().toString(36).slice(2, 10)}`)
+    for (const table of ['leady', 'oferty', 'zdarzenia'] as const) {
+      ch.on('postgres_changes', { event: '*', schema: 'crm', table }, (payload) => {
+        const row = ((payload.new && Object.keys(payload.new).length > 0 ? payload.new : payload.old) ?? {}) as CrmRtRow
+        cb.current(table, row)
+      })
+    }
+    ch.subscribe()
+    return () => {
+      void supabase.removeChannel(ch)
+    }
+  }, [])
+}
+
+/** przeładowanie zbiorcze: wiele zdarzeń realtime w krótkim czasie = jedno odświeżenie */
+function useDebounced(fn: () => void, ms = 400) {
+  const ref = useRef(fn)
+  ref.current = fn
+  const timer = useRef<number | null>(null)
+  useEffect(() => () => { if (timer.current != null) window.clearTimeout(timer.current) }, [])
+  return useCallback(() => {
+    if (timer.current != null) window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => {
+      timer.current = null
+      ref.current()
+    }, ms)
+  }, [ms])
+}
+
 // ---- DO ZROBIENIA (zadania na leadach) ----
 
 function ZadaniaScreen({
@@ -306,6 +353,11 @@ function ZadaniaScreen({
   const anyComputing = rows.some((r) => r.oferta?.status === 'przelicz')
   const silentReload = useCallback(() => void load(true), [load])
   usePolling(anyComputing, silentReload)
+  // realtime: każda zmiana leada/oferty może zmienić kolejkę (zadanie, status, cena); zdarzenia pomijamy (lista ich nie pokazuje)
+  const debouncedReload = useDebounced(silentReload)
+  useCrmRealtime((table) => {
+    if (table !== 'zdarzenia') debouncedReload()
+  })
 
   const handleZrobione = async (lead: CrmZadanieRow) => {
     if (!currentUser) return
@@ -677,9 +729,15 @@ function OfertaScreen({
     void load()
   }, [load])
 
-  // w przeliczaniu: odpytuj, a gdy poprawka urodzi nową wersję — przejdź do niej
+  // w przeliczaniu: odpytuj (awaryjnie), a gdy poprawka urodzi nową wersję — przejdź do niej
   const silentReload = useCallback(() => void load(true), [load])
   usePolling(oferta?.status === 'przelicz', silentReload)
+  // realtime: ta oferta, inne wersje tego klienta (nowa wersja po poprawce) i zdarzenia tej oferty
+  const debouncedReload = useDebounced(silentReload)
+  useCrmRealtime((table, row) => {
+    if (table === 'oferty' && (row.id === id || (oferta?.lead_id && row.lead_id === oferta.lead_id))) debouncedReload()
+    else if (table === 'zdarzenia' && row.oferta_id === id) debouncedReload()
+  })
   useEffect(() => {
     if (!oferta || oferta.status !== 'robocza' || !oferta.poprawka) return
     const next = wersje.find((w) => w.poprzednia_id === oferta.id)
@@ -775,6 +833,7 @@ function OfertaScreen({
   const pw = oferta.poprawka_wynik ?? {}
   // brief pkt 15: oferta z notatki handlowca (klient z salonu) — nie ma rozmowy ani maila, jest notatka
   const zNotatki = !!oferta.notatka && !oferta.rozmowa_id && !oferta.mail_id
+  const domyslne = asStrings(dobor.domyslne)
   const linkValid = oferta.link_wazny_do ? new Date(oferta.link_wazny_do).getTime() > Date.now() : null
 
   return (
@@ -845,6 +904,13 @@ function OfertaScreen({
                 <li key={i}>{s}</li>
               ))}
             </ol>
+          )}
+          {/* brief pkt 16: co przyjęto z zasad firmy (Ustawienia → Zasady ofert) — mail o tym pisze, Magda nie musi sprawdzać */}
+          {domyslne.length > 0 && (
+            <div className="crm-domyslne">
+              <span className="crm-domyslne-label">Przyjęte domyślnie (zasady firmy, mail o tym informuje):</span>
+              <ul>{domyslne.map((d, i) => <li key={i}>{d}</li>)}</ul>
+            </div>
           )}
         </section>
       ) : null}
@@ -1094,6 +1160,27 @@ function LeadScreen({
   const silentReload = useCallback(() => void load(true), [load])
   const czekaNaOferte = zleconoAt != null && Date.now() - zleconoAt < 120_000
   usePolling(oferty.some((o) => o.status === 'przelicz') || czekaNaOferte, silentReload)
+  // realtime: ten lead, jego oferty i zdarzenia (transkrypcja notatki głosowej, nowa oferta, zadanie)
+  const debouncedReload = useDebounced(silentReload)
+  useCrmRealtime((table, row) => {
+    if (table === 'leady' ? row.id === id : row.lead_id === id) debouncedReload()
+  })
+  const [nagrywanieBusy, setNagrywanieBusy] = useState(false)
+
+  const handleNagranie = async (n: Nagranie) => {
+    if (!lead) return
+    setNagrywanieBusy(true)
+    const err = await zlecOferteZNagrania(lead.id, n.blob, n.contentType)
+    setNagrywanieBusy(false)
+    if (err) {
+      pushToast(`Nie udało się wysłać nagrania: ${err.message}`, 'error')
+      return
+    }
+    pushToast('Nagranie wysłane — system spisuje notatkę i liczy ofertę (ok. minuty)', 'success')
+    setNotatkaDirty(false)
+    setZleconoAt(Date.now())
+    await load(true)
+  }
 
   const handleZlecOferte = async () => {
     if (!lead) return
@@ -1219,7 +1306,7 @@ function LeadScreen({
           <h4>Czego chce</h4>
           {/* brief pkt 15: notatka handlowca (klient z salonu) → „Zleć ofertę” liczy ofertę z jej treści.
               Przy rozmowach/mailach podsumowanie pisze system, więc pole pokazujemy tylko przy wizycie albo gdy już jest notatka. */}
-          {lead.zrodlo === 'wizyta' || lead.podsumowanie ? (
+          {lead.zrodlo === 'wizyta' || lead.podsumowanie || lead.nastepna_akcja === 'przygotuj_oferte' ? (
             <div className="crm-notatka">
               <textarea
                 className="crm-fix-textarea"
@@ -1240,6 +1327,10 @@ function LeadScreen({
                   <button type="button" className="btn btn-secondary" disabled={saving || !notatka.trim()} onClick={() => void handleZlecOferte()} title="System przeanalizuje notatkę, dobierze drzwi, policzy cenę i napisze mail">
                     <FileText size={14} /> {activeOferta ? 'Zleć nową wersję oferty' : 'Zleć ofertę'}
                   </button>
+                )}
+                {/* brief pkt 18: notatka głosowa → transkrypcja do podsumowania → oferta jak z notatki pisanej */}
+                {!(activeOferta?.status === 'przelicz' || (czekaNaOferte && !activeOferta)) && (
+                  <CrmNagrajNotatke onRecorded={handleNagranie} busy={nagrywanieBusy} disabled={saving} />
                 )}
                 {notatkaDirty && <span className="crm-muted">notatka zapisze się przy zleceniu oferty</span>}
               </div>
@@ -1358,12 +1449,16 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
   const openOferta = useCallback((id: string) => go({ kind: 'oferta', id }), [go])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
   const openMail = useCallback((id: string) => go({ kind: 'mail', id }), [go])
-  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc') => {
+  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia') => {
     setStack([])
     setScreen({ kind })
   }
   const topKind =
-    screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' ? screen.kind : screen.kind === 'mail' ? 'maile' : 'zadania'
+    screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' || screen.kind === 'ustawienia'
+      ? screen.kind
+      : screen.kind === 'mail'
+        ? 'maile'
+        : 'zadania'
 
   return (
     <div className={`crm-view crm-view--${mode}`}>
@@ -1388,6 +1483,12 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
           <button type="button" className={`crm-nav-btn${topKind === 'pomoc' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('pomoc')} title="Jak pracować w CRM">
             Pomoc
           </button>
+          {/* brief pkt 16–17: zasady ofert, alerty, przegląd poprawek — tylko właściciel (tryb pełny) */}
+          {mode === 'pelny' && (
+            <button type="button" className={`crm-nav-btn${topKind === 'ustawienia' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('ustawienia')} title="Zasady ofert, alerty, poprawki">
+              Ustawienia
+            </button>
+          )}
         </nav>
         {currentUser && <span className="crm-brand-user">{currentUser.full_name}</span>}
       </div>
@@ -1397,6 +1498,7 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       {screen.kind === 'mail' && <CrmMailScreen id={screen.id} mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'poczta' && <CrmPocztaScreen currentUser={currentUser} isSuperadmin={mode === 'pelny'} pushToast={pushToast} />}
       {screen.kind === 'pomoc' && <CrmPomocScreen currentUser={currentUser} canEdit={mode === 'pelny'} pushToast={pushToast} />}
+      {screen.kind === 'ustawienia' && mode === 'pelny' && <CrmUstawieniaScreen currentUser={currentUser} pushToast={pushToast} onOpenOferta={openOferta} onOpenLead={openLead} />}
       {screen.kind === 'oferta' && (
         <OfertaScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
       )}

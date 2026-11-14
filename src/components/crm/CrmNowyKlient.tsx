@@ -8,8 +8,9 @@ import { useMemo, useState } from 'react'
 import { Save, X } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, type CrmEtykieta } from '../../types/crm'
-import { createLeadWizyta, type NowyKlient } from '../../hooks/useCrm'
+import { createLeadWizyta, zlecOferteZNagrania, type NowyKlient } from '../../hooks/useCrm'
 import { EtykietaBadge } from './CrmEtykiety'
+import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import Spinner from '../Spinner'
 
 type Props = {
@@ -31,6 +32,8 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
   const [k, setK] = useState<NowyKlient>(empty)
   const [busy, setBusy] = useState(false)
   const [existingId, setExistingId] = useState<string | null>(null)
+  // brief pkt 18: nagranie trzymane do zapisu — najpierw insert leada, potem upload + rpc zlec_oferte_z_nagrania
+  const [nagranie, setNagranie] = useState<Nagranie | null>(null)
   const set = <F extends keyof NowyKlient>(f: F, v: NowyKlient[F]) => setK((s) => ({ ...s, [f]: v }))
 
   const grupy = useMemo(
@@ -65,7 +68,15 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
       return
     }
     if (res.id) {
-      pushToast('Klient dodany', 'success')
+      if (nagranie) {
+        setBusy(true)
+        const err = await zlecOferteZNagrania(res.id, nagranie.blob, nagranie.contentType)
+        setBusy(false)
+        if (err) pushToast(`Klient dodany, ale nagranie nie poszło: ${err.message}. Nagraj ponownie na karcie klienta.`, 'error')
+        else pushToast('Klient dodany, nagranie wysłane — system spisze notatkę i policzy ofertę', 'success')
+      } else {
+        pushToast('Klient dodany', 'success')
+      }
       onCreated(res.id)
     }
   }
@@ -94,6 +105,11 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
         <label className="crm-pf-field crm-pf-field--wide">
           <span className="crm-pf-label">Notatka z rozmowy (czego chce)</span>
           <textarea value={k.notatka} onChange={(e) => set('notatka', e.target.value)} rows={3} placeholder="np. drzwi zewnętrzne 90 prawe, antracyt, z montażem, termin do końca miesiąca" />
+          <span className="crm-pf-hint crm-pf-hint--rec">
+            albo powiedz do mikrofonu:{' '}
+            <CrmNagrajNotatke size="sm" pending={nagranie} onRecorded={(n) => setNagranie(n)} onClear={() => setNagranie(null)} disabled={busy} />
+            {nagranie && <span className="crm-muted"> · po zapisie klienta system spisze nagranie i policzy ofertę</span>}
+          </span>
         </label>
       </div>
 

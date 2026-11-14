@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: zasady ofert, alerty, notatka głosowa, odświeżanie na żywo (beta.118)</h4>
+        <ul>
+          <li><b>Ustawienia → Zasady ofert</b> (właściciel): co system przyjmuje, gdy klient czegoś nie ustalił (kolor, rozmiar, okucia…) i jak pisze mail. Jedna zasada = jedno zdanie; włącz/wyłącz, kolejność, edycja. Na karcie oferty takie rzeczy są w szarej liście „Przyjęte domyślnie" pod „Sprawdź tylko to", a mail sam o nich informuje klienta.</li>
+          <li><b>Ustawienia → Alerty</b>: adresy, skrzynka nadawcza i port SMTP dla alertów o błędach systemu (jeden mail zbiorczy co 15 minut), przycisk „Wyślij mail próbny", stan ostatniego alertu.</li>
+          <li><b>Ustawienia → Poprawki</b>: co handlowiec poprawiał w ofertach przez ostatnie 30 dni, z tym, jak system to zrozumiał. Powtarzające się poprawki zamień w zasadę.</li>
+          <li><b>„Nagraj notatkę"</b> na karcie klienta i w „Dodaj klienta": do 3 minut z mikrofonu, system spisuje nagranie do notatki i liczy ofertę jak z notatki pisanej. Działa też w przeglądarce telefonu.</li>
+          <li>Lista „Do zrobienia", karta klienta i karta oferty <b>odświeżają się same</b> przy każdej zmianie w bazie (nowa rozmowa, policzona oferta, mail), bez odpytywania co 10 s.</li>
+        </ul>
         <h4>CRM Po Drzwi: oferta z notatki dla klienta z salonu (beta.117)</h4>
         <ul>
           <li>Na karcie klienta z wizyty (albo każdego, kto ma już notatkę) pole „Czego chce" jest do edycji i ma przycisk <b>„Zleć ofertę"</b>. System czyta notatkę jak rozmowę: dobiera drzwi, liczy cenę, robi koszyk i pisze mail. Po kilkunastu sekundach widać „system liczy", po około minucie oferta jest „Do sprawdzenia" jak każda inna. Gdy klient ma już ofertę, przycisk robi nową wersję.</li>

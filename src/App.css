@@ -9615,3 +9615,44 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-notatka { display: flex; flex-direction: column; gap: 4px; }
 .crm-notatka .crm-mail-actions { margin-top: 6px; }
 .crm-notatka-src { border-left: 5px solid var(--pd-accent) !important; }
+
+/* CRM → nagrywanie notatki głosowej (brief pkt 18) */
+.crm-rec { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.crm-rec-btn--on { background: #fee2e2 !important; border-color: #fca5a5 !important; color: #b91c1c !important; animation: crm-rec-pulse 1.2s ease-in-out infinite; }
+@keyframes crm-rec-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); } 50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); } }
+.crm-rec-pending { display: inline-flex; align-items: center; gap: 4px; color: #166534; font-weight: 600; }
+.crm-rec-err { font-size: 0.85rem; }
+.crm-pf-hint--rec { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* CRM → karta oferty: „Przyjęte domyślnie” (zasady firmy, brief pkt 16) — szaro, pod „sprawdź tylko to” */
+.crm-domyslne { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--color-border); color: var(--color-text-muted); font-size: 0.9rem; }
+.crm-domyslne-label { font-weight: 600; }
+.crm-domyslne ul { margin: 4px 0 0; padding-left: 20px; }
+
+/* CRM → Ustawienia (zasady ofert / alerty / poprawki, brief pkt 16–17) */
+.crm-ust { max-width: 1200px; }
+.crm-ust-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--color-border); margin-bottom: 14px; }
+.crm-ust-tab { background: transparent; border: 0; border-bottom: 3px solid transparent; padding: 8px 14px; font: inherit; font-weight: 600; color: var(--color-text-muted); cursor: pointer; }
+.crm-ust-tab:hover { color: inherit; }
+.crm-ust-tab--active { color: var(--pd-accent); border-bottom-color: var(--pd-accent); }
+.crm-ust-section { display: flex; flex-direction: column; gap: 14px; }
+.crm-ust-intro { margin: 0; line-height: 1.5; }
+.crm-ust-group h4 { margin: 0; }
+.crm-ust-test { margin-top: 10px; }
+.crm-zasady { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.crm-zasada { display: flex; align-items: flex-start; gap: 10px; padding: 6px 8px; border-radius: 8px; }
+.crm-zasada:hover { background: #f8f7f4; }
+.crm-zasada--off .crm-zasada-text { color: var(--color-text-muted); text-decoration: line-through; }
+.crm-zasada-toggle { padding-top: 3px; }
+.crm-zasada-text { flex: 1; line-height: 1.5; }
+.crm-zasada-btns { display: inline-flex; gap: 4px; flex-shrink: 0; opacity: 0.7; }
+.crm-zasada:hover .crm-zasada-btns { opacity: 1; }
+.crm-zasada-btns .crm-link:disabled { opacity: 0.3; cursor: default; }
+.crm-zasada-editor { flex: 1; display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.crm-zasada-editor .crm-poczta-actions { margin-top: 0; }
+.crm-poprawki-wrap { padding: 0; overflow: auto; }
+.crm-poprawki { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.crm-poprawki th, .crm-poprawki td { padding: 8px 10px; border-bottom: 1px solid var(--color-border); text-align: left; vertical-align: top; }
+.crm-poprawki th { background: #f3f1ec; font-weight: 600; position: sticky; top: 0; }
+.crm-poprawki-txt { line-height: 1.45; min-width: 220px; }
+.crm-nowrap { white-space: nowrap; }
