@@ -1,7 +1,7 @@
 // =====================================================================
 // Zakładka „CRM Po Drzwi” (pilot, brief 14.11.2026 pkt 3).
 // Trzy ekrany: lista ofert → oferta (blok „Sprawdź tylko to”, mail do skopiowania,
-// Wysłałam / Poprawka+Przelicz, dane techniczne, historia) → lead (kontakt,
+// Otwórz w poczcie / Wysłane / Poprawka+Przelicz, dane techniczne, historia) → lead (kontakt,
 // rozmowy z Ringostatu, oferty). Widoczność zakładki pilnuje App (useCrmAccess).
 // Frontend nie liczy nic sam: czyta crm.oferty i zmienia status; nową wersję
 // po poprawce tworzy backend (Edge Function drugiej sesji) — tu tylko odświeżamy.
@@ -44,9 +44,29 @@ function ExtLink({ href, children, title }: { href: string; children: ReactNode;
   )
 }
 
+/**
+ * Tryb widoku (Tymek 14.11.2026): handlowiec ma dostać kolejkę „do zrobienia” z jednym
+ * przyciskiem na pozycję, bez historii, wersji i danych diagnostycznych; właściciel
+ * (superadmin) widzi wszystko, bo ocenia, gdzie system się myli.
+ */
+export type CrmMode = 'handlowiec' | 'pelny'
+
 type Props = {
   currentUser: CurrentUser | null
   pushToast: (message: string, variant: ToastVariant) => void
+  mode?: CrmMode
+}
+
+/** mailto: do domyślnego klienta poczty (Magda: Thunderbird) — adresat, temat i treść gotowe. */
+const mailtoFor = (o: CrmOferta): string | null => {
+  const to = (o.mail_do ?? '').trim()
+  if (!to) return null
+  const params = new URLSearchParams()
+  if (o.mail_temat) params.set('subject', o.mail_temat)
+  if (o.mail_tresc) params.set('body', o.mail_tresc)
+  // URLSearchParams koduje spacje jako '+', a mailto chce %20
+  const qs = params.toString().replace(/\+/g, '%20')
+  return `mailto:${encodeURIComponent(to)}${qs ? `?${qs}` : ''}`
 }
 
 type Screen = { kind: 'list' } | { kind: 'oferta'; id: string } | { kind: 'lead'; id: string }
@@ -165,7 +185,8 @@ function KeyValueTable({ data }: { data: Record<string, unknown> | null | undefi
 
 // ---- lista ofert ----
 
-function OfertyList({ onOpenOferta, onOpenLead }: { onOpenOferta: (id: string) => void; onOpenLead: (id: string) => void }) {
+function OfertyList({ mode, onOpenOferta, onOpenLead }: { mode: CrmMode; onOpenOferta: (id: string) => void; onOpenLead: (id: string) => void }) {
+  const simple = mode === 'handlowiec'
   const [onlyOpen, setOnlyOpen] = useState(true)
   const [rows, setRows] = useState<CrmOferta[]>([])
   const [loading, setLoading] = useState(true)
@@ -183,8 +204,8 @@ function OfertyList({ onOpenOferta, onOpenLead }: { onOpenOferta: (id: string) =
     void load()
   }, [load])
 
-  const columns = useMemo<DataTableColumn<CrmOferta>[]>(
-    () => [
+  const columns = useMemo<DataTableColumn<CrmOferta>[]>(() => {
+    const all: DataTableColumn<CrmOferta>[] = [
       {
         key: 'klient',
         label: 'Klient',
@@ -232,9 +253,10 @@ function OfertyList({ onOpenOferta, onOpenLead }: { onOpenOferta: (id: string) =
           </button>
         ),
       },
-    ],
-    [onOpenOferta, onOpenLead],
-  )
+    ]
+    // tryb handlowca: bez kolumn diagnostycznych (liczba punktów do sprawdzenia, numer wersji)
+    return simple ? all.filter((c) => !['sprawdz', 'wersja'].includes(c.key)) : all
+  }, [onOpenOferta, onOpenLead, simple])
 
   return (
     <>
@@ -244,11 +266,15 @@ function OfertyList({ onOpenOferta, onOpenLead }: { onOpenOferta: (id: string) =
             Do zrobienia
           </button>
           <button type="button" className={`btn btn-sm ${!onlyOpen ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOnlyOpen(false)}>
-            Wszystkie
+            {simple ? 'Wysłane i starsze' : 'Wszystkie'}
           </button>
         </div>
         <span className="crm-toolbar-hint">
-          {onlyOpen ? 'Oferty do sprawdzenia i w przeliczaniu. Klient = kontakt i rozmowy, Otwórz = mail do wysłania.' : 'Wszystkie wersje ofert, najnowsze na górze.'}
+          {onlyOpen
+            ? simple
+              ? 'Oferty gotowe do wysłania i te, które system jeszcze liczy. Otwórz = mail do sprawdzenia i wysłania; Klient = kontakt i rozmowy.'
+              : 'Oferty do sprawdzenia i w przeliczaniu. Klient = kontakt i rozmowy, Otwórz = mail do wysłania.'
+            : 'Wszystkie wersje ofert, najnowsze na górze.'}
         </span>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież listę">
           <RefreshCw size={14} /> Odśwież
@@ -274,6 +300,7 @@ function OfertyList({ onOpenOferta, onOpenLead }: { onOpenOferta: (id: string) =
 
 function OfertaScreen({
   id,
+  mode,
   currentUser,
   pushToast,
   onBack,
@@ -281,6 +308,7 @@ function OfertaScreen({
   onOpenOferta,
 }: {
   id: string
+  mode: CrmMode
   currentUser: CurrentUser | null
   pushToast: Props['pushToast']
   onBack: () => void
@@ -318,10 +346,22 @@ function OfertaScreen({
   const onCopied = (ok: boolean, label: string) =>
     pushToast(ok ? `Skopiowano: ${label.toLowerCase()}` : 'Nie udało się skopiować — zaznacz tekst i skopiuj ręcznie', ok ? 'success' : 'error')
 
+  const handleOpenInMail = () => {
+    if (!oferta) return
+    const url = mailtoFor(oferta)
+    if (!url) {
+      pushToast('Brak adresu e-mail klienta — skopiuj treść i wyślij ręcznie', 'error')
+      return
+    }
+    void openExternalUrl(url).then((ok) => {
+      if (!ok) pushToast('Nie udało się otworzyć programu pocztowego — skopiuj adres, temat i treść przyciskami Kopiuj', 'error')
+    })
+  }
+
   const handleWyslane = async () => {
     if (!oferta || !currentUser) return
-    const ok = await appConfirm(`Oznaczyć ofertę v${oferta.wersja} dla ${leadName(oferta.lead)} jako wysłaną? Mail trzeba wysłać samodzielnie ze swojej poczty.`, {
-      title: 'Wysłałam',
+    const ok = await appConfirm(`Potwierdzić, że oferta v${oferta.wersja} dla ${leadName(oferta.lead)} została wysłana z Twojej poczty? Zniknie z listy do zrobienia, a za 3 dni system przypomni o follow-upie.`, {
+      title: 'Wysłane',
       confirmLabel: 'Tak, wysłane',
     })
     if (!ok) return
@@ -439,14 +479,21 @@ function OfertaScreen({
       {/* 2. MAIL */}
       {!pending && (
         <section className="crm-mail">
-          <h4>Mail do klienta — skopiuj do swojej poczty</h4>
+          <h4>Mail do klienta</h4>
+          <div className="crm-mail-actions crm-mail-actions--top">
+            <button type="button" className="btn btn-primary" disabled={!oferta.mail_do} onClick={handleOpenInMail} title="Otwiera w Twoim programie pocztowym gotową wiadomość: adresat, temat i treść. Sprawdź i kliknij Wyślij.">
+              <Mail size={15} /> Otwórz w poczcie
+            </button>
+            <span className="crm-muted">Wiadomość otworzy się w programie pocztowym gotowa do wysłania. Poniżej te same pola do skopiowania.</span>
+          </div>
           <CopyRow label="Adres" value={oferta.mail_do} onCopied={onCopied} />
           <CopyRow label="Temat" value={oferta.mail_temat} onCopied={onCopied} />
           <CopyRow label="Treść" value={oferta.mail_tresc} multiline onCopied={onCopied} />
           <div className="crm-mail-actions">
-            <button type="button" className="btn btn-primary" disabled={!canSend || saving} onClick={() => void handleWyslane()} title={canSend ? 'Mail wysłany ze swojej poczty — oznacz ofertę jako wysłaną' : 'Dostępne tylko dla oferty do sprawdzenia'}>
-              Wysłałam
+            <button type="button" className="btn btn-primary" disabled={!canSend || saving} onClick={() => void handleWyslane()} title={canSend ? 'Mail poszedł z Twojej poczty — potwierdź, oferta zniknie z listy do zrobienia' : 'Dostępne tylko dla oferty do sprawdzenia'}>
+              Wysłane
             </button>
+            {canSend && <span className="crm-muted">Kliknij po wysłaniu maila — system zapamięta kto i kiedy i za 3 dni przypomni o follow-upie.</span>}
             {!canSend && !isRecalc && <span className="crm-muted">Ta wersja ma status „{CRM_OFERTA_STATUS[oferta.status]?.label ?? oferta.status}”.</span>}
           </div>
         </section>
@@ -529,13 +576,14 @@ function OfertaScreen({
                   })}
                 </ul>
               )}
-              {oferta.koszt_ai_usd != null && <p className="crm-muted">Koszt AI: {Number(oferta.koszt_ai_usd).toFixed(3)} USD</p>}
+              {mode === 'pelny' && oferta.koszt_ai_usd != null && <p className="crm-muted">Koszt AI: {Number(oferta.koszt_ai_usd).toFixed(3)} USD</p>}
             </div>
           </div>
         </div>
       </details>
 
-      {/* 5. HISTORIA */}
+      {/* 5. HISTORIA — tylko tryb pełny (właściciel ocenia, gdzie system się myli) */}
+      {mode === 'pelny' && (
       <section className="crm-history">
         <h4>Historia</h4>
         {wersje.length > 1 && (
@@ -555,6 +603,7 @@ function OfertaScreen({
         )}
         <Timeline items={zdarzenia} names={names} />
       </section>
+      )}
     </div>
   )
 }
@@ -577,7 +626,7 @@ function Timeline({ items, names }: { items: CrmZdarzenie[]; names: Map<string, 
 
 // ---- widok leada ----
 
-function LeadScreen({ id, onBack, onOpenOferta }: { id: string; onBack: () => void; onOpenOferta: (id: string) => void }) {
+function LeadScreen({ id, mode, onBack, onOpenOferta }: { id: string; mode: CrmMode; onBack: () => void; onOpenOferta: (id: string) => void }) {
   const [lead, setLead] = useState<CrmLead | null>(null)
   const [rozmowy, setRozmowy] = useState<CrmRozmowa[]>([])
   const [oferty, setOferty] = useState<CrmOferta[]>([])
@@ -711,17 +760,19 @@ function LeadScreen({ id, onBack, onOpenOferta }: { id: string; onBack: () => vo
         )}
       </section>
 
-      <section className="crm-history">
-        <h4>Historia</h4>
-        <Timeline items={zdarzenia} names={names} />
-      </section>
+      {mode === 'pelny' && (
+        <section className="crm-history">
+          <h4>Historia</h4>
+          <Timeline items={zdarzenia} names={names} />
+        </section>
+      )}
     </div>
   )
 }
 
 // ---- korzeń ----
 
-export default function CrmView({ currentUser, pushToast }: Props) {
+export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Props) {
   const [screen, setScreen] = useState<Screen>({ kind: 'list' })
   // historia ekranów (lista → oferta → lead → oferta…): „Wróć” cofa o jeden
   const [, setStack] = useState<Screen[]>([])
@@ -744,12 +795,18 @@ export default function CrmView({ currentUser, pushToast }: Props) {
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
 
   return (
-    <div className="crm-view">
-      {screen.kind === 'list' && <OfertyList onOpenOferta={openOferta} onOpenLead={openLead} />}
+    <div className={`crm-view crm-view--${mode}`}>
+      {/* pasek marki: moduł Po Drzwi w systemie KR Center (kolory ze strony podrzwi.pl) */}
+      <div className="crm-brand">
+        <span className="crm-brand-name">PO DRZWI</span>
+        <span className="crm-brand-sub">{mode === 'handlowiec' ? 'Do zrobienia' : 'CRM — oferty, leady, rozmowy'}</span>
+        {currentUser && <span className="crm-brand-user">{currentUser.full_name}</span>}
+      </div>
+      {screen.kind === 'list' && <OfertyList mode={mode} onOpenOferta={openOferta} onOpenLead={openLead} />}
       {screen.kind === 'oferta' && (
-        <OfertaScreen id={screen.id} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
+        <OfertaScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
       )}
-      {screen.kind === 'lead' && <LeadScreen id={screen.id} onBack={back} onOpenOferta={openOferta} />}
+      {screen.kind === 'lead' && <LeadScreen id={screen.id} mode={mode} onBack={back} onOpenOferta={openOferta} />}
     </div>
   )
 }

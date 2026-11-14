@@ -9047,7 +9047,28 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 /* =====================================================================
    CRM Po Drzwi (brief 14.11.2026): lista ofert, widok oferty, lead, dostęp
    ===================================================================== */
-.crm-view { display: flex; flex-direction: column; gap: 12px; max-width: 1180px; }
+/* Kolory Po Drzwi (ze strony podrzwi.pl, 14.11.2026): złoto-beż #a79d80, grafit #2c2d31 / #13151b,
+   tło #f7f6f5. Moduł CRM należy do Po Drzwi, więc przyciski główne w CRM są grafitowe ze złotym akcentem. */
+.crm-view {
+  --pd-accent: #a79d80;
+  --pd-accent-strong: #8f866b;
+  --pd-dark: #13151b;
+  --pd-graphite: #2c2d31;
+  --pd-bg: #f7f6f5;
+  display: flex; flex-direction: column; gap: 12px; max-width: 1180px;
+}
+.crm-brand { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 10px; background: var(--pd-dark); color: #fff; }
+.crm-brand-name { font-weight: 800; letter-spacing: 0.18em; font-size: 0.95rem; color: var(--pd-accent); }
+.crm-brand-sub { font-size: 0.9rem; opacity: 0.85; }
+.crm-brand-user { margin-left: auto; font-size: 0.85rem; opacity: 0.7; }
+.crm-view .btn-primary { background: var(--pd-graphite); color: #fff; border-color: var(--pd-graphite); }
+.crm-view .btn-primary:hover:not(:disabled) { background: var(--pd-dark); }
+.crm-view .crm-link, .crm-view .crm-ext { color: var(--pd-accent-strong); }
+.crm-view .crm-version--current { border-color: var(--pd-accent); background: var(--pd-bg); }
+.crm-view .crm-version:hover { border-color: var(--pd-accent); }
+.crm-view--handlowiec .crm-screen section { background: #fff; }
+.crm-view--handlowiec .crm-toolbar-hint { font-size: 0.9rem; color: var(--pd-graphite); }
+.crm-mail-actions--top { margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--color-border); }
 .crm-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .crm-toolbar-group { display: inline-flex; gap: 4px; }
 .crm-toolbar-hint { color: var(--color-text-muted); font-size: 0.85rem; flex: 1; min-width: 200px; }

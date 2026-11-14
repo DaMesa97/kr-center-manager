@@ -571,10 +571,12 @@ function createWindow() {
   })
 
   // Otwarcie linku w systemowej przeglądarce (np. podpisany URL do PDF-u LP/LC
-  // z prywatnego bucketu). Tylko https:// — renderer nie może odpalić dowolnego
-  // protokołu (file://, mailto:, …) przez shell.openExternal.
+  // z prywatnego bucketu) albo gotowej wiadomości w domyślnym kliencie poczty
+  // (CRM Po Drzwi, 14.11.2026: „Otwórz w poczcie” → Thunderbird z adresatem,
+  // tematem i treścią). Tylko https:// i mailto: — renderer nie może odpalić
+  // dowolnego protokołu (file://, …) przez shell.openExternal.
   ipcMain.handle('shell:open-external', async (_e, url: unknown) => {
-    if (typeof url !== 'string' || !/^https:\/\//i.test(url)) return false
+    if (typeof url !== 'string' || !/^(https:\/\/|mailto:)/i.test(url)) return false
     try {
       await shell.openExternal(url)
       return true

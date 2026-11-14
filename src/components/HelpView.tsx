@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: „Otwórz w poczcie", „Wysłane", tryb handlowca (beta.104)</h4>
+        <ul>
+          <li><b>„Otwórz w poczcie"</b> otwiera w domyślnym programie pocztowym (np. Thunderbird) gotową wiadomość z adresatem, tematem i treścią. Pola do kopiowania zostają pod spodem.</li>
+          <li><b>„Wysłane" zamiast „Wysłałam"</b> — potwierdzenie, że mail poszedł z Twojej poczty: oferta znika z listy do zrobienia, system zapamiętuje kto i kiedy, a za 3 dni przypomni o follow-upie.</li>
+          <li><b>Tryb handlowca</b>: osoba z nadanym dostępem widzi kolejkę „Do zrobienia" i kartę oferty bez historii, wersji i danych diagnostycznych. Superadministrator widzi wszystko. Moduł ma pasek i kolory Po Drzwi.</li>
+        </ul>
         <h4>Podgląd etykiety z przewijaniem, kolor „Utwórz reklamację", CRM „w przygotowaniu" (beta.103)</h4>
         <ul>
           <li><b>Druk etykiety: podgląd da się przewinąć</b> (#141) — ramka podglądu przewija się, a sama etykieta ma w niej swój prawdziwy rozmiar.</li>
@@ -38,7 +44,7 @@ const SECTIONS: Section[] = [
         <h4>CRM Po Drzwi i rola superadministratora (beta.101)</h4>
         <ul>
           <li><b>Nowa zakładka „CRM Po Drzwi"</b> (oferty, leady, rozmowy z Ringostatu) — widzą ją wyłącznie superadministrator i osoby, którym nadał dostęp. Rola administratora sama z siebie dostępu nie daje; dla pozostałych zakładki nie ma w menu.</li>
-          <li><b>Widok oferty</b>: na górze „Sprawdź tylko to" (zgodność koszyka ze sklepem + lista rzeczy do sprawdzenia; pusta = przeczytaj mail raz i wyślij), mail do skopiowania (adres, temat, treść — osobne „Kopiuj"), przycisk „Wysłałam", pole „Poprawka" + „Przelicz" (system przelicza i tworzy kolejną wersję), dane techniczne zwijane, historia wersji i zdarzeń.</li>
+          <li><b>Widok oferty</b>: na górze „Sprawdź tylko to" (zgodność koszyka ze sklepem + lista rzeczy do sprawdzenia; pusta = przeczytaj mail raz i wyślij), mail do skopiowania (adres, temat, treść — osobne „Kopiuj"), przycisk „Wysłane", pole „Poprawka" + „Przelicz" (system przelicza i tworzy kolejną wersję), dane techniczne zwijane, historia wersji i zdarzeń.</li>
           <li><b>Użytkownicy</b>: rola „Superadministrator" (nadaje ją tylko superadministrator), sekcja „Dostęp do CRM Po Drzwi" z listą osób, konta superadministratorów chronione przed dezaktywacją, resetem hasła i usunięciem przez zwykłego administratora. Konta spoza @krcenter.pl (np. @podrzwi.pl) zakłada się i loguje pełnym adresem e-mail.</li>
         </ul>
         <h4>Numer z arkusza Excel obok numeru zlecenia (beta.100)</h4>

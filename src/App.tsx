@@ -3615,7 +3615,7 @@ function App() {
         ) : isZkpTab ? (
           <ZkpView currentUser={currentUser} isManager={isManager} pushToast={pushToast} />
         ) : isCrmTab && hasCrm ? (
-          <CrmView currentUser={currentUser} pushToast={pushToast} />
+          <CrmView currentUser={currentUser} pushToast={pushToast} mode={isSuperadminRole(currentUser?.role) ? 'pelny' : 'handlowiec'} />
         ) : isWarehouseTab ? (
           <WarehouseView
             isManager={isManager}
