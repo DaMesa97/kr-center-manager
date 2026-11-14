@@ -9271,6 +9271,13 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-slownik-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 8px; border-top: 1px dashed var(--color-border); }
 .crm-slownik-form input, .crm-slownik-form select { padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; }
 .crm-slownik-form input { min-width: 160px; }
+/* CRM → kanał kontaktu (pkt 13) i „Dodaj klienta” (walk-in) */
+.crm-kanal { background: #fff; color: var(--pd-graphite, #2c2d31); border-color: var(--color-border); font-weight: 600; }
+.crm-pf-field--wide { grid-column: 1 / -1; }
+.crm-pf-field textarea { padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; resize: vertical; min-height: 64px; }
+.crm-pf-field textarea:focus { outline: none; border-color: var(--pd-accent); box-shadow: 0 0 0 2px rgba(167, 157, 128, 0.25); }
+.crm-pf-field input[type='tel'], .crm-pf-field input[type='date'] { padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; }
+.crm-nowy-klient { border-left: 5px solid var(--pd-accent); }
 .crm-poczta-test--ok { background: #f0fdf4; border: 1px solid #bbf7d0; }
 .crm-poczta-test--bad { background: #fff7f7; border: 1px solid #fecaca; }
 .crm-poczta-log { margin: 6px 0 0; padding: 8px; background: #f8fafc; border-radius: 6px; font-size: 0.75rem; max-height: 240px; overflow: auto; white-space: pre-wrap; }

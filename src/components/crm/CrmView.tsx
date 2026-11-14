@@ -9,13 +9,14 @@
 // co 10 s, póki coś jest w przeliczaniu.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check } from 'lucide-react'
+import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_AKCJA,
   CRM_LEAD_STATUS,
   CRM_OFERTA_STATUS,
   CRM_ROZMOWA_STATUS,
+  CRM_SPRAWA,
   CRM_SYSTEM_ERROR_PREFIX,
   CRM_ZDARZENIE_LABEL,
   CRM_DOSTAWA_LABEL,
@@ -51,7 +52,8 @@ import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
 import CrmPocztaScreen from './CrmPocztaScreen'
 import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
-import { EtykietyRow, EtykietySlownikEditor } from './CrmEtykiety'
+import { EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
+import CrmNowyKlient from './CrmNowyKlient'
 import { useEtykiety } from '../../hooks/useEtykiety'
 
 /**
@@ -282,6 +284,8 @@ function ZadaniaScreen({
   // etykiety (brief pkt 12): słownik wspólny z kartą leada, filtr po jednej etykiecie (po stronie klienta — lista ≤ 300)
   const etyk = useEtykiety()
   const [etykietaFilter, setEtykietaFilter] = useState('')
+  // walk-in (brief pkt 13.1): formularz „Dodaj klienta” nad listą
+  const [nowyKlient, setNowyKlient] = useState(false)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -338,6 +342,8 @@ function ZadaniaScreen({
         ),
       },
       { key: 'miejscowosc', label: 'Miejscowość', sortValue: (r) => r.miejscowosc ?? '', render: (r) => r.miejscowosc || '—' },
+      // KANAŁ (skąd przyszedł kontakt) — nie mylić ze „sprawą” z analizy AI (brief pkt 13)
+      { key: 'kanal', label: 'Kanał', sortValue: (r) => r.zrodlo ?? '', render: (r) => <KanalBadge zrodlo={r.zrodlo} /> },
       {
         key: 'etykiety',
         label: 'Etykiety',
@@ -441,10 +447,30 @@ function ZadaniaScreen({
             ? 'Nic do zrobienia.'
             : `${rows.length} ${rows.length === 1 ? 'zadanie' : rows.length < 5 ? 'zadania' : 'zadań'}${overdue ? ` · ${overdue} zaległe` : ''}${today ? ` · ${today} na dziś` : ''}. „Oddzwoń” i „Dopytaj” zamykasz przyciskiem Zrobione; ofertę — przyciskiem Wysłane w karcie oferty.`}
         </span>
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => setNowyKlient((v) => !v)} title="Klient z wizyty w salonie (walk-in)" aria-expanded={nowyKlient}>
+          <UserPlus size={14} /> Dodaj klienta
+        </button>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież listę">
           <RefreshCw size={14} /> Odśwież
         </button>
       </div>
+      {nowyKlient && (
+        <CrmNowyKlient
+          currentUser={currentUser}
+          slownik={etyk.mapa}
+          pushToast={pushToast}
+          onCancel={() => setNowyKlient(false)}
+          onCreated={(id) => {
+            setNowyKlient(false)
+            void load(true)
+            onOpenLead(id)
+          }}
+          onOpenExisting={(id) => {
+            setNowyKlient(false)
+            onOpenLead(id)
+          }}
+        />
+      )}
       {error && <ErrorBox error={error} />}
       {loading ? (
         <Spinner center label="Ładowanie zadań…" />
@@ -1090,7 +1116,7 @@ function LeadScreen({
           <div className="crm-screen-sub">
             {CRM_LEAD_STATUS[lead.status ?? ''] ?? lead.status ?? '—'}
             {lead.kategoria ? ` · ${lead.kategoria}` : ''}
-            {lead.zrodlo ? ` · źródło: ${lead.zrodlo}` : ''}
+            {lead.zrodlo ? <> · <KanalBadge zrodlo={lead.zrodlo} /></> : null}
             {lead.kampania ? ` · kampania: ${lead.kampania}` : ''}
           </div>
         </div>
@@ -1195,7 +1221,8 @@ function LeadScreen({
                     <span className="crm-call-when">{fmtDateTime(r.data_rozmowy ?? r.created_at)}</span>
                     <span className={`crm-call-dir crm-call-dir--${r.kierunek ?? 'x'}`}>{r.kierunek === 'przychodzaca' ? '↙ przychodząca' : r.kierunek === 'wychodzaca' ? '↗ wychodząca' : r.kierunek ?? '—'}</span>
                     <span className="crm-call-meta">{r.odebrana === false ? 'nieodebrana' : fmtDuration(r.czas_s)}</span>
-                    {r.typ && <span className="crm-call-typ">{r.typ}</span>}
+                    {/* SPRAWA (wynik AI) — tylko tryb pełny; kanał rozmowy = zawsze telefon */}
+                    {mode === 'pelny' && r.typ && <span className="crm-call-typ" title="Sprawa (z analizy)">{CRM_SPRAWA[r.typ] ?? r.typ}</span>}
                     {r.kategoria && <span className="crm-call-typ">{r.kategoria}</span>}
                     {r.nastepna_akcja && <AkcjaChip akcja={r.nastepna_akcja} />}
                     {r.ivr && <span className="crm-muted">IVR {r.ivr}</span>}

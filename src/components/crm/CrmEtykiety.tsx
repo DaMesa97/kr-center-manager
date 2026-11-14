@@ -8,7 +8,19 @@
 import { useMemo, useState } from 'react'
 import { Plus, Tag, X } from 'lucide-react'
 import type { ToastVariant } from '../../types'
-import { CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, CRM_ETYKIETA_KOLORY, type CrmEtykieta } from '../../types/crm'
+import { CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, CRM_ETYKIETA_KOLORY, CRM_KANAL, type CrmEtykieta } from '../../types/crm'
+
+/** KANAŁ kontaktu (leady.zrodlo, brief pkt 13.1) — mały badge obok etykiet; nie mylić ze „sprawą” (typ z analizy AI). */
+export function KanalBadge({ zrodlo, compact = false }: { zrodlo: string | null | undefined; compact?: boolean }) {
+  if (!zrodlo) return null
+  const k = CRM_KANAL[zrodlo] ?? { label: zrodlo, icon: '•' }
+  return (
+    <span className="crm-tag crm-kanal" title={`Kanał: ${k.label}`}>
+      <span aria-hidden="true">{k.icon}</span>
+      {compact ? null : <span> {k.label}</span>}
+    </span>
+  )
+}
 import { addEtykieta, setEtykietaAktywna, toggleEtykieta } from '../../hooks/useCrm'
 
 type PushToast = (message: string, variant: ToastVariant) => void

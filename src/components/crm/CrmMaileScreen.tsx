@@ -47,7 +47,8 @@ export function MailList({ maile, mode, onOpenMail }: { maile: CrmMail[]; mode: 
             <button type="button" className="crm-link" onClick={() => onOpenMail(m.id)} title="Otwórz mail">
               {m.temat || '(bez tematu)'}
             </button>
-            {m.typ && <span className="crm-call-typ">{CRM_MAIL_TYP[m.typ] ?? m.typ}</span>}
+            {m.kanal === 'formularz' && <span className="crm-tag crm-kanal" title="Zgłoszenie z formularza kontaktowego strony">📝 Formularz</span>}
+            {mode === 'pelny' && m.typ && <span className="crm-call-typ" title="Sprawa (z analizy)">{CRM_MAIL_TYP[m.typ] ?? m.typ}</span>}
             {m.nastepna_akcja && CRM_AKCJA[m.nastepna_akcja] && <span className="crm-call-typ">{CRM_AKCJA[m.nastepna_akcja].icon} {CRM_AKCJA[m.nastepna_akcja].label}</span>}
             {m.zalaczniki && m.zalaczniki.length > 0 && (
               <span className="crm-muted" title={m.zalaczniki.map((z) => z.nazwa ?? '').join(', ')}>
@@ -137,7 +138,9 @@ export default function CrmMaileScreen({
           </button>
         ),
       },
-      { key: 'typ', label: 'Typ', sortValue: (m) => m.typ ?? '', render: (m) => (m.typ ? <span className="crm-call-typ">{CRM_MAIL_TYP[m.typ] ?? m.typ}</span> : '—') },
+      // kanał (mail / formularz ze strony) widzi każdy; SPRAWA (wynik AI) tylko tryb pełny (brief pkt 13)
+      { key: 'kanal', label: 'Kanał', sortValue: (m) => m.kanal ?? '', render: (m) => (m.kanal === 'formularz' ? <span className="crm-tag crm-kanal" title="Zgłoszenie z formularza kontaktowego strony">📝 Formularz</span> : <span className="crm-muted">✉️</span>) },
+      { key: 'sprawa', label: 'Sprawa', pelnyOnly: true, sortValue: (m) => m.typ ?? '', render: (m) => (m.typ ? <span className="crm-call-typ">{CRM_MAIL_TYP[m.typ] ?? m.typ}</span> : '—') },
       {
         key: 'status',
         label: 'Status',
@@ -314,7 +317,9 @@ export function CrmMailScreen({
             <span className={`crm-call-dir crm-call-dir--${mail.kierunek ?? 'x'}`}>{CRM_MAIL_KIERUNEK[mail.kierunek ?? ''] ?? mail.kierunek ?? '—'}</span>
             {' · '}
             {fmtDateTime(mail.data ?? mail.created_at)}
-            {mail.typ ? <> · <span className="crm-call-typ">{CRM_MAIL_TYP[mail.typ] ?? mail.typ}</span></> : null}
+            {mail.kanal === 'formularz' ? <> · <span className="crm-tag crm-kanal" title="Zgłoszenie z formularza kontaktowego strony">📝 Formularz ze strony</span></> : null}
+            {mail.typ ? <> · <span className="crm-call-typ" title="Sprawa (z analizy)">Sprawa: {CRM_MAIL_TYP[mail.typ] ?? mail.typ}</span></> : null}
+            {mail.nadawca_techniczny ? <span className="crm-muted"> · nadawca techniczny: {mail.nadawca_techniczny}</span> : null}
             {' · '}
             <StatusChip status={mail.status_przetwarzania} />
             {mail.nastepna_akcja && CRM_AKCJA[mail.nastepna_akcja] ? <> · {CRM_AKCJA[mail.nastepna_akcja].icon} {CRM_AKCJA[mail.nastepna_akcja].label}</> : null}

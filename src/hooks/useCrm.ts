@@ -10,6 +10,7 @@ import { supabase } from '../supabaseClient'
 import type { CrmEtykieta, CrmLead, CrmMail, CrmOferta, CrmPocztaTest, CrmRozmowa, CrmSkrzynka, CrmSprawdzenieSkrzynek, CrmZdarzenie } from '../types/crm'
 import { CRM_FOLLOW_UP_DAYS, CRM_OPEN_STATUSES } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
+import { normalizePlPhone } from '../utils/crmPhone'
 
 const crm = () => supabase.schema('crm')
 
@@ -348,6 +349,67 @@ export async function fetchMail(id: string): Promise<Result<CrmMail | null>> {
 export async function fetchMaileLeada(leadId: string): Promise<Result<CrmMail[]>> {
   const { data, error } = await crm().from('maile').select(MAIL_LIST_COLS).eq('lead_id', leadId).order('data', { ascending: false, nullsFirst: false })
   return { data: (data ?? []) as unknown as CrmMail[], error: crmErrorFrom(error) }
+}
+
+// ---- Walk-in: „Dodaj klienta” (brief pkt 13.1) ----
+
+export type NowyKlient = {
+  nazwa: string
+  telefon: string
+  email: string
+  miejscowosc: string
+  notatka: string
+  /** oddzwon | dopytaj | przygotuj_oferte | null */
+  nastepna_akcja: string | null
+  /** YYYY-MM-DD */
+  nastepny_krok: string | null
+  etykiety: string[]
+}
+
+/**
+ * Lead ze zrodlo='wizyta' + zdarzenie lead_utworzony. Telefon normalizowany do +48… (UNIQUE
+ * w leady); przy duplikacie zwracamy id istniejącego klienta, żeby UI mógł go otworzyć.
+ */
+export async function createLeadWizyta(k: NowyKlient, userId: string): Promise<{ id: string | null; error: CrmError | null; existingId?: string }> {
+  const telefon = k.telefon.trim() ? normalizePlPhone(k.telefon) : null
+  if (k.telefon.trim() && !telefon) return { id: null, error: { kind: 'other', message: 'Nieprawidłowy numer telefonu — wpisz 9 cyfr albo z prefiksem +48.' } }
+  const email = k.email.trim().toLowerCase() || null
+  if (!telefon && !email) return { id: null, error: { kind: 'other', message: 'Podaj telefon albo e-mail klienta.' } }
+  const notatka = k.notatka.trim() || null
+  const { data, error } = await crm()
+    .from('leady')
+    .insert({
+      zrodlo: 'wizyta',
+      status: 'nowy',
+      nazwa: k.nazwa.trim() || null,
+      telefon,
+      email,
+      miejscowosc: k.miejscowosc.trim() || null,
+      podsumowanie: notatka,
+      nastepna_akcja: k.nastepna_akcja,
+      nastepny_krok: k.nastepna_akcja ? k.nastepny_krok : null,
+      akcja_opis: k.nastepna_akcja ? notatka?.slice(0, 200) ?? null : null,
+      akcja_od: k.nastepna_akcja ? new Date().toISOString() : null,
+      etykiety: k.etykiety,
+    })
+    .select('id')
+    .single()
+  if (error || !data) {
+    if (error?.code === '23505' && telefon) {
+      const { data: ex } = await crm().from('leady').select('id').eq('telefon', telefon).maybeSingle()
+      return { id: null, error: { kind: 'other', message: 'Klient z tym numerem telefonu już jest w CRM.' }, existingId: (ex as { id: string } | null)?.id }
+    }
+    return { id: null, error: crmErrorFrom(error) ?? { kind: 'other', message: 'Nie udało się zapisać klienta' } }
+  }
+  const id = (data as { id: string }).id
+  await crm().from('zdarzenia').insert({
+    lead_id: id,
+    typ: 'lead_utworzony',
+    opis: 'Nowy klient z wizyty w salonie',
+    kto: userId,
+    dane: { zrodlo: 'klik', kanal: 'wizyta' },
+  })
+  return { id, error: null }
 }
 
 // ---- Etykiety (crm.etykiety + crm.leady.etykiety, brief pkt 12) ----

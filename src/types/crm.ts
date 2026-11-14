@@ -150,15 +150,33 @@ export const CRM_AKCJA: Record<string, { label: string; icon: string; hint: stri
   oddzwon: { label: 'Oddzwoń', icon: '📞', hint: 'Nieodebrane połączenie — oddzwoń do klienta' },
   dopytaj: { label: 'Dopytaj', icon: '❓', hint: 'Brakuje danych do oferty — zapytaj klienta' },
   przygotuj_oferte: { label: 'Sprawdź i wyślij ofertę', icon: '📄', hint: 'System policzył ofertę — przeczytaj mail i wyślij' },
-  follow_up: { label: 'Follow-up', icon: '🔁', hint: 'Oferta wysłana, brak odpowiedzi — przypomnij się klientowi' },
+  follow_up: { label: 'Zapytaj o decyzję', icon: '🔁', hint: 'Oferta wysłana, brak odpowiedzi — zapytaj klienta o decyzję' },
   reklamacja: { label: 'Reklamacja', icon: '⚠️', hint: 'Klient zgłasza reklamację' },
 }
 
+/** „Co zrobił system” z rozmową (brief pkt 13.4) */
 export const CRM_ROZMOWA_STATUS: Record<string, { label: string; cls: string }> = {
-  przetworzona: { label: 'przetworzona', cls: 'crm-status--sent' },
-  bez_ai: { label: 'bez analizy', cls: 'crm-status--muted' },
-  pominieta: { label: 'pominięta', cls: 'crm-status--muted' },
-  blad: { label: 'BŁĄD', cls: 'crm-status--lost' },
+  przetworzona: { label: 'Przeanalizowana', cls: 'crm-status--sent' },
+  bez_ai: { label: 'Zapisana bez analizy', cls: 'crm-status--muted' },
+  pominieta: { label: 'Pominięta', cls: 'crm-status--muted' },
+  blad: { label: 'Błąd', cls: 'crm-status--lost' },
+}
+
+/**
+ * KANAŁ kontaktu (brief pkt 13.1) = leady.zrodlo. W aplikacji NIE nazywać „typem”:
+ * „typ” w bazie (rozmowy.typ / maile.typ) to SPRAWA (wynik analizy AI).
+ */
+export const CRM_KANAL: Record<string, { label: string; icon: string }> = {
+  telefon: { label: 'Telefon', icon: '📞' },
+  formularz: { label: 'Formularz', icon: '📝' },
+  mail: { label: 'Mail', icon: '✉️' },
+  wizyta: { label: 'Wizyta (walk-in)', icon: '🚪' },
+  inne: { label: 'Inne', icon: '•' },
+}
+/** maile.kanal: mail zwykły albo zgłoszenie z formularza kontaktowego strony (Contact Form 7) */
+export const CRM_MAIL_KANAL: Record<string, string> = {
+  mail: 'Mail',
+  formularz: 'Formularz ze strony',
 }
 
 export const CRM_DOSTAWA_LABEL: Record<string, string> = {
@@ -193,18 +211,19 @@ export type CrmZdarzenie = {
 
 export const CRM_OFERTA_STATUS: Record<string, { label: string; cls: string }> = {
   do_sprawdzenia: { label: 'Do sprawdzenia', cls: 'crm-status--todo' },
-  przelicz: { label: 'W przeliczaniu', cls: 'crm-status--working' },
-  robocza: { label: 'Robocza (zastąpiona)', cls: 'crm-status--muted' },
+  przelicz: { label: 'Liczy się', cls: 'crm-status--working' },
+  robocza: { label: 'Stara wersja', cls: 'crm-status--muted' },
   wyslana: { label: 'Wysłana', cls: 'crm-status--sent' },
   zaakceptowana: { label: 'Zaakceptowana', cls: 'crm-status--won' },
   odrzucona: { label: 'Odrzucona', cls: 'crm-status--lost' },
   wygasla: { label: 'Wygasła', cls: 'crm-status--muted' },
 }
 
+/** Status klienta (brief pkt 13.6) */
 export const CRM_LEAD_STATUS: Record<string, string> = {
   nowy: 'Nowy',
-  oferta: 'Oferta',
-  wygrany: 'Wygrany',
+  oferta: 'Ma ofertę',
+  wygrany: 'Zamówił',
   przegrany: 'Przegrany',
 }
 
@@ -330,6 +349,10 @@ export type CrmMail = {
   message_id: string | null
   /** przychodzacy | wychodzacy */
   kierunek: string | null
+  /** mail | formularz (zgłoszenie z formularza kontaktowego strony; od_adres = klient z Reply-To) */
+  kanal?: string | null
+  /** techniczny nadawca przy kanal='formularz' (np. wordpress@podrzwi.pl) */
+  nadawca_techniczny?: string | null
   od_adres: string | null
   od_nazwa: string | null
   do_adresy: string[] | null
@@ -360,30 +383,35 @@ export type CrmMail = {
   lead?: Pick<CrmLead, 'id' | 'nazwa' | 'telefon' | 'email' | 'miejscowosc'> | null
 }
 
-export const CRM_MAIL_TYP: Record<string, string> = {
-  zapytanie: 'zapytanie',
-  klient: 'klient',
-  odpowiedz: 'odpowiedź na ofertę',
-  status: 'pytanie o status',
-  reklamacja: 'reklamacja',
-  dostawca: 'dostawca',
-  newsletter: 'newsletter',
-  spam: 'spam',
-  wlasny: 'nasz mail',
-  inne: 'inne',
+/** SPRAWA (czego dotyczy) = rozmowy.typ / maile.typ, wynik analizy AI (brief pkt 13.2). W UI: „Sprawa”, nigdy „Typ”. */
+export const CRM_SPRAWA: Record<string, string> = {
+  zapytanie: 'Nowe zapytanie',
+  klient: 'Obecny klient',
+  odpowiedz: 'Odpowiedź na ofertę',
+  status: 'Status zamówienia',
+  reklamacja: 'Reklamacja',
+  dostawca: 'Dostawca / oferta dla nas',
+  newsletter: 'Newsletter',
+  spam: 'Spam',
+  wlasny: 'Nasz mail',
+  inne: 'Inne',
 }
+/** @deprecated nazwa historyczna — użyj CRM_SPRAWA */
+export const CRM_MAIL_TYP = CRM_SPRAWA
 
+/** „Co zrobił system” z mailem (brief pkt 13.4) */
 export const CRM_MAIL_STATUS: Record<string, { label: string; cls: string }> = {
-  nowy: { label: 'czeka na analizę', cls: 'crm-status--working' },
-  przetworzony: { label: 'przetworzony', cls: 'crm-status--sent' },
-  bez_ai: { label: 'bez analizy', cls: 'crm-status--muted' },
-  pominiety: { label: 'pominięty', cls: 'crm-status--muted' },
-  blad: { label: 'BŁĄD', cls: 'crm-status--lost' },
+  nowy: { label: 'Czeka na analizę', cls: 'crm-status--working' },
+  przetworzony: { label: 'Przeanalizowany', cls: 'crm-status--sent' },
+  bez_ai: { label: 'Zapisany bez analizy', cls: 'crm-status--muted' },
+  pominiety: { label: 'Pominięty', cls: 'crm-status--muted' },
+  blad: { label: 'Błąd', cls: 'crm-status--lost' },
 }
 
+/** Kierunek maila (brief pkt 13.3) */
 export const CRM_MAIL_KIERUNEK: Record<string, string> = {
-  przychodzacy: '↙ przychodzący',
-  wychodzacy: '↗ wychodzący',
+  przychodzacy: '↙ Od klienta',
+  wychodzacy: '↗ Od nas',
 }
 
 /** Statusy ofert „do roboty” — domyślny filtr listy (brief pkt 3). */

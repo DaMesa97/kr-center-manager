@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: kanał osobno, sprawa osobno, „Dodaj klienta" (beta.115)</h4>
+        <ul>
+          <li><b>Kanał</b> (skąd przyszedł kontakt: Telefon, Formularz, Mail, Wizyta, Inne) to mały badge przy kliencie na liście „Do zrobienia" i na karcie. Mail ze strony (formularz kontaktowy) ma znacznik „Formularz ze strony", a nadawcą jest klient, nie skrzynka techniczna.</li>
+          <li><b>Sprawa</b> (czego dotyczy, wynik analizy: Nowe zapytanie, Obecny klient, Odpowiedź na ofertę, Status zamówienia, Reklamacja, Dostawca, Newsletter, Spam, Nasz mail, Inne) widoczna w podglądzie maila i w trybie pełnym. Nowe polskie nazwy: kierunek maila „Od klienta / Od nas", „Co zrobił system" (Czeka na analizę, Pominięty, Zapisany bez analizy, Przeanalizowany, Błąd), zadanie „Zapytaj o decyzję" zamiast follow-up, status klienta „Ma ofertę / Zamówił", oferta „Liczy się / Stara wersja".</li>
+          <li><b>„Dodaj klienta"</b> na liście „Do zrobienia": klient z wizyty w salonie (nazwa, telefon i/lub e-mail, miejscowość, notatka, etykiety, opcjonalne zadanie z terminem). Telefon zapisuje się jako +48…, a przy numerze już znanym aplikacja proponuje otwarcie istniejącego klienta.</li>
+        </ul>
         <h4>CRM Po Drzwi: etykiety na zadaniach i klientach (beta.114)</h4>
         <ul>
           <li><b>Etykiety</b> mówią od razu, czego dotyczy sprawa: kategoria (zewnętrzne, wejściowe do mieszkania, wewnętrzne, stolarka aluminiowa, inne), usługa (z dostawą, odbiór osobisty, z montażem, pomiar), klient (indywidualny, firma, inwestycja) oraz Czyste Powietrze i pilne. System nadaje je sam z rozmowy lub maila; kliknięcie w „+" przy zadaniu albo na karcie klienta otwiera wybór pogrupowany (kategoria i klient: jedna; usługa i inne: wiele), kliknięcie w etykietę ją zdejmuje.</li>
