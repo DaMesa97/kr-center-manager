@@ -9,7 +9,7 @@
 // co 10 s, póki coś jest w przeliczaniu.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus } from 'lucide-react'
+import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_AKCJA,
@@ -43,6 +43,7 @@ import {
   markZadanieZrobione,
   requestOfertaPrzelicz,
   retryOfertaPrzelicz,
+  zlecOferteZNotatki,
   type CrmError,
   type CrmZadanieRow,
 } from '../../hooks/useCrm'
@@ -772,6 +773,8 @@ function OfertaScreen({
   const dobor = oferta.dobor ?? {}
   const analiza = oferta.analiza ?? {}
   const pw = oferta.poprawka_wynik ?? {}
+  // brief pkt 15: oferta z notatki handlowca (klient z salonu) — nie ma rozmowy ani maila, jest notatka
+  const zNotatki = !!oferta.notatka && !oferta.rozmowa_id && !oferta.mail_id
   const linkValid = oferta.link_wazny_do ? new Date(oferta.link_wazny_do).getTime() > Date.now() : null
 
   return (
@@ -825,7 +828,7 @@ function OfertaScreen({
           <h4>Oferta w przygotowaniu</h4>
           <p className="crm-pending-text">
             <Spinner inline size={14} /> System liczy cenę, robi koszyk w sklepie i pisze mail
-            {oferta.poprawka ? <> po poprawce: <em>„{oferta.poprawka}”</em></> : ' po rozmowie'}.
+            {oferta.poprawka ? <> po poprawce: <em>„{oferta.poprawka}”</em></> : zNotatki ? ' z notatki handlowca' : oferta.mail_id ? ' po mailu' : ' po rozmowie'}.
             {oferta.liczenie_od ? ` Liczenie trwa od ${fmtTime(oferta.liczenie_od)}.` : ' Zwykle 30–90 s.'} Ekran odświeży się sam; nie ma tu jeszcze nic do sprawdzenia.
           </p>
           {oferta.mail_do && <p className="crm-muted">Adres do wysyłki: {oferta.mail_do}</p>}
@@ -866,6 +869,14 @@ function OfertaScreen({
             {canSend && <span className="crm-muted">Kliknij po wysłaniu maila — system zapamięta kto i kiedy i za 3 dni przypomni o follow-upie.</span>}
             {!canSend && !sysErr && <span className="crm-muted">Ta wersja ma status „{CRM_OFERTA_STATUS[oferta.status]?.label ?? oferta.status}”.</span>}
           </div>
+        </section>
+      )}
+
+      {/* 2b. NOTATKA HANDLOWCA (brief pkt 15) — zamiast transkrypcji/maila, bo źródłem oferty są słowa handlowca */}
+      {zNotatki && (
+        <section className="crm-notatka-src">
+          <h4>Notatka handlowca</h4>
+          <pre className="crm-pre">{oferta.notatka}</pre>
         </section>
       )}
 
@@ -916,7 +927,7 @@ function OfertaScreen({
               )}
               <h5>Uzasadnienie doboru</h5>
               <p>{typeof dobor.uzasadnienie === 'string' ? dobor.uzasadnienie : '—'}{typeof dobor.pewnosc === 'string' ? <span className="crm-muted"> (pewność: {dobor.pewnosc})</span> : null}</p>
-              <h5>Podsumowanie rozmowy</h5>
+              <h5>{zNotatki ? 'Podsumowanie notatki' : oferta.mail_id ? 'Podsumowanie maila' : 'Podsumowanie rozmowy'}</h5>
               <p>{typeof analiza.podsumowanie === 'string' ? analiza.podsumowanie : '—'}</p>
               {oferta.poprawka && (
                 <>
@@ -1050,12 +1061,21 @@ function LeadScreen({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
   const [saving, setSaving] = useState(false)
+  // notatka handlowca (brief pkt 15): edytowalna kopia leady.podsumowanie; „Zleć ofertę” wysyła ją do rpc
+  const [notatka, setNotatka] = useState('')
+  const [notatkaDirty, setNotatkaDirty] = useState(false)
+  // po zleceniu oferta `przelicz` pojawia się dopiero po ~15 s — przez 2 min odpytujemy mimo braku oferty
+  const [zleconoAt, setZleconoAt] = useState<number | null>(null)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     const { data: l, error: err } = await fetchLead(id)
     setError(err)
     setLead(l)
+    setNotatkaDirty((dirty) => {
+      if (!dirty) setNotatka(l?.podsumowanie ?? '')
+      return dirty
+    })
     if (l) {
       const [r, o, z, m] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id }), fetchMaileLeada(l.id)])
       setRozmowy(r.data)
@@ -1072,7 +1092,28 @@ function LeadScreen({
   }, [load])
 
   const silentReload = useCallback(() => void load(true), [load])
-  usePolling(oferty.some((o) => o.status === 'przelicz'), silentReload)
+  const czekaNaOferte = zleconoAt != null && Date.now() - zleconoAt < 120_000
+  usePolling(oferty.some((o) => o.status === 'przelicz') || czekaNaOferte, silentReload)
+
+  const handleZlecOferte = async () => {
+    if (!lead) return
+    const tekst = notatka.trim()
+    if (!tekst) {
+      pushToast('Wpisz notatkę: co klient chce, jakie drzwi, wymiar, kolor', 'error')
+      return
+    }
+    setSaving(true)
+    const err = await zlecOferteZNotatki(lead.id, tekst)
+    setSaving(false)
+    if (err) {
+      pushToast(`Nie udało się zlecić oferty: ${err.message}`, 'error')
+      return
+    }
+    pushToast('Zlecono ofertę z notatki — system liczy, zwykle do minuty', 'success')
+    setNotatkaDirty(false)
+    setZleconoAt(Date.now())
+    await load(true)
+  }
 
   const handleZrobione = async () => {
     if (!lead || !currentUser) return
@@ -1176,7 +1217,36 @@ function LeadScreen({
         </div>
         <div>
           <h4>Czego chce</h4>
-          <p>{lead.podsumowanie || <span className="crm-muted">brak podsumowania</span>}</p>
+          {/* brief pkt 15: notatka handlowca (klient z salonu) → „Zleć ofertę” liczy ofertę z jej treści.
+              Przy rozmowach/mailach podsumowanie pisze system, więc pole pokazujemy tylko przy wizycie albo gdy już jest notatka. */}
+          {lead.zrodlo === 'wizyta' || lead.podsumowanie ? (
+            <div className="crm-notatka">
+              <textarea
+                className="crm-fix-textarea"
+                rows={4}
+                value={notatka}
+                onChange={(e) => {
+                  setNotatka(e.target.value)
+                  setNotatkaDirty(true)
+                }}
+                disabled={saving}
+                placeholder="Notatka: jakie drzwi, wymiar, kolor, okucia, dostawa czy odbiór…"
+                aria-label="Notatka handlowca"
+              />
+              <div className="crm-mail-actions">
+                {activeOferta?.status === 'przelicz' || (czekaNaOferte && !activeOferta) ? (
+                  <span className="crm-muted"><Spinner inline size={14} /> system liczy ofertę z notatki…</span>
+                ) : (
+                  <button type="button" className="btn btn-secondary" disabled={saving || !notatka.trim()} onClick={() => void handleZlecOferte()} title="System przeanalizuje notatkę, dobierze drzwi, policzy cenę i napisze mail">
+                    <FileText size={14} /> {activeOferta ? 'Zleć nową wersję oferty' : 'Zleć ofertę'}
+                  </button>
+                )}
+                {notatkaDirty && <span className="crm-muted">notatka zapisze się przy zleceniu oferty</span>}
+              </div>
+            </div>
+          ) : (
+            <p><span className="crm-muted">brak podsumowania</span></p>
+          )}
           {lead.brakuje && (
             <>
               <h5>Brakuje</h5>

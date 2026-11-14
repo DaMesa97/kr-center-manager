@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: oferta z notatki dla klienta z salonu (beta.117)</h4>
+        <ul>
+          <li>Na karcie klienta z wizyty (albo każdego, kto ma już notatkę) pole „Czego chce" jest do edycji i ma przycisk <b>„Zleć ofertę"</b>. System czyta notatkę jak rozmowę: dobiera drzwi, liczy cenę, robi koszyk i pisze mail. Po kilkunastu sekundach widać „system liczy", po około minucie oferta jest „Do sprawdzenia" jak każda inna. Gdy klient ma już ofertę, przycisk robi nową wersję.</li>
+          <li>Działa też bez klikania: „Dodaj klienta" z zadaniem „Przygotuj ofertę" i wpisaną notatką od razu zleca ofertę.</li>
+          <li>Na karcie takiej oferty zamiast rozmowy jest sekcja <b>„Notatka handlowca"</b>. Notatka to słowa handlowca, system jej nie nadpisuje.</li>
+        </ul>
         <h4>CRM Po Drzwi: zakładka „Pomoc" z instrukcją pracy (beta.116)</h4>
         <ul>
           <li>W CRM obok Poczty jest <b>Pomoc</b>: instrukcja „Jak pracować w CRM" (dzień w 3 krokach, skąd biorą się klienci, zadania, sprawdzanie i poprawka oferty, etykiety, skrzynka, co robić, gdy coś jest nie tak). Treść mieszka w bazie, więc poprawki nie wymagają nowej wersji aplikacji.</li>

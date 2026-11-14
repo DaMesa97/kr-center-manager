@@ -469,6 +469,19 @@ export async function deletePomoc(slug: string): Promise<CrmError | null> {
   return crmErrorFrom(error)
 }
 
+// ---- Oferta z notatki handlowca (brief pkt 15, klient z salonu) ----
+
+/**
+ * rpc crm.zlec_oferte_z_notatki: zapisuje notatkę do leady.podsumowanie (gdy podana), zleca analizę
+ * i ofertę w tle (po ~15 s oferta `przelicz`, po ~30 s `do_sprawdzenia`). Przy ofercie już w `przelicz`
+ * nic nie robi; przy `do_sprawdzenia` robi nową wersję. Wyjątek (np. „Brak notatki…”) wraca jako error.
+ */
+export async function zlecOferteZNotatki(leadId: string, notatka: string | null): Promise<CrmError | null> {
+  const n = notatka?.trim() || null
+  const { error } = await crm().rpc('zlec_oferte_z_notatki', { p_lead_id: leadId, p_notatka: n })
+  return crmErrorFrom(error)
+}
+
 /** „Analizuj ponownie”: status → 'nowy', trigger w bazie sam zleca analizę (tylko przychodzące). */
 export async function retryMailAnaliza(id: string): Promise<CrmError | null> {
   const { error } = await crm().from('maile').update({ status_przetwarzania: 'nowy' }).eq('id', id)

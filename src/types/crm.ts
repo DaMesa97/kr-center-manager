@@ -139,6 +139,10 @@ export type CrmOferta = {
   /** dostawa (decyzja Tymka 14.11): 'kurier' (300 zł) | 'odbior_osobisty' (0); cena_razem = same drzwi */
   dostawa: string | null
   dostawa_koszt: number | null
+  /** mail, z którego powstała oferta (brief pkt 11); null przy rozmowie lub notatce */
+  mail_id?: string | null
+  /** oferta z notatki handlowca (brief pkt 15, klient z salonu): treść notatki; rozmowa_id i mail_id puste */
+  notatka?: string | null
   /** osadzony lead (select `lead:leady(...)`) */
   lead?: CrmLead | null
 }
