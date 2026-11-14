@@ -233,7 +233,7 @@ function AlertySection({ pushToast }: Pick<Props, 'pushToast'>) {
     try {
       const r = await testAlert()
       const do_ = Array.isArray(r.wyslano_do) ? r.wyslano_do.join(', ') : r.wyslano_do ?? ''
-      setTest(r.ok ? { ok: true, text: `Mail próbny wysłany${do_ ? ` do: ${do_}` : ''}` } : { ok: false, text: r.blad ?? 'Nie udało się wysłać' })
+      setTest(r.ok ? { ok: true, text: `Mail próbny wysłany${do_ ? ` do: ${do_}` : ''}${r.temat ? ` · temat: „${r.temat}”` : ''}${r.smtp ? ` · ${r.smtp}` : ''}` } : { ok: false, text: r.blad ?? 'Nie udało się wysłać' })
     } catch (e) {
       setTest({ ok: false, text: e instanceof Error ? e.message : String(e) })
     }

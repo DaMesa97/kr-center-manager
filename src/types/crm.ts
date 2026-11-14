@@ -455,7 +455,8 @@ export const CRM_ALERT_KEYS = {
   ostatniBlad: 'alert_ostatni_blad',
   ostatnieZdarzenie: 'alert_ostatnie_zdarzenie_id',
 } as const
-export type CrmAlertTest = { ok: boolean; wyslano_do?: string[] | string; blad?: string }
+/** odpowiedź crm-mail-sent akcja test_alertu: {ok:true, wyslano_do, temat, smtp} albo {ok:false, blad} (nie-superadmin też dostaje blad) */
+export type CrmAlertTest = { ok: boolean; wyslano_do?: string[] | string; temat?: string; smtp?: string; blad?: string }
 
 /** Wiersz widoku crm.poprawki_ostatnie (30 dni, brief pkt 17): co handlowiec poprawia w ofertach. */
 export type CrmPoprawkaRow = {

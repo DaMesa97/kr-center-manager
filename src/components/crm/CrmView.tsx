@@ -278,13 +278,20 @@ type CrmRtRow = Record<string, unknown>
  * `onChange` dostaje tabelę i wiersz (new, przy DELETE old); ekran sam decyduje, czy go to dotyczy, i przeładowuje się
  * z opóźnieniem (debounce), bo jedno przeliczenie oferty to kilka UPDATE-ów pod rząd.
  */
-function useCrmRealtime(onChange: (table: CrmRtTable, row: CrmRtRow) => void) {
+function useCrmRealtime(
+  onChange: (table: CrmRtTable, row: CrmRtRow) => void,
+  /** filtry po stronie serwera per tabela (np. `lead_id=eq.<id>`); brak klucza = bez filtra; `null` = jeszcze nie subskrybuj */
+  filters: Partial<Record<CrmRtTable, string>> | null = {},
+) {
   const cb = useRef(onChange)
   cb.current = onChange
+  const key = filters ? JSON.stringify(filters) : null
   useEffect(() => {
+    if (key == null) return
+    const f = JSON.parse(key) as Partial<Record<CrmRtTable, string>>
     const ch = supabase.channel(`crm:${Math.random().toString(36).slice(2, 10)}`)
     for (const table of ['leady', 'oferty', 'zdarzenia'] as const) {
-      ch.on('postgres_changes', { event: '*', schema: 'crm', table }, (payload) => {
+      ch.on('postgres_changes', { event: '*', schema: 'crm', table, ...(f[table] ? { filter: f[table] } : {}) }, (payload) => {
         const row = ((payload.new && Object.keys(payload.new).length > 0 ? payload.new : payload.old) ?? {}) as CrmRtRow
         cb.current(table, row)
       })
@@ -293,7 +300,7 @@ function useCrmRealtime(onChange: (table: CrmRtTable, row: CrmRtRow) => void) {
     return () => {
       void supabase.removeChannel(ch)
     }
-  }, [])
+  }, [key])
 }
 
 /** przeładowanie zbiorcze: wiele zdarzeń realtime w krótkim czasie = jedno odświeżenie */
@@ -732,12 +739,16 @@ function OfertaScreen({
   // w przeliczaniu: odpytuj (awaryjnie), a gdy poprawka urodzi nową wersję — przejdź do niej
   const silentReload = useCallback(() => void load(true), [load])
   usePolling(oferta?.status === 'przelicz', silentReload)
-  // realtime: ta oferta, inne wersje tego klienta (nowa wersja po poprawce) i zdarzenia tej oferty
+  // realtime (filtr po stronie serwera): oferty tego klienta (ta + nowa wersja po poprawce) i zdarzenia tej oferty;
+  // subskrypcja rusza, gdy znamy lead_id (po pierwszym wczytaniu); oferta bez leada — tylko po własnym id
   const debouncedReload = useDebounced(silentReload)
-  useCrmRealtime((table, row) => {
-    if (table === 'oferty' && (row.id === id || (oferta?.lead_id && row.lead_id === oferta.lead_id))) debouncedReload()
-    else if (table === 'zdarzenia' && row.oferta_id === id) debouncedReload()
-  })
+  const rtFilters = useMemo(
+    () => (oferta ? { oferty: oferta.lead_id ? `lead_id=eq.${oferta.lead_id}` : `id=eq.${id}`, zdarzenia: `oferta_id=eq.${id}`, leady: `id=eq.${oferta.lead_id ?? '00000000-0000-0000-0000-000000000000'}` } : null),
+    [oferta, id],
+  )
+  useCrmRealtime((table) => {
+    if (table !== 'leady') debouncedReload()
+  }, rtFilters)
   useEffect(() => {
     if (!oferta || oferta.status !== 'robocza' || !oferta.poprawka) return
     const next = wersje.find((w) => w.poprzednia_id === oferta.id)
@@ -1160,11 +1171,10 @@ function LeadScreen({
   const silentReload = useCallback(() => void load(true), [load])
   const czekaNaOferte = zleconoAt != null && Date.now() - zleconoAt < 120_000
   usePolling(oferty.some((o) => o.status === 'przelicz') || czekaNaOferte, silentReload)
-  // realtime: ten lead, jego oferty i zdarzenia (transkrypcja notatki głosowej, nowa oferta, zadanie)
+  // realtime (filtr po stronie serwera): ten lead, jego oferty i zdarzenia (transkrypcja notatki głosowej, nowa oferta, zadanie)
   const debouncedReload = useDebounced(silentReload)
-  useCrmRealtime((table, row) => {
-    if (table === 'leady' ? row.id === id : row.lead_id === id) debouncedReload()
-  })
+  const rtFilters = useMemo(() => ({ leady: `id=eq.${id}`, oferty: `lead_id=eq.${id}`, zdarzenia: `lead_id=eq.${id}` }), [id])
+  useCrmRealtime(() => debouncedReload(), rtFilters)
   const [nagrywanieBusy, setNagrywanieBusy] = useState(false)
 
   const handleNagranie = async (n: Nagranie) => {
