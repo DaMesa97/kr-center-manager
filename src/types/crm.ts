@@ -106,7 +106,7 @@ export type CrmZdarzenie = {
 
 export const CRM_OFERTA_STATUS: Record<string, { label: string; cls: string }> = {
   do_sprawdzenia: { label: 'Do sprawdzenia', cls: 'crm-status--todo' },
-  przelicz: { label: 'Przeliczanie…', cls: 'crm-status--working' },
+  przelicz: { label: 'W przeliczaniu', cls: 'crm-status--working' },
   robocza: { label: 'Robocza (zastąpiona)', cls: 'crm-status--muted' },
   wyslana: { label: 'Wysłana', cls: 'crm-status--sent' },
   zaakceptowana: { label: 'Zaakceptowana', cls: 'crm-status--won' },
@@ -123,7 +123,11 @@ export const CRM_LEAD_STATUS: Record<string, string> = {
 
 export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   rozmowa: 'Rozmowa',
+  lead_utworzony: 'Lead utworzony',
+  nieodebrana: 'Nieodebrana',
+  rozmowa_pominieta: 'Rozmowa pominięta',
   analiza: 'Analiza rozmowy',
+  oferta_zlecona: 'Oferta zlecona do przeliczenia',
   oferta_utworzona: 'Oferta utworzona',
   poprawka: 'Poprawka handlowca',
   przeliczono: 'Przeliczono',

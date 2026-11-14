@@ -200,7 +200,16 @@ export default function AluLabelPrintModal({ order, positions, constructions, on
               <div>
                 <span className="order-field-label-text">Podgląd (pierwsza etykieta)</span>
                 <div className="label-preview-frame">
-                  <iframe title="Podgląd etykiety" srcDoc={previewHtml} style={{ width: '100%', height: 440, border: 'none' }} />
+                  {/* #141: iframe w rozmiarze etykiety (mm → px przy 96 dpi), ramka przewija */}
+                  <iframe
+                    title="Podgląd etykiety"
+                    srcDoc={previewHtml}
+                    style={{
+                      width: Math.ceil(((Number(template?.width_mm) || 100) * 96) / 25.4) + 2,
+                      height: Math.ceil(((Number(template?.height_mm) || 150) * 96) / 25.4) + 2,
+                      border: 'none',
+                    }}
+                  />
                 </div>
               </div>
             </div>

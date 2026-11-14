@@ -176,7 +176,8 @@ export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCre
             <button type="button" className="btn btn-sm btn-primary" onClick={() => setSelectedOrder(o)}>
               Szczegóły
             </button>
-            <button type="button" className="btn btn-primary" onClick={() => onCreateComplaint(o)}>
+            {/* #140: kolor warning (reklamacja), ten sam rozmiar co sąsiedni przycisk */}
+            <button type="button" className="btn btn-sm btn-warning" onClick={() => onCreateComplaint(o)}>
               Utwórz reklamację
             </button>
           </>

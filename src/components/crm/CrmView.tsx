@@ -196,7 +196,18 @@ function OfertyList({ onOpenOferta, onOpenLead }: { onOpenOferta: (id: string) =
         ),
       },
       { key: 'miejscowosc', label: 'Miejscowość', sortValue: (r) => r.lead?.miejscowosc ?? '', render: (r) => r.lead?.miejscowosc || '—' },
-      { key: 'produkt', label: 'Produkt', sortValue: (r) => r.produkt ?? '', render: (r) => r.produkt || '—' },
+      {
+        key: 'produkt',
+        label: 'Produkt',
+        sortValue: (r) => r.produkt ?? '',
+        render: (r) =>
+          r.produkt ||
+          (r.cena_razem == null ? (
+            <span className="crm-muted" title="System jeszcze nie policzył tej oferty (brak produktu, ceny i maila)">w przygotowaniu</span>
+          ) : (
+            '—'
+          )),
+      },
       { key: 'cena', label: 'Cena brutto', align: 'right', sortValue: (r) => r.cena_razem ?? -1, render: (r) => fmtPln(r.cena_razem) },
       { key: 'koszyk', label: 'Koszyk', align: 'center', sortValue: (r) => (r.koszyk_zgodny === true ? 1 : r.koszyk_zgodny === false ? -1 : 0), render: (r) => <KoszykBadge value={r.koszyk_zgodny} compact /> },
       {
@@ -359,6 +370,9 @@ function OfertaScreen({
   const rozbicie = Array.isArray(oferta.rozbicie) ? oferta.rozbicie : []
   const canSend = oferta.status === 'do_sprawdzenia'
   const isRecalc = oferta.status === 'przelicz'
+  // Pusta zapowiedź: ingest założył wersję (po rozmowie / poprawce), ale backend
+  // jeszcze nie policzył ceny, koszyka i maila — nie ma czego sprawdzać ani wysyłać
+  const pending = !oferta.mail_tresc && !oferta.produkt && oferta.cena_razem == null
   const dobor = oferta.dobor ?? {}
   const analiza = oferta.analiza ?? {}
   const linkValid = oferta.link_wazny_do ? new Date(oferta.link_wazny_do).getTime() > Date.now() : null
@@ -369,7 +383,9 @@ function OfertaScreen({
         <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}><ArrowLeft size={14} /> Lista ofert</button>
         <div className="crm-screen-title">
           <h3>
-            Oferta v{oferta.wersja} · {oferta.produkt || 'produkt nieustalony'} · {fmtPln(oferta.cena_razem)}
+            {pending
+              ? `Oferta v${oferta.wersja} · w przygotowaniu`
+              : `Oferta v${oferta.wersja} · ${oferta.produkt || 'produkt nieustalony'} · ${fmtPln(oferta.cena_razem)}`}
           </h3>
           <div className="crm-screen-sub">
             <button type="button" className="crm-link" onClick={() => oferta.lead_id && onOpenLead(oferta.lead_id)}>
@@ -387,40 +403,57 @@ function OfertaScreen({
       </div>
 
       {/* 1. SPRAWDŹ TYLKO TO */}
-      <section className={`crm-check ${oferta.koszyk_zgodny === false ? 'crm-check--bad' : sprawdz.length === 0 && oferta.koszyk_zgodny ? 'crm-check--clean' : ''}`}>
-        <h4>Sprawdź tylko to</h4>
-        <div className="crm-check-koszyk"><KoszykBadge value={oferta.koszyk_zgodny} /></div>
-        {sprawdz.length === 0 ? (
-          <p className="crm-check-clean">Konfiguracja w całości z rozmowy — przeczytaj mail raz i wyślij.</p>
-        ) : (
-          <ol className="crm-check-list">
-            {sprawdz.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ol>
-        )}
-        {isRecalc && (
-          <p className="crm-recalc-note">
-            Trwa przeliczanie po poprawce: <em>„{oferta.poprawka}”</em>. Nowa wersja pojawi się na liście „Do zrobienia”; ta zostanie oznaczona jako robocza.
+      {pending ? (
+        <section className="crm-check crm-check--pending">
+          <h4>Oferta w przygotowaniu</h4>
+          <p className="crm-pending-text">
+            System ma jeszcze policzyć cenę, zrobić koszyk w sklepie i napisać mail
+            {isRecalc && oferta.poprawka ? <> po poprawce: <em>„{oferta.poprawka}”</em></> : isRecalc ? ' po nowej rozmowie' : ''}.
+            Nie ma tu nic do sprawdzenia — wróć za chwilę albo kliknij Odśwież. Gdy oferta będzie gotowa, dostanie status „Do sprawdzenia”.
           </p>
-        )}
-      </section>
+          {oferta.lead?.telefon || oferta.mail_do ? (
+            <p className="crm-muted">Adres do wysyłki: {oferta.mail_do || '—'}</p>
+          ) : null}
+        </section>
+      ) : (
+        <section className={`crm-check ${oferta.koszyk_zgodny === false ? 'crm-check--bad' : sprawdz.length === 0 && oferta.koszyk_zgodny ? 'crm-check--clean' : ''}`}>
+          <h4>Sprawdź tylko to</h4>
+          <div className="crm-check-koszyk"><KoszykBadge value={oferta.koszyk_zgodny} /></div>
+          {sprawdz.length === 0 ? (
+            <p className="crm-check-clean">Konfiguracja w całości z rozmowy — przeczytaj mail raz i wyślij.</p>
+          ) : (
+            <ol className="crm-check-list">
+              {sprawdz.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ol>
+          )}
+          {isRecalc && (
+            <p className="crm-recalc-note">
+              {oferta.poprawka ? <>Trwa przeliczanie po poprawce: <em>„{oferta.poprawka}”</em>.</> : 'Trwa przeliczanie tej wersji.'} Nowa wersja pojawi się na liście „Do zrobienia”; ta zostanie oznaczona jako robocza.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* 2. MAIL */}
-      <section className="crm-mail">
-        <h4>Mail do klienta — skopiuj do swojej poczty</h4>
-        <CopyRow label="Adres" value={oferta.mail_do} onCopied={onCopied} />
-        <CopyRow label="Temat" value={oferta.mail_temat} onCopied={onCopied} />
-        <CopyRow label="Treść" value={oferta.mail_tresc} multiline onCopied={onCopied} />
-        <div className="crm-mail-actions">
-          <button type="button" className="btn btn-primary" disabled={!canSend || saving} onClick={() => void handleWyslane()} title={canSend ? 'Mail wysłany ze swojej poczty — oznacz ofertę jako wysłaną' : 'Dostępne tylko dla oferty do sprawdzenia'}>
-            Wysłałam
-          </button>
-          {!canSend && !isRecalc && <span className="crm-muted">Ta wersja ma status „{CRM_OFERTA_STATUS[oferta.status]?.label ?? oferta.status}”.</span>}
-        </div>
-      </section>
+      {!pending && (
+        <section className="crm-mail">
+          <h4>Mail do klienta — skopiuj do swojej poczty</h4>
+          <CopyRow label="Adres" value={oferta.mail_do} onCopied={onCopied} />
+          <CopyRow label="Temat" value={oferta.mail_temat} onCopied={onCopied} />
+          <CopyRow label="Treść" value={oferta.mail_tresc} multiline onCopied={onCopied} />
+          <div className="crm-mail-actions">
+            <button type="button" className="btn btn-primary" disabled={!canSend || saving} onClick={() => void handleWyslane()} title={canSend ? 'Mail wysłany ze swojej poczty — oznacz ofertę jako wysłaną' : 'Dostępne tylko dla oferty do sprawdzenia'}>
+              Wysłałam
+            </button>
+            {!canSend && !isRecalc && <span className="crm-muted">Ta wersja ma status „{CRM_OFERTA_STATUS[oferta.status]?.label ?? oferta.status}”.</span>}
+          </div>
+        </section>
+      )}
 
-      {/* 3. POPRAWKA */}
+      {/* 3. POPRAWKA — dopiero gdy jest co poprawiać */}
+      {!pending && (
       <section className="crm-fix">
         <h4>Poprawka</h4>
         <p className="user-modal-hint">
@@ -442,6 +475,7 @@ function OfertaScreen({
           {isRecalc && <span className="crm-muted">Przeliczanie w toku — odśwież za chwilę.</span>}
         </div>
       </section>
+      )}
 
       {/* 4. DANE TECHNICZNE */}
       <details className="crm-details">
@@ -514,7 +548,7 @@ function OfertaScreen({
                 onClick={() => w.id !== oferta.id && onOpenOferta(w.id)}
                 title={`${fmtDateTime(w.created_at)} · ${CRM_OFERTA_STATUS[w.status]?.label ?? w.status}${w.poprzednia_id ? ' · poprawka poprzedniej wersji' : ''}`}
               >
-                v{w.wersja} · {fmtPln(w.cena_razem)} · <StatusBadge status={w.status} />
+                v{w.wersja}{w.cena_razem != null ? ` · ${fmtPln(w.cena_razem)}` : ''} · <StatusBadge status={w.status} />
               </button>
             ))}
           </div>
@@ -639,7 +673,7 @@ function LeadScreen({ id, onBack, onOpenOferta }: { id: string; onBack: () => vo
           <div className="crm-versions">
             {[...oferty].reverse().map((o) => (
               <button key={o.id} type="button" className="crm-version" onClick={() => onOpenOferta(o.id)}>
-                v{o.wersja} · {o.produkt || '—'} · {fmtPln(o.cena_razem)} · <StatusBadge status={o.status} /> · {fmtDate(o.created_at)}
+                v{o.wersja}{o.produkt ? ` · ${o.produkt}` : ''}{o.cena_razem != null ? ` · ${fmtPln(o.cena_razem)}` : ''} · <StatusBadge status={o.status} /> · {fmtDate(o.created_at)}
               </button>
             ))}
           </div>

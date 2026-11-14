@@ -100,7 +100,7 @@ export default function ArchivedOrderDetailsModal({ open, order, onClose, onCrea
           <button type="button" className="btn btn-sm btn-primary" onClick={onClose}>
             Zamknij
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => onCreateComplaint(order)}>
+          <button type="button" className="btn btn-sm btn-warning" onClick={() => onCreateComplaint(order)}>
             Utwórz reklamację
           </button>
         </div>

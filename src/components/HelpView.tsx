@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Podgląd etykiety z przewijaniem, kolor „Utwórz reklamację", CRM „w przygotowaniu" (beta.103)</h4>
+        <ul>
+          <li><b>Druk etykiety: podgląd da się przewinąć</b> (#141) — ramka podglądu przewija się, a sama etykieta ma w niej swój prawdziwy rozmiar.</li>
+          <li><b>„Utwórz reklamację" w Zakończonych</b> (#140) ma kolor ostrzegawczy zamiast większego rozmiaru. Czerwony zostaje dla akcji niszczących.</li>
+          <li><b>CRM Po Drzwi: oferta „w przygotowaniu"</b> — gdy system założył wersję po rozmowie, ale nie policzył jeszcze ceny, koszyka i maila, widok mówi to wprost zamiast pokazywać puste pola i „przeczytaj mail raz i wyślij".</li>
+        </ul>
         <h4>Receptury: przeliczanie rezerwacji bez „limitu czasu" (beta.102)</h4>
         <ul>
           <li><b>Zapis receptury nie przelicza już od razu całej kategorii</b> (#139, Dawid): przeliczenie rusza 15 s po ostatniej zmianie receptury, więc seria zapisów to jedno przeliczenie. Porcje są mniejsze (40 zleceń, ok. 4–5 s), a gdy baza mimo to przerwie zapytanie limitem czasu, porcja maleje i idzie jeszcze raz zamiast przerywać całość. Jeśli w trakcie zmienisz kolejną recepturę, po zakończeniu pójdzie drugi przebieg.</li>
