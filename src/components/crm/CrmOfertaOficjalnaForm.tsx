@@ -57,10 +57,7 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
       pushToast('Dodaj plik z konfiguratora albo wklej treść konfiguracji', 'error')
       return
     }
-    if (f.lokal_mieszkalny && f.z_montazem && !f.powierzchnia_m2.trim()) {
-      pushToast('Podaj powierzchnię użytkową — bez niej system nie ustali stawki 8%', 'error')
-      return
-    }
+    // stawka VAT jest źródłem prawdy z konfiguracji producenta (crm-oferta-pdf v3); obiekt/rodzaj/m² tylko do kontroli
     setBusy(true)
     const res = await zlecOferteOficjalna(leadId, f)
     setBusy(false)
@@ -79,7 +76,7 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
       <div className="crm-screen-head">
         <div className="crm-screen-title">
           <h4><FileText size={16} /> Oferta z montażem (PDF) · {klient}</h4>
-          <div className="crm-screen-sub">Ceny produktów przepisujemy z konfiguracji producenta, usługi wpisujesz sam, VAT liczy system (8% przy montażu w obiekcie mieszkalnym).</div>
+          <div className="crm-screen-sub">Ceny i stawkę VAT przepisujemy z konfiguracji producenta, usługi wpisujesz sam. Dane o obiekcie są opcjonalne — służą do kontroli, czy stawka z pliku ma sens.</div>
         </div>
       </div>
 
@@ -117,7 +114,7 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
         </div>
       </div>
 
-      <h5>3. Zakres i obiekt</h5>
+      <h5>3. Zakres i obiekt <span className="crm-muted">(obiekt opcjonalnie)</span></h5>
       <div className="crm-pf-grid">
         <label className="crm-pf-field crm-pf-field--wide">
           <span className="crm-pf-label">Zakres (jedno zdanie w PDF)</span>
@@ -141,7 +138,7 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
         <label className="crm-pf-field crm-pf-field--short">
           <span className="crm-pf-label">Powierzchnia użytkowa (m²)</span>
           <input type="text" inputMode="decimal" value={f.powierzchnia_m2} onChange={(e) => set('powierzchnia_m2', e.target.value)} placeholder="np. 150" disabled={busy} />
-          <span className="crm-pf-hint">Potrzebna do 8% VAT (limit dla mieszkań i domów w Ustawieniach).</span>
+          <span className="crm-pf-hint">Opcjonalnie: system ostrzeże w „Sprawdź tylko to”, gdy stawka z pliku nie pasuje do obiektu.</span>
         </label>
       </div>
 

@@ -1210,7 +1210,14 @@ function OfertaOficjalnaSekcja({ oferta, onOpenDokument }: { oferta: CrmOferta; 
         </tbody>
         <tfoot>
           <tr><td colSpan={4}>Razem netto</td><td className="crm-num">{fmt2(oferta.netto)}</td></tr>
-          <tr><td colSpan={4}>VAT {oferta.vat_stawka ?? ''}</td><td className="crm-num">{fmt2(oferta.vat_kwota)}</td></tr>
+          <tr>
+            <td colSpan={4}>
+              VAT {oferta.vat_stawka ?? ''}
+              {/* crm-oferta-pdf v3: stawka z konfiguracji producenta jest źródłem prawdy — vat_uwaga zaczyna się wtedy tym zdaniem */}
+              {oferta.vat_uwaga?.startsWith('Stawka VAT z konfiguracji producenta') && <span className="crm-rodzaj crm-vat-src" title={oferta.vat_uwaga}>z konfiguracji producenta</span>}
+            </td>
+            <td className="crm-num">{fmt2(oferta.vat_kwota)}</td>
+          </tr>
           <tr className="crm-pozycje-sum"><td colSpan={4}>Razem brutto</td><td className="crm-num">{fmt2(oferta.brutto)} zł</td></tr>
         </tfoot>
       </table>
