@@ -21,6 +21,7 @@ import {
   CRM_DOSTAWA_LABEL,
   CRM_ZRODLO_LABEL,
   type CrmLead,
+  type CrmMail,
   type CrmOferta,
   type CrmRozbiciePozycja,
   type CrmRozmowa,
@@ -29,6 +30,7 @@ import {
 import {
   fetchBledyRozmow,
   fetchLead,
+  fetchMaileLeada,
   fetchOferta,
   fetchOferty,
   fetchOfertyLeada,
@@ -48,6 +50,7 @@ import { openExternalUrl } from '../../hooks/useAluOrders'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
 import CrmPocztaScreen from './CrmPocztaScreen'
+import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
 
 /**
  * Tryb widoku (Tymek 14.11.2026): handlowiec ma dostać kolejkę „do zrobienia” z jednym
@@ -62,7 +65,14 @@ type Props = {
   mode?: CrmMode
 }
 
-type Screen = { kind: 'zadania' } | { kind: 'oferty' } | { kind: 'poczta' } | { kind: 'oferta'; id: string } | { kind: 'lead'; id: string }
+type Screen =
+  | { kind: 'zadania' }
+  | { kind: 'oferty' }
+  | { kind: 'maile' }
+  | { kind: 'poczta' }
+  | { kind: 'oferta'; id: string }
+  | { kind: 'lead'; id: string }
+  | { kind: 'mail'; id: string }
 
 /** co ile odpytywać bazę, gdy coś jest w przeliczaniu (brief pkt 7: 30–90 s na wynik) */
 const POLL_MS = 10_000
@@ -958,6 +968,7 @@ function LeadScreen({
   pushToast,
   onBack,
   onOpenOferta,
+  onOpenMail,
 }: {
   id: string
   mode: CrmMode
@@ -965,9 +976,11 @@ function LeadScreen({
   pushToast: Props['pushToast']
   onBack: () => void
   onOpenOferta: (id: string) => void
+  onOpenMail: (id: string) => void
 }) {
   const [lead, setLead] = useState<CrmLead | null>(null)
   const [rozmowy, setRozmowy] = useState<CrmRozmowa[]>([])
+  const [maile, setMaile] = useState<CrmMail[]>([])
   const [oferty, setOferty] = useState<CrmOferta[]>([])
   const [zdarzenia, setZdarzenia] = useState<CrmZdarzenie[]>([])
   const [names, setNames] = useState<Map<string, string>>(new Map())
@@ -981,10 +994,11 @@ function LeadScreen({
     setError(err)
     setLead(l)
     if (l) {
-      const [r, o, z] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id })])
+      const [r, o, z, m] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id }), fetchMaileLeada(l.id)])
       setRozmowy(r.data)
       setOferty(o.data)
       setZdarzenia(z.data)
+      setMaile(m.data)
       setNames(await fetchProfileNames(z.data.map((e) => e.kto ?? '')))
     }
     setLoading(false)
@@ -1113,6 +1127,14 @@ function LeadScreen({
         )}
       </section>
 
+      {/* maile (brief pkt 11): przychodzące analizowane jak rozmowy, wychodzące dopasowane do ofert */}
+      {(maile.length > 0 || lead.zrodlo === 'mail') && (
+        <section>
+          <h4>Maile ({maile.length})</h4>
+          <MailList maile={maile} mode={mode} onOpenMail={onOpenMail} />
+        </section>
+      )}
+
       <section>
         <h4>Rozmowy ({rozmowy.length})</h4>
         {rozmowy.length === 0 ? (
@@ -1190,11 +1212,12 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
 
   const openOferta = useCallback((id: string) => go({ kind: 'oferta', id }), [go])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
-  const goTop = (kind: 'zadania' | 'oferty' | 'poczta') => {
+  const openMail = useCallback((id: string) => go({ kind: 'mail', id }), [go])
+  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta') => {
     setStack([])
     setScreen({ kind })
   }
-  const topKind = screen.kind === 'oferty' || screen.kind === 'poczta' ? screen.kind : 'zadania'
+  const topKind = screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' ? screen.kind : screen.kind === 'mail' ? 'maile' : 'zadania'
 
   return (
     <div className={`crm-view crm-view--${mode}`}>
@@ -1208,8 +1231,11 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
           <button type="button" className={`crm-nav-btn${topKind === 'oferty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('oferty')}>
             Oferty
           </button>
-          {/* skrzynka IMAP (brief pkt 10): status widzi każdy z CRM, edytuje superadmin */}
-          <button type="button" className={`crm-nav-btn${topKind === 'poczta' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('poczta')} title="Ustawienia skrzynki pocztowej">
+          <button type="button" className={`crm-nav-btn${topKind === 'maile' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('maile')} title="Maile przychodzące i wychodzące ze skrzynek">
+            Maile
+          </button>
+          {/* skrzynki IMAP (brief pkt 11): każdy z CRM widzi i może dodać swoją, superadmin zarządza wszystkimi */}
+          <button type="button" className={`crm-nav-btn${topKind === 'poczta' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('poczta')} title="Skrzynki pocztowe">
             Poczta
           </button>
         </nav>
@@ -1217,11 +1243,13 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       </div>
       {screen.kind === 'zadania' && <ZadaniaScreen mode={mode} currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'oferty' && <OfertyList mode={mode} onOpenOferta={openOferta} onOpenLead={openLead} />}
-      {screen.kind === 'poczta' && <CrmPocztaScreen canEdit={mode === 'pelny'} pushToast={pushToast} />}
+      {screen.kind === 'maile' && <CrmMaileScreen mode={mode} onOpenMail={openMail} onOpenLead={openLead} onOpenOferta={openOferta} />}
+      {screen.kind === 'mail' && <CrmMailScreen id={screen.id} mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />}
+      {screen.kind === 'poczta' && <CrmPocztaScreen currentUser={currentUser} isSuperadmin={mode === 'pelny'} pushToast={pushToast} />}
       {screen.kind === 'oferta' && (
         <OfertaScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
       )}
-      {screen.kind === 'lead' && <LeadScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenOferta={openOferta} />}
+      {screen.kind === 'lead' && <LeadScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenOferta={openOferta} onOpenMail={openMail} />}
     </div>
   )
 }

@@ -194,6 +194,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   zadanie_zrobione: 'Zadanie zrobione',
   follow_up_zaplanowany: 'Follow-up zaplanowany',
   mail_wyslany: 'Mail wysłany do klienta (wykryty w poczcie)',
+  klient_odpisal: 'Klient odpisał na ofertę',
   przegrany_automatycznie: 'Lead przegrany (30 dni bez aktywności)',
   brak_kandydatow: 'Brak pasującego produktu w cenniku',
   poprawka: 'Poprawka handlowca',
@@ -204,36 +205,54 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
 }
 
 /**
- * Konfiguracja skrzynki IMAP Magdy (brief pkt 10, 14.11.2026): jeden wiersz id=1 w crm.poczta.
- * Hasła w tabeli NIE ma (vault); `ma_haslo` mówi tylko, czy jest zapisane.
- * Zapis wyłącznie przez rpc ustaw_poczte (superadmin); odczyt — każdy z dostępem do CRM.
+ * Skrzynki IMAP (brief pkt 11, 14.11.2026): główna kontakt@ + osobiste pracowników (crm.skrzynki).
+ * Hasła w tabeli NIE ma (vault `crm_skrzynka_<id>`); `ma_haslo` mówi tylko, czy jest zapisane.
+ * Zapis wyłącznie przez rpc ustaw_skrzynke / usun_skrzynke (superadmin: wszystkie; użytkownik CRM:
+ * tylko własna, user_id = auth.uid()); odczyt — każdy z dostępem do CRM.
  */
-export type CrmPoczta = {
-  id: number
+export type CrmSkrzynka = {
+  id: string
+  nazwa: string | null
   aktywna: boolean
   host: string | null
   port: number | null
   login: string | null
-  folder: string | null
   ma_haslo: boolean
-  uidvalidity: number | null
-  ostatni_uid: number | null
+  /** właściciel skrzynki osobistej; null = wspólna */
+  user_id: string | null
+  /** imię do podpisu/historii */
+  handlowiec: string | null
+  czyta_wyslane: boolean
+  folder_wyslane: string | null
+  uidvalidity_wyslane: number | null
+  ostatni_uid_wyslane: number | null
+  czyta_odebrane: boolean
+  folder_odebrane: string | null
+  uidvalidity_odebrane: number | null
+  ostatni_uid_odebrane: number | null
   ostatnie_sprawdzenie_at: string | null
   ostatni_sukces_at: string | null
   ostatni_blad: string | null
   ostatni_blad_at: string | null
   przetworzono_maili: number | null
+  created_at: string
   updated_at: string | null
   updated_by: string | null
 }
 
-export type CrmPocztaFolder = { nazwa: string; wyslane?: boolean }
+export type CrmPocztaFolder = { nazwa: string; wyslane?: boolean; odebrane?: boolean }
 
 /** Odpowiedź crm-mail-sent na akcję test_poczty */
 export type CrmPocztaTest =
   | {
       ok: true
+      host?: string
+      port?: number
+      login?: string
       foldery?: CrmPocztaFolder[]
+      folder_wyslane_podpowiedz?: string | null
+      folder_odebrane_podpowiedz?: string | null
+      /** = folder_wyslane_podpowiedz (zgodność wstecz) */
       folder_podpowiedz?: string | null
       folder_sprawdzony?: string | null
       maili_w_folderze?: number | null
@@ -241,14 +260,106 @@ export type CrmPocztaTest =
     }
   | { ok: false; blad?: string; dziennik?: unknown }
 
-/** Odpowiedź crm-mail-sent na akcję sprawdz_poczte */
-export type CrmPocztaSprawdzenie =
-  | { ok: true; start: true; folder?: string; maili_w_folderze?: number; od_uid?: number }
-  | { ok: true; start?: false; nowych?: number; wyniki?: Array<{ uid?: number; temat?: string; wyniki?: unknown[] }> }
-  | { ok: false; blad?: string }
+/** Wynik sprawdzenia jednego folderu skrzynki (akcja sprawdz_skrzynki) */
+export type CrmFolderWynik = {
+  folder?: string
+  nowych?: number
+  /** pierwsze sprawdzenie: tylko punkt startu, historia nieprzetwarzana */
+  start?: boolean
+  maili_w_folderze?: number
+  od_uid?: number
+  wyniki?: Array<{
+    uid?: number
+    mail_id?: string
+    od?: string
+    temat?: string
+    status?: string
+    typ?: string
+    lead_id?: string | null
+    oferta_id?: string | null
+    zalaczniki?: number
+  }>
+}
+
+export type CrmSkrzynkaWynik = {
+  id: string
+  nazwa?: string
+  ok: boolean
+  blad?: string
+  pominieto?: boolean | string
+  wyslane?: CrmFolderWynik
+  odebrane?: CrmFolderWynik
+}
+
+export type CrmSprawdzenieSkrzynek = { ok: boolean; blad?: string; skrzynki?: CrmSkrzynkaWynik[] }
 
 export const CRM_POCZTA_DEFAULT_PORT = 993
 export const CRM_POCZTA_DEFAULT_FOLDER = 'Sent'
+export const CRM_POCZTA_DEFAULT_INBOX = 'INBOX'
+
+/** crm.maile — przychodzące (analizowane przez AI jak rozmowy) i wychodzące (dopasowane do ofert). */
+export type CrmMail = {
+  id: string
+  skrzynka_id: string | null
+  uid: number | null
+  message_id: string | null
+  /** przychodzacy | wychodzacy */
+  kierunek: string | null
+  od_adres: string | null
+  od_nazwa: string | null
+  do_adresy: string[] | null
+  cc_adresy: string[] | null
+  odpowiedz_na: string | null
+  temat: string | null
+  /** czysty tekst (HTML zamieniony); cytowana historia może być na końcu */
+  tresc: string | null
+  tresc_ucieta: boolean | null
+  zalaczniki: Array<{ nazwa?: string; typ?: string; rozmiar?: number }> | null
+  data: string | null
+  lead_id: string | null
+  oferta_id: string | null
+  /** zapytanie | klient | odpowiedz | status | reklamacja | dostawca | newsletter | spam | wlasny | inne */
+  typ: string | null
+  /** nowy | pominiety | bez_ai | przetworzony | blad */
+  status_przetwarzania: string | null
+  podsumowanie: string | null
+  analiza: Record<string, unknown> | null
+  nastepna_akcja: string | null
+  koszt_ai_usd: number | null
+  zuzycie_tokenow: Record<string, unknown> | null
+  blad: string | null
+  proby: number | null
+  created_at: string
+  updated_at: string | null
+  /** osadzony lead (select `lead:leady(...)`) */
+  lead?: Pick<CrmLead, 'id' | 'nazwa' | 'telefon' | 'email' | 'miejscowosc'> | null
+}
+
+export const CRM_MAIL_TYP: Record<string, string> = {
+  zapytanie: 'zapytanie',
+  klient: 'klient',
+  odpowiedz: 'odpowiedź na ofertę',
+  status: 'pytanie o status',
+  reklamacja: 'reklamacja',
+  dostawca: 'dostawca',
+  newsletter: 'newsletter',
+  spam: 'spam',
+  wlasny: 'nasz mail',
+  inne: 'inne',
+}
+
+export const CRM_MAIL_STATUS: Record<string, { label: string; cls: string }> = {
+  nowy: { label: 'czeka na analizę', cls: 'crm-status--working' },
+  przetworzony: { label: 'przetworzony', cls: 'crm-status--sent' },
+  bez_ai: { label: 'bez analizy', cls: 'crm-status--muted' },
+  pominiety: { label: 'pominięty', cls: 'crm-status--muted' },
+  blad: { label: 'BŁĄD', cls: 'crm-status--lost' },
+}
+
+export const CRM_MAIL_KIERUNEK: Record<string, string> = {
+  przychodzacy: '↙ przychodzący',
+  wychodzacy: '↗ wychodzący',
+}
 
 /** Statusy ofert „do roboty” — domyślny filtr listy (brief pkt 3). */
 export const CRM_OPEN_STATUSES = ['do_sprawdzenia', 'przelicz'] as const

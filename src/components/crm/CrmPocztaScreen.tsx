@@ -1,28 +1,42 @@
 // =====================================================================
-// CRM Po Drzwi → „Poczta”: konfiguracja skrzynki IMAP Magdy (brief pkt 10,
-// 14.11.2026). Skrzynkę czyta sama funkcja Supabase crm-mail-sent (cron co 5 min):
-// mail wysłany do adresu z oferty zamyka ofertę, mail do leada zamyka zadanie.
-// Każdy z dostępem do CRM widzi status; edytuje tylko superadmin (rpc ustaw_poczte
-// sam odrzuca innych). Hasło: type=password, nigdy nie pokazywane, w stanie tylko
-// do zapisu/testu, puste przy edycji = bez zmiany.
+// CRM Po Drzwi → „Poczta”: skrzynki IMAP (brief pkt 11, 14.11.2026) — główna
+// kontakt@ i osobiste pracowników. Skrzynki czyta funkcja crm-mail-sent (cron co
+// 5 min): folder Wysłane → zamyka oferty/zadania, folder Odebrane → analiza AI
+// (lead, zadanie, oferta) przez crm-call-ingest. Superadmin edytuje wszystkie,
+// użytkownik CRM tylko własną (rpc wymusza user_id = auth.uid()). Hasło:
+// type=password, nigdy nie pokazywane, w stanie tylko do zapisu/testu.
 // =====================================================================
-import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, PlugZap, Save, MailCheck } from 'lucide-react'
-import type { ToastVariant } from '../../types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { RefreshCw, PlugZap, Save, MailCheck, Plus, Pencil, Trash2, X } from 'lucide-react'
+import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_POCZTA_DEFAULT_FOLDER,
+  CRM_POCZTA_DEFAULT_INBOX,
   CRM_POCZTA_DEFAULT_PORT,
-  type CrmPoczta,
+  type CrmFolderWynik,
   type CrmPocztaFolder,
-  type CrmPocztaSprawdzenie,
   type CrmPocztaTest,
+  type CrmSkrzynka,
+  type CrmSkrzynkaWynik,
 } from '../../types/crm'
-import { fetchPoczta, savePoczta, sprawdzPoczte, testPoczta, type CrmError, type PocztaForm } from '../../hooks/useCrm'
+import {
+  deleteSkrzynka,
+  fetchCrmUserIds,
+  fetchProfileNames,
+  fetchSkrzynki,
+  saveSkrzynka,
+  sprawdzSkrzynki,
+  testPoczta,
+  type CrmError,
+  type SkrzynkaForm,
+} from '../../hooks/useCrm'
 import { appConfirm } from '../../lib/appDialogs'
 import Spinner from '../Spinner'
 
 type Props = {
-  canEdit: boolean
+  currentUser: CurrentUser | null
+  /** tryb pełny = superadmin: wszystkie skrzynki, wybór właściciela */
+  isSuperadmin: boolean
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
@@ -33,82 +47,155 @@ const fmtDateTime = (iso: string | null | undefined): string => {
   return d.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-const formFromRow = (row: CrmPoczta | null): PocztaForm => ({
-  host: row?.host ?? '',
-  port: row?.port ?? CRM_POCZTA_DEFAULT_PORT,
-  login: row?.login ?? '',
-  folder: row?.folder ?? CRM_POCZTA_DEFAULT_FOLDER,
-  aktywna: row?.aktywna ?? true,
+const emptyForm = (ownerId: string | null): SkrzynkaForm => ({
+  nazwa: '',
+  host: '',
+  port: CRM_POCZTA_DEFAULT_PORT,
+  login: '',
+  aktywna: true,
+  czyta_wyslane: true,
+  folder_wyslane: CRM_POCZTA_DEFAULT_FOLDER,
+  czyta_odebrane: false,
+  folder_odebrane: CRM_POCZTA_DEFAULT_INBOX,
+  handlowiec: '',
+  user_id: ownerId,
 })
 
-const sameForm = (a: PocztaForm, b: PocztaForm): boolean =>
-  a.host.trim() === b.host.trim() && a.port === b.port && a.login.trim() === b.login.trim() && a.folder.trim() === b.folder.trim() && a.aktywna === b.aktywna
+const formFromRow = (s: CrmSkrzynka): SkrzynkaForm => ({
+  nazwa: s.nazwa ?? '',
+  host: s.host ?? '',
+  port: s.port ?? CRM_POCZTA_DEFAULT_PORT,
+  login: s.login ?? '',
+  aktywna: s.aktywna,
+  czyta_wyslane: s.czyta_wyslane,
+  folder_wyslane: s.folder_wyslane ?? CRM_POCZTA_DEFAULT_FOLDER,
+  czyta_odebrane: s.czyta_odebrane,
+  folder_odebrane: s.folder_odebrane ?? CRM_POCZTA_DEFAULT_INBOX,
+  handlowiec: s.handlowiec ?? '',
+  user_id: s.user_id,
+})
 
 /** Błąd „świeży”, gdy jest nowszy od ostatniego sukcesu (albo sukcesu nie było). */
-const hasFreshError = (row: CrmPoczta | null): boolean => {
-  if (!row?.ostatni_blad) return false
-  if (!row.ostatni_sukces_at) return true
-  if (!row.ostatni_blad_at) return false
-  return new Date(row.ostatni_blad_at).getTime() > new Date(row.ostatni_sukces_at).getTime()
+const hasFreshError = (s: CrmSkrzynka): boolean => {
+  if (!s.ostatni_blad) return false
+  if (!s.ostatni_sukces_at) return true
+  if (!s.ostatni_blad_at) return false
+  return new Date(s.ostatni_blad_at).getTime() > new Date(s.ostatni_sukces_at).getTime()
 }
 
-export default function CrmPocztaScreen({ canEdit, pushToast }: Props) {
-  const [row, setRow] = useState<CrmPoczta | null>(null)
+/** Zmiana hosta/loginu/folderu zeruje punkt startu danego folderu (brief pkt 11) */
+const resetsStart = (s: CrmSkrzynka, f: SkrzynkaForm): boolean =>
+  f.host.trim() !== (s.host ?? '') ||
+  f.login.trim().toLowerCase() !== (s.login ?? '').toLowerCase() ||
+  (f.czyta_wyslane && f.folder_wyslane.trim() !== (s.folder_wyslane ?? '')) ||
+  (f.czyta_odebrane && f.folder_odebrane.trim() !== (s.folder_odebrane ?? ''))
+
+type Editing = { id: string | null; form: SkrzynkaForm; haslo: string; foldery: CrmPocztaFolder[] | null; test: CrmPocztaTest | null }
+
+function FolderWynikLine({ label, w }: { label: string; w: CrmFolderWynik | undefined }) {
+  if (!w) return null
+  if (w.start) {
+    return (
+      <li>
+        {label}: punkt startu ustawiony (folder „{w.folder}”, {w.maili_w_folderze ?? 0} maili) — starsze nie będą czytane.
+      </li>
+    )
+  }
+  const items = w.wyniki ?? []
+  return (
+    <li>
+      {label}: {w.nowych ?? 0} nowych
+      {items.length > 0 && (
+        <ul className="crm-skrzynka-wyniki">
+          {items.map((r, i) => (
+            <li key={r.mail_id ?? r.uid ?? i}>
+              {r.od ? `${r.od} · ` : ''}
+              {r.temat || '(bez tematu)'}
+              {r.typ ? ` · ${r.typ}` : ''}
+              {r.status ? ` · ${r.status}` : ''}
+              {r.zalaczniki ? ` · zał. ${r.zalaczniki}` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
+export default function CrmPocztaScreen({ currentUser, isSuperadmin, pushToast }: Props) {
+  const [rows, setRows] = useState<CrmSkrzynka[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
-  const [form, setForm] = useState<PocztaForm>(formFromRow(null))
-  const [haslo, setHaslo] = useState('')
-  const [foldery, setFoldery] = useState<CrmPocztaFolder[] | null>(null)
-  const [test, setTest] = useState<CrmPocztaTest | null>(null)
-  const [sprawdzenie, setSprawdzenie] = useState<CrmPocztaSprawdzenie | null>(null)
-  const [busy, setBusy] = useState<'test' | 'save' | 'check' | null>(null)
+  const [names, setNames] = useState<Map<string, string>>(new Map())
+  const [ownerIds, setOwnerIds] = useState<string[]>([])
+  const [editing, setEditing] = useState<Editing | null>(null)
+  const [busy, setBusy] = useState<string | null>(null) // 'test' | 'save' | 'delete' | 'check:<id>' | 'check:all'
+  const [wyniki, setWyniki] = useState<Map<string, CrmSkrzynkaWynik>>(new Map())
+
+  const myId = currentUser?.id ?? null
 
   const load = useCallback(async () => {
-    const res = await fetchPoczta()
+    const res = await fetchSkrzynki()
     setError(res.error)
     if (!res.error) {
-      setRow(res.data)
-      setForm(formFromRow(res.data))
+      setRows(res.data)
+      const ids = new Set<string>(res.data.map((s) => s.user_id ?? '').filter(Boolean))
+      if (isSuperadmin) for (const id of await fetchCrmUserIds()) ids.add(id)
+      if (myId) ids.add(myId)
+      const list = [...ids]
+      setOwnerIds(list)
+      setNames(await fetchProfileNames(list))
     }
     setLoading(false)
-  }, [])
+  }, [isSuperadmin, myId])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const dirty = !sameForm(form, formFromRow(row)) || haslo !== ''
-  const configured = !!(row?.host && row?.login)
-  const freshError = hasFreshError(row)
+  const canEdit = useCallback((s: CrmSkrzynka) => isSuperadmin || (!!myId && s.user_id === myId), [isSuperadmin, myId])
+  const ownerLabel = (uid: string | null) => (uid ? names.get(uid) ?? uid.slice(0, 8) : 'wspólna')
+
+  const startAdd = () => setEditing({ id: null, form: emptyForm(isSuperadmin ? null : myId), haslo: '', foldery: null, test: null })
+  const startEdit = (s: CrmSkrzynka) => setEditing({ id: s.id, form: formFromRow(s), haslo: '', foldery: null, test: null })
+  const cancelEdit = () => setEditing(null)
+  const setForm = <K extends keyof SkrzynkaForm>(key: K, value: SkrzynkaForm[K]) =>
+    setEditing((e) => (e ? { ...e, form: { ...e.form, [key]: value } } : e))
+
+  const editedRow = useMemo(() => (editing?.id ? rows.find((r) => r.id === editing.id) ?? null : null), [editing?.id, rows])
+  const dirty = editing ? (editedRow ? JSON.stringify(formFromRow(editedRow)) !== JSON.stringify(editing.form) || editing.haslo !== '' : true) : false
 
   const onTest = async () => {
+    if (!editing) return
+    const { form, haslo, id } = editing
     if (!form.host.trim() || !form.login.trim()) {
       pushToast('Podaj serwer i login skrzynki', 'error')
       return
     }
-    if (!haslo && !row?.ma_haslo) {
+    if (!haslo && !editedRow?.ma_haslo) {
       pushToast('Podaj hasło do skrzynki (nie ma jeszcze zapisanego)', 'error')
       return
     }
     setBusy('test')
-    setTest(null)
     try {
-      const res = await testPoczta(form, haslo)
-      setTest(res)
-      if (res.ok) {
+      const res = await testPoczta(id, form, haslo)
+      setEditing((e) => {
+        if (!e) return e
+        if (!res.ok) return { ...e, test: res }
         const list = res.foldery ?? []
-        setFoldery(list)
-        // podpowiedź folderu Wysłane: ustaw, gdy obecny wybór nie istnieje na serwerze
-        const names = new Set(list.map((f) => f.nazwa))
-        const hint = res.folder_podpowiedz || list.find((f) => f.wyslane)?.nazwa || null
-        if (hint && !names.has(form.folder.trim())) setForm((f) => ({ ...f, folder: hint }))
-        pushToast(res.blad_folderu ? `Połączenie działa, ale folder: ${res.blad_folderu}` : 'Połączenie ze skrzynką działa', res.blad_folderu ? 'error' : 'success')
-      } else {
-        pushToast(res.blad || 'Połączenie nie powiodło się', 'error')
-      }
+        const namesOnServer = new Set(list.map((f) => f.nazwa))
+        const f = { ...e.form }
+        const hintW = res.folder_wyslane_podpowiedz || res.folder_podpowiedz || list.find((x) => x.wyslane)?.nazwa || null
+        const hintO = res.folder_odebrane_podpowiedz || list.find((x) => x.odebrane)?.nazwa || null
+        if (hintW && !namesOnServer.has(f.folder_wyslane.trim())) f.folder_wyslane = hintW
+        if (hintO && !namesOnServer.has(f.folder_odebrane.trim())) f.folder_odebrane = hintO
+        return { ...e, test: res, foldery: list, form: f }
+      })
+      if (res.ok) pushToast(res.blad_folderu ? `Połączenie działa, ale folder: ${res.blad_folderu}` : 'Połączenie ze skrzynką działa', res.blad_folderu ? 'error' : 'success')
+      else pushToast(res.blad || 'Połączenie nie powiodło się', 'error')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Błąd testu połączenia'
-      setTest({ ok: false, blad: msg })
+      setEditing((ed) => (ed ? { ...ed, test: { ok: false, blad: msg } } : ed))
       pushToast(msg, 'error')
     } finally {
       setBusy(null)
@@ -116,236 +203,338 @@ export default function CrmPocztaScreen({ canEdit, pushToast }: Props) {
   }
 
   const onSave = async (removePassword = false) => {
+    if (!editing) return
+    const { form, haslo, id } = editing
+    if (!form.nazwa.trim()) {
+      pushToast('Podaj nazwę skrzynki (np. „kontakt@ główna”, „Magda”)', 'error')
+      return
+    }
     if (!form.host.trim() || !form.login.trim()) {
       pushToast('Podaj serwer i login skrzynki', 'error')
       return
     }
     if (!Number.isInteger(form.port) || form.port < 1 || form.port > 65535) {
-      pushToast('Port musi być liczbą 1–65535 (IMAP szyfrowany: 993)', 'error')
+      pushToast('Port musi być liczbą 1–65535 (zalecany 993)', 'error')
       return
     }
-    if (removePassword && !(await appConfirm('Usunąć zapisane hasło do skrzynki? Sprawdzanie poczty przestanie działać do wpisania nowego.'))) return
+    if (!form.czyta_wyslane && !form.czyta_odebrane) {
+      pushToast('Zaznacz, co skrzynka ma czytać: Wysłane, Odebrane albo oba', 'error')
+      return
+    }
+    if (!id && !haslo) {
+      pushToast('Nowa skrzynka potrzebuje hasła', 'error')
+      return
+    }
+    if (removePassword && !(await appConfirm('Usunąć zapisane hasło do skrzynki? Czytanie poczty przestanie działać do wpisania nowego.'))) return
+    if (editedRow && resetsStart(editedRow, form)) {
+      const ok = await appConfirm(
+        'Zmieniasz serwer, login albo folder. Punkt startu czytania zostanie ustawiony od nowa przy najbliższym sprawdzeniu — maile sprzed tej chwili nie będą przetwarzane. Zapisać?',
+        { title: 'Zmiana ustawień skrzynki', confirmLabel: 'Zapisz' },
+      )
+      if (!ok) return
+    }
     setBusy('save')
     try {
-      const res = await savePoczta(form, removePassword ? '' : haslo === '' ? null : haslo)
+      const res = await saveSkrzynka(id, form, removePassword ? '' : haslo === '' ? null : haslo)
       if (res.error) {
         pushToast(res.error.message, 'error')
         return
       }
-      setHaslo('')
-      pushToast(removePassword ? 'Hasło usunięte' : 'Ustawienia skrzynki zapisane', 'success')
+      pushToast(removePassword ? 'Hasło usunięte' : id ? 'Skrzynka zapisana' : 'Skrzynka dodana', 'success')
+      setEditing(null)
       await load()
     } finally {
       setBusy(null)
     }
   }
 
-  const onCheck = async () => {
-    setBusy('check')
-    setSprawdzenie(null)
+  const onDelete = async (s: CrmSkrzynka) => {
+    const ok = await appConfirm(
+      `Usunąć skrzynkę „${s.nazwa || s.login}”? Hasło zostanie skasowane, maile już odczytane zostają. Po ponownym dodaniu skrzynki stare maile nie będą czytane — czytanie zacznie się od chwili dodania.`,
+      { title: 'Usuń skrzynkę', confirmLabel: 'Usuń' },
+    )
+    if (!ok) return
+    setBusy('delete')
+    const err = await deleteSkrzynka(s.id)
+    setBusy(null)
+    if (err) {
+      pushToast(err.message, 'error')
+      return
+    }
+    if (editing?.id === s.id) setEditing(null)
+    pushToast('Skrzynka usunięta', 'success')
+    await load()
+  }
+
+  const onCheck = async (id?: string) => {
+    setBusy(id ? `check:${id}` : 'check:all')
     try {
-      const res = await sprawdzPoczte()
-      setSprawdzenie(res)
-      if (!res.ok) pushToast(res.blad || 'Sprawdzenie poczty nie powiodło się', 'error')
-      else if ('start' in res && res.start) pushToast('Punkt startu ustawiony — od teraz nowe maile będą przetwarzane', 'success')
-      else pushToast(`Sprawdzono: ${'nowych' in res ? res.nowych ?? 0 : 0} nowych maili`, 'success')
+      const res = await sprawdzSkrzynki(id)
+      if (!res.ok && !res.skrzynki?.length) {
+        pushToast(res.blad || 'Sprawdzenie poczty nie powiodło się', 'error')
+      } else {
+        setWyniki((prev) => {
+          const next = new Map(prev)
+          for (const w of res.skrzynki ?? []) next.set(w.id, w)
+          return next
+        })
+        const failed = (res.skrzynki ?? []).filter((w) => !w.ok && !w.pominieto)
+        const nowych = (res.skrzynki ?? []).reduce((n, w) => n + (w.wyslane?.nowych ?? 0) + (w.odebrane?.nowych ?? 0), 0)
+        if (failed.length) pushToast(`Błąd w ${failed.length} ${failed.length === 1 ? 'skrzynce' : 'skrzynkach'}: ${failed[0].blad ?? ''}`, 'error')
+        else pushToast(nowych ? `Sprawdzono: ${nowych} nowych maili` : 'Sprawdzono: nic nowego', 'success')
+      }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Błąd sprawdzania poczty'
-      setSprawdzenie({ ok: false, blad: msg })
-      pushToast(msg, 'error')
+      pushToast(e instanceof Error ? e.message : 'Błąd sprawdzania poczty', 'error')
     } finally {
       await load()
       setBusy(null)
     }
   }
 
-  const set = <K extends keyof PocztaForm>(key: K, value: PocztaForm[K]) => setForm((f) => ({ ...f, [key]: value }))
-  const folderOptions: CrmPocztaFolder[] = (() => {
+  const folderOptions = (foldery: CrmPocztaFolder[] | null, current: string): CrmPocztaFolder[] => {
     if (!foldery) return []
-    const cur = form.folder.trim()
+    const cur = current.trim()
     return cur && !foldery.some((f) => f.nazwa === cur) ? [{ nazwa: cur }, ...foldery] : foldery
-  })()
+  }
 
-  if (loading) return <Spinner center label="Ładowanie ustawień poczty…" />
+  if (loading) return <Spinner center label="Ładowanie skrzynek…" />
+
+  const f = editing?.form
+  const renderFolderField = (key: 'folder_wyslane' | 'folder_odebrane', label: string, flag: boolean, markKey: 'wyslane' | 'odebrane') => {
+    if (!f || !editing) return null
+    const opts = folderOptions(editing.foldery, f[key])
+    return (
+      <label className="crm-pf-field">
+        <span className="crm-pf-label">{label}</span>
+        {opts.length > 0 ? (
+          <select value={f[key]} onChange={(e) => setForm(key, e.target.value)} disabled={!flag}>
+            {opts.map((o) => (
+              <option key={o.nazwa} value={o.nazwa}>
+                {o.nazwa}
+                {o[markKey] ? ` (${markKey === 'wyslane' ? 'Wysłane' : 'Odebrane'})` : ''}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input type="text" value={f[key]} onChange={(e) => setForm(key, e.target.value)} disabled={!flag} autoComplete="off" />
+        )}
+      </label>
+    )
+  }
 
   return (
     <div className="crm-screen crm-poczta">
       <div className="crm-screen-head">
         <div className="crm-screen-title">
-          <h3>Poczta — skrzynka handlowca</h3>
+          <h3>Poczta — skrzynki</h3>
           <div className="crm-screen-sub">
-            System co 5 minut zagląda do folderu Wysłane tej skrzynki. Mail do adresu z oferty oznacza ofertę jako wysłaną, mail do klienta zamyka zadanie „Dopytaj” lub „Follow-up”.
+            System co 5 minut zagląda do skrzynek. Folder Wysłane: mail do adresu z oferty oznacza ją jako wysłaną, mail do klienta zamyka zadanie. Folder Odebrane: mail klienta jest analizowany jak rozmowa — powstaje lead, zadanie albo oferta.
           </div>
         </div>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież status">
-          <RefreshCw size={14} /> Odśwież
-        </button>
+        <div className="crm-poczta-actions crm-poczta-actions--head">
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onCheck()} disabled={busy !== null || rows.length === 0} title="Sprawdź wszystkie aktywne skrzynki teraz">
+            {busy === 'check:all' ? <Spinner inline size={14} /> : <MailCheck size={14} />} Sprawdź wszystkie
+          </button>
+          <button type="button" className="btn btn-sm btn-primary" onClick={startAdd} disabled={busy !== null || editing?.id === null}>
+            <Plus size={14} /> {isSuperadmin ? 'Dodaj skrzynkę' : 'Dodaj moją skrzynkę'}
+          </button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież">
+            <RefreshCw size={14} />
+          </button>
+        </div>
       </div>
 
       {error && <div className="crm-box crm-box--bad">{error.message}</div>}
 
-      {/* STATUS */}
-      <section className={`crm-box crm-poczta-status${freshError ? ' crm-box--bad' : configured ? ' crm-box--ok' : ''}`}>
-        <h4>Stan</h4>
-        {!configured ? (
-          <p className="crm-pending-text">Skrzynka nie jest jeszcze skonfigurowana.{canEdit ? ' Wpisz dane poniżej, przetestuj połączenie i zapisz.' : ' Poproś administratora o konfigurację.'}</p>
-        ) : (
-          <ul className="crm-poczta-status-list">
-            <li>
-              <b>{row?.aktywna ? 'Włączona' : 'Wyłączona'}</b> · {row?.login} @ {row?.host}:{row?.port} · folder „{row?.folder}”{row?.ma_haslo ? '' : ' · BRAK HASŁA'}
-            </li>
-            <li>
-              Ostatnie sprawdzenie {fmtDateTime(row?.ostatnie_sprawdzenie_at)} · ostatni sukces {fmtDateTime(row?.ostatni_sukces_at)} · przetworzono maili {row?.przetworzono_maili ?? 0}
-            </li>
-            {row?.ostatni_blad && (
-              <li className={freshError ? 'crm-text-bad' : 'crm-muted'}>
-                {freshError ? 'Błąd' : 'Ostatni błąd (już nieaktualny)'} {fmtDateTime(row.ostatni_blad_at)}: {row.ostatni_blad}
-              </li>
-            )}
-          </ul>
-        )}
-        {configured && (
-          <div className="crm-poczta-actions">
-            {/* sprawdzenie idzie po ZAPISANEJ konfiguracji — przy niezapisanych zmianach wprowadzałoby w błąd (wpadka 14.11: test OK na 993, sprawdzenie padło na zapisanym 143) */}
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary"
-              onClick={() => void onCheck()}
-              disabled={busy !== null || (canEdit && dirty)}
-              title={canEdit && dirty ? 'Najpierw zapisz zmiany — sprawdzenie używa zapisanych ustawień' : 'Sprawdź folder Wysłane teraz, nie czekając na automat'}
-            >
-              {busy === 'check' ? <Spinner inline size={14} /> : <MailCheck size={14} />} Sprawdź teraz
-            </button>
-            {canEdit && dirty && <span className="crm-muted">Najpierw kliknij „Zapisz” — sprawdzenie używa zapisanych ustawień.</span>}
-            {sprawdzenie && sprawdzenie.ok && 'start' in sprawdzenie && sprawdzenie.start && (
-              <span className="crm-muted">Punkt startu: folder „{sprawdzenie.folder}”, {sprawdzenie.maili_w_folderze ?? 0} maili w folderze; starsze nie są przetwarzane.</span>
-            )}
-            {sprawdzenie && sprawdzenie.ok && !('start' in sprawdzenie && sprawdzenie.start) && (
-              <span className="crm-muted">
-                Nowych maili: {'nowych' in sprawdzenie ? sprawdzenie.nowych ?? 0 : 0}
-                {'wyniki' in sprawdzenie && sprawdzenie.wyniki && sprawdzenie.wyniki.length > 0
-                  ? ` — ${sprawdzenie.wyniki.map((w) => w.temat || `uid ${w.uid ?? '?'}`).join(' · ')}`
-                  : ''}
+      {/* FORMULARZ */}
+      {editing && f && (
+        <section className="crm-box crm-pf">
+          <h4>{editing.id ? `Edycja skrzynki „${editedRow?.nazwa || editedRow?.login || ''}”` : 'Nowa skrzynka'}</h4>
+          <div className="crm-pf-grid">
+            <label className="crm-pf-field">
+              <span className="crm-pf-label">Nazwa</span>
+              <input type="text" value={f.nazwa} onChange={(e) => setForm('nazwa', e.target.value)} placeholder="np. kontakt@ (główna), Magda" autoComplete="off" />
+            </label>
+            <label className="crm-pf-field">
+              <span className="crm-pf-label">Serwer IMAP</span>
+              <input type="text" value={f.host} onChange={(e) => setForm('host', e.target.value)} placeholder="np. mail25.mydevil.net" autoComplete="off" />
+            </label>
+            <label className="crm-pf-field crm-pf-field--short">
+              <span className="crm-pf-label">Port</span>
+              <input type="number" min={1} max={65535} value={f.port} onChange={(e) => setForm('port', Number.parseInt(e.target.value, 10) || 0)} />
+              <span className="crm-pf-hint">{f.port === CRM_POCZTA_DEFAULT_PORT ? '993 = SSL/TLS, zalecane' : `Zalecany ${CRM_POCZTA_DEFAULT_PORT} (SSL/TLS); inne porty łączą się przez STARTTLS.`}</span>
+            </label>
+            <label className="crm-pf-field">
+              <span className="crm-pf-label">Login (pełny adres skrzynki)</span>
+              <input type="email" value={f.login} onChange={(e) => setForm('login', e.target.value)} placeholder="imie@podrzwi.pl" autoComplete="off" />
+            </label>
+            <label className="crm-pf-field">
+              <span className="crm-pf-label">Hasło</span>
+              <input
+                type="password"
+                value={editing.haslo}
+                onChange={(e) => setEditing((ed) => (ed ? { ...ed, haslo: e.target.value } : ed))}
+                placeholder={editedRow?.ma_haslo ? '•••••••• (zapisane — puste = bez zmiany)' : 'hasło do skrzynki'}
+                autoComplete="new-password"
+              />
+              <span className="crm-pf-hint">
+                {editedRow?.ma_haslo ? 'Hasło jest w sejfie; nigdy nie jest wyświetlane.' : 'Hasło trafia do sejfu, nie do tabeli.'}
+                {editedRow?.ma_haslo && (
+                  <>
+                    {' '}
+                    <button type="button" className="crm-link" onClick={() => void onSave(true)} disabled={busy !== null}>
+                      usuń zapisane hasło
+                    </button>
+                  </>
+                )}
               </span>
-            )}
-            {sprawdzenie && !sprawdzenie.ok && <span className="crm-text-bad">{sprawdzenie.blad || 'błąd'}</span>}
-          </div>
-        )}
-      </section>
-
-      {/* KONFIGURACJA */}
-      <section className="crm-box">
-        <h4>Ustawienia IMAP {canEdit ? '' : '(podgląd — zmienia tylko superadministrator)'}</h4>
-        <div className="crm-form-grid">
-          <label className="crm-field">
-            <span className="crm-field-label">Serwer IMAP</span>
-            <input type="text" value={form.host} onChange={(e) => set('host', e.target.value)} disabled={!canEdit} placeholder="np. mail25.mydevil.net" autoComplete="off" />
-          </label>
-          <label className="crm-field crm-field--short">
-            <span className="crm-field-label">Port</span>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              value={form.port}
-              onChange={(e) => set('port', Number.parseInt(e.target.value, 10) || 0)}
-              disabled={!canEdit}
-            />
-            {/* crm-mail-sent v6 (14.11): 993 = TLS od razu, inne porty = STARTTLS; oba działają na mydevil, zalecamy 993 */}
-            <span className="crm-field-hint">
-              {form.port === CRM_POCZTA_DEFAULT_PORT
-                ? '993 = połączenie szyfrowane (SSL/TLS), zalecane'
-                : `Zalecany port ${CRM_POCZTA_DEFAULT_PORT} (SSL/TLS). Inne porty, np. 143, łączą się przez STARTTLS — też działa.`}
-            </span>
-          </label>
-          <label className="crm-field">
-            <span className="crm-field-label">Login (pełny adres skrzynki)</span>
-            <input type="email" value={form.login} onChange={(e) => set('login', e.target.value)} disabled={!canEdit} placeholder="imie@podrzwi.pl" autoComplete="off" />
-          </label>
-          <label className="crm-field">
-            <span className="crm-field-label">Hasło</span>
-            <input
-              type="password"
-              value={haslo}
-              onChange={(e) => setHaslo(e.target.value)}
-              disabled={!canEdit}
-              placeholder={row?.ma_haslo ? '•••••••• (zapisane — puste = bez zmiany)' : 'hasło do skrzynki'}
-              autoComplete="new-password"
-            />
-            <span className="crm-field-hint">
-              {row?.ma_haslo ? 'Hasło jest zapisane w sejfie; nigdy nie jest wyświetlane.' : 'Nie ma jeszcze zapisanego hasła.'}
-              {canEdit && row?.ma_haslo && (
-                <>
-                  {' '}
-                  <button type="button" className="crm-link" onClick={() => void onSave(true)} disabled={busy !== null}>
-                    usuń zapisane hasło
-                  </button>
-                </>
-              )}
-            </span>
-          </label>
-          <label className="crm-field">
-            <span className="crm-field-label">Folder „Wysłane”</span>
-            {folderOptions.length > 0 ? (
-              <select value={form.folder} onChange={(e) => set('folder', e.target.value)} disabled={!canEdit}>
-                {folderOptions.map((f) => (
-                  <option key={f.nazwa} value={f.nazwa}>
-                    {f.nazwa}
-                    {f.wyslane ? ' (Wysłane)' : ''}
-                  </option>
-                ))}
-              </select>
+            </label>
+            <label className="crm-pf-field">
+              <span className="crm-pf-label">Imię do podpisu</span>
+              <input type="text" value={f.handlowiec} onChange={(e) => setForm('handlowiec', e.target.value)} placeholder="np. Magda" autoComplete="off" />
+              <span className="crm-pf-hint">Pojawia się w historii i podpisie maili z tej skrzynki.</span>
+            </label>
+            {isSuperadmin ? (
+              <label className="crm-pf-field">
+                <span className="crm-pf-label">Właściciel</span>
+                <select value={f.user_id ?? ''} onChange={(e) => setForm('user_id', e.target.value || null)}>
+                  <option value="">wspólna (firmowa)</option>
+                  {ownerIds.map((uid) => (
+                    <option key={uid} value={uid}>
+                      {names.get(uid) ?? uid.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+                <span className="crm-pf-hint">Skrzynka osobista: wysyłka z niej podpisuje ofertę tym użytkownikiem.</span>
+              </label>
             ) : (
-              <input type="text" value={form.folder} onChange={(e) => set('folder', e.target.value)} disabled={!canEdit} placeholder={CRM_POCZTA_DEFAULT_FOLDER} autoComplete="off" />
+              <div className="crm-pf-field">
+                <span className="crm-pf-label">Właściciel</span>
+                <span className="crm-pf-static">{currentUser?.full_name ?? 'ja'} (moja skrzynka)</span>
+              </div>
             )}
-            <span className="crm-field-hint">
-              {foldery ? 'Lista z serwera po teście połączenia.' : 'Po „Testuj połączenie” pojawi się lista folderów z serwera z podpowiedzią.'}
-            </span>
-          </label>
-          <label className="crm-field crm-field--check">
-            <input type="checkbox" checked={form.aktywna} onChange={(e) => set('aktywna', e.target.checked)} disabled={!canEdit} />
-            <span className="crm-field-label">Włączone (automat sprawdza co 5 minut)</span>
-          </label>
-        </div>
+          </div>
 
-        {canEdit && (
+          <div className="crm-pf-grid crm-pf-grid--folders">
+            <label className="crm-pf-field crm-pf-field--check">
+              <input type="checkbox" checked={f.czyta_wyslane} onChange={(e) => setForm('czyta_wyslane', e.target.checked)} />
+              <span className="crm-pf-label">Czytaj Wysłane (wysyłka ofert)</span>
+            </label>
+            {renderFolderField('folder_wyslane', 'Folder Wysłane', f.czyta_wyslane, 'wyslane')}
+            <label className="crm-pf-field crm-pf-field--check">
+              <input type="checkbox" checked={f.czyta_odebrane} onChange={(e) => setForm('czyta_odebrane', e.target.checked)} />
+              <span className="crm-pf-label">Czytaj Odebrane (analiza AI maili klientów)</span>
+            </label>
+            {renderFolderField('folder_odebrane', 'Folder Odebrane', f.czyta_odebrane, 'odebrane')}
+            <label className="crm-pf-field crm-pf-field--check">
+              <input type="checkbox" checked={f.aktywna} onChange={(e) => setForm('aktywna', e.target.checked)} />
+              <span className="crm-pf-label">Włączona (automat co 5 minut)</span>
+            </label>
+          </div>
+          <p className="crm-pf-hint">{editing.foldery ? 'Lista folderów pobrana z serwera.' : 'Po „Testuj połączenie” pojawi się lista folderów z serwera z podpowiedzią Wysłane / Odebrane.'}</p>
+
           <div className="crm-poczta-actions">
             <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onTest()} disabled={busy !== null}>
               {busy === 'test' ? <Spinner inline size={14} /> : <PlugZap size={14} />} Testuj połączenie
             </button>
             <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy !== null || !dirty}>
-              {busy === 'save' ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz
+              {busy === 'save' ? <Spinner inline size={14} /> : <Save size={14} />} {editing.id ? 'Zapisz' : 'Dodaj'}
             </button>
-            {dirty && <span className="crm-muted">Niezapisane zmiany.</span>}
-            {(form.host.trim() !== (row?.host ?? '') || form.login.trim() !== (row?.login ?? '') || form.folder.trim() !== (row?.folder ?? '')) && configured && (
-              <span className="crm-muted">Zmiana serwera, loginu lub folderu zeruje punkt startu: starsze maile nie będą przetwarzane.</span>
-            )}
+            <button type="button" className="btn btn-sm btn-secondary" onClick={cancelEdit} disabled={busy !== null}>
+              <X size={14} /> Anuluj
+            </button>
+            {editedRow && resetsStart(editedRow, f) && <span className="crm-muted">Zmiana serwera, loginu lub folderu zeruje punkt startu: starsze maile nie będą czytane.</span>}
           </div>
-        )}
 
-        {test && (
-          <div className={`crm-poczta-test ${test.ok ? 'crm-poczta-test--ok' : 'crm-poczta-test--bad'}`}>
-            {test.ok ? (
-              <>
-                <b>Połączenie działa.</b> Folderów: {test.foldery?.length ?? 0}
-                {test.folder_sprawdzony ? ` · sprawdzony folder „${test.folder_sprawdzony}”: ${test.maili_w_folderze ?? 0} maili` : ''}
-                {test.folder_podpowiedz ? ` · podpowiedź: „${test.folder_podpowiedz}”` : ''}
-                {test.blad_folderu ? <span className="crm-text-bad"> · folder: {test.blad_folderu}</span> : null}
-              </>
-            ) : (
-              <>
-                <b>Połączenie nie działa:</b> {test.blad || 'nieznany błąd'}
-                {test.dziennik != null && (
-                  <details className="crm-details crm-details--inline">
-                    <summary>dziennik połączenia</summary>
-                    <pre className="crm-poczta-log">{typeof test.dziennik === 'string' ? test.dziennik : JSON.stringify(test.dziennik, null, 2)}</pre>
-                  </details>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </section>
+          {editing.test && (
+            <div className={`crm-poczta-test ${editing.test.ok ? 'crm-poczta-test--ok' : 'crm-poczta-test--bad'}`}>
+              {editing.test.ok ? (
+                <>
+                  <b>Połączenie działa.</b> Folderów: {editing.test.foldery?.length ?? 0}
+                  {editing.test.folder_sprawdzony ? ` · folder „${editing.test.folder_sprawdzony}”: ${editing.test.maili_w_folderze ?? 0} maili` : ''}
+                  {editing.test.folder_wyslane_podpowiedz ? ` · Wysłane: „${editing.test.folder_wyslane_podpowiedz}”` : ''}
+                  {editing.test.folder_odebrane_podpowiedz ? ` · Odebrane: „${editing.test.folder_odebrane_podpowiedz}”` : ''}
+                  {editing.test.blad_folderu ? <span className="crm-text-bad"> · folder: {editing.test.blad_folderu}</span> : null}
+                </>
+              ) : (
+                <>
+                  <b>Połączenie nie działa:</b> {editing.test.blad || 'nieznany błąd'}
+                  {editing.test.dziennik != null && (
+                    <details className="crm-details crm-details--inline">
+                      <summary>dziennik połączenia</summary>
+                      <pre className="crm-poczta-log">{typeof editing.test.dziennik === 'string' ? editing.test.dziennik : JSON.stringify(editing.test.dziennik, null, 2)}</pre>
+                    </details>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* LISTA */}
+      {rows.length === 0 ? (
+        <section className="crm-box">
+          <p className="crm-pending-text">Nie ma jeszcze żadnej skrzynki. {isSuperadmin ? 'Dodaj główną skrzynkę firmową.' : 'Możesz dodać swoją skrzynkę osobistą.'}</p>
+        </section>
+      ) : (
+        <ul className="crm-skrzynki">
+          {rows.map((s) => {
+            const fresh = hasFreshError(s)
+            const w = wyniki.get(s.id)
+            const checking = busy === `check:${s.id}` || busy === 'check:all'
+            return (
+              <li key={s.id} className={`crm-box crm-skrzynka${fresh ? ' crm-box--bad' : s.aktywna ? ' crm-box--ok' : ''}${!s.aktywna ? ' crm-skrzynka--off' : ''}`}>
+                <div className="crm-skrzynka-head">
+                  <div className="crm-skrzynka-title">
+                    <b>{s.nazwa || s.login}</b>
+                    <span className="crm-muted"> · {s.login} @ {s.host}:{s.port}</span>
+                    {!s.aktywna && <span className="crm-status crm-status--muted">wyłączona</span>}
+                    {!s.ma_haslo && <span className="crm-status crm-status--lost">brak hasła</span>}
+                    {s.czyta_wyslane && <span className="crm-call-typ">Wysłane: {s.folder_wyslane}</span>}
+                    {s.czyta_odebrane && <span className="crm-call-typ">Odebrane: {s.folder_odebrane}</span>}
+                    <span className="crm-call-typ">{s.user_id ? `osobista: ${ownerLabel(s.user_id)}` : 'wspólna'}</span>
+                    {s.handlowiec && <span className="crm-muted">podpis: {s.handlowiec}</span>}
+                  </div>
+                  <div className="crm-skrzynka-btns">
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onCheck(s.id)} disabled={busy !== null} title="Sprawdź tę skrzynkę teraz (także wyłączoną)">
+                      {checking ? <Spinner inline size={14} /> : <MailCheck size={14} />} Sprawdź teraz
+                    </button>
+                    {canEdit(s) && (
+                      <>
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => startEdit(s)} disabled={busy !== null}>
+                          <Pencil size={14} /> Edytuj
+                        </button>
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onDelete(s)} disabled={busy !== null} title="Usuń skrzynkę (hasło i punkt startu przepadają)">
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <ul className="crm-poczta-status-list">
+                  <li>
+                    Ostatnie sprawdzenie {fmtDateTime(s.ostatnie_sprawdzenie_at)} · ostatni sukces {fmtDateTime(s.ostatni_sukces_at)} · przetworzono maili {s.przetworzono_maili ?? 0}
+                  </li>
+                  {s.ostatni_blad && (
+                    <li className={fresh ? 'crm-text-bad' : 'crm-muted'}>
+                      {fresh ? 'Błąd' : 'Ostatni błąd (już nieaktualny)'} {fmtDateTime(s.ostatni_blad_at)}: {s.ostatni_blad}
+                    </li>
+                  )}
+                  {w && !w.ok && !w.pominieto && <li className="crm-text-bad">Sprawdzenie: {w.blad || 'błąd'}</li>}
+                  {w && w.pominieto && <li className="crm-muted">Pominięta (wyłączona) — użyj „Sprawdź teraz” przy skrzynce, żeby sprawdzić mimo to.</li>}
+                  {w && w.ok && (
+                    <>
+                      <FolderWynikLine label="Wysłane" w={w.wyslane} />
+                      <FolderWynikLine label="Odebrane" w={w.odebrane} />
+                    </>
+                  )}
+                </ul>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }

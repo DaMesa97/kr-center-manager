@@ -7,7 +7,7 @@
 // ofert (nowa wersja po poprawce, mail, cena) robi Edge Function drugiej sesji.
 // =====================================================================
 import { supabase } from '../supabaseClient'
-import type { CrmLead, CrmOferta, CrmPoczta, CrmPocztaSprawdzenie, CrmPocztaTest, CrmRozmowa, CrmZdarzenie } from '../types/crm'
+import type { CrmLead, CrmMail, CrmOferta, CrmPocztaTest, CrmRozmowa, CrmSkrzynka, CrmSprawdzenieSkrzynek, CrmZdarzenie } from '../types/crm'
 import { CRM_FOLLOW_UP_DAYS, CRM_OPEN_STATUSES } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 
@@ -238,29 +238,55 @@ export async function revokeCrmDostep(userId: string): Promise<CrmError | null> 
   return crmErrorFrom(error)
 }
 
-// ---- Skrzynka pocztowa (crm.poczta, brief pkt 10) ----
+// ---- Skrzynki pocztowe (crm.skrzynki, brief pkt 11) ----
 // Hasło: nigdy nie logujemy, nie trzymamy dłużej niż do zapisu, idzie TYLKO do
-// rpc ustaw_poczte (vault) i do funkcji crm-mail-sent (test połączenia).
+// rpc ustaw_skrzynke (vault) i do funkcji crm-mail-sent (test połączenia).
 
-export async function fetchPoczta(): Promise<Result<CrmPoczta | null>> {
-  const { data, error } = await crm().from('poczta').select('*').eq('id', 1).maybeSingle()
-  return { data: (data ?? null) as CrmPoczta | null, error: crmErrorFrom(error) }
+export async function fetchSkrzynki(): Promise<Result<CrmSkrzynka[]>> {
+  const { data, error } = await crm().from('skrzynki').select('*').order('nazwa', { ascending: true })
+  return { data: (data ?? []) as unknown as CrmSkrzynka[], error: crmErrorFrom(error) }
 }
 
-export type PocztaForm = { host: string; port: number; login: string; folder: string; aktywna: boolean }
+export type SkrzynkaForm = {
+  nazwa: string
+  host: string
+  port: number
+  login: string
+  aktywna: boolean
+  czyta_wyslane: boolean
+  folder_wyslane: string
+  czyta_odebrane: boolean
+  folder_odebrane: string
+  handlowiec: string
+  /** właściciel (skrzynka osobista); null = wspólna. Zwykły użytkownik: rpc i tak wymusza auth.uid() */
+  user_id: string | null
+}
 
-/** `haslo`: null = zostaw dotychczasowe, '' = usuń, tekst = ustaw (semantyka rpc). */
-export async function savePoczta(form: PocztaForm, haslo: string | null): Promise<Result<CrmPoczta | null>> {
-  const { data, error } = await crm().rpc('ustaw_poczte', {
+/** `id` null = nowa skrzynka. `haslo`: null = zostaw dotychczasowe, '' = usuń, tekst = ustaw (semantyka rpc). */
+export async function saveSkrzynka(id: string | null, form: SkrzynkaForm, haslo: string | null): Promise<Result<CrmSkrzynka | null>> {
+  const { data, error } = await crm().rpc('ustaw_skrzynke', {
+    p_id: id,
+    p_nazwa: form.nazwa.trim(),
     p_host: form.host.trim(),
     p_port: form.port,
     p_login: form.login.trim(),
-    p_folder: form.folder.trim(),
     p_haslo: haslo,
     p_aktywna: form.aktywna,
+    p_czyta_wyslane: form.czyta_wyslane,
+    p_folder_wyslane: form.folder_wyslane.trim() || 'Sent',
+    p_czyta_odebrane: form.czyta_odebrane,
+    p_folder_odebrane: form.folder_odebrane.trim() || 'INBOX',
+    p_handlowiec: form.handlowiec.trim() || null,
+    p_user_id: form.user_id,
   })
   const row = Array.isArray(data) ? (data[0] ?? null) : (data ?? null)
-  return { data: row as CrmPoczta | null, error: crmErrorFrom(error) }
+  return { data: row as CrmSkrzynka | null, error: crmErrorFrom(error) }
+}
+
+/** Kasuje hasło z vault i wiersz; maile zostają (skrzynka_id → null), punkt startu przepada. */
+export async function deleteSkrzynka(id: string): Promise<CrmError | null> {
+  const { error } = await crm().rpc('usun_skrzynke', { p_id: id })
+  return crmErrorFrom(error)
 }
 
 async function invokeMailSent<T>(body: Record<string, unknown>): Promise<T> {
@@ -270,19 +296,62 @@ async function invokeMailSent<T>(body: Record<string, unknown>): Promise<T> {
   return data
 }
 
-/** Puste pola dopełnia funkcja zapisanymi (hasło z sejfu), więc test zapisanej konfiguracji nie wymaga hasła. */
-export async function testPoczta(form: PocztaForm, haslo: string): Promise<CrmPocztaTest> {
+/**
+ * Test połączenia. Z `skrzynkaId` brakujące dane i hasło biorą się z bazy/sejfu, więc test
+ * zapisanej skrzynki nie wymaga hasła; puste pola pomijamy (undefined), żeby funkcja je dopełniła.
+ */
+export async function testPoczta(
+  skrzynkaId: string | null,
+  form: Pick<SkrzynkaForm, 'host' | 'port' | 'login' | 'folder_wyslane'>,
+  haslo: string,
+): Promise<CrmPocztaTest> {
   return invokeMailSent<CrmPocztaTest>({
     akcja: 'test_poczty',
+    skrzynka_id: skrzynkaId ?? undefined,
     host: form.host.trim() || undefined,
     port: form.port || undefined,
     login: form.login.trim() || undefined,
     haslo: haslo || undefined,
-    folder: form.folder.trim() || undefined,
+    folder: form.folder_wyslane.trim() || undefined,
   })
 }
 
-/** Ręczne „Sprawdź teraz” (działa też przy aktywna=false; cron pomija wyłączoną). */
-export async function sprawdzPoczte(): Promise<CrmPocztaSprawdzenie> {
-  return invokeMailSent<CrmPocztaSprawdzenie>({ akcja: 'sprawdz_poczte' })
+/** Ręczne „Sprawdź teraz”: bez id wszystkie aktywne, z id jedna (także nieaktywna). Cron robi to co 5 min. */
+export async function sprawdzSkrzynki(skrzynkaId?: string): Promise<CrmSprawdzenieSkrzynek> {
+  return invokeMailSent<CrmSprawdzenieSkrzynek>({ akcja: 'sprawdz_skrzynki', skrzynka_id: skrzynkaId ?? undefined })
+}
+
+/** Użytkownicy z dostępem do CRM (do wyboru właściciela skrzynki osobistej — superadmin). */
+export async function fetchCrmUserIds(): Promise<string[]> {
+  const { data } = await crm().from('dostep').select('user_id')
+  return ((data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
+}
+
+// ---- Maile (crm.maile, brief pkt 11) ----
+
+const MAIL_LEAD_EMBED = 'lead:leady(id, nazwa, telefon, email, miejscowosc)'
+const MAIL_LIST_COLS =
+  'id, skrzynka_id, kierunek, od_adres, od_nazwa, do_adresy, temat, data, lead_id, oferta_id, typ, status_przetwarzania, podsumowanie, nastepna_akcja, zalaczniki, blad, proby, koszt_ai_usd, created_at'
+
+export async function fetchMaile(opts: { kierunek?: 'przychodzacy' | 'wychodzacy' | null; limit?: number } = {}): Promise<Result<CrmMail[]>> {
+  let q = crm().from('maile').select(`${MAIL_LIST_COLS}, ${MAIL_LEAD_EMBED}`)
+  if (opts.kierunek) q = q.eq('kierunek', opts.kierunek)
+  const { data, error } = await q.order('data', { ascending: false, nullsFirst: false }).limit(opts.limit ?? 300)
+  return { data: (data ?? []) as unknown as CrmMail[], error: crmErrorFrom(error) }
+}
+
+export async function fetchMail(id: string): Promise<Result<CrmMail | null>> {
+  const { data, error } = await crm().from('maile').select(`*, ${MAIL_LEAD_EMBED}`).eq('id', id).maybeSingle()
+  return { data: (data ?? null) as unknown as CrmMail | null, error: crmErrorFrom(error) }
+}
+
+export async function fetchMaileLeada(leadId: string): Promise<Result<CrmMail[]>> {
+  const { data, error } = await crm().from('maile').select(MAIL_LIST_COLS).eq('lead_id', leadId).order('data', { ascending: false, nullsFirst: false })
+  return { data: (data ?? []) as unknown as CrmMail[], error: crmErrorFrom(error) }
+}
+
+/** „Analizuj ponownie”: status → 'nowy', trigger w bazie sam zleca analizę (tylko przychodzące). */
+export async function retryMailAnaliza(id: string): Promise<CrmError | null> {
+  const { error } = await crm().from('maile').update({ status_przetwarzania: 'nowy' }).eq('id', id)
+  return crmErrorFrom(error)
 }

@@ -9199,26 +9199,45 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-access-name { font-weight: 600; }
 .crm-access-meta { color: var(--color-text-muted); font-size: 0.8rem; margin-left: auto; }
 
-/* CRM → Poczta (skrzynka IMAP, brief pkt 10) */
+/* CRM → Poczta (skrzynki IMAP, brief pkt 11) — klasy formularza crm-pf-*, bo .crm-field jest zajęte przez kartę klienta */
 .crm-box { padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 10px; background: #fff; }
 .crm-box--bad { border-color: #fecaca; background: #fff7f7; }
 .crm-box--ok { border-left: 5px solid #16a34a; }
-.crm-poczta { max-width: 880px; }
-.crm-poczta-status-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.95rem; line-height: 1.5; }
+.crm-poczta { max-width: 1100px; }
+.crm-poczta-status-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; line-height: 1.5; }
 .crm-poczta-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; font-size: 0.9rem; }
-.crm-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px 18px; }
-.crm-field { display: flex; flex-direction: column; gap: 4px; }
-.crm-field--short { max-width: 180px; }
-.crm-field--check { flex-direction: row; align-items: center; gap: 8px; align-self: end; padding-bottom: 6px; }
-.crm-field-label { font-size: 0.8rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
-.crm-field input[type='text'], .crm-field input[type='email'], .crm-field input[type='password'], .crm-field input[type='number'], .crm-field select {
+.crm-poczta-actions--head { margin-top: 0; flex-wrap: nowrap; }
+.crm-skrzynki { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.crm-skrzynka--off { opacity: 0.75; }
+.crm-skrzynka-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.crm-skrzynka-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 0.95rem; }
+.crm-skrzynka-btns { display: inline-flex; gap: 6px; flex-shrink: 0; }
+.crm-skrzynka-wyniki { margin: 4px 0 0; padding-left: 18px; color: var(--color-text-muted); font-size: 0.85rem; }
+.crm-pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px 18px; }
+.crm-pf-grid--folders { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--color-border); }
+.crm-pf-field { display: flex; flex-direction: column; gap: 4px; }
+.crm-pf-field--short { max-width: 180px; }
+.crm-pf-field--check { flex-direction: row; align-items: center; gap: 8px; align-self: end; padding-bottom: 6px; }
+.crm-pf-label { font-size: 0.8rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.crm-pf-static { padding: 7px 0; }
+.crm-pf-field input[type='text'], .crm-pf-field input[type='email'], .crm-pf-field input[type='password'], .crm-pf-field input[type='number'], .crm-pf-field select {
   padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff;
 }
-.crm-field input:disabled, .crm-field select:disabled { background: #f8fafc; color: var(--color-text-muted); }
-.crm-field input:focus, .crm-field select:focus { outline: none; border-color: var(--pd-accent); box-shadow: 0 0 0 2px rgba(167, 157, 128, 0.25); }
-.crm-field-hint { font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.4; }
-.crm-field-hint .crm-link { font-size: inherit; }
+.crm-pf-field input:disabled, .crm-pf-field select:disabled { background: #f8fafc; color: var(--color-text-muted); }
+.crm-pf-field input:focus, .crm-pf-field select:focus { outline: none; border-color: var(--pd-accent); box-shadow: 0 0 0 2px rgba(167, 157, 128, 0.25); }
+.crm-pf-hint { font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.4; margin: 8px 0 0; }
+.crm-pf-field .crm-pf-hint { margin: 0; }
+.crm-pf-hint .crm-link { font-size: inherit; }
 .crm-poczta-test { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; line-height: 1.5; }
+/* CRM → Maile */
+.crm-search { padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; min-width: 240px; }
+.crm-search:focus { outline: none; border-color: var(--pd-accent); box-shadow: 0 0 0 2px rgba(167, 157, 128, 0.25); }
+.crm-call-dir--przychodzacy { color: #166534; }
+.crm-call-dir--wychodzacy { color: #1e40af; }
+.crm-mail-addr { font-size: 0.85rem; word-break: break-all; }
+.crm-mail-summary { display: inline-block; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.crm-mail-body { max-height: 70vh; font-size: 1rem; }
+.crm-mail-zal { display: inline-flex; align-items: center; gap: 3px; margin: 0 6px 4px 0; }
 .crm-poczta-test--ok { background: #f0fdf4; border: 1px solid #bbf7d0; }
 .crm-poczta-test--bad { background: #fff7f7; border: 1px solid #fecaca; }
 .crm-poczta-log { margin: 6px 0 0; padding: 8px; background: #f8fafc; border-radius: 6px; font-size: 0.75rem; max-height: 240px; overflow: auto; white-space: pre-wrap; }
