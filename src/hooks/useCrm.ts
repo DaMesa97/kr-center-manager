@@ -176,10 +176,13 @@ export async function markZadanieZrobione(lead: CrmLead, userId: string): Promis
     .update({ nastepna_akcja: null, nastepny_krok: null, akcja_opis: null })
     .eq('id', lead.id)
   if (error) return crmErrorFrom(error)
+  // dane.zrodlo='klik' — ingest zamyka „oddzwon” sam po rozmowie wychodzącej z Ringostatu
+  // (zrodlo='ringostat'); historia rozróżnia oba
   const { error: zErr } = await crm().from('zdarzenia').insert({
     lead_id: lead.id,
     typ: 'zadanie_zrobione',
     opis: `${lead.nastepna_akcja ?? 'zadanie'}: ${lead.akcja_opis ?? ''}`.trim(),
+    dane: { zrodlo: 'klik', akcja: lead.nastepna_akcja },
     kto: userId,
   })
   if (zErr) console.warn('crm.zdarzenia zadanie_zrobione:', zErr.message)

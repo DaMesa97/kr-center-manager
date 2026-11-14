@@ -9086,6 +9086,7 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-akcja--follow_up { background: #ede9fe; color: #5b21b6; }
 .crm-akcja--reklamacja { background: #ffedd5; color: #9a3412; }
 .crm-akcja--overdue { box-shadow: 0 0 0 2px #dc2626 inset; }
+.crm-oddzwon-hint { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; white-space: nowrap; }
 .crm-termin { white-space: nowrap; }
 .crm-termin--overdue { color: #b91c1c; font-weight: 700; }
 .crm-termin--today { color: #92400e; font-weight: 700; }

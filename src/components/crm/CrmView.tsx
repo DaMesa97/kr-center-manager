@@ -369,6 +369,18 @@ function ZadaniaScreen({
               </button>
             )
           }
+          if (r.nastepna_akcja === 'oddzwon') {
+            // ingest zamyka to zadanie sam po odebranej rozmowie wychodzącej z Ringostatu;
+            // „Zrobione” tylko zapasowo (np. telefon z innego numeru)
+            return (
+              <span className="crm-oddzwon-hint">
+                <span className="crm-muted">zamknie się samo po oddzwonieniu z Ringostatu</span>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={busy === r.id} onClick={() => void handleZrobione(r)} title="Użyj tylko, gdy dzwoniłeś z innego telefonu niż Ringostat">
+                  Zrobione ręcznie
+                </button>
+              </span>
+            )
+          }
           return (
             <button type="button" className="btn btn-sm btn-primary" disabled={busy === r.id} onClick={() => void handleZrobione(r)}>
               <Check size={14} /> Zrobione
@@ -1019,6 +1031,11 @@ function LeadScreen({
               ) : (
                 <button type="button" className="btn btn-primary" onClick={() => onOpenOferta(activeOferta.id)}>Otwórz ofertę · {fmtPln(activeOferta.cena_razem)}</button>
               )
+            ) : lead.nastepna_akcja === 'oddzwon' ? (
+              <>
+                <span className="crm-muted">Zadanie zamknie się samo po odebranej rozmowie wychodzącej z Ringostatu.</span>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => void handleZrobione()} title="Użyj tylko, gdy dzwoniłeś z innego telefonu niż Ringostat">Zrobione ręcznie</button>
+              </>
             ) : (
               <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void handleZrobione()}><Check size={14} /> Zrobione</button>
             )}

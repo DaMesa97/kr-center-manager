@@ -27,7 +27,7 @@ const SECTIONS: Section[] = [
       <>
         <h4>CRM Po Drzwi: lista „Do zrobienia", liczenie ofert na żywo (beta.106)</h4>
         <ul>
-          <li><b>„Do zrobienia" to pierwszy ekran CRM</b>: zadania handlowca zapisane na kliencie (Oddzwoń, Dopytaj, Sprawdź i wyślij ofertę, Follow-up, Reklamacja) z terminem — zaległe na czerwono. „Zrobione" zamyka zadanie; przy ofercie zamiast tego jest „Otwórz ofertę", a „Wysłane" w karcie oferty samo ustawia follow-up za 3 dni.</li>
+          <li><b>„Do zrobienia" to pierwszy ekran CRM</b>: zadania handlowca zapisane na kliencie (Oddzwoń, Dopytaj, Sprawdź i wyślij ofertę, Follow-up, Reklamacja) z terminem — zaległe na czerwono. „Zrobione" zamyka zadanie; przy ofercie zamiast tego jest „Otwórz ofertę", a „Wysłane" w karcie oferty samo ustawia follow-up za 3 dni. „Oddzwoń" zamyka się samo po odebranej rozmowie wychodzącej z Ringostatu (beta.107), „Zrobione ręcznie" tylko gdy dzwoniłeś z innego telefonu.</li>
           <li><b>Oferty liczą się same</b>: po rozmowie i po „Przelicz" system liczy 30–90 s, ekran odświeża się sam (co 10 s), a po poprawce przechodzi do nowej wersji. „BŁĄD systemu" przy liczeniu jest na czerwono z przyciskiem „Ponów przeliczenie".</li>
           <li><b>Rozbicie ceny</b> pokazuje cenę bazową, każdą opcję z dopłatą i sumę. Karta klienta pokazuje przy rozmowach kategorię, następną akcję i (dla superadministratora) status przetwarzania, analizę AI i sekcję „Błędy systemu".</li>
         </ul>
