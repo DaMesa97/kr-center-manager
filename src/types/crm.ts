@@ -111,6 +111,9 @@ export type CrmOferta = {
   poprawka_wynik: Record<string, unknown> | null
   /** tekst ostatniego błędu systemu */
   uwagi: string | null
+  /** dostawa (decyzja Tymka 14.11): 'kurier' (300 zł) | 'odbior_osobisty' (0); cena_razem = same drzwi */
+  dostawa: string | null
+  dostawa_koszt: number | null
   /** osadzony lead (select `lead:leady(...)`) */
   lead?: CrmLead | null
 }
@@ -131,6 +134,19 @@ export const CRM_ROZMOWA_STATUS: Record<string, { label: string; cls: string }> 
   bez_ai: { label: 'bez analizy', cls: 'crm-status--muted' },
   pominieta: { label: 'pominięta', cls: 'crm-status--muted' },
   blad: { label: 'BŁĄD', cls: 'crm-status--lost' },
+}
+
+export const CRM_DOSTAWA_LABEL: Record<string, string> = {
+  kurier: 'dostawa kurierem',
+  odbior_osobisty: 'odbiór osobisty',
+}
+
+/** skąd zdarzenie (dane.zrodlo) — do historii */
+export const CRM_ZRODLO_LABEL: Record<string, string> = {
+  ringostat: 'automatycznie, po rozmowie z Ringostatu',
+  klik: 'ręcznie w aplikacji',
+  cron: 'automat dzienny',
+  imap: 'wykryto w poczcie',
 }
 
 /** `sprawdz[0]` zaczynające się tak = błąd systemu przy liczeniu (brief pkt 7) */
@@ -176,6 +192,8 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   oferta_zlecona: 'Oferta zlecona do przeliczenia',
   oferta_utworzona: 'Oferta utworzona',
   zadanie_zrobione: 'Zadanie zrobione',
+  follow_up_zaplanowany: 'Follow-up zaplanowany',
+  przegrany_automatycznie: 'Lead przegrany (30 dni bez aktywności)',
   brak_kandydatow: 'Brak pasującego produktu w cenniku',
   poprawka: 'Poprawka handlowca',
   przeliczono: 'Przeliczono',

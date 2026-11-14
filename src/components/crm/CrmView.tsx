@@ -18,6 +18,8 @@ import {
   CRM_ROZMOWA_STATUS,
   CRM_SYSTEM_ERROR_PREFIX,
   CRM_ZDARZENIE_LABEL,
+  CRM_DOSTAWA_LABEL,
+  CRM_ZRODLO_LABEL,
   type CrmLead,
   type CrmOferta,
   type CrmRozbiciePozycja,
@@ -425,6 +427,7 @@ function ZadaniaScreen({
                 )}
                 {' · '}
                 <span className="crm-text-bad">{r.blad || 'brak opisu błędu'}</span>
+                {r.proby ? <span className="crm-muted"> · prób: {r.proby}/6 (automat ponawia co 15 min)</span> : null}
               </li>
             ))}
           </ul>
@@ -706,7 +709,11 @@ function OfertaScreen({
           <h3>
             {pending
               ? `Oferta v${oferta.wersja} · w przygotowaniu`
-              : `Oferta v${oferta.wersja} · ${oferta.produkt || 'produkt nieustalony'} · ${fmtPln(oferta.cena_razem)}`}
+              : `Oferta v${oferta.wersja} · ${oferta.produkt || 'produkt nieustalony'} · ${fmtPln(oferta.cena_razem)}${
+                  oferta.dostawa_koszt != null && oferta.cena_razem != null
+                    ? ` + ${CRM_DOSTAWA_LABEL[oferta.dostawa ?? ''] ?? 'dostawa'} ${fmtPln(oferta.dostawa_koszt)} = ${fmtPln(Number(oferta.cena_razem) + Number(oferta.dostawa_koszt))}`
+                    : ''
+                }`}
           </h3>
           <div className="crm-screen-sub">
             <button type="button" className="crm-link" onClick={() => oferta.lead_id && onOpenLead(oferta.lead_id)}>
@@ -814,7 +821,15 @@ function OfertaScreen({
               <h5>Produkt</h5>
               <p>{oferta.produkt || '—'}{oferta.product_id != null ? <span className="crm-muted"> (ID {oferta.product_id})</span> : null}</p>
               <h5>Cena</h5>
-              <p>bazowa {fmtPln(oferta.cena_bazowa)} · razem {fmtPln(oferta.cena_razem)}</p>
+              <p>
+                drzwi: bazowa {fmtPln(oferta.cena_bazowa)} · razem {fmtPln(oferta.cena_razem)} (= koszyk sklepu)
+                {oferta.dostawa_koszt != null && (
+                  <>
+                    <br />
+                    {CRM_DOSTAWA_LABEL[oferta.dostawa ?? ''] ?? 'dostawa'}: {fmtPln(oferta.dostawa_koszt)} · <b>razem z dostawą {fmtPln(Number(oferta.cena_razem ?? 0) + Number(oferta.dostawa_koszt))}</b>
+                  </>
+                )}
+              </p>
               <h5>Link do koszyka</h5>
               {oferta.link_koszyka ? (
                 <p>
@@ -862,9 +877,21 @@ function OfertaScreen({
                     </li>
                   ))}
                   <li className="crm-rozbicie-sum">
-                    <span>Razem</span>
+                    <span>Razem drzwi (= koszyk sklepu)</span>
                     <span className="crm-rozbicie-kwota">{fmtPln(oferta.cena_razem)}</span>
                   </li>
+                  {oferta.dostawa_koszt != null && (
+                    <>
+                      <li>
+                        <span>{CRM_DOSTAWA_LABEL[oferta.dostawa ?? ''] ?? 'dostawa'}</span>
+                        <span className="crm-rozbicie-kwota">{fmtPln(oferta.dostawa_koszt)}</span>
+                      </li>
+                      <li className="crm-rozbicie-sum">
+                        <span>Razem z dostawą</span>
+                        <span className="crm-rozbicie-kwota">{fmtPln(Number(oferta.cena_razem ?? 0) + Number(oferta.dostawa_koszt))}</span>
+                      </li>
+                    </>
+                  )}
                 </ul>
               )}
               <h5>Wybory (opcje)</h5>
@@ -909,7 +936,10 @@ function Timeline({ items, names }: { items: CrmZdarzenie[]; names: Map<string, 
         <li key={z.id} className={`crm-timeline-item crm-timeline-item--${z.typ}`}>
           <span className="crm-timeline-when">{fmtDateTime(z.created_at)}</span>
           <span className="crm-timeline-typ">{CRM_ZDARZENIE_LABEL[z.typ] ?? z.typ}</span>
-          <span className="crm-timeline-kto">{z.kto ? names.get(z.kto) ?? '…' : 'system'}</span>
+          <span className="crm-timeline-kto">
+            {z.kto ? names.get(z.kto) ?? '…' : 'system'}
+            {typeof z.dane?.zrodlo === 'string' && CRM_ZRODLO_LABEL[z.dane.zrodlo] ? <span className="crm-muted"> ({CRM_ZRODLO_LABEL[z.dane.zrodlo]})</span> : null}
+          </span>
           {z.opis && <span className="crm-timeline-opis">{z.opis}</span>}
         </li>
       ))}

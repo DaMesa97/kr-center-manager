@@ -30,7 +30,7 @@ export function crmErrorFrom(e: { code?: string; message?: string } | null | und
 
 const LEAD_EMBED = 'lead:leady(id, nazwa, miejscowosc, telefon, email, kategoria, status, nastepna_akcja, nastepny_krok, akcja_opis)'
 const OFERTA_LIST_COLS =
-  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at'
+  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at'
 
 type Result<T> = { data: T; error: CrmError | null }
 
@@ -190,14 +190,20 @@ export async function markZadanieZrobione(lead: CrmLead, userId: string): Promis
 }
 
 /** Rozmowy, których system nie przetworzył (sekcja „Błędy systemu”, tylko superadmin). */
-export async function fetchBledyRozmow(): Promise<Result<Array<CrmRozmowa & { lead?: Pick<CrmLead, 'id' | 'nazwa' | 'telefon'> | null }>>> {
+export type CrmBladRozmowy = CrmRozmowa & {
+  lead?: Pick<CrmLead, 'id' | 'nazwa' | 'telefon'> | null
+  /** licznik ponowień z pg_cron (rozmowy.raw._proby, maks. 6) */
+  proby?: string | null
+}
+
+export async function fetchBledyRozmow(): Promise<Result<CrmBladRozmowy[]>> {
   const { data, error } = await crm()
     .from('rozmowy')
-    .select('id, lead_id, data_rozmowy, created_at, kierunek, czas_s, numer_dzwoniacego, status_przetwarzania, blad, lead:leady(id, nazwa, telefon)')
+    .select('id, lead_id, data_rozmowy, created_at, kierunek, czas_s, numer_dzwoniacego, status_przetwarzania, blad, proby:raw->>_proby, lead:leady(id, nazwa, telefon)')
     .eq('status_przetwarzania', 'blad')
     .order('data_rozmowy', { ascending: false, nullsFirst: false })
     .limit(50)
-  return { data: (data ?? []) as unknown as Array<CrmRozmowa & { lead?: Pick<CrmLead, 'id' | 'nazwa' | 'telefon'> | null }>, error: crmErrorFrom(error) }
+  return { data: (data ?? []) as unknown as CrmBladRozmowy[], error: crmErrorFrom(error) }
 }
 
 /** Imiona do kolumny „kto” w historii (profiles, schemat public). */

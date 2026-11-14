@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: dostawa w ofercie, automaty w tle (beta.108)</h4>
+        <ul>
+          <li><b>Dostawa</b>: karta oferty pokazuje cenę drzwi (zgodną z koszykiem sklepu), dostawę kurierem 300 zł albo odbiór osobisty i sumę z dostawą. Jeśli w rozmowie nie padło, jak klient odbierze, w „Sprawdź tylko to" jest o tym punkt — poprawka „klient odbierze osobiście" zmienia to na odbiór.</li>
+          <li><b>Automaty w tle</b> (backend): po „Wysłane" inne oferty klienta do sprawdzenia stają się robocze, co 15 min ponawiane są rozmowy z błędem (licznik prób widać w „Błędach systemu"), oferty wysłane ≥ 3 dni bez reakcji dostają follow-up na dziś, a klient bez aktywności od 30 dni przechodzi na „przegrany". Historia pokazuje, skąd wzięło się zdarzenie: ręcznie, po rozmowie z Ringostatu czy z automatu.</li>
+        </ul>
         <h4>CRM Po Drzwi: lista „Do zrobienia", liczenie ofert na żywo (beta.106)</h4>
         <ul>
           <li><b>„Do zrobienia" to pierwszy ekran CRM</b>: zadania handlowca zapisane na kliencie (Oddzwoń, Dopytaj, Sprawdź i wyślij ofertę, Follow-up, Reklamacja) z terminem — zaległe na czerwono. „Zrobione" zamyka zadanie; przy ofercie zamiast tego jest „Otwórz ofertę", a „Wysłane" w karcie oferty samo ustawia follow-up za 3 dni. „Oddzwoń" zamyka się samo po odebranej rozmowie wychodzącej z Ringostatu (beta.107), „Zrobione ręcznie" tylko gdy dzwoniłeś z innego telefonu.</li>
