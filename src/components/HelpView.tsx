@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: etykiety na zadaniach i klientach (beta.114)</h4>
+        <ul>
+          <li><b>Etykiety</b> mówią od razu, czego dotyczy sprawa: kategoria (zewnętrzne, wejściowe do mieszkania, wewnętrzne, stolarka aluminiowa, inne), usługa (z dostawą, odbiór osobisty, z montażem, pomiar), klient (indywidualny, firma, inwestycja) oraz Czyste Powietrze i pilne. System nadaje je sam z rozmowy lub maila; kliknięcie w „+" przy zadaniu albo na karcie klienta otwiera wybór pogrupowany (kategoria i klient: jedna; usługa i inne: wiele), kliknięcie w etykietę ją zdejmuje.</li>
+          <li><b>Filtr listy „Do zrobienia"</b> po etykiecie. Właściciel ma pod listą „Słownik etykiet": dopisanie własnej (nazwa, grupa, kolor) i włączanie/wyłączanie.</li>
+        </ul>
         <h4>CRM Po Drzwi: wiele skrzynek i maile przychodzące (beta.113)</h4>
         <ul>
           <li><b>Poczta = lista skrzynek</b>: główna kontakt@ i osobiste skrzynki pracowników. Każdy z dostępem do CRM może dodać swoją skrzynkę (serwer, port, login, hasło do sejfu), superadministrator zarządza wszystkimi. Skrzynka czyta folder Wysłane (wysyłka ofert, zamykanie zadań) i/lub Odebrane. „Sprawdź teraz" działa dla jednej skrzynki albo wszystkich.</li>

@@ -34,7 +34,32 @@ export type CrmLead = {
   akcja_opis: string | null
   akcja_od: string | null
   ostatnia_rozmowa_at: string | null
+  /** etykiety (brief pkt 12): slugi ze słownika crm.etykiety, posortowane przez trigger */
+  etykiety?: string[] | null
 }
+
+/** Słownik etykiet crm.etykiety (brief pkt 12). Superadmin może dopisywać własne. */
+export type CrmEtykieta = {
+  slug: string
+  nazwa: string
+  /** kategoria | usluga | klient | inne */
+  grupa: string
+  /** blue | indigo | teal | cyan | gray | green | amber | purple | lime | red */
+  kolor: string | null
+  kolejnosc: number | null
+  /** true = na leadzie najwyżej jedna z tej grupy (kategoria, klient) */
+  jedna_na_grupe: boolean
+  aktywna: boolean
+}
+
+export const CRM_ETYKIETA_GRUPA: Record<string, string> = {
+  kategoria: 'Kategoria',
+  usluga: 'Usługa',
+  klient: 'Klient',
+  inne: 'Inne',
+}
+export const CRM_ETYKIETA_GRUPY = ['kategoria', 'usluga', 'klient', 'inne'] as const
+export const CRM_ETYKIETA_KOLORY = ['blue', 'indigo', 'teal', 'cyan', 'gray', 'green', 'amber', 'purple', 'lime', 'red'] as const
 
 export type CrmRozmowa = {
   id: string

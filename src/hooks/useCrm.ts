@@ -7,7 +7,7 @@
 // ofert (nowa wersja po poprawce, mail, cena) robi Edge Function drugiej sesji.
 // =====================================================================
 import { supabase } from '../supabaseClient'
-import type { CrmLead, CrmMail, CrmOferta, CrmPocztaTest, CrmRozmowa, CrmSkrzynka, CrmSprawdzenieSkrzynek, CrmZdarzenie } from '../types/crm'
+import type { CrmEtykieta, CrmLead, CrmMail, CrmOferta, CrmPocztaTest, CrmRozmowa, CrmSkrzynka, CrmSprawdzenieSkrzynek, CrmZdarzenie } from '../types/crm'
 import { CRM_FOLLOW_UP_DAYS, CRM_OPEN_STATUSES } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 
@@ -348,6 +348,38 @@ export async function fetchMail(id: string): Promise<Result<CrmMail | null>> {
 export async function fetchMaileLeada(leadId: string): Promise<Result<CrmMail[]>> {
   const { data, error } = await crm().from('maile').select(MAIL_LIST_COLS).eq('lead_id', leadId).order('data', { ascending: false, nullsFirst: false })
   return { data: (data ?? []) as unknown as CrmMail[], error: crmErrorFrom(error) }
+}
+
+// ---- Etykiety (crm.etykiety + crm.leady.etykiety, brief pkt 12) ----
+
+export async function fetchEtykiety(): Promise<Result<CrmEtykieta[]>> {
+  const { data, error } = await crm().from('etykiety').select('*').order('grupa').order('kolejnosc').order('nazwa')
+  return { data: (data ?? []) as unknown as CrmEtykieta[], error: crmErrorFrom(error) }
+}
+
+/** Klik w badge: dodaje/zdejmuje; w grupie „jedna na grupę” podmienia. Zwraca nową tablicę slugów. */
+export async function toggleEtykieta(leadId: string, slug: string): Promise<Result<string[]>> {
+  const { data, error } = await crm().rpc('przelacz_etykiete', { p_lead_id: leadId, p_slug: slug })
+  return { data: (data ?? []) as string[], error: crmErrorFrom(error) }
+}
+
+/** Superadmin: nowa etykieta w słowniku (RLS odrzuci innych). */
+export async function addEtykieta(e: Pick<CrmEtykieta, 'slug' | 'nazwa' | 'grupa' | 'kolor' | 'jedna_na_grupe'> & { kolejnosc?: number }): Promise<CrmError | null> {
+  const { error } = await crm().from('etykiety').insert({
+    slug: e.slug,
+    nazwa: e.nazwa,
+    grupa: e.grupa,
+    kolor: e.kolor,
+    jedna_na_grupe: e.jedna_na_grupe,
+    kolejnosc: e.kolejnosc ?? 100,
+    aktywna: true,
+  })
+  return crmErrorFrom(error)
+}
+
+export async function setEtykietaAktywna(slug: string, aktywna: boolean): Promise<CrmError | null> {
+  const { error } = await crm().from('etykiety').update({ aktywna }).eq('slug', slug)
+  return crmErrorFrom(error)
 }
 
 /** „Analizuj ponownie”: status → 'nowy', trigger w bazie sam zleca analizę (tylko przychodzące). */

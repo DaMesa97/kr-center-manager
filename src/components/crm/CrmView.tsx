@@ -51,6 +51,8 @@ import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
 import CrmPocztaScreen from './CrmPocztaScreen'
 import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
+import { EtykietyRow, EtykietySlownikEditor } from './CrmEtykiety'
+import { useEtykiety } from '../../hooks/useEtykiety'
 
 /**
  * Tryb widoku (Tymek 14.11.2026): handlowiec ma dostać kolejkę „do zrobienia” z jednym
@@ -277,6 +279,9 @@ function ZadaniaScreen({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  // etykiety (brief pkt 12): słownik wspólny z kartą leada, filtr po jednej etykiecie (po stronie klienta — lista ≤ 300)
+  const etyk = useEtykiety()
+  const [etykietaFilter, setEtykietaFilter] = useState('')
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -333,6 +338,22 @@ function ZadaniaScreen({
         ),
       },
       { key: 'miejscowosc', label: 'Miejscowość', sortValue: (r) => r.miejscowosc ?? '', render: (r) => r.miejscowosc || '—' },
+      {
+        key: 'etykiety',
+        label: 'Etykiety',
+        sortValue: (r) => (r.etykiety ?? []).join(','),
+        stopRowClick: true,
+        render: (r) => (
+          <EtykietyRow
+            leadId={r.id}
+            slugi={r.etykiety}
+            slownik={etyk.mapa}
+            compact
+            pushToast={pushToast}
+            onChanged={(slugi) => setRows((rs) => rs.map((x) => (x.id === r.id ? { ...x, etykiety: slugi } : x)))}
+          />
+        ),
+      },
       {
         key: 'opis',
         label: 'Szczegóły',
@@ -403,12 +424,18 @@ function ZadaniaScreen({
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [onOpenLead, onOpenOferta, busy, currentUser],
+    [onOpenLead, onOpenOferta, busy, currentUser, etyk.mapa],
   )
 
   return (
     <>
       <div className="crm-toolbar">
+        <select className="crm-select" value={etykietaFilter} onChange={(e) => setEtykietaFilter(e.target.value)} aria-label="Filtr po etykiecie" title="Pokaż tylko zadania z etykietą">
+          <option value="">Wszystkie etykiety</option>
+          {etyk.lista.filter((e) => e.aktywna).map((e) => (
+            <option key={e.slug} value={e.slug}>{e.nazwa}</option>
+          ))}
+        </select>
         <span className="crm-toolbar-hint">
           {rows.length === 0
             ? 'Nic do zrobienia.'
@@ -422,8 +449,15 @@ function ZadaniaScreen({
       {loading ? (
         <Spinner center label="Ładowanie zadań…" />
       ) : (
-        <DataTable rows={rows} rowKey={(r) => r.id} columns={columns} className="crm-table" emptyText="Nic do zrobienia — wszystkie zadania załatwione." />
+        <DataTable
+          rows={etykietaFilter ? rows.filter((r) => (r.etykiety ?? []).includes(etykietaFilter)) : rows}
+          rowKey={(r) => r.id}
+          columns={columns}
+          className="crm-table"
+          emptyText={etykietaFilter ? 'Brak zadań z tą etykietą.' : 'Nic do zrobienia — wszystkie zadania załatwione.'}
+        />
       )}
+      {mode === 'pelny' && <EtykietySlownikEditor lista={etyk.lista} pushToast={pushToast} onChanged={etyk.reload} />}
       {mode === 'pelny' && bledy.length > 0 && (
         <section className="crm-syserrors">
           <h4>Błędy systemu ({bledy.length}) — rozmowy, których nie udało się przetworzyć</h4>
@@ -981,6 +1015,7 @@ function LeadScreen({
   const [lead, setLead] = useState<CrmLead | null>(null)
   const [rozmowy, setRozmowy] = useState<CrmRozmowa[]>([])
   const [maile, setMaile] = useState<CrmMail[]>([])
+  const etyk = useEtykiety()
   const [oferty, setOferty] = useState<CrmOferta[]>([])
   const [zdarzenia, setZdarzenia] = useState<CrmZdarzenie[]>([])
   const [names, setNames] = useState<Map<string, string>>(new Map())
@@ -1059,6 +1094,17 @@ function LeadScreen({
             {lead.kampania ? ` · kampania: ${lead.kampania}` : ''}
           </div>
         </div>
+      </div>
+
+      {/* etykiety (brief pkt 12): klik w badge zdejmuje, „+” otwiera wybór ze słownika */}
+      <div className="crm-lead-tags">
+        <EtykietyRow
+          leadId={lead.id}
+          slugi={lead.etykiety}
+          slownik={etyk.mapa}
+          pushToast={pushToast}
+          onChanged={(slugi) => setLead((l) => (l ? { ...l, etykiety: slugi } : l))}
+        />
       </div>
 
       {/* zadanie na leadzie */}
