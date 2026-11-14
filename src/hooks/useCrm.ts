@@ -7,7 +7,7 @@
 // ofert (nowa wersja po poprawce, mail, cena) robi Edge Function drugiej sesji.
 // =====================================================================
 import { supabase } from '../supabaseClient'
-import type { CrmEtykieta, CrmLead, CrmMail, CrmOferta, CrmPocztaTest, CrmRozmowa, CrmSkrzynka, CrmSprawdzenieSkrzynek, CrmZdarzenie } from '../types/crm'
+import type { CrmEtykieta, CrmLead, CrmMail, CrmOferta, CrmPocztaTest, CrmPomocStrona, CrmRozmowa, CrmSkrzynka, CrmSprawdzenieSkrzynek, CrmZdarzenie } from '../types/crm'
 import { CRM_FOLLOW_UP_DAYS, CRM_OPEN_STATUSES } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
@@ -441,6 +441,31 @@ export async function addEtykieta(e: Pick<CrmEtykieta, 'slug' | 'nazwa' | 'grupa
 
 export async function setEtykietaAktywna(slug: string, aktywna: boolean): Promise<CrmError | null> {
   const { error } = await crm().from('etykiety').update({ aktywna }).eq('slug', slug)
+  return crmErrorFrom(error)
+}
+
+// ---- Pomoc CRM (crm.pomoc, markdown) — czyta każdy z CRM, pisze superadmin (RLS) ----
+
+export async function fetchPomoc(): Promise<Result<CrmPomocStrona[]>> {
+  const { data, error } = await crm().from('pomoc').select('*').order('kolejnosc', { ascending: true, nullsFirst: false }).order('tytul')
+  return { data: (data ?? []) as unknown as CrmPomocStrona[], error: crmErrorFrom(error) }
+}
+
+export async function savePomoc(slug: string, patch: { tytul: string; tresc_md: string }, userId: string): Promise<CrmError | null> {
+  const { error } = await crm()
+    .from('pomoc')
+    .update({ tytul: patch.tytul.trim(), tresc_md: patch.tresc_md, updated_at: new Date().toISOString(), updated_by: userId })
+    .eq('slug', slug)
+  return crmErrorFrom(error)
+}
+
+export async function addPomoc(s: { slug: string; tytul: string; tresc_md: string; kolejnosc: number }, userId: string): Promise<CrmError | null> {
+  const { error } = await crm().from('pomoc').insert({ ...s, tytul: s.tytul.trim(), updated_by: userId })
+  return crmErrorFrom(error)
+}
+
+export async function deletePomoc(slug: string): Promise<CrmError | null> {
+  const { error } = await crm().from('pomoc').delete().eq('slug', slug)
   return crmErrorFrom(error)
 }
 

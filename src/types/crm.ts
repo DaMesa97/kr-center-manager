@@ -414,5 +414,15 @@ export const CRM_MAIL_KIERUNEK: Record<string, string> = {
   wychodzacy: '↗ Od nas',
 }
 
+/** Strony pomocy CRM (crm.pomoc, 14.11.2026): instrukcja pracy w markdown, edytowalna przez superadmina bez nowej wersji aplikacji. */
+export type CrmPomocStrona = {
+  slug: string
+  tytul: string
+  tresc_md: string | null
+  kolejnosc: number | null
+  updated_at: string | null
+  updated_by: string | null
+}
+
 /** Statusy ofert „do roboty” — domyślny filtr listy (brief pkt 3). */
 export const CRM_OPEN_STATUSES = ['do_sprawdzenia', 'przelicz'] as const

@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: zakładka „Pomoc" z instrukcją pracy (beta.116)</h4>
+        <ul>
+          <li>W CRM obok Poczty jest <b>Pomoc</b>: instrukcja „Jak pracować w CRM" (dzień w 3 krokach, skąd biorą się klienci, zadania, sprawdzanie i poprawka oferty, etykiety, skrzynka, co robić, gdy coś jest nie tak). Treść mieszka w bazie, więc poprawki nie wymagają nowej wersji aplikacji.</li>
+          <li>Właściciel ma przy stronie „Edytuj" (tekst w markdown z podglądem na żywo), „Dodaj stronę" i usuwanie. Linki w treści otwierają się w przeglądarce.</li>
+        </ul>
         <h4>CRM Po Drzwi: kanał osobno, sprawa osobno, „Dodaj klienta" (beta.115)</h4>
         <ul>
           <li><b>Kanał</b> (skąd przyszedł kontakt: Telefon, Formularz, Mail, Wizyta, Inne) to mały badge przy kliencie na liście „Do zrobienia" i na karcie. Mail ze strony (formularz kontaktowy) ma znacznik „Formularz ze strony", a nadawcą jest klient, nie skrzynka techniczna.</li>

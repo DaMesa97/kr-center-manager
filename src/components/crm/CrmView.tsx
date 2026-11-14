@@ -51,6 +51,7 @@ import { openExternalUrl } from '../../hooks/useAluOrders'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
 import CrmPocztaScreen from './CrmPocztaScreen'
+import CrmPomocScreen from './CrmPomocScreen'
 import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
 import { EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
 import CrmNowyKlient from './CrmNowyKlient'
@@ -74,6 +75,7 @@ type Screen =
   | { kind: 'oferty' }
   | { kind: 'maile' }
   | { kind: 'poczta' }
+  | { kind: 'pomoc' }
   | { kind: 'oferta'; id: string }
   | { kind: 'lead'; id: string }
   | { kind: 'mail'; id: string }
@@ -1286,11 +1288,12 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
   const openOferta = useCallback((id: string) => go({ kind: 'oferta', id }), [go])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
   const openMail = useCallback((id: string) => go({ kind: 'mail', id }), [go])
-  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta') => {
+  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc') => {
     setStack([])
     setScreen({ kind })
   }
-  const topKind = screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' ? screen.kind : screen.kind === 'mail' ? 'maile' : 'zadania'
+  const topKind =
+    screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' ? screen.kind : screen.kind === 'mail' ? 'maile' : 'zadania'
 
   return (
     <div className={`crm-view crm-view--${mode}`}>
@@ -1311,6 +1314,10 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
           <button type="button" className={`crm-nav-btn${topKind === 'poczta' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('poczta')} title="Skrzynki pocztowe">
             Poczta
           </button>
+          {/* instrukcja pracy z crm.pomoc (markdown) — superadmin edytuje bez nowej wersji aplikacji */}
+          <button type="button" className={`crm-nav-btn${topKind === 'pomoc' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('pomoc')} title="Jak pracować w CRM">
+            Pomoc
+          </button>
         </nav>
         {currentUser && <span className="crm-brand-user">{currentUser.full_name}</span>}
       </div>
@@ -1319,6 +1326,7 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       {screen.kind === 'maile' && <CrmMaileScreen mode={mode} onOpenMail={openMail} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'mail' && <CrmMailScreen id={screen.id} mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'poczta' && <CrmPocztaScreen currentUser={currentUser} isSuperadmin={mode === 'pelny'} pushToast={pushToast} />}
+      {screen.kind === 'pomoc' && <CrmPomocScreen currentUser={currentUser} canEdit={mode === 'pelny'} pushToast={pushToast} />}
       {screen.kind === 'oferta' && (
         <OfertaScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
       )}
