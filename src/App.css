@@ -9055,8 +9055,10 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
   --pd-dark: #13151b;
   --pd-graphite: #2c2d31;
   --pd-bg: #f7f6f5;
-  display: flex; flex-direction: column; gap: 12px; max-width: 1180px;
+  /* pełna szerokość ekranu (Tymek 14.11: lista zajmowała pół monitora z własnym suwakiem) */
+  display: flex; flex-direction: column; gap: 12px; width: 100%; min-width: 0;
 }
+.crm-view .table-wrapper { width: 100%; }
 .crm-brand { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 10px; background: var(--pd-dark); color: #fff; }
 .crm-brand-name { font-weight: 800; letter-spacing: 0.18em; font-size: 0.95rem; color: var(--pd-accent); }
 .crm-brand-sub { font-size: 0.9rem; opacity: 0.85; }
