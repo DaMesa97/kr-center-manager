@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Receptury: przeliczanie rezerwacji bez „limitu czasu" (beta.102)</h4>
+        <ul>
+          <li><b>Zapis receptury nie przelicza już od razu całej kategorii</b> (#139, Dawid): przeliczenie rusza 15 s po ostatniej zmianie receptury, więc seria zapisów to jedno przeliczenie. Porcje są mniejsze (40 zleceń, ok. 4–5 s), a gdy baza mimo to przerwie zapytanie limitem czasu, porcja maleje i idzie jeszcze raz zamiast przerywać całość. Jeśli w trakcie zmienisz kolejną recepturę, po zakończeniu pójdzie drugi przebieg.</li>
+        </ul>
         <h4>CRM Po Drzwi i rola superadministratora (beta.101)</h4>
         <ul>
           <li><b>Nowa zakładka „CRM Po Drzwi"</b> (oferty, leady, rozmowy z Ringostatu) — widzą ją wyłącznie superadministrator i osoby, którym nadał dostęp. Rola administratora sama z siebie dostępu nie daje; dla pozostałych zakładki nie ma w menu.</li>

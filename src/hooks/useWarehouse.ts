@@ -1119,29 +1119,62 @@ export function useWarehouse({
   // Recipe operations
   // ---------------------------------------------------------------------------
 
-  // Zmiana receptury → przeliczenie rezerwacji otwartych zleceń jej kategorii
-  // (porcjami — limit zapytania 8 s). Zlecenia, z których coś już wydano,
-  // baza pomija (wydanego towaru automat nie cofa) — zgłaszamy ich liczbę.
-  const rebuildReservationsForCategories = useCallback(
-    async (categories: Array<string | null | undefined>) => {
-      const cats = [...new Set(categories.filter((c): c is string => !!c && c.trim() !== ''))]
-      if (cats.length === 0) return
-      pushToast(`Przeliczam rezerwacje otwartych zleceń (${cats.join(', ')})…`, 'info')
+  // Zmiana receptury → przeliczenie rezerwacji otwartych zleceń jej kategorii.
+  //
+  // #139 (Dawid, 12.11.2026): przy dokładaniu receptur Disting co kilkanaście sekund
+  // leciał „limit czasu”. Przyczyna: KAŻDY zapis receptury od razu przeliczał
+  // wszystkie otwarte zlecenia kategorii porcjami po 120, a jedno zlecenie to
+  // ~110 ms (pomiar 14.11: 20 zleceń Disting = 2,3 s) → porcja 120 = ~13 s przy
+  // limicie 8 s na zapytanie dla zalogowanego. Teraz:
+  //  - porcje po 40 (~4,5 s), a po przekroczeniu limitu porcja maleje o połowę
+  //    i ta sama porcja idzie jeszcze raz zamiast przerywać całość;
+  //  - przeliczenie startuje dopiero REBUILD_DEBOUNCE_MS po OSTATNIEJ zmianie
+  //    receptury w danej kategorii (seria zapisów = jedno przeliczenie);
+  //  - gdy przeliczenie trwa, kolejna zmiana tylko zaznacza kategorię jako
+  //    „do powtórki” i po zakończeniu idzie następny przebieg.
+  // Zlecenia, z których coś już wydano, baza pomija (wydanego towaru automat nie
+  // cofa) — zgłaszamy ich liczbę.
+  const REBUILD_DEBOUNCE_MS = 15_000
+  const REBUILD_CHUNK = 40
+  const REBUILD_CHUNK_MIN = 10
+  const rebuildTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const rebuildRunningRef = useRef<Set<string>>(new Set())
+  const rebuildDirtyRef = useRef<Set<string>>(new Set())
+
+  const isStatementTimeout = (err: { code?: string; message?: string } | null | undefined) =>
+    !!err && (err.code === '57014' || /statement timeout|canceling statement/i.test(err.message ?? ''))
+
+  const runRebuildNow = useCallback(
+    async (category: string) => {
+      if (rebuildRunningRef.current.has(category)) {
+        rebuildDirtyRef.current.add(category)
+        return
+      }
+      rebuildRunningRef.current.add(category)
+      pushToast(`Przeliczam rezerwacje otwartych zleceń ${category}…`, 'info')
       let rebuilt = 0
       let skipped = 0
       let failed = 0
       const failedOrders: string[] = []
-      for (const category of cats) {
+      let aborted: string | null = null
+      try {
         let afterId = 0
+        let limit = REBUILD_CHUNK
         for (;;) {
           const { data, error } = await supabase.rpc('rebuild_reservations_for_category', {
             p_category: category,
             p_after_id: afterId,
-            p_limit: 120,
+            p_limit: limit,
           })
           if (error) {
-            pushToast(`Nie przeliczono rezerwacji (${category}): ${error.message}`, 'error')
-            return
+            // limit 8 s: zmniejsz porcję i powtórz TĘ SAMĄ porcję (nic nie przepada —
+            // każde zlecenie jest przeliczane w całości albo wcale)
+            if (isStatementTimeout(error) && limit > REBUILD_CHUNK_MIN) {
+              limit = Math.max(REBUILD_CHUNK_MIN, Math.floor(limit / 2))
+              continue
+            }
+            aborted = error.message
+            break
           }
           const row = ((data ?? []) as Array<{
             r_rebuilt: number
@@ -1159,15 +1192,58 @@ export function useWarehouse({
           if (row.r_done || row.r_last_id <= afterId) break
           afterId = row.r_last_id
         }
+      } finally {
+        rebuildRunningRef.current.delete(category)
       }
-      const parts = [`Przeliczono rezerwacje ${rebuilt} zleceń`]
-      if (skipped > 0) parts.push(`${skipped} pominięto (już coś wydano z magazynu — skoryguj ręcznie)`)
-      if (failed > 0) parts.push(`${failed} z błędem: ${failedOrders.slice(0, 3).join('; ')}`)
-      pushToast(parts.join(' · '), failed > 0 ? 'error' : skipped > 0 ? 'info' : 'success')
+      if (aborted) {
+        pushToast(
+          `Nie przeliczono wszystkich rezerwacji ${category} (${rebuilt} zrobionych): ${aborted}. Zapisz dowolną recepturę tej kategorii jeszcze raz, żeby wznowić.`,
+          'error',
+        )
+      } else {
+        const parts = [`Przeliczono rezerwacje ${rebuilt} zleceń ${category}`]
+        if (skipped > 0) parts.push(`${skipped} pominięto (już coś wydano z magazynu — skoryguj ręcznie)`)
+        if (failed > 0) parts.push(`${failed} z błędem: ${failedOrders.slice(0, 3).join('; ')}`)
+        pushToast(parts.join(' · '), failed > 0 ? 'error' : skipped > 0 ? 'info' : 'success')
+      }
       await fetchWarehouseStock()
+      // w trakcie przeliczania zmieniono kolejną recepturę tej kategorii → jeszcze raz
+      if (rebuildDirtyRef.current.delete(category)) void runRebuildNow(category)
     },
     [pushToast, fetchWarehouseStock],
   )
+
+  const rebuildReservationsForCategories = useCallback(
+    (categories: Array<string | null | undefined>) => {
+      const cats = [...new Set(categories.filter((c): c is string => !!c && c.trim() !== ''))]
+      if (cats.length === 0) return
+      for (const category of cats) {
+        const prev = rebuildTimersRef.current.get(category)
+        if (prev) clearTimeout(prev)
+        rebuildTimersRef.current.set(
+          category,
+          setTimeout(() => {
+            rebuildTimersRef.current.delete(category)
+            void runRebuildNow(category)
+          }, REBUILD_DEBOUNCE_MS),
+        )
+      }
+      pushToast(
+        `Rezerwacje ${cats.join(', ')} przeliczą się za ${Math.round(REBUILD_DEBOUNCE_MS / 1000)} s — kolejne zmiany receptur w tym czasie wejdą do tego samego przeliczenia.`,
+        'info',
+      )
+    },
+    [pushToast, runRebuildNow],
+  )
+
+  // odmontowanie (wylogowanie) — nie odpalaj zaplanowanych przeliczeń bez sesji
+  useEffect(() => {
+    const timers = rebuildTimersRef.current
+    return () => {
+      for (const t of timers.values()) clearTimeout(t)
+      timers.clear()
+    }
+  }, [])
 
   const handleDeleteRecipe = useCallback(
     async (id: number) => {
