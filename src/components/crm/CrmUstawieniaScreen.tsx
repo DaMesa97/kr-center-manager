@@ -10,20 +10,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Save, X, Pencil, Trash2, RefreshCw, Send, ArrowUp, ArrowDown } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
-import { CRM_ALERT_KEYS, CRM_ZASADA_GRUPA, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
+import { CRM_ALERT_KEYS, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_ZASADA_GRUPA, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
 import {
   addZasada,
   deleteZasada,
+  fetchLiczniki,
   fetchPoprawkiOstatnie,
   fetchProfileNames,
   fetchSkrzynki,
   fetchUstawienia,
   fetchZasady,
+  saveLicznik,
   saveUstawienia,
+  signedUrlDokument,
   testAlert,
   updateZasada,
+  uploadLogo,
   type CrmError,
 } from '../../hooks/useCrm'
+import { openExternalUrl } from '../../hooks/useAluOrders'
 import { appConfirm } from '../../lib/appDialogs'
 import Spinner from '../Spinner'
 
@@ -34,7 +39,7 @@ type Props = {
   onOpenLead: (id: string) => void
 }
 
-type Tab = 'zasady' | 'alerty' | 'poprawki'
+type Tab = 'zasady' | 'alerty' | 'poprawki' | 'firma'
 
 const fmtDateTime = (iso: string | null | undefined): string => {
   if (!iso) return '—'
@@ -374,6 +379,165 @@ function PoprawkiSection({ onOpenOferta, onOpenLead }: Pick<Props, 'onOpenOferta
   )
 }
 
+// ---------------------------------------------------------------- Dane firmy (PDF oferty, brief pkt 21)
+
+/** klucze ustawień poza firma_*, które też należą do ofert PDF (limity VAT, ważność oferty) */
+const isOfertaKey = (k: string) => /^(vat_limit_|oferta_waznosc)/.test(k)
+
+function FirmaSection({ pushToast }: Pick<Props, 'pushToast'>) {
+  const [ust, setUst] = useState<CrmUstawienie[]>([])
+  const [liczniki, setLiczniki] = useState<CrmLicznik[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<CrmError | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [dirty, setDirty] = useState(false)
+  const [licznikForm, setLicznikForm] = useState<Record<string, string>>({})
+  const [logoOk, setLogoOk] = useState<boolean | null>(null)
+
+  const load = useCallback(async () => {
+    const [u, l] = await Promise.all([fetchUstawienia(), fetchLiczniki()])
+    setError(u.error)
+    if (!u.error) {
+      setUst(u.data)
+      const f: Record<string, string> = {}
+      for (const k of CRM_FIRMA_KEYS) f[k.klucz] = u.data.find((x) => x.klucz === k.klucz)?.wartosc ?? ''
+      for (const x of u.data) if (isOfertaKey(x.klucz)) f[x.klucz] = x.wartosc ?? ''
+      setForm(f)
+      setDirty(false)
+    }
+    setLiczniki(l.data)
+    setLicznikForm(Object.fromEntries(l.data.map((x) => [x.klucz, String(x.wartosc)])))
+    const logo = await signedUrlDokument(CRM_LOGO_PATH)
+    setLogoOk(!!logo.data && !logo.error)
+    setLoading(false)
+  }, [])
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const onSave = async () => {
+    setBusy(true)
+    const err = await saveUstawienia(Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v.trim()])))
+    setBusy(false)
+    if (err) {
+      pushToast(err.message, 'error')
+      return
+    }
+    pushToast('Dane firmy zapisane — następny PDF użyje nowych', 'success')
+    await load()
+  }
+
+  const onSaveLicznik = async (klucz: string) => {
+    const v = Number(licznikForm[klucz])
+    if (!Number.isInteger(v) || v < 0) {
+      pushToast('Numer musi być liczbą całkowitą', 'error')
+      return
+    }
+    setBusy(true)
+    const err = await saveLicznik(klucz, v)
+    setBusy(false)
+    if (err) {
+      pushToast(err.message, 'error')
+      return
+    }
+    pushToast(`Licznik ${klucz} = ${v} (następna oferta dostanie ${v + 1})`, 'success')
+    await load()
+  }
+
+  const onLogo = async (file: File | null) => {
+    if (!file) return
+    if (!/png$/i.test(file.type) && !/\.png$/i.test(file.name)) {
+      pushToast('Logo musi być plikiem PNG', 'error')
+      return
+    }
+    setBusy(true)
+    const err = await uploadLogo(file)
+    setBusy(false)
+    if (err) {
+      pushToast(`Nie udało się wgrać logo: ${err.message}`, 'error')
+      return
+    }
+    pushToast('Logo wgrane — pojawi się w kolejnych PDF-ach', 'success')
+    setLogoOk(true)
+  }
+
+  const openLogo = async () => {
+    const r = await signedUrlDokument(CRM_LOGO_PATH)
+    if (r.data) void openExternalUrl(r.data)
+    else pushToast('Brak logo w buckecie', 'error')
+  }
+
+  if (loading) return <Spinner center label="Ładowanie danych firmy…" />
+  if (error) return <div className="crm-box crm-box--bad">{error.message}</div>
+
+  const rok = new Date().getFullYear()
+  const ofertaKeys = ust.filter((x) => isOfertaKey(x.klucz))
+
+  return (
+    <div className="crm-ust-section">
+      <p className="crm-muted crm-ust-intro">Nagłówek i stopka PDF oferty z montażem, reguły VAT i ważność oferty. Zmiany działają od następnej wygenerowanej oferty; już zrobione PDF-y zostają.</p>
+      <section className="crm-box crm-pf">
+        <h5>Stopka PDF</h5>
+        <div className="crm-pf-grid">
+          {CRM_FIRMA_KEYS.map((k) => (
+            <label key={k.klucz} className="crm-pf-field">
+              <span className="crm-pf-label">{k.label}</span>
+              <input type="text" value={form[k.klucz] ?? ''} onChange={(e) => { setForm({ ...form, [k.klucz]: e.target.value }); setDirty(true) }} disabled={busy} autoComplete="off" />
+            </label>
+          ))}
+        </div>
+        {ofertaKeys.length > 0 && (
+          <>
+            <h5>Reguły ofert</h5>
+            <div className="crm-pf-grid">
+              {ofertaKeys.map((x) => (
+                <label key={x.klucz} className="crm-pf-field">
+                  <span className="crm-pf-label">{x.klucz}</span>
+                  <input type="text" value={form[x.klucz] ?? ''} onChange={(e) => { setForm({ ...form, [x.klucz]: e.target.value }); setDirty(true) }} disabled={busy} autoComplete="off" />
+                  {x.opis && <span className="crm-pf-hint">{x.opis}</span>}
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+        <div className="crm-poczta-actions">
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy || !dirty}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz</button>
+        </div>
+      </section>
+
+      <section className="crm-box crm-pf">
+        <h5>Logo w nagłówku PDF</h5>
+        <div className="crm-poczta-actions">
+          <label className="btn btn-sm btn-secondary crm-file-btn">
+            Wgraj logo (PNG)
+            <input type="file" accept="image/png,.png" disabled={busy} onChange={(e) => void onLogo(e.target.files?.[0] ?? null)} hidden />
+          </label>
+          {logoOk ? <button type="button" className="crm-link" onClick={() => void openLogo()}>zobacz obecne logo</button> : <span className="crm-muted">{logoOk === false ? 'brak logo — PDF idzie bez grafiki' : ''}</span>}
+          <span className="crm-muted">Plik zapisuje się jako {CRM_LOGO_PATH} i zastępuje poprzednie.</span>
+        </div>
+      </section>
+
+      <section className="crm-box crm-pf">
+        <h5>Numeracja ofert</h5>
+        <p className="crm-muted crm-pf-hint">Numer oferty = RRRR/MM/NNN. Licznik trzyma OSTATNI użyty numer w roku; wpisz numer z rejestru, żeby numeracja była ciągła (następna oferta dostanie +1).</p>
+        <div className="crm-pf-grid">
+          {(liczniki.length > 0 ? liczniki : [{ klucz: `oferta:${rok}`, wartosc: 0, updated_at: null }]).map((l) => (
+            <div key={l.klucz} className="crm-pf-field crm-pf-field--short">
+              <span className="crm-pf-label">{l.klucz}</span>
+              <div className="crm-licznik-row">
+                <input type="number" min={0} value={licznikForm[l.klucz] ?? String(l.wartosc)} onChange={(e) => setLicznikForm({ ...licznikForm, [l.klucz]: e.target.value })} disabled={busy} />
+                <button type="button" className="btn btn-sm btn-secondary" disabled={busy || (licznikForm[l.klucz] ?? String(l.wartosc)) === String(l.wartosc)} onClick={() => void onSaveLicznik(l.klucz)}>Zapisz</button>
+              </div>
+              {l.updated_at && <span className="crm-pf-hint">zmieniono {fmtDateTime(l.updated_at)}</span>}
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------- Ekran
 
 export default function CrmUstawieniaScreen({ currentUser, pushToast, onOpenOferta, onOpenLead }: Props) {
@@ -382,6 +546,7 @@ export default function CrmUstawieniaScreen({ currentUser, pushToast, onOpenOfer
     { id: 'zasady', label: 'Zasady ofert' },
     { id: 'alerty', label: 'Alerty' },
     { id: 'poprawki', label: 'Poprawki' },
+    { id: 'firma', label: 'Dane firmy' },
   ]
   return (
     <div className="crm-screen crm-ust">
@@ -395,6 +560,7 @@ export default function CrmUstawieniaScreen({ currentUser, pushToast, onOpenOfer
       {tab === 'zasady' && <ZasadySection currentUser={currentUser} pushToast={pushToast} />}
       {tab === 'alerty' && <AlertySection pushToast={pushToast} />}
       {tab === 'poprawki' && <PoprawkiSection onOpenOferta={onOpenOferta} onOpenLead={onOpenLead} />}
+      {tab === 'firma' && <FirmaSection pushToast={pushToast} />}
     </div>
   )
 }

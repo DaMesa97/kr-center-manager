@@ -9,7 +9,7 @@
 // co 10 s, póki coś jest w przeliczaniu.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText } from 'lucide-react'
+import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText, Pencil } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_AKCJA,
@@ -21,11 +21,16 @@ import {
   CRM_ZDARZENIE_LABEL,
   CRM_DOSTAWA_LABEL,
   CRM_ZRODLO_LABEL,
+  CRM_OFERTA_RODZAJ,
+  CRM_RODZAJ_LOKALU,
   type CrmLead,
   type CrmMail,
   type CrmOferta,
+  type CrmOfertaPozycja,
   type CrmRozbiciePozycja,
   type CrmRozmowa,
+  type CrmUsluga,
+  type CrmZamknijZadanie,
   type CrmZdarzenie,
 } from '../../types/crm'
 import {
@@ -40,11 +45,13 @@ import {
   fetchZadania,
   fetchZdarzenia,
   markOfertaWyslana,
-  markZadanieZrobione,
   requestOfertaPrzelicz,
   retryOfertaPrzelicz,
   zlecOferteZNotatki,
   zlecOferteZNagrania,
+  zamknijZadanie,
+  updateLeadDane,
+  signedUrlDokument,
   type CrmError,
   type CrmZadanieRow,
 } from '../../hooks/useCrm'
@@ -57,6 +64,9 @@ import CrmPocztaScreen from './CrmPocztaScreen'
 import CrmPomocScreen from './CrmPomocScreen'
 import CrmUstawieniaScreen from './CrmUstawieniaScreen'
 import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
+import CrmKontaktyScreen from './CrmKontaktyScreen'
+import CrmZadanieDialog from './CrmZadanieDialog'
+import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
 import { EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
 import CrmNowyKlient from './CrmNowyKlient'
@@ -82,6 +92,7 @@ type Screen =
   | { kind: 'poczta' }
   | { kind: 'pomoc' }
   | { kind: 'ustawienia' }
+  | { kind: 'kontakty' }
   | { kind: 'oferta'; id: string }
   | { kind: 'lead'; id: string }
   | { kind: 'mail'; id: string }
@@ -366,19 +377,24 @@ function ZadaniaScreen({
     if (table !== 'zdarzenia') debouncedReload()
   })
 
-  const handleZrobione = async (lead: CrmZadanieRow) => {
+  // brief pkt 20: „Zrobione” pyta, co dalej (panel nad listą), zapis przez rpc zamknij_zadanie
+  const [zrobioneDla, setZrobioneDla] = useState<CrmZadanieRow | null>(null)
+  const handleZrobione = (lead: CrmZadanieRow) => {
     if (!currentUser) return
-    const a = CRM_AKCJA[lead.nastepna_akcja ?? '']?.label ?? lead.nastepna_akcja ?? 'zadanie'
-    const ok = await appConfirm(`Oznaczyć „${a}” dla ${leadName(lead)} jako zrobione? Zadanie zniknie z listy.`, { title: 'Zrobione', confirmLabel: 'Tak, zrobione' })
-    if (!ok) return
-    setBusy(lead.id)
-    const err = await markZadanieZrobione(lead, currentUser.id)
+    setZrobioneDla(lead)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const confirmZrobione = async (z: CrmZamknijZadanie) => {
+    if (!zrobioneDla) return
+    setBusy(zrobioneDla.id)
+    const err = await zamknijZadanie(zrobioneDla.id, z)
     setBusy(null)
     if (err) {
-      pushToast(`Nie udało się oznaczyć: ${err.message}`, 'error')
+      pushToast(`Nie udało się zamknąć zadania: ${err.message}`, 'error')
       return
     }
-    pushToast('Zadanie zrobione', 'success')
+    pushToast(z.nastepna_akcja ? `Zrobione — następne: ${CRM_AKCJA[z.nastepna_akcja]?.label ?? z.nastepna_akcja}` : 'Zadanie zrobione', 'success')
+    setZrobioneDla(null)
     await load(true)
   }
 
@@ -477,14 +493,14 @@ function ZadaniaScreen({
             return (
               <span className="crm-oddzwon-hint">
                 <span className="crm-muted">zamknie się samo po oddzwonieniu z Ringostatu</span>
-                <button type="button" className="btn btn-sm btn-secondary" disabled={busy === r.id} onClick={() => void handleZrobione(r)} title="Użyj tylko, gdy dzwoniłeś z innego telefonu niż Ringostat">
+                <button type="button" className="btn btn-sm btn-secondary" disabled={busy === r.id} onClick={() => handleZrobione(r)} title="Użyj tylko, gdy dzwoniłeś z innego telefonu niż Ringostat">
                   Zrobione ręcznie
                 </button>
               </span>
             )
           }
           return (
-            <button type="button" className="btn btn-sm btn-primary" disabled={busy === r.id} onClick={() => void handleZrobione(r)}>
+            <button type="button" className="btn btn-sm btn-primary" disabled={busy === r.id} onClick={() => handleZrobione(r)}>
               <Check size={14} /> Zrobione
             </button>
           )
@@ -516,6 +532,9 @@ function ZadaniaScreen({
           <RefreshCw size={14} /> Odśwież
         </button>
       </div>
+      {zrobioneDla && (
+        <CrmZadanieDialog klient={leadName(zrobioneDla)} biezaceZadanie={zrobioneDla.nastepna_akcja} busy={busy === zrobioneDla.id} onConfirm={confirmZrobione} onCancel={() => setZrobioneDla(null)} />
+      )}
       {nowyKlient && (
         <CrmNowyKlient
           currentUser={currentUser}
@@ -613,13 +632,31 @@ function OfertyList({ mode, onOpenOferta, onOpenLead }: { mode: CrmMode; onOpenO
         sortValue: (r) => r.produkt ?? '',
         render: (r) =>
           r.produkt ||
+          (r.rodzaj === 'oficjalna' && r.numer ? `Oferta nr ${r.numer}` : null) ||
           (r.status === 'przelicz' || r.cena_razem == null ? (
             <span className="crm-muted" title="System jeszcze nie policzył tej oferty">w przygotowaniu</span>
           ) : (
             '—'
           )),
       },
-      { key: 'cena', label: 'Cena brutto', align: 'right', sortValue: (r) => r.cena_razem ?? -1, render: (r) => fmtPln(r.cena_razem) },
+      // brief pkt 21: Sklep (cena z kalkulatora) vs PDF (oferta oficjalna z montażem, brutto z VAT wg obiektu)
+      {
+        key: 'rodzaj',
+        label: 'Rodzaj',
+        align: 'center',
+        sortValue: (r) => r.rodzaj ?? 'sklep',
+        render: (r) => {
+          const rd = CRM_OFERTA_RODZAJ[r.rodzaj ?? 'sklep'] ?? CRM_OFERTA_RODZAJ.sklep
+          return <span className={`crm-rodzaj crm-rodzaj--${r.rodzaj ?? 'sklep'}`} title={rd.title}>{rd.label}{r.rodzaj === 'oficjalna' && r.numer ? ` ${r.numer}` : ''}</span>
+        },
+      },
+      {
+        key: 'cena',
+        label: 'Cena brutto',
+        align: 'right',
+        sortValue: (r) => (r.rodzaj === 'oficjalna' ? r.brutto : r.cena_razem) ?? -1,
+        render: (r) => (r.rodzaj === 'oficjalna' ? fmtPln(r.brutto) : fmtPln(r.cena_razem)),
+      },
       { key: 'koszyk', label: 'Koszyk', align: 'center', sortValue: (r) => (r.koszyk_zgodny === true ? 1 : r.koszyk_zgodny === false ? -1 : 0), render: (r) => <KoszykBadge value={r.koszyk_zgodny} compact /> },
       {
         key: 'sprawdz',
@@ -758,6 +795,17 @@ function OfertaScreen({
   const onCopied = (ok: boolean, label: string) =>
     pushToast(ok ? `Skopiowano: ${label.toLowerCase()}` : 'Nie udało się skopiować — zaznacz tekst i skopiuj ręcznie', ok ? 'success' : 'error')
 
+  // PDF oferty / plik konfiguracji: prywatny bucket, link podpisany na 10 min, otwarcie w przeglądarce systemowej
+  const handleOpenDokument = async (sciezka: string) => {
+    const r = await signedUrlDokument(sciezka)
+    if (r.error || !r.data) {
+      pushToast(`Nie udało się pobrać dokumentu: ${r.error?.message ?? 'brak linku'}`, 'error')
+      return
+    }
+    const ok = await openExternalUrl(r.data)
+    if (!ok) pushToast('Nie udało się otworzyć dokumentu w przeglądarce', 'error')
+  }
+
   const handleOpenInMail = () => {
     if (!oferta) return
     const url = mailtoFor(oferta)
@@ -837,8 +885,10 @@ function OfertaScreen({
   const sysErr = isSystemError(sprawdz)
   const canSend = oferta.status === 'do_sprawdzenia' && !sysErr
   const isRecalc = oferta.status === 'przelicz'
+  // brief pkt 21: oferta oficjalna z montażem (PDF) — pozycje przepisane z konfiguracji, VAT wg obiektu, bez koszyka
+  const oficjalna = oferta.rodzaj === 'oficjalna'
   // brak treści = ingest założył wersję, backend jeszcze nie policzył (albo stara pusta robocza)
-  const pending = isRecalc || (!oferta.mail_tresc && !oferta.produkt && oferta.cena_razem == null)
+  const pending = isRecalc || (oficjalna ? oferta.brutto == null && !oferta.plik_pdf : !oferta.mail_tresc && !oferta.produkt && oferta.cena_razem == null)
   const dobor = oferta.dobor ?? {}
   const analiza = oferta.analiza ?? {}
   const pw = oferta.poprawka_wynik ?? {}
@@ -853,7 +903,9 @@ function OfertaScreen({
         <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}><ArrowLeft size={14} /> Wróć</button>
         <div className="crm-screen-title">
           <h3>
-            {pending
+            {oficjalna
+              ? `Oferta nr ${oferta.numer ?? '…'} (PDF) · v${oferta.wersja}${pending ? ' · w przygotowaniu' : ` · ${fmtPln(oferta.brutto)} brutto`}`
+              : pending
               ? `Oferta v${oferta.wersja} · w przygotowaniu`
               : `Oferta v${oferta.wersja} · ${oferta.produkt || 'produkt nieustalony'} · ${fmtPln(oferta.cena_razem)}${
                   oferta.dostawa_koszt != null && oferta.cena_razem != null
@@ -897,7 +949,7 @@ function OfertaScreen({
         <section className="crm-check crm-check--pending">
           <h4>Oferta w przygotowaniu</h4>
           <p className="crm-pending-text">
-            <Spinner inline size={14} /> System liczy cenę, robi koszyk w sklepie i pisze mail
+            <Spinner inline size={14} /> {oficjalna ? 'System przepisuje pozycje z konfiguracji, liczy VAT, robi PDF i pisze mail' : 'System liczy cenę, robi koszyk w sklepie i pisze mail'}
             {oferta.poprawka ? <> po poprawce: <em>„{oferta.poprawka}”</em></> : zNotatki ? ' z notatki handlowca' : oferta.mail_id ? ' po mailu' : ' po rozmowie'}.
             {oferta.liczenie_od ? ` Liczenie trwa od ${fmtTime(oferta.liczenie_od)}.` : ' Zwykle 30–90 s.'} Ekran odświeży się sam; nie ma tu jeszcze nic do sprawdzenia.
           </p>
@@ -906,9 +958,9 @@ function OfertaScreen({
       ) : !sysErr ? (
         <section className={`crm-check ${oferta.koszyk_zgodny === false ? 'crm-check--bad' : sprawdz.length === 0 && oferta.koszyk_zgodny ? 'crm-check--clean' : ''}`}>
           <h4>Sprawdź tylko to</h4>
-          <div className="crm-check-koszyk"><KoszykBadge value={oferta.koszyk_zgodny} /></div>
+          {!oficjalna && <div className="crm-check-koszyk"><KoszykBadge value={oferta.koszyk_zgodny} /></div>}
           {sprawdz.length === 0 ? (
-            <p className="crm-check-clean">Konfiguracja w całości z rozmowy — przeczytaj mail raz i wyślij.</p>
+            <p className="crm-check-clean">{oficjalna ? 'Pozycje przepisane z konfiguracji bez wątpliwości — sprawdź PDF i wyślij.' : 'Konfiguracja w całości z rozmowy — przeczytaj mail raz i wyślij.'}</p>
           ) : (
             <ol className="crm-check-list">
               {sprawdz.map((s, i) => (
@@ -926,6 +978,9 @@ function OfertaScreen({
         </section>
       ) : null}
 
+      {/* 1b. OFERTA OFICJALNA (brief pkt 21): pozycje z konfiguracji, usługi, VAT, zakres, PDF */}
+      {!pending && oficjalna && <OfertaOficjalnaSekcja oferta={oferta} onOpenDokument={handleOpenDokument} />}
+
       {/* 2. MAIL */}
       {!pending && (
         <section className="crm-mail">
@@ -934,7 +989,16 @@ function OfertaScreen({
             <button type="button" className="btn btn-primary" disabled={!oferta.mail_do || sysErr} onClick={handleOpenInMail} title="Otwiera w Twoim programie pocztowym gotową wiadomość: adresat, temat i treść. Sprawdź i kliknij Wyślij.">
               <Mail size={15} /> Otwórz w poczcie
             </button>
-            <span className="crm-muted">Wiadomość otworzy się w programie pocztowym gotowa do wysłania. Poniżej te same pola do skopiowania.</span>
+            {oficjalna && oferta.plik_pdf && (
+              <button type="button" className="btn btn-secondary" onClick={() => void handleOpenDokument(oferta.plik_pdf as string)} title="PDF oferty do dołączenia do maila">
+                <FileText size={15} /> Pobierz PDF
+              </button>
+            )}
+            <span className="crm-muted">
+              {oficjalna
+                ? 'Mail otworzy się bez załącznika — pobierz PDF i dołącz go do wiadomości przed wysłaniem.'
+                : 'Wiadomość otworzy się w programie pocztowym gotowa do wysłania. Poniżej te same pola do skopiowania.'}
+            </span>
           </div>
           <CopyRow label="Adres" value={oferta.mail_do} onCopied={onCopied} />
           <CopyRow label="Temat" value={oferta.mail_temat} onCopied={onCopied} />
@@ -992,8 +1056,8 @@ function OfertaScreen({
                   </>
                 )}
               </p>
-              <h5>Link do koszyka</h5>
-              {oferta.link_koszyka ? (
+              {!oficjalna && <h5>Link do koszyka</h5>}
+              {oficjalna ? null : oferta.link_koszyka ? (
                 <p>
                   <ExtLink href={oferta.link_koszyka}><ExternalLink size={13} /> otwórz koszyk</ExtLink>{' '}
                   <button type="button" className="btn btn-sm btn-secondary" onClick={() => void copyText(oferta.link_koszyka ?? '').then((ok) => onCopied(ok, 'Link'))}><Copy size={13} /> Kopiuj</button>
@@ -1087,6 +1151,151 @@ function OfertaScreen({
         </section>
       )}
     </div>
+  )
+}
+
+// ---- OFERTA OFICJALNA (brief pkt 21): sekcja z pozycjami, usługami, VAT i dokumentami ----
+
+function OfertaOficjalnaSekcja({ oferta, onOpenDokument }: { oferta: CrmOferta; onOpenDokument: (sciezka: string) => Promise<void> }) {
+  const pozycje = (Array.isArray(oferta.pozycje) ? oferta.pozycje : []) as CrmOfertaPozycja[]
+  const uslugi = (Array.isArray(oferta.uslugi) ? oferta.uslugi : []) as CrmUsluga[]
+  const fmt2 = (v: number | null | undefined) => (v == null ? '—' : Number(v).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+  return (
+    <section className="crm-ofic">
+      <div className="crm-screen-head">
+        <div className="crm-screen-title">
+          <h4>Oferta nr {oferta.numer ?? '…'}{oferta.producent ? <span className="crm-muted"> · {oferta.producent}</span> : null}</h4>
+          <div className="crm-screen-sub">
+            {oferta.z_montazem ? 'z montażem' : 'bez montażu'}
+            {oferta.lokal_mieszkalny != null ? ` · ${oferta.lokal_mieszkalny ? 'obiekt mieszkalny' : 'obiekt niemieszkalny'}` : ''}
+            {oferta.rodzaj_lokalu ? ` · ${CRM_RODZAJ_LOKALU[oferta.rodzaj_lokalu] ?? oferta.rodzaj_lokalu}` : ''}
+            {oferta.powierzchnia_m2 != null ? ` · ${fmt2(oferta.powierzchnia_m2)} m²` : ''}
+          </div>
+        </div>
+        <div className="crm-skrzynka-btns">
+          {oferta.plik_pdf && (
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => void onOpenDokument(oferta.plik_pdf as string)}><FileText size={14} /> Pobierz PDF</button>
+          )}
+          {oferta.konfiguracja_plik && (
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onOpenDokument(oferta.konfiguracja_plik as string)} title="Plik z konfiguratora producenta">Plik konfiguracji</button>
+          )}
+        </div>
+      </div>
+      <table className="crm-pozycje">
+        <thead>
+          <tr><th>Lp.</th><th>Pozycja</th><th className="crm-num">Ilość</th><th className="crm-num">Netto / szt.</th><th className="crm-num">Netto</th></tr>
+        </thead>
+        <tbody>
+          {pozycje.map((p, i) => (
+            <tr key={i}>
+              <td>{p.lp ?? i + 1}</td>
+              <td>
+                <b>{p.nazwa || '—'}</b>
+                {p.opis ? <div className="crm-muted">{p.opis}</div> : null}
+              </td>
+              <td className="crm-num">{p.ilosc ?? 1} {p.jm ?? ''}</td>
+              <td className="crm-num">{fmt2(p.netto_szt)}</td>
+              <td className="crm-num">{fmt2(p.netto)}</td>
+            </tr>
+          ))}
+          {uslugi.map((u, i) => (
+            <tr key={`u${i}`} className="crm-pozycja--usluga">
+              <td>{pozycje.length + i + 1}</td>
+              <td>{u.nazwa} <span className="crm-muted">(usługa)</span></td>
+              <td className="crm-num">1</td>
+              <td className="crm-num">{fmt2(u.netto)}</td>
+              <td className="crm-num">{fmt2(u.netto)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr><td colSpan={4}>Razem netto</td><td className="crm-num">{fmt2(oferta.netto)}</td></tr>
+          <tr><td colSpan={4}>VAT {oferta.vat_stawka ?? ''}</td><td className="crm-num">{fmt2(oferta.vat_kwota)}</td></tr>
+          <tr className="crm-pozycje-sum"><td colSpan={4}>Razem brutto</td><td className="crm-num">{fmt2(oferta.brutto)} zł</td></tr>
+        </tfoot>
+      </table>
+      {oferta.vat_uwaga && <p className="crm-muted crm-ofic-vat">{oferta.vat_uwaga}</p>}
+      {oferta.zakres && <p className="crm-ofic-zakres"><b>Zakres:</b> {oferta.zakres}</p>}
+      {oferta.konfiguracja_tekst && (
+        <details className="crm-details crm-details--inline">
+          <summary>Wklejona konfiguracja</summary>
+          <pre className="crm-pre">{oferta.konfiguracja_tekst}</pre>
+        </details>
+      )}
+    </section>
+  )
+}
+
+// ---- HISTORIA KLIENTA (brief pkt 20): jedna oś czasu ze zdarzeń, rozmów i maili ----
+
+type HistoriaWpis = { key: string; at: string; typ: string; cls: string; kto: string; opis: string; onOpen?: () => void }
+
+function HistoriaKlienta({ zdarzenia, rozmowy, maile, names, mode, onOpenMail, onOpenOferta }: {
+  zdarzenia: CrmZdarzenie[]
+  rozmowy: CrmRozmowa[]
+  maile: CrmMail[]
+  names: Map<string, string>
+  mode: CrmMode
+  onOpenMail: (id: string) => void
+  onOpenOferta: (id: string) => void
+}) {
+  const wpisy = useMemo<HistoriaWpis[]>(() => {
+    const out: HistoriaWpis[] = []
+    for (const z of zdarzenia) {
+      // rozmowy i maile mają własne wpisy niżej — zdarzenie „rozmowa” z ingestu pomijamy, żeby nie dublować
+      if (z.typ === 'rozmowa' && rozmowy.length > 0) continue
+      const zr = typeof z.dane?.zrodlo === 'string' ? CRM_ZRODLO_LABEL[z.dane.zrodlo] : null
+      out.push({
+        key: `z${z.id}`,
+        at: z.created_at,
+        typ: CRM_ZDARZENIE_LABEL[z.typ] ?? z.typ,
+        cls: `crm-timeline-item--${z.typ}`,
+        kto: `${z.kto ? names.get(z.kto) ?? '…' : 'system'}${zr ? ` (${zr})` : ''}`,
+        opis: z.opis ?? '',
+        onOpen: z.oferta_id ? () => onOpenOferta(z.oferta_id as string) : undefined,
+      })
+    }
+    for (const r of rozmowy) {
+      out.push({
+        key: `r${r.id}`,
+        at: r.data_rozmowy ?? r.created_at,
+        typ: r.kierunek === 'wychodzaca' ? '📞 Rozmowa od nas' : r.odebrana === false ? '📞 Nieodebrana' : '📞 Rozmowa od klienta',
+        cls: r.odebrana === false ? 'crm-timeline-item--nieodebrana' : 'crm-timeline-item--rozmowa',
+        kto: r.odebrana === false ? '' : fmtDuration(r.czas_s),
+        opis: r.podsumowanie ?? (r.status_przetwarzania === 'blad' ? `błąd: ${r.blad ?? ''}` : ''),
+      })
+    }
+    for (const m of maile) {
+      out.push({
+        key: `m${m.id}`,
+        at: m.data ?? m.created_at,
+        typ: m.kierunek === 'wychodzacy' ? '✉ Mail od nas' : m.kanal === 'formularz' ? '✉ Formularz ze strony' : '✉ Mail od klienta',
+        cls: 'crm-timeline-item--mail',
+        kto: m.kierunek === 'wychodzacy' ? (m.do_adresy ?? []).join(', ') : m.od_adres ?? '',
+        opis: `${m.temat ? `${m.temat} — ` : ''}${m.podsumowanie ?? ''}`.replace(/ — $/, ''),
+        onOpen: () => onOpenMail(m.id),
+      })
+    }
+    return out.sort((a, b) => b.at.localeCompare(a.at))
+  }, [zdarzenia, rozmowy, maile, names, onOpenMail, onOpenOferta])
+
+  if (wpisy.length === 0) return <p className="crm-muted">Jeszcze nic się nie wydarzyło.</p>
+  // tryb handlowca: bez wpisów diagnostycznych systemu (analiza, przeliczono…)
+  const widoczne = mode === 'pelny' ? wpisy : wpisy.filter((w) => !/^(Analiza|Przeliczono|Błąd)/i.test(w.typ))
+  return (
+    <ul className="crm-timeline">
+      {widoczne.map((w) => (
+        <li key={w.key} className={`crm-timeline-item ${w.cls}`}>
+          <span className="crm-timeline-when">{fmtDateTime(w.at)}</span>
+          <span className="crm-timeline-typ">{w.typ}</span>
+          <span className="crm-timeline-kto">{w.kto}</span>
+          <span className="crm-timeline-opis">
+            {w.opis}
+            {w.onOpen && <button type="button" className="crm-link crm-timeline-open" onClick={w.onOpen}>otwórz</button>}
+          </span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -1212,20 +1421,49 @@ function LeadScreen({
     await load(true)
   }
 
-  const handleZrobione = async () => {
+  // brief pkt 20: „Zrobione” / „Dodaj zadanie” przez panel z następnym krokiem (rpc zamknij_zadanie)
+  const [zadanieDialog, setZadanieDialog] = useState(false)
+  const confirmZadanie = async (z: CrmZamknijZadanie) => {
     if (!lead || !currentUser) return
-    const a = CRM_AKCJA[lead.nastepna_akcja ?? '']?.label ?? lead.nastepna_akcja ?? 'zadanie'
-    const ok = await appConfirm(`Oznaczyć „${a}” dla ${leadName(lead)} jako zrobione?`, { title: 'Zrobione', confirmLabel: 'Tak, zrobione' })
-    if (!ok) return
     setSaving(true)
-    const err = await markZadanieZrobione(lead, currentUser.id)
+    const err = await zamknijZadanie(lead.id, z)
     setSaving(false)
     if (err) {
-      pushToast(`Nie udało się oznaczyć: ${err.message}`, 'error')
+      pushToast(`Nie udało się zapisać: ${err.message}`, 'error')
       return
     }
-    pushToast('Zadanie zrobione', 'success')
+    pushToast(z.nastepna_akcja ? `Zapisane — następne: ${CRM_AKCJA[z.nastepna_akcja]?.label ?? z.nastepna_akcja}` : 'Zadanie zrobione', 'success')
+    setZadanieDialog(false)
     await load(true)
+  }
+  const handleZrobione = () => setZadanieDialog(true)
+
+  // edycja danych kontaktowych (brief pkt 20)
+  const [dane, setDane] = useState<{ nazwa: string; telefon: string; email: string; miejscowosc: string } | null>(null)
+  const saveDane = async () => {
+    if (!lead || !dane) return
+    setSaving(true)
+    const err = await updateLeadDane(lead.id, dane)
+    setSaving(false)
+    if (err) {
+      pushToast(err.message, 'error')
+      return
+    }
+    pushToast('Dane klienta zapisane', 'success')
+    setDane(null)
+    await load(true)
+  }
+
+  // „Oferta z montażem” (brief pkt 21): formularz pod sekcją „Czego chce”
+  const [oficForm, setOficForm] = useState(false)
+
+  const handleOpenDokument = async (sciezka: string) => {
+    const r = await signedUrlDokument(sciezka)
+    if (r.error || !r.data) {
+      pushToast(`Nie udało się pobrać dokumentu: ${r.error?.message ?? 'brak linku'}`, 'error')
+      return
+    }
+    if (!(await openExternalUrl(r.data))) pushToast('Nie udało się otworzyć dokumentu w przeglądarce', 'error')
   }
 
   if (loading) return <Spinner center label="Ładowanie klienta…" />
@@ -1292,22 +1530,58 @@ function LeadScreen({
             ) : lead.nastepna_akcja === 'oddzwon' ? (
               <>
                 <span className="crm-muted">Zadanie zamknie się samo po odebranej rozmowie wychodzącej z Ringostatu.</span>
-                <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => void handleZrobione()} title="Użyj tylko, gdy dzwoniłeś z innego telefonu niż Ringostat">Zrobione ręcznie</button>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={saving || zadanieDialog} onClick={handleZrobione} title="Użyj tylko, gdy dzwoniłeś z innego telefonu niż Ringostat">Zrobione ręcznie</button>
               </>
             ) : (
-              <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void handleZrobione()}><Check size={14} /> Zrobione</button>
+              <button type="button" className="btn btn-primary" disabled={saving || zadanieDialog} onClick={handleZrobione}><Check size={14} /> Zrobione</button>
+            )}
+            {lead.nastepna_akcja === 'przygotuj_oferte' && activeOferta && activeOferta.status !== 'przelicz' && (
+              <button type="button" className="btn btn-sm btn-secondary" disabled={saving || zadanieDialog} onClick={handleZrobione} title="Zamknij zadanie i ustaw następny krok">Zrobione</button>
             )}
           </div>
         </section>
       )}
+      {!lead.nastepna_akcja && !zadanieDialog && (
+        <div className="crm-mail-actions">
+          <span className="crm-muted">Klient nie ma zadania — nie pojawia się na liście „Do zrobienia”.</span>
+          <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => setZadanieDialog(true)}>Dodaj zadanie</button>
+        </div>
+      )}
+      {zadanieDialog && (
+        <CrmZadanieDialog klient={leadName(lead)} biezaceZadanie={lead.nastepna_akcja} busy={saving} onConfirm={confirmZadanie} onCancel={() => setZadanieDialog(false)} />
+      )}
 
       <section className="crm-lead-grid">
         <div>
-          <h4>Kontakt</h4>
-          {/* tel:/mailto: nie przechodzą przez shell:open-external (tylko https) — tekst do zaznaczenia/skopiowania */}
-          <Field label="Telefon">{lead.telefon ? <span className="crm-ext crm-copy-value"><Phone size={13} /> {lead.telefon}</span> : '—'}</Field>
-          <Field label="E-mail">{lead.email ? <span className="crm-ext crm-copy-value"><Mail size={13} /> {lead.email}</span> : '—'}</Field>
-          <Field label="Miejscowość">{lead.miejscowosc || '—'}</Field>
+          <h4>
+            Kontakt{' '}
+            {!dane && (
+              <button type="button" className="crm-link" disabled={saving} onClick={() => setDane({ nazwa: lead.nazwa ?? '', telefon: lead.telefon ?? '', email: lead.email ?? '', miejscowosc: lead.miejscowosc ?? '' })} title="Popraw nazwę, telefon, e-mail, miejscowość">
+                <Pencil size={13} /> edytuj
+              </button>
+            )}
+          </h4>
+          {dane ? (
+            <div className="crm-pf crm-dane-edit">
+              <div className="crm-pf-grid">
+                <label className="crm-pf-field"><span className="crm-pf-label">Imię i nazwisko / firma</span><input type="text" value={dane.nazwa} onChange={(e) => setDane({ ...dane, nazwa: e.target.value })} disabled={saving} autoComplete="off" /></label>
+                <label className="crm-pf-field"><span className="crm-pf-label">Telefon</span><input type="tel" value={dane.telefon} onChange={(e) => setDane({ ...dane, telefon: e.target.value })} disabled={saving} autoComplete="off" /></label>
+                <label className="crm-pf-field"><span className="crm-pf-label">E-mail</span><input type="email" value={dane.email} onChange={(e) => setDane({ ...dane, email: e.target.value })} disabled={saving} autoComplete="off" /></label>
+                <label className="crm-pf-field"><span className="crm-pf-label">Miejscowość</span><input type="text" value={dane.miejscowosc} onChange={(e) => setDane({ ...dane, miejscowosc: e.target.value })} disabled={saving} autoComplete="off" /></label>
+              </div>
+              <div className="crm-poczta-actions">
+                <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={() => void saveDane()}>{saving ? <Spinner inline size={14} /> : <Check size={14} />} Zapisz</button>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => setDane(null)}>Anuluj</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* tel:/mailto: nie przechodzą przez shell:open-external (tylko https) — tekst do zaznaczenia/skopiowania */}
+              <Field label="Telefon">{lead.telefon ? <span className="crm-ext crm-copy-value"><Phone size={13} /> {lead.telefon}</span> : '—'}</Field>
+              <Field label="E-mail">{lead.email ? <span className="crm-ext crm-copy-value"><Mail size={13} /> {lead.email}</span> : '—'}</Field>
+              <Field label="Miejscowość">{lead.miejscowosc || '—'}</Field>
+            </>
+          )}
           <Field label="Wartość szac.">{fmtPln(lead.wartosc_szac)}</Field>
           <Field label="Ostatnia rozmowa">{fmtDateTime(lead.ostatnia_rozmowa_at)}</Field>
           <Field label="Pierwszy kontakt">{fmtDateTime(lead.created_at)}</Field>
@@ -1342,11 +1616,18 @@ function LeadScreen({
                 {!(activeOferta?.status === 'przelicz' || (czekaNaOferte && !activeOferta)) && (
                   <CrmNagrajNotatke onRecorded={handleNagranie} busy={nagrywanieBusy} disabled={saving} />
                 )}
+                {/* brief pkt 21: oferta oficjalna PDF dla klienta z montażem */}
+                <button type="button" className="btn btn-secondary" disabled={saving || oficForm} onClick={() => setOficForm(true)} title="Oferta PDF z montażem: ceny z konfiguracji producenta, usługi własne, VAT 8%/23%">
+                  <FileText size={14} /> Oferta z montażem
+                </button>
                 {notatkaDirty && <span className="crm-muted">notatka zapisze się przy zleceniu oferty</span>}
               </div>
             </div>
           ) : (
-            <p><span className="crm-muted">brak podsumowania</span></p>
+            <div className="crm-mail-actions">
+              <span className="crm-muted">brak podsumowania</span>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={saving || oficForm} onClick={() => setOficForm(true)}><FileText size={14} /> Oferta z montażem</button>
+            </div>
           )}
           {lead.brakuje && (
             <>
@@ -1357,6 +1638,20 @@ function LeadScreen({
         </div>
       </section>
 
+      {oficForm && (
+        <CrmOfertaOficjalnaForm
+          leadId={lead.id}
+          klient={leadName(lead)}
+          pushToast={pushToast}
+          onCreated={() => {
+            setOficForm(false)
+            setZleconoAt(Date.now())
+            void load(true)
+          }}
+          onCancel={() => setOficForm(false)}
+        />
+      )}
+
       <section>
         <h4>Oferty ({oferty.length})</h4>
         {oferty.length === 0 ? (
@@ -1364,13 +1659,33 @@ function LeadScreen({
         ) : (
           <div className="crm-versions">
             {[...oferty].reverse().map((o) => (
-              <button key={o.id} type="button" className="crm-version" onClick={() => onOpenOferta(o.id)}>
-                v{o.wersja}{o.produkt ? ` · ${o.produkt}` : ''}{o.cena_razem != null ? ` · ${fmtPln(o.cena_razem)}` : ''} · <StatusBadge status={o.status} /> · {fmtDate(o.created_at)}
+              <button key={o.id} type="button" className="crm-version" onClick={() => onOpenOferta(o.id)} title={CRM_OFERTA_RODZAJ[o.rodzaj ?? 'sklep']?.title}>
+                {o.rodzaj === 'oficjalna' ? <span className="crm-rodzaj crm-rodzaj--oficjalna">PDF{o.numer ? ` ${o.numer}` : ''}</span> : null}
+                {o.rodzaj === 'oficjalna' ? ' · ' : ''}v{o.wersja}{o.produkt ? ` · ${o.produkt}` : ''}
+                {o.rodzaj === 'oficjalna' ? (o.brutto != null ? ` · ${fmtPln(o.brutto)} brutto` : '') : o.cena_razem != null ? ` · ${fmtPln(o.cena_razem)}` : ''} · <StatusBadge status={o.status} /> · {fmtDate(o.created_at)}
               </button>
             ))}
           </div>
         )}
       </section>
+
+      {/* dokumenty z ofert oficjalnych (brief pkt 20/21): plik konfiguracji + PDF, pobieranie przez signed URL */}
+      {oferty.some((o) => o.plik_pdf || o.konfiguracja_plik) && (
+        <section>
+          <h4>Dokumenty</h4>
+          <ul className="crm-dokumenty">
+            {[...oferty].reverse().flatMap((o) => [
+              ...(o.plik_pdf ? [{ key: `${o.id}-pdf`, label: `Oferta nr ${o.numer ?? '…'} v${o.wersja} (PDF)`, sciezka: o.plik_pdf, at: o.updated_at }] : []),
+              ...(o.konfiguracja_plik ? [{ key: `${o.id}-konf`, label: `Konfiguracja producenta do oferty nr ${o.numer ?? '…'} v${o.wersja}`, sciezka: o.konfiguracja_plik, at: o.created_at }] : []),
+            ]).map((d) => (
+              <li key={d.key}>
+                <button type="button" className="crm-link" onClick={() => void handleOpenDokument(d.sciezka)}><FileText size={13} /> {d.label}</button>
+                <span className="crm-muted"> · {fmtDate(d.at)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* maile (brief pkt 11): przychodzące analizowane jak rozmowy, wychodzące dopasowane do ofert */}
       {(maile.length > 0 || lead.zrodlo === 'mail') && (
@@ -1425,12 +1740,11 @@ function LeadScreen({
         )}
       </section>
 
-      {mode === 'pelny' && (
-        <section className="crm-history">
-          <h4>Historia</h4>
-          <Timeline items={zdarzenia} names={names} />
-        </section>
-      )}
+      {/* brief pkt 20: jedna oś czasu — zdarzenia + rozmowy + maile; handlowiec bez wpisów diagnostycznych */}
+      <section className="crm-history">
+        <h4>Historia</h4>
+        <HistoriaKlienta zdarzenia={zdarzenia} rozmowy={rozmowy} maile={maile} names={names} mode={mode} onOpenMail={onOpenMail} onOpenOferta={onOpenOferta} />
+      </section>
     </div>
   )
 }
@@ -1459,12 +1773,12 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
   const openOferta = useCallback((id: string) => go({ kind: 'oferta', id }), [go])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
   const openMail = useCallback((id: string) => go({ kind: 'mail', id }), [go])
-  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia') => {
+  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia' | 'kontakty') => {
     setStack([])
     setScreen({ kind })
   }
   const topKind =
-    screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' || screen.kind === 'ustawienia'
+    screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' || screen.kind === 'ustawienia' || screen.kind === 'kontakty'
       ? screen.kind
       : screen.kind === 'mail'
         ? 'maile'
@@ -1481,6 +1795,10 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
           </button>
           <button type="button" className={`crm-nav-btn${topKind === 'oferty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('oferty')}>
             Oferty
+          </button>
+          {/* brief pkt 20: wszyscy klienci, także bez zadania */}
+          <button type="button" className={`crm-nav-btn${topKind === 'kontakty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('kontakty')} title="Wszyscy klienci: szukanie, filtry, historia">
+            Kontakty
           </button>
           <button type="button" className={`crm-nav-btn${topKind === 'maile' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('maile')} title="Maile przychodzące i wychodzące ze skrzynek">
             Maile
@@ -1504,6 +1822,7 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       </div>
       {screen.kind === 'zadania' && <ZadaniaScreen mode={mode} currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'oferty' && <OfertyList mode={mode} onOpenOferta={openOferta} onOpenLead={openLead} />}
+      {screen.kind === 'kontakty' && <CrmKontaktyScreen pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'maile' && <CrmMaileScreen mode={mode} onOpenMail={openMail} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'mail' && <CrmMailScreen id={screen.id} mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'poczta' && <CrmPocztaScreen currentUser={currentUser} isSuperadmin={mode === 'pelny'} pushToast={pushToast} />}

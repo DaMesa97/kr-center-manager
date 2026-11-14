@@ -23,7 +23,8 @@ import type {
   CrmZasada,
   CrmZdarzenie,
 } from '../types/crm'
-import { CRM_FOLLOW_UP_DAYS, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES } from '../types/crm'
+import { CRM_DOKUMENTY_BUCKET, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES } from '../types/crm'
+import type { CrmLicznik, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
 
@@ -47,7 +48,7 @@ export function crmErrorFrom(e: { code?: string; message?: string } | null | und
 
 const LEAD_EMBED = 'lead:leady(id, nazwa, miejscowosc, telefon, email, kategoria, status, nastepna_akcja, nastepny_krok, akcja_opis)'
 const OFERTA_LIST_COLS =
-  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at'
+  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at, rodzaj, numer, brutto, netto, vat_stawka, plik_pdf, konfiguracja_plik'
 
 type Result<T> = { data: T; error: CrmError | null }
 
@@ -204,6 +205,128 @@ export async function markZadanieZrobione(lead: CrmLead, userId: string): Promis
   })
   if (zErr) console.warn('crm.zdarzenia zadanie_zrobione:', zErr.message)
   return null
+}
+
+/**
+ * „Zrobione” z następnym krokiem (brief pkt 20): rpc crm.zamknij_zadanie sam zapisuje zdarzenie zadanie_zrobione,
+ * ustawia następne zadanie (nastepna_akcja + termin za N dni + opis) i przy wyslano_oferte status klienta 'oferta'.
+ * Z nastepna_akcja=null zamyka bez kolejnego kroku; na kliencie bez zadania po prostu ustawia nowe („Dodaj zadanie”).
+ */
+export async function zamknijZadanie(leadId: string, z: CrmZamknijZadanie): Promise<CrmError | null> {
+  const { error } = await crm().rpc('zamknij_zadanie', {
+    p_lead_id: leadId,
+    p_nastepna_akcja: z.nastepna_akcja,
+    p_za_dni: z.za_dni,
+    p_opis: z.opis?.trim() || null,
+    p_wyslano_oferte: z.wyslano_oferte,
+  })
+  return crmErrorFrom(error)
+}
+
+// ---- Kontakty (brief pkt 20): wszyscy klienci + ostatnia oferta ----
+
+export type CrmKontaktRow = CrmLead & {
+  ostatnia_oferta?: Pick<CrmOferta, 'id' | 'status' | 'wersja' | 'cena_razem' | 'rodzaj' | 'numer' | 'brutto' | 'created_at'> | null
+}
+
+export async function fetchKontakty(): Promise<Result<CrmKontaktRow[]>> {
+  const { data, error } = await crm().from('leady').select('*').order('updated_at', { ascending: false }).limit(2000)
+  if (error) return { data: [], error: crmErrorFrom(error) }
+  const leads = (data ?? []) as unknown as CrmLead[]
+  const byLead = new Map<string, CrmKontaktRow['ostatnia_oferta']>()
+  // ostatnia oferta per klient (najnowsza wersja, każdy status) — jedno zapytanie, porcjami po 200 id
+  const ids = leads.map((l) => l.id)
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data: ofs } = await crm()
+      .from('oferty')
+      .select('id, lead_id, status, wersja, cena_razem, rodzaj, numer, brutto, created_at')
+      .in('lead_id', ids.slice(i, i + 200))
+      .neq('status', 'robocza')
+      .order('created_at', { ascending: false })
+    for (const o of (ofs ?? []) as Array<NonNullable<CrmKontaktRow['ostatnia_oferta']> & { lead_id: string }>) {
+      if (!byLead.has(o.lead_id)) byLead.set(o.lead_id, o)
+    }
+  }
+  return { data: leads.map((l) => ({ ...l, ostatnia_oferta: byLead.get(l.id) ?? null })), error: null }
+}
+
+/** Dane kontaktowe klienta (karta klienta, edycja): telefon normalizowany do +48…, 23505 = numer już jest u innego klienta. */
+export async function updateLeadDane(id: string, d: { nazwa: string; telefon: string; email: string; miejscowosc: string }): Promise<CrmError | null> {
+  const telefon = d.telefon.trim() ? normalizePlPhone(d.telefon) : null
+  if (d.telefon.trim() && !telefon) return { kind: 'other', message: 'Nieprawidłowy numer telefonu — wpisz 9 cyfr albo z prefiksem +48.' }
+  const email = d.email.trim().toLowerCase() || null
+  if (!telefon && !email) return { kind: 'other', message: 'Klient musi mieć telefon albo e-mail.' }
+  const { error } = await crm()
+    .from('leady')
+    .update({ nazwa: d.nazwa.trim() || null, telefon, email, miejscowosc: d.miejscowosc.trim() || null })
+    .eq('id', id)
+  if (error?.code === '23505') return { kind: 'other', message: 'Inny klient ma już ten numer telefonu.' }
+  return crmErrorFrom(error)
+}
+
+// ---- Oferta oficjalna z montażem, PDF (brief pkt 21) ----
+
+export type OfertaOficjalnaForm = {
+  konfiguracja_plik: File | null
+  konfiguracja_tekst: string
+  producent: string
+  uslugi: CrmUsluga[]
+  zakres: string
+  z_montazem: boolean
+  lokal_mieszkalny: boolean | null
+  rodzaj_lokalu: string
+  powierzchnia_m2: string
+}
+
+/** Upload pliku z konfiguratora (PDF/JPG/PNG) do crm-dokumenty + rpc zlec_oferte_oficjalna → id oferty (po ~20–40 s do_sprawdzenia). */
+export async function zlecOferteOficjalna(leadId: string, f: OfertaOficjalnaForm): Promise<Result<string | null>> {
+  let sciezka: string | null = null
+  if (f.konfiguracja_plik) {
+    const file = f.konfiguracja_plik
+    const ext = (file.name.split('.').pop() || 'pdf').toLowerCase().replace(/[^a-z0-9]/g, '') || 'pdf'
+    sciezka = `${leadId}/konfiguracja-${Date.now()}.${ext}`
+    const up = await supabase.storage.from(CRM_DOKUMENTY_BUCKET).upload(sciezka, file, { contentType: file.type || undefined, upsert: false })
+    if (up.error) return { data: null, error: { kind: 'other', message: `Nie udało się wgrać pliku konfiguracji: ${up.error.message}` } }
+  }
+  const tekst = f.konfiguracja_tekst.trim() || null
+  if (!sciezka && !tekst) return { data: null, error: { kind: 'other', message: 'Dodaj plik z konfiguratora albo wklej treść konfiguracji.' } }
+  const m2 = f.powierzchnia_m2.trim() ? Number(f.powierzchnia_m2.replace(',', '.')) : null
+  const { data, error } = await crm().rpc('zlec_oferte_oficjalna', {
+    p_lead_id: leadId,
+    p_konfiguracja_plik: sciezka,
+    p_konfiguracja_tekst: tekst,
+    p_uslugi: f.uslugi.filter((u) => u.nazwa.trim()).map((u) => ({ nazwa: u.nazwa.trim(), netto: Number(u.netto) || 0 })),
+    p_zakres: f.zakres.trim() || null,
+    p_z_montazem: f.z_montazem,
+    p_lokal_mieszkalny: f.lokal_mieszkalny,
+    p_rodzaj_lokalu: f.rodzaj_lokalu || null,
+    p_powierzchnia_m2: m2 != null && Number.isFinite(m2) ? m2 : null,
+    p_producent: f.producent.trim() || null,
+  })
+  return { data: (data as string | null) ?? null, error: crmErrorFrom(error) }
+}
+
+/** Link do pobrania dokumentu z prywatnego bucketu crm-dokumenty (PDF oferty, plik konfiguracji), ważny 10 min. */
+export async function signedUrlDokument(sciezka: string): Promise<Result<string | null>> {
+  const { data, error } = await supabase.storage.from(CRM_DOKUMENTY_BUCKET).createSignedUrl(sciezka, 600)
+  return { data: data?.signedUrl ?? null, error: error ? { kind: 'other', message: error.message } : null }
+}
+
+/** Logo do nagłówka PDF (superadmin): zawsze pod szablon/logo.png, nadpisanie. */
+export async function uploadLogo(file: File): Promise<CrmError | null> {
+  const { error } = await supabase.storage.from(CRM_DOKUMENTY_BUCKET).upload(CRM_LOGO_PATH, file, { contentType: 'image/png', upsert: true })
+  return error ? { kind: 'other', message: error.message } : null
+}
+
+export async function fetchLiczniki(): Promise<Result<CrmLicznik[]>> {
+  const { data, error } = await crm().from('liczniki').select('*').order('klucz')
+  return { data: (data ?? []) as unknown as CrmLicznik[], error: crmErrorFrom(error) }
+}
+
+/** Numer startowy ofert: wartość = ostatni UŻYTY numer (następna oferta dostanie +1). */
+export async function saveLicznik(klucz: string, wartosc: number): Promise<CrmError | null> {
+  const { error } = await crm().from('liczniki').upsert({ klucz, wartosc, updated_at: new Date().toISOString() }, { onConflict: 'klucz' })
+  return crmErrorFrom(error)
 }
 
 /** Rozmowy, których system nie przetworzył (sekcja „Błędy systemu”, tylko superadmin). */

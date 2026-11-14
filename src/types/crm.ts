@@ -143,6 +143,31 @@ export type CrmOferta = {
   mail_id?: string | null
   /** oferta z notatki handlowca (brief pkt 15, klient z salonu): treść notatki; rozmowa_id i mail_id puste */
   notatka?: string | null
+  // ---- oferta oficjalna z montażem, PDF (brief pkt 21) ----
+  /** 'sklep' (link do koszyka, dotychczasowe) | 'oficjalna' (PDF, załącznik do umowy) */
+  rodzaj?: 'sklep' | 'oficjalna' | string | null
+  /** RRRR/MM/NNN z crm.liczniki; ten sam numer dla wszystkich wersji */
+  numer?: string | null
+  producent?: string | null
+  /** ścieżka pliku z konfiguratora w buckecie crm-dokumenty */
+  konfiguracja_plik?: string | null
+  konfiguracja_tekst?: string | null
+  pozycje?: CrmOfertaPozycja[] | null
+  uslugi?: CrmUsluga[] | null
+  zakres?: string | null
+  z_montazem?: boolean | null
+  lokal_mieszkalny?: boolean | null
+  /** mieszkanie | dom | uzytkowy */
+  rodzaj_lokalu?: string | null
+  powierzchnia_m2?: number | null
+  netto?: number | null
+  /** '23%' | '8%' | '8% / 23%' */
+  vat_stawka?: string | null
+  vat_kwota?: number | null
+  brutto?: number | null
+  vat_uwaga?: string | null
+  /** ścieżka PDF w buckecie crm-dokumenty (pobieranie przez signed URL) */
+  plik_pdf?: string | null
   /** osadzony lead (select `lead:leady(...)`) */
   lead?: CrmLead | null
 }
@@ -478,6 +503,42 @@ export type CrmPoprawkaRow = {
 /** Nagranie notatki głosowej (brief pkt 18): bucket crm-nagrania, maks. 3 min, webm/opus. */
 export const CRM_NAGRANIE_BUCKET = 'crm-nagrania'
 export const CRM_NAGRANIE_MAX_S = 180
+
+/** Pozycja oferty oficjalnej (przepisana z konfiguracji producenta, brief pkt 21). */
+export type CrmOfertaPozycja = { lp?: number; nazwa?: string; opis?: string; ilosc?: number; jm?: string; netto_szt?: number; netto?: number; brutto_szt_z_pliku?: number }
+/** Usługa własna w ofercie oficjalnej: nazwa + kwota netto, bez stałych stawek. */
+export type CrmUsluga = { nazwa: string; netto: number }
+
+export const CRM_OFERTA_RODZAJ: Record<string, { label: string; title: string }> = {
+  sklep: { label: 'Sklep', title: 'Oferta ze sklepu: cena z kalkulatora, link do koszyka' },
+  oficjalna: { label: 'PDF', title: 'Oferta oficjalna z montażem (PDF, załącznik do umowy)' },
+}
+export const CRM_RODZAJ_LOKALU: Record<string, string> = { mieszkanie: 'Mieszkanie', dom: 'Dom', uzytkowy: 'Lokal użytkowy' }
+export const CRM_PRODUCENCI = ['KR Center', 'DRE', 'inny'] as const
+export const CRM_USLUGI_PODPOWIEDZI = ['Montaż', 'Demontaż i utylizacja', 'Dostawa i wniesienie', 'Pomiar', 'Obróbka murarska'] as const
+export const CRM_ZAKRES_PODPOWIEDZI = [
+  'Towar z montażem — dostawa, pomiar i wniesienie wliczone',
+  'Towar z demontażem starej stolarki i montażem — bez obróbki murarskiej',
+] as const
+export const CRM_DOKUMENTY_BUCKET = 'crm-dokumenty'
+export const CRM_LOGO_PATH = 'szablon/logo.png'
+/** klucze crm.ustawienia do stopki PDF i reguł VAT (Ustawienia → Dane firmy) */
+export const CRM_FIRMA_KEYS: Array<{ klucz: string; label: string }> = [
+  { klucz: 'firma_nazwa', label: 'Nazwa firmy' },
+  { klucz: 'firma_adres', label: 'Siedziba' },
+  { klucz: 'firma_salon', label: 'Salon' },
+  { klucz: 'firma_tel', label: 'Telefon' },
+  { klucz: 'firma_email', label: 'E-mail' },
+  { klucz: 'firma_www', label: 'Strona' },
+  { klucz: 'firma_nip', label: 'NIP' },
+  { klucz: 'firma_regon', label: 'REGON' },
+  { klucz: 'firma_krs', label: 'KRS' },
+  { klucz: 'firma_kapital', label: 'Kapitał zakładowy' },
+]
+export type CrmLicznik = { klucz: string; wartosc: number; updated_at: string | null }
+
+/** „Zrobione” z następnym krokiem (rpc crm.zamknij_zadanie, brief pkt 20) */
+export type CrmZamknijZadanie = { nastepna_akcja: string | null; za_dni: number; opis: string | null; wyslano_oferte: boolean }
 
 /** Statusy ofert „do roboty” — domyślny filtr listy (brief pkt 3). */
 export const CRM_OPEN_STATUSES = ['do_sprawdzenia', 'przelicz'] as const

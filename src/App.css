@@ -9656,3 +9656,53 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-poprawki th { background: #f3f1ec; font-weight: 600; position: sticky; top: 0; }
 .crm-poprawki-txt { line-height: 1.45; min-width: 220px; }
 .crm-nowrap { white-space: nowrap; }
+
+/* CRM → Kontakty (brief pkt 20) */
+.crm-search { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; min-width: 320px; }
+.crm-search input { border: 0; outline: none; padding: 7px 0; font: inherit; flex: 1; background: transparent; }
+.crm-toolbar select { padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; }
+.crm-check-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+
+/* „Zrobione — co dalej?” / „Dodaj zadanie” (brief pkt 20) */
+.crm-zadanie-dialog { border-left: 5px solid var(--pd-accent) !important; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
+.crm-zadanie-dialog h4, .crm-zadanie-dialog p { margin: 0; }
+.crm-zadanie-opcje { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.crm-zadanie-opcja { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer; background: #fff; }
+.crm-zadanie-opcja--on { border-color: var(--pd-accent); background: #faf8f3; }
+.crm-zadanie-opcja input { margin-top: 3px; }
+.crm-zadanie-opcja > span { display: flex; flex-direction: column; gap: 2px; }
+.crm-zadanie-hint { font-size: 0.8rem; line-height: 1.3; }
+.crm-zadanie-row { display: flex; align-items: flex-end; gap: 10px; }
+.crm-zadanie-row input[type='number'] { width: 90px; padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; }
+.crm-zadanie-dialog .crm-poczta-actions { margin-top: 0; }
+.crm-zadanie-dialog .crm-pf-field--check { align-self: start; padding-bottom: 0; }
+
+/* karta klienta: edycja danych, dokumenty, oś czasu */
+.crm-dane-edit { margin: 4px 0 8px; }
+.crm-dokumenty { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.crm-timeline-open { margin-left: 8px; font-size: 0.85rem; }
+.crm-timeline-item--mail .crm-timeline-typ, .crm-timeline-item--rozmowa .crm-timeline-typ { color: #1d4ed8; }
+.crm-timeline-item--nieodebrana .crm-timeline-typ { color: #b45309; }
+
+/* oferta oficjalna PDF (brief pkt 21): rodzaj na listach, formularz, sekcja z pozycjami */
+.crm-rodzaj { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em; background: #e5e7eb; color: #374151; }
+.crm-rodzaj--oficjalna { background: #13151b; color: #a79d80; }
+.crm-ofic-form h5 { margin: 14px 0 6px; }
+.crm-ofic-form .crm-screen-head h4 { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.crm-uslugi { display: flex; flex-direction: column; gap: 6px; }
+.crm-usluga-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: 8px; align-items: center; }
+.crm-usluga-row input { padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; }
+.crm-ofic { border-left: 5px solid #13151b !important; }
+.crm-ofic .crm-screen-head h4 { margin: 0; }
+.crm-pozycje { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.92rem; }
+.crm-pozycje th, .crm-pozycje td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: left; vertical-align: top; }
+.crm-pozycje th { background: #f3f1ec; font-weight: 600; }
+.crm-pozycje .crm-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.crm-pozycja--usluga td { color: #374151; background: #fbfaf8; }
+.crm-pozycje tfoot td { border-bottom: 0; text-align: right; }
+.crm-pozycje-sum td { font-weight: 700; font-size: 1rem; border-top: 2px solid #13151b; }
+.crm-ofic-vat { margin: 8px 0 0; font-size: 0.85rem; line-height: 1.4; }
+.crm-ofic-zakres { margin: 8px 0 0; }
+.crm-file-btn { cursor: pointer; }
+.crm-licznik-row { display: flex; gap: 6px; align-items: center; }
+.crm-licznik-row input { width: 110px; padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; }

@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: Kontakty, pełna historia klienta, oferta z montażem w PDF (beta.119)</h4>
+        <ul>
+          <li><b>CRM → Kontakty</b>: wszyscy klienci, także bez zadania. Szukanie po nazwie, telefonie, e-mailu i miejscowości, filtry (status, kanał, etykieta, „bez zadania"), sortowanie po ostatniej aktywności, kolumna z zadaniem i ostatnią ofertą.</li>
+          <li><b>Karta klienta</b>: dane kontaktowe do edycji („edytuj" przy Kontakcie), oferty obu rodzajów, lista dokumentów (PDF, plik konfiguracji) i jedna <b>Historia</b> ze zdarzeń, rozmów i maili w kolejności czasu, z linkami do pełnej treści.</li>
+          <li><b>„Zrobione" pyta, co dalej</b>: nic więcej / zapytaj o decyzję za N dni / oddzwoń / dopytaj / przygotuj ofertę, pole „co ustalono" i „wysłałem ofertę poza systemem". Klient bez zadania ma przycisk „Dodaj zadanie". Dotąd po „Zrobione" klient znikał z listy bez follow-upu.</li>
+          <li><b>„Oferta z montażem" (PDF)</b> na karcie klienta: plik z konfiguratora producenta albo wklejony tekst, usługi własne (nazwa + netto), zakres, montaż / obiekt mieszkalny / rodzaj / powierzchnia. System przepisuje pozycje, liczy VAT 8% lub 23% i robi PDF z numerem RRRR/MM/NNN. Karta takiej oferty pokazuje pozycje, usługi, VAT, uwagę o stawce i „Pobierz PDF"; mail nie dołącza załącznika, więc PDF pobierasz obok. Na liście ofert kolumna „Rodzaj" (Sklep / PDF).</li>
+          <li><b>Ustawienia → Dane firmy</b> (właściciel): stopka PDF, reguły VAT i ważność oferty, logo PNG do nagłówka, numer startowy ofert w roku.</li>
+        </ul>
         <h4>CRM Po Drzwi: zasady ofert, alerty, notatka głosowa, odświeżanie na żywo (beta.118)</h4>
         <ul>
           <li><b>Ustawienia → Zasady ofert</b> (właściciel): co system przyjmuje, gdy klient czegoś nie ustalił (kolor, rozmiar, okucia…) i jak pisze mail. Jedna zasada = jedno zdanie; włącz/wyłącz, kolejność, edycja. Na karcie oferty takie rzeczy są w szarej liście „Przyjęte domyślnie" pod „Sprawdź tylko to", a mail sam o nich informuje klienta.</li>
