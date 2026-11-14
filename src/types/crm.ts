@@ -27,6 +27,13 @@ export type CrmLead = {
   nastepny_krok: string | null
   created_at: string
   updated_at: string
+  // Zadanie handlowca na leadzie (brief pkt 6, 14.11.2026): zamiast Asany
+  /** oddzwon | dopytaj | przygotuj_oferte | follow_up | reklamacja | null = nic do zrobienia */
+  nastepna_akcja: string | null
+  /** jedno zdanie, co zrobić */
+  akcja_opis: string | null
+  akcja_od: string | null
+  ostatnia_rozmowa_at: string | null
 }
 
 export type CrmRozmowa = {
@@ -45,6 +52,16 @@ export type CrmRozmowa = {
   podsumowanie: string | null
   data_rozmowy: string | null
   created_at: string
+  /** pominieta | bez_ai | przetworzona | blad */
+  status_przetwarzania: string | null
+  blad: string | null
+  kategoria: string | null
+  nastepna_akcja: string | null
+  analiza: Record<string, unknown> | null
+  oferta_id: string | null
+  numer_dzwoniacego: string | null
+  numer_docelowy: string | null
+  koszt_ai_usd: number | null
 }
 
 export type CrmOfertaStatus =
@@ -88,9 +105,38 @@ export type CrmOferta = {
   koszt_ai_usd: number | null
   created_at: string
   updated_at: string
+  /** not null = funkcja crm-oferta właśnie liczy tę wersję */
+  liczenie_od: string | null
+  /** wynik interpretacji poprawki: {zmiany, usun, do_maila, niezrozumiane, streszczenie} */
+  poprawka_wynik: Record<string, unknown> | null
+  /** tekst ostatniego błędu systemu */
+  uwagi: string | null
   /** osadzony lead (select `lead:leady(...)`) */
   lead?: CrmLead | null
 }
+
+/** Pozycja `rozbicie` (brief pkt 7): cena_bazowa + suma kwot = cena_razem */
+export type CrmRozbiciePozycja = { grupa?: string; opcja?: string; wybor?: string; kwota?: number; typ?: string }
+
+export const CRM_AKCJA: Record<string, { label: string; icon: string; hint: string }> = {
+  oddzwon: { label: 'Oddzwoń', icon: '📞', hint: 'Nieodebrane połączenie — oddzwoń do klienta' },
+  dopytaj: { label: 'Dopytaj', icon: '❓', hint: 'Brakuje danych do oferty — zapytaj klienta' },
+  przygotuj_oferte: { label: 'Sprawdź i wyślij ofertę', icon: '📄', hint: 'System policzył ofertę — przeczytaj mail i wyślij' },
+  follow_up: { label: 'Follow-up', icon: '🔁', hint: 'Oferta wysłana, brak odpowiedzi — przypomnij się klientowi' },
+  reklamacja: { label: 'Reklamacja', icon: '⚠️', hint: 'Klient zgłasza reklamację' },
+}
+
+export const CRM_ROZMOWA_STATUS: Record<string, { label: string; cls: string }> = {
+  przetworzona: { label: 'przetworzona', cls: 'crm-status--sent' },
+  bez_ai: { label: 'bez analizy', cls: 'crm-status--muted' },
+  pominieta: { label: 'pominięta', cls: 'crm-status--muted' },
+  blad: { label: 'BŁĄD', cls: 'crm-status--lost' },
+}
+
+/** `sprawdz[0]` zaczynające się tak = błąd systemu przy liczeniu (brief pkt 7) */
+export const CRM_SYSTEM_ERROR_PREFIX = 'BŁĄD systemu'
+/** Follow-up po wysłaniu oferty: termin = dziś + tyle dni (pilot: ustawia frontend) */
+export const CRM_FOLLOW_UP_DAYS = 3
 
 export type CrmZdarzenie = {
   id: number
@@ -129,6 +175,8 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   analiza: 'Analiza rozmowy',
   oferta_zlecona: 'Oferta zlecona do przeliczenia',
   oferta_utworzona: 'Oferta utworzona',
+  zadanie_zrobione: 'Zadanie zrobione',
+  brak_kandydatow: 'Brak pasującego produktu w cenniku',
   poprawka: 'Poprawka handlowca',
   przeliczono: 'Przeliczono',
   wyslano: 'Wysłano do klienta',
