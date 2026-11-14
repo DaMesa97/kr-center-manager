@@ -193,6 +193,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   oferta_utworzona: 'Oferta utworzona',
   zadanie_zrobione: 'Zadanie zrobione',
   follow_up_zaplanowany: 'Follow-up zaplanowany',
+  mail_wyslany: 'Mail wysłany do klienta (wykryty w poczcie)',
   przegrany_automatycznie: 'Lead przegrany (30 dni bez aktywności)',
   brak_kandydatow: 'Brak pasującego produktu w cenniku',
   poprawka: 'Poprawka handlowca',

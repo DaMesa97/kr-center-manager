@@ -724,7 +724,8 @@ function OfertaScreen({
             <StatusBadge status={oferta.status} />
             {' · utworzona '}
             {fmtDateTime(oferta.created_at)}
-            {oferta.wyslano_at ? ` · wysłana ${fmtDateTime(oferta.wyslano_at)}${oferta.sprawdzil ? ` (${names.get(oferta.sprawdzil) ?? '…'})` : ''}` : ''}
+            {/* sprawdzil null przy wyslano_at = wykryte automatycznie w folderze Wysłane (crm-mail-sent) */}
+            {oferta.wyslano_at ? ` · wysłana ${fmtDateTime(oferta.wyslano_at)} (${oferta.sprawdzil ? names.get(oferta.sprawdzil) ?? '…' : 'wykryto automatycznie w poczcie'})` : ''}
           </div>
         </div>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież"><RefreshCw size={14} /></button>

@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: wysyłka wykrywana w poczcie (beta.109)</h4>
+        <ul>
+          <li><b>Mail wysłany z Thunderbirda zamyka ofertę sam</b>: gdy backend znajdzie w folderze Wysłane mail do adresu z oferty, w ciągu 5 minut oferta dostaje status wysłana z datą maila (karta pokazuje „wykryto automatycznie w poczcie"), a zadanie dopytaj lub follow-up zamyka się. Przycisk „Wysłane" zostaje awaryjnie — podwójne oznaczenie niczego nie psuje.</li>
+        </ul>
         <h4>CRM Po Drzwi: dostawa w ofercie, automaty w tle (beta.108)</h4>
         <ul>
           <li><b>Dostawa</b>: karta oferty pokazuje cenę drzwi (zgodną z koszykiem sklepu), dostawę kurierem 300 zł albo odbiór osobisty i sumę z dostawą. Jeśli w rozmowie nie padło, jak klient odbierze, w „Sprawdź tylko to" jest o tym punkt — poprawka „klient odbierze osobiście" zmienia to na odbiór.</li>
