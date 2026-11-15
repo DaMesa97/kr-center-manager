@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { Check, X } from 'lucide-react'
 import { CRM_AKCJA, CRM_FOLLOW_UP_DAYS, type CrmZamknijZadanie } from '../../types/crm'
 import { terminHint } from '../../utils/crmTermin'
+import { useDniWolne } from '../../hooks/useDniWolne'
 import Spinner from '../Spinner'
 
 type Props = {
@@ -34,6 +35,7 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
   const [zaDni, setZaDni] = useState<number>(CRM_FOLLOW_UP_DAYS)
   const [opis, setOpis] = useState('')
   const [wyslano, setWyslano] = useState(false)
+  const dniWolne = useDniWolne()
 
   const opcje = dodaj ? OPCJE.filter((o) => o.akcja != null) : OPCJE
   const tytul = dodaj ? `Nowe zadanie dla ${klient}` : `Zrobione: ${CRM_AKCJA[biezaceZadanie]?.label ?? biezaceZadanie} · ${klient}`
@@ -60,7 +62,7 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
             <input type="number" min={0} max={90} value={zaDni} onChange={(e) => setZaDni(Math.max(0, Math.min(90, Number(e.target.value) || 0)))} disabled={busy} />
           </label>
           {/* terminy tylko w dni robocze (trigger leady_termin_roboczy) — pokazujemy, co baza zapisze */}
-          <span className="crm-muted">{terminHint(zaDni) ?? '0 = dziś · terminy tylko w dni robocze'}</span>
+          <span className="crm-muted">{terminHint(zaDni, new Date(), dniWolne) ?? '0 = dziś · terminy tylko w dni robocze'}</span>
         </div>
       )}
       <label className="crm-pf-field">

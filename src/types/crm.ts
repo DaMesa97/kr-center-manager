@@ -83,6 +83,14 @@ export const CRM_PROBKI_STYLU_ILE = 30
 /** klucz crm.ustawienia: kogo stylem pisze system, gdy nie wie, kto prowadzi klienta (id z profiles) */
 export const CRM_UST_SZKIC_HANDLOWIEC = 'szkic_domyslny_handlowiec'
 
+/**
+ * Dni wolne (brief pkt 25, crm.dni_wolne): święta państwowe (`swieto`, generowane co rok przez cron
+ * 2 stycznia, 2026–2031 wypełnione) i dni firmowe (`firmowe`, wpisane ręcznie). Terminy zadań je
+ * omijają jak weekend (trigger leady_termin_roboczy). RLS: odczyt każdy z CRM, zapis superadmin.
+ */
+export type CrmDzienWolny = { data: string; nazwa: string | null; rodzaj: 'swieto' | 'firmowe' | string }
+export const CRM_DZIEN_WOLNY_RODZAJ: Record<string, string> = { swieto: 'święto', firmowe: 'dzień firmowy' }
+
 /** Słownik etykiet crm.etykiety (brief pkt 12). Superadmin może dopisywać własne. */
 export type CrmEtykieta = {
   slug: string

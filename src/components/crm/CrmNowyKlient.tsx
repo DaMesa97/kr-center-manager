@@ -10,6 +10,7 @@ import type { CurrentUser, ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, type CrmEtykieta } from '../../types/crm'
 import { createLeadWizyta, zlecOferteZNagrania, type NowyKlient } from '../../hooks/useCrm'
 import { terminHintForIso } from '../../utils/crmTermin'
+import { useDniWolne } from '../../hooks/useDniWolne'
 import { EtykietaBadge } from './CrmEtykiety'
 import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import Spinner from '../Spinner'
@@ -35,6 +36,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
   const [existingId, setExistingId] = useState<string | null>(null)
   // brief pkt 18: nagranie trzymane do zapisu — najpierw insert leada, potem upload + rpc zlec_oferte_z_nagrania
   const [nagranie, setNagranie] = useState<Nagranie | null>(null)
+  const dniWolne = useDniWolne()
   const set = <F extends keyof NowyKlient>(f: F, v: NowyKlient[F]) => setK((s) => ({ ...s, [f]: v }))
 
   const grupy = useMemo(
@@ -148,7 +150,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
           <label className="crm-pf-field crm-pf-field--short">
             <span className="crm-pf-label">Termin</span>
             <input type="date" value={k.nastepny_krok ?? ''} onChange={(e) => set('nastepny_krok', e.target.value || null)} />
-            {terminHintForIso(k.nastepny_krok) && <span className="crm-pf-hint">{terminHintForIso(k.nastepny_krok)}</span>}
+            {terminHintForIso(k.nastepny_krok, new Date(), dniWolne) && <span className="crm-pf-hint">{terminHintForIso(k.nastepny_krok, new Date(), dniWolne)}</span>}
           </label>
         )}
       </div>

@@ -9201,6 +9201,13 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-szkic-form select { padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; }
 .crm-szkic-uwagi textarea { min-height: 48px; }
 @media (max-width: 720px) { .crm-szkic-form { grid-template-columns: 1fr; } }
+/* brief pkt 25: Ustawienia → Dni wolne */
+.crm-dni-wolne-form { align-items: end; margin: 8px 0 4px; }
+.crm-dni-wolne-form .crm-poczta-actions { margin: 0; }
+.crm-dni-wolne-rok h5 { margin: 12px 0 2px; }
+.crm-dzien-wolny { align-items: center; }
+.crm-dzien-wolny-data { min-width: 150px; font-variant-numeric: tabular-nums; }
+.crm-dzien-wolny .crm-zasada-text { flex: 1; min-width: 0; }
 .crm-dok-termin { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .crm-dok-termin input[type="number"] { width: 70px; }
 .crm-dok-termin input { padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; }

@@ -24,7 +24,7 @@ import type {
   CrmZdarzenie,
 } from '../types/crm'
 import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_EDGE_SZKIC, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES, CRM_PROBKI_STYLU_ILE } from '../types/crm'
-import type { CrmDokument, CrmDokumentOdp, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
+import type { CrmDokument, CrmDokumentOdp, CrmDzienWolny, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
 
@@ -723,6 +723,26 @@ export async function updateZasada(id: string, patch: Partial<Pick<CrmZasada, 't
 
 export async function deleteZasada(id: string): Promise<CrmError | null> {
   const { error } = await crm().from('zasady').delete().eq('id', id)
+  return crmErrorFrom(error)
+}
+
+// ---- Dni wolne (crm.dni_wolne, brief pkt 25) ----
+
+/** Dni wolne od dziś (podpowiedź terminu i lista w Ustawieniach). `odDzis=false` = wszystkie (nie używamy). */
+export async function fetchDniWolne(): Promise<Result<CrmDzienWolny[]>> {
+  const dzis = new Date()
+  const iso = `${dzis.getFullYear()}-${String(dzis.getMonth() + 1).padStart(2, '0')}-${String(dzis.getDate()).padStart(2, '0')}`
+  const { data, error } = await crm().from('dni_wolne').select('*').gte('data', iso).order('data')
+  return { data: (data ?? []) as unknown as CrmDzienWolny[], error: crmErrorFrom(error) }
+}
+/** Dzień firmowy (superadmin). Święta robi cron — aplikacja ich nie dodaje. */
+export async function addDzienWolny(data: string, nazwa: string): Promise<CrmError | null> {
+  const { error } = await crm().from('dni_wolne').insert({ data, nazwa: nazwa.trim() || null, rodzaj: 'firmowe' })
+  return crmErrorFrom(error)
+}
+/** Usuwanie tylko dni firmowych (święto wróciłoby po cronie — guard także w UI). */
+export async function deleteDzienWolny(data: string): Promise<CrmError | null> {
+  const { error } = await crm().from('dni_wolne').delete().eq('data', data).eq('rodzaj', 'firmowe')
   return crmErrorFrom(error)
 }
 

@@ -10,11 +10,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Save, X, Pencil, Trash2, RefreshCw, Send, ArrowUp, ArrowDown } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
-import { CRM_ALERT_KEYS, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_UST_SZKIC_HANDLOWIEC, CRM_ZASADA_GRUPA, licznikLabel, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
+import { CRM_ALERT_KEYS, CRM_DZIEN_WOLNY_RODZAJ, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_UST_SZKIC_HANDLOWIEC, CRM_ZASADA_GRUPA, licznikLabel, type CrmDzienWolny, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
 import {
+  addDzienWolny,
   addZasada,
+  deleteDzienWolny,
   deleteZasada,
   fetchCrmUserIds,
+  fetchDniWolne,
   fetchLiczniki,
   fetchPoprawkiOstatnie,
   fetchProfileNames,
@@ -30,6 +33,7 @@ import {
   type CrmError,
 } from '../../hooks/useCrm'
 import { openExternalUrl } from '../../hooks/useAluOrders'
+import { invalidateDniWolne } from '../../hooks/useDniWolne'
 import { appConfirm } from '../../lib/appDialogs'
 import Spinner from '../Spinner'
 
@@ -40,7 +44,7 @@ type Props = {
   onOpenLead: (id: string) => void
 }
 
-type Tab = 'zasady' | 'alerty' | 'poprawki' | 'firma'
+type Tab = 'zasady' | 'alerty' | 'poprawki' | 'firma' | 'dni_wolne'
 
 const fmtDateTime = (iso: string | null | undefined): string => {
   if (!iso) return '—'
@@ -572,6 +576,131 @@ function FirmaSection({ pushToast }: Pick<Props, 'pushToast'>) {
   )
 }
 
+// ---------------------------------------------------------------- Dni wolne (brief pkt 25)
+
+const fmtDzien = (iso: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!m) return iso
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return d.toLocaleDateString('pl-PL', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function DniWolneSection({ pushToast }: Pick<Props, 'pushToast'>) {
+  const [lista, setLista] = useState<CrmDzienWolny[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<CrmError | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [nowy, setNowy] = useState<{ data: string; nazwa: string } | null>(null)
+
+  const load = useCallback(async () => {
+    const r = await fetchDniWolne()
+    setError(r.error)
+    if (!r.error) setLista(r.data)
+    setLoading(false)
+  }, [])
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const onAdd = async () => {
+    if (!nowy) return
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nowy.data)) {
+      pushToast('Wybierz datę dnia wolnego', 'error')
+      return
+    }
+    if (lista.some((d) => d.data === nowy.data)) {
+      pushToast('Ten dzień już jest na liście', 'error')
+      return
+    }
+    setBusy(true)
+    const err = await addDzienWolny(nowy.data, nowy.nazwa)
+    setBusy(false)
+    if (err) {
+      pushToast(`Nie udało się dodać: ${err.message}`, 'error')
+      return
+    }
+    pushToast(`Dodano dzień firmowy ${fmtDzien(nowy.data)} — terminy zadań będą go omijać`, 'success')
+    setNowy(null)
+    invalidateDniWolne()
+    await load()
+  }
+  const onDelete = async (d: CrmDzienWolny) => {
+    if (!(await appConfirm(`Usunąć dzień firmowy ${fmtDzien(d.data)}${d.nazwa ? ` („${d.nazwa}”)` : ''}? Terminy zadań znów będą mogły na niego wypaść.`, { title: 'Usuń dzień firmowy', confirmLabel: 'Usuń' }))) return
+    setBusy(true)
+    const err = await deleteDzienWolny(d.data)
+    setBusy(false)
+    if (err) {
+      pushToast(`Nie udało się usunąć: ${err.message}`, 'error')
+      return
+    }
+    pushToast('Dzień firmowy usunięty', 'success')
+    invalidateDniWolne()
+    await load()
+  }
+
+  if (loading) return <Spinner center label="Ładowanie dni wolnych…" />
+  if (error) return <div className="crm-box crm-box--bad">{error.message}</div>
+
+  const lata = [...new Set(lista.map((d) => d.data.slice(0, 4)))]
+  return (
+    <div className="crm-ust-section">
+      <p className="crm-muted crm-ust-intro">
+        Terminy zadań omijają weekendy i te dni (sobota, niedziela, święto albo dzień firmowy → następny dzień roboczy; termin „dziś” zapisany po 17:00 → jutro). Święta państwowe
+        dopisuje system co roku 2 stycznia (łącznie z Wigilią); dni firmowe (np. inwentaryzacja, urlop zbiorowy) dodajesz tu. Lista od dziś.
+      </p>
+      <section className="crm-box crm-ust-group">
+        <div className="crm-screen-head">
+          <div className="crm-screen-title">
+            <h4>Dni wolne ({lista.length})</h4>
+            <div className="crm-screen-sub">Usunąć można tylko dzień firmowy — święto wróciłoby po następnym uzupełnieniu.</div>
+          </div>
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !!nowy} onClick={() => setNowy({ data: '', nazwa: '' })}>
+            <Plus size={14} /> Dodaj dzień firmowy
+          </button>
+        </div>
+        {nowy && (
+          <div className="crm-pf-grid crm-dni-wolne-form">
+            <label className="crm-pf-field crm-pf-field--short">
+              <span className="crm-pf-label">Data</span>
+              <input type="date" value={nowy.data} onChange={(e) => setNowy({ ...nowy, data: e.target.value })} disabled={busy} />
+            </label>
+            <label className="crm-pf-field">
+              <span className="crm-pf-label">Nazwa (opcjonalnie)</span>
+              <input type="text" value={nowy.nazwa} onChange={(e) => setNowy({ ...nowy, nazwa: e.target.value })} disabled={busy} placeholder="np. inwentaryzacja, zamknięte" autoComplete="off" />
+            </label>
+            <div className="crm-poczta-actions">
+              <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onAdd()}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Dodaj</button>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => setNowy(null)}><X size={14} /> Anuluj</button>
+            </div>
+          </div>
+        )}
+        {lista.length === 0 && <p className="crm-muted">Brak dni wolnych od dziś.</p>}
+        {lata.map((rok) => (
+          <div key={rok} className="crm-dni-wolne-rok">
+            <h5>{rok}</h5>
+            <ul className="crm-zasady">
+              {lista
+                .filter((d) => d.data.startsWith(rok))
+                .map((d) => (
+                  <li key={d.data} className="crm-zasada crm-dzien-wolny">
+                    <span className="crm-dzien-wolny-data">{fmtDzien(d.data)}</span>
+                    <span className="crm-zasada-text">{d.nazwa || '—'}</span>
+                    <span className={`crm-status ${d.rodzaj === 'firmowe' ? 'crm-status--working' : 'crm-status--muted'}`}>{CRM_DZIEN_WOLNY_RODZAJ[d.rodzaj] ?? d.rodzaj}</span>
+                    <span className="crm-zasada-btns">
+                      {d.rodzaj === 'firmowe' && (
+                        <button type="button" className="crm-link" disabled={busy} onClick={() => void onDelete(d)} title="Usuń dzień firmowy"><Trash2 size={13} /></button>
+                      )}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ))}
+      </section>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------- Ekran
 
 export default function CrmUstawieniaScreen({ currentUser, pushToast, onOpenOferta, onOpenLead }: Props) {
@@ -581,6 +710,7 @@ export default function CrmUstawieniaScreen({ currentUser, pushToast, onOpenOfer
     { id: 'alerty', label: 'Alerty' },
     { id: 'poprawki', label: 'Poprawki' },
     { id: 'firma', label: 'Dane firmy' },
+    { id: 'dni_wolne', label: 'Dni wolne' },
   ]
   return (
     <div className="crm-screen crm-ust">
@@ -595,6 +725,7 @@ export default function CrmUstawieniaScreen({ currentUser, pushToast, onOpenOfer
       {tab === 'alerty' && <AlertySection pushToast={pushToast} />}
       {tab === 'poprawki' && <PoprawkiSection onOpenOferta={onOpenOferta} onOpenLead={onOpenLead} />}
       {tab === 'firma' && <FirmaSection pushToast={pushToast} />}
+      {tab === 'dni_wolne' && <DniWolneSection pushToast={pushToast} />}
     </div>
   )
 }
