@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: gotowy szkic odpowiedzi mailowej w stylu handlowca (beta.123)</h4>
+        <ul>
+          <li><b>Karta klienta → Szkic odpowiedzi</b> (pod zadaniem, gdy klient ma e-mail): przy zadaniu „dopytaj” system sam pisze odpowiedź z pytaniami (do minuty), a w dniu terminu follow-upu przypomnienie. Przycisk <b>Wygeneruj odpowiedź</b> / <b>Wygeneruj ponownie</b> z polem „co zmienić” (np. „krócej”) działa zawsze. Szkic jest w stylu zalogowanego handlowca, uczonym z jego wysłanych maili; widać „w stylu Magdaleny, 6 próbek” albo „bez próbek stylu”.</li>
+          <li><b>Nic nie wysyłamy</b>: „Otwórz w poczcie” otwiera gotową wiadomość w programie pocztowym, obok „Kopiuj” adres / temat / treść. Po wysłaniu z czytanej skrzynki CRM sam zamknie zadanie; po odpowiedzi na „dopytaj” ustawi follow-up za 3 dni. Szkic znika sam przy zmianie zadania, więc nigdy nie jest nieaktualny.</li>
+          <li><b>CRM → Poczta</b> (administrator): przy skrzynce przycisk „Wczytaj 30 wysłanych jako próbki stylu” — bierze maile sprzed punktu startu. <b>Ustawienia → Dane firmy</b>: wybór domyślnego handlowca szkiców (gdy system nie wie, kto prowadzi klienta). Nowa zasada w Ustawienia → Zasady (treść maila): klient ze Śląska z montażem nie dostaje pytań o wymiary, tylko propozycję pomiaru. W Historii wpis „✍️ Szkic odpowiedzi”.</li>
+        </ul>
         <h4>CRM Po Drzwi: karta pomiarowa, umowa i protokół odbioru z karty klienta (beta.122)</h4>
         <ul>
           <li><b>Karta klienta → Dokumenty</b>: trzy przyciski. <b>Karta pomiarowa</b> (data, godzina, adres, kto jedzie, piętro, otwory wpisane z góry; wymaga telefonu i e-maila klienta), <b>Umowa</b> (widoczna przy policzonej ofercie oficjalnej z montażem: adres klienta, adres montażu, zaliczka %, termin w tygodniach albo do dnia, gwarancja, data i miejsce zawarcia, własny tekst §1; numer NN/MM/RRRR, załącznik = PDF oferty) i <b>Protokół odbioru</b> (do umowy, z rozliczeniem). PDF w szablonie Po Drzwi powstaje po kilku sekundach i otwiera się w przeglądarce.</li>

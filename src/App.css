@@ -9193,6 +9193,14 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-dok-wynik .crm-mail-actions { margin: 8px 0 0; }
 .crm-dok-form .crm-pf-hint { color: var(--color-text-muted); font-size: 0.85rem; }
 .crm-dok-uwaga { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: #fff7ed; border: 1px solid #fed7aa; color: #7c2d12; font-size: 0.9rem; }
+/* brief pkt 23: szkic odpowiedzi mailowej pod zadaniem na karcie klienta */
+.crm-szkic { border-left: 5px solid var(--pd-accent); }
+.crm-szkic-meta { margin: 0 0 8px; font-size: 0.85rem; }
+.crm-szkic-form { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 10px 14px; align-items: start; margin: 6px 0 10px; padding: 10px 12px; border: 1px dashed var(--color-border); border-radius: 8px; }
+.crm-szkic-form .crm-mail-actions { grid-column: 1 / -1; margin-top: 0; }
+.crm-szkic-form select { padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; }
+.crm-szkic-uwagi textarea { min-height: 48px; }
+@media (max-width: 720px) { .crm-szkic-form { grid-template-columns: 1fr; } }
 .crm-dok-termin { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .crm-dok-termin input[type="number"] { width: 70px; }
 .crm-dok-termin input { padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; }

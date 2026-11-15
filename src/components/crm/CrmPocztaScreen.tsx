@@ -7,12 +7,13 @@
 // type=password, nigdy nie pokazywane, w stanie tylko do zapisu/testu.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, PlugZap, Save, MailCheck, Plus, Pencil, Trash2, X } from 'lucide-react'
+import { RefreshCw, PlugZap, Save, MailCheck, Plus, Pencil, Trash2, X, History } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_POCZTA_DEFAULT_FOLDER,
   CRM_POCZTA_DEFAULT_INBOX,
   CRM_POCZTA_DEFAULT_PORT,
+  CRM_PROBKI_STYLU_ILE,
   type CrmFolderWynik,
   type CrmPocztaFolder,
   type CrmPocztaTest,
@@ -27,6 +28,7 @@ import {
   saveSkrzynka,
   sprawdzSkrzynki,
   testPoczta,
+  wczytajHistorieWyslanych,
   type CrmError,
   type SkrzynkaForm,
 } from '../../hooks/useCrm'
@@ -291,6 +293,27 @@ export default function CrmPocztaScreen({ currentUser, isSuperadmin, pushToast }
     }
   }
 
+  // brief pkt 23 (superadmin): ostatnie N wysłanych sprzed punktu startu → próbki stylu handlowca (crm.maile wychodzące)
+  const onProbki = async (s: CrmSkrzynka) => {
+    setBusy(`probki:${s.id}`)
+    try {
+      const res = await wczytajHistorieWyslanych(s.id, CRM_PROBKI_STYLU_ILE)
+      if (!res.ok) {
+        pushToast(res.blad || res.error || 'Nie udało się wczytać wysłanych', 'error')
+      } else {
+        const parts = [`zapisano ${res.zapisano ?? 0}`]
+        if (res.duplikaty) parts.push(`już były ${res.duplikaty}`)
+        if (res.pominieto) parts.push(`pominięto ${res.pominieto}`)
+        if (res.bledy) parts.push(`błędy ${res.bledy}`)
+        pushToast(`Próbki stylu z „${s.nazwa || s.login}”: ${parts.join(', ')}`, res.bledy ? 'error' : 'success')
+      }
+    } catch (e) {
+      pushToast(e instanceof Error ? e.message : 'Błąd wczytywania wysłanych', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const folderOptions = (foldery: CrmPocztaFolder[] | null, current: string): CrmPocztaFolder[] => {
     if (!foldery) return []
     const cur = current.trim()
@@ -500,6 +523,17 @@ export default function CrmPocztaScreen({ currentUser, isSuperadmin, pushToast }
                     <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onCheck(s.id)} disabled={busy !== null} title="Sprawdź tę skrzynkę teraz (także wyłączoną)">
                       {checking ? <Spinner inline size={14} /> : <MailCheck size={14} />} Sprawdź teraz
                     </button>
+                    {isSuperadmin && s.czyta_wyslane && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={() => void onProbki(s)}
+                        disabled={busy !== null}
+                        title={`Wczytuje ostatnie ${CRM_PROBKI_STYLU_ILE} maili z folderu Wysłane sprzed punktu startu jako próbki stylu do szkiców odpowiedzi (bez dopasowania do zadań). Można powtarzać — duplikaty są pomijane.`}
+                      >
+                        {busy === `probki:${s.id}` ? <Spinner inline size={14} /> : <History size={14} />} Wczytaj {CRM_PROBKI_STYLU_ILE} wysłanych jako próbki stylu
+                      </button>
+                    )}
                     {canEdit(s) && (
                       <>
                         <button type="button" className="btn btn-sm btn-secondary" onClick={() => startEdit(s)} disabled={busy !== null}>

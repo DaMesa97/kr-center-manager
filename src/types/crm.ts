@@ -36,7 +36,52 @@ export type CrmLead = {
   ostatnia_rozmowa_at: string | null
   /** etykiety (brief pkt 12): slugi ze słownika crm.etykiety, posortowane przez trigger */
   etykiety?: string[] | null
+  /** szkic odpowiedzi mailowej (brief pkt 23); null = brak. Znika sam przy zmianie zadania (trigger). */
+  szkic?: CrmSzkic | null
 }
+
+/**
+ * Szkic odpowiedzi mailowej w stylu handlowca (brief pkt 23, funkcja crm-szkic). Powstaje sam przy
+ * zadaniu „dopytaj” (trigger, kilkanaście–40 s) i z cronu dla follow-upów z terminem ≤ dziś, albo na
+ * żądanie („Wygeneruj odpowiedź”). Nic nie jest wysyłane — handlowiec otwiera w poczcie / kopiuje.
+ */
+export type CrmSzkic = {
+  /** dopytaj | follow_up | odpowiedz */
+  rodzaj: string
+  temat: string | null
+  tresc: string | null
+  mail_do: string | null
+  /** Message-ID maila klienta, może być null */
+  odpowiedz_na: string | null
+  handlowiec_id: string | null
+  /** imię handlowca, którego stylem pisano */
+  handlowiec: string | null
+  /** liczba próbek stylu (0 = bez próbek) */
+  probki: number | null
+  /** wlasna | wspolna | null */
+  probki_zrodlo: string | null
+  uwagi: string | null
+  /** true = zrobił system (trigger / cron) */
+  auto: boolean | null
+  utworzono: string | null
+  koszt_usd: number | null
+  model: string | null
+  /** false = funkcja napisała szkic, ale NIE zapisała go w leady.szkic (zadanie zmieniło się w trakcie); `powod` mówi czemu */
+  zapisano?: boolean | null
+  powod?: string | null
+}
+export const CRM_SZKIC_RODZAJ: Record<string, string> = {
+  dopytaj: 'odpowiedź z pytaniami do klienta',
+  follow_up: 'przypomnienie (follow-up)',
+  odpowiedz: 'odpowiedź do klienta',
+}
+export type CrmSzkicOdp = { ok: boolean; lead_id: string; szkic: CrmSzkic | null; error?: string }
+export const CRM_EDGE_SZKIC = 'crm-szkic'
+/** crm-mail-sent akcja historia_wyslanych: import ostatnich N wysłanych maili sprzed punktu startu jako próbek stylu */
+export type CrmHistoriaWyslanych = { ok: boolean; zapisano?: number; duplikaty?: number; pominieto?: number; bledy?: number; blad?: string; error?: string }
+export const CRM_PROBKI_STYLU_ILE = 30
+/** klucz crm.ustawienia: kogo stylem pisze system, gdy nie wie, kto prowadzi klienta (id z profiles) */
+export const CRM_UST_SZKIC_HANDLOWIEC = 'szkic_domyslny_handlowiec'
 
 /** Słownik etykiet crm.etykiety (brief pkt 12). Superadmin może dopisywać własne. */
 export type CrmEtykieta = {
@@ -278,6 +323,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   zaakceptowano: 'Klient zaakceptował',
   blad: 'Błąd',
   dokument: 'Dokument',
+  szkic: 'Szkic odpowiedzi',
 }
 
 /**
@@ -296,6 +342,11 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
     const rodzaj = typeof dane?.rodzaj === 'string' ? CRM_DOKUMENT_RODZAJ[dane.rodzaj]?.label ?? dane.rodzaj : 'Dokument'
     const numer = typeof dane?.numer === 'string' && dane.numer ? ` nr ${dane.numer}` : ''
     return `📄 ${rodzaj}${numer}`
+  }
+  // brief pkt 23: zdarzenie `szkic` z dane.rodzaj / dane.auto
+  if (typ === 'szkic') {
+    const rodzaj = typeof dane?.rodzaj === 'string' ? CRM_SZKIC_RODZAJ[dane.rodzaj] : null
+    return `✍️ Szkic odpowiedzi${rodzaj ? `: ${rodzaj}` : ''}${dane?.auto === true ? ' (automatycznie)' : ''}`
   }
   return CRM_ZDARZENIE_LABEL[typ] ?? typ
 }

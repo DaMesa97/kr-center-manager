@@ -23,8 +23,8 @@ import type {
   CrmZasada,
   CrmZdarzenie,
 } from '../types/crm'
-import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES } from '../types/crm'
-import type { CrmDokument, CrmDokumentOdp, CrmLicznik, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
+import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_EDGE_SZKIC, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES, CRM_PROBKI_STYLU_ILE } from '../types/crm'
+import type { CrmDokument, CrmDokumentOdp, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
 
@@ -498,6 +498,33 @@ export async function testPoczta(
 /** Ręczne „Sprawdź teraz”: bez id wszystkie aktywne, z id jedna (także nieaktywna). Cron robi to co 5 min. */
 export async function sprawdzSkrzynki(skrzynkaId?: string): Promise<CrmSprawdzenieSkrzynek> {
   return invokeMailSent<CrmSprawdzenieSkrzynek>({ akcja: 'sprawdz_skrzynki', skrzynka_id: skrzynkaId ?? undefined })
+}
+
+/**
+ * Import ostatnich N maili z folderu Wysłane sprzed punktu startu jako próbek stylu handlowca
+ * (brief pkt 23; superadmin). Bez dopasowania do zadań — tylko crm.maile kierunek wychodzacy.
+ */
+export async function wczytajHistorieWyslanych(skrzynkaId: string, ile = CRM_PROBKI_STYLU_ILE): Promise<CrmHistoriaWyslanych> {
+  return invokeMailSent<CrmHistoriaWyslanych>({ akcja: 'historia_wyslanych', skrzynka_id: skrzynkaId, ile })
+}
+
+/**
+ * Szkic odpowiedzi mailowej (brief pkt 23): Edge Function crm-szkic, synchronicznie (10–40 s).
+ * Handlowiec = zalogowany użytkownik (z JWT). `rodzaj` domyślnie z zadania (dopytaj/follow_up,
+ * inne → odpowiedz); `uwagi` = „co zmienić”. 400 `{error}` (np. klient bez e-maila) pokazujemy dosłownie.
+ */
+export async function generujSzkic(leadId: string, opts: { rodzaj?: string; uwagi?: string } = {}): Promise<Result<CrmSzkic | null>> {
+  try {
+    const body: Record<string, unknown> = { akcja: 'szkic', lead_id: leadId }
+    if (opts.rodzaj) body.rodzaj = opts.rodzaj
+    if (opts.uwagi?.trim()) body.uwagi = opts.uwagi.trim()
+    const { data, error } = await supabase.functions.invoke<CrmSzkicOdp>(CRM_EDGE_SZKIC, { body })
+    if (error) return { data: null, error: { kind: 'other', message: await fnErrorMessage(error, 'Funkcja crm-szkic nie odpowiada') } }
+    if (!data?.ok || !data.szkic) return { data: null, error: { kind: 'other', message: data?.error || 'Funkcja crm-szkic nie zwróciła szkicu' } }
+    return { data: data.szkic, error: null }
+  } catch (e) {
+    return { data: null, error: { kind: 'other', message: e instanceof Error ? e.message : 'Błąd generowania szkicu' } }
+  }
 }
 
 /** Użytkownicy z dostępem do CRM (do wyboru właściciela skrzynki osobistej — superadmin). */

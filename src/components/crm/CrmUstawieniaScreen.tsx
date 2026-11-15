@@ -10,10 +10,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Save, X, Pencil, Trash2, RefreshCw, Send, ArrowUp, ArrowDown } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
-import { CRM_ALERT_KEYS, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_ZASADA_GRUPA, licznikLabel, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
+import { CRM_ALERT_KEYS, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_UST_SZKIC_HANDLOWIEC, CRM_ZASADA_GRUPA, licznikLabel, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
 import {
   addZasada,
   deleteZasada,
+  fetchCrmUserIds,
   fetchLiczniki,
   fetchPoprawkiOstatnie,
   fetchProfileNames,
@@ -394,17 +395,23 @@ function FirmaSection({ pushToast }: Pick<Props, 'pushToast'>) {
   const [dirty, setDirty] = useState(false)
   const [licznikForm, setLicznikForm] = useState<Record<string, string>>({})
   const [logoOk, setLogoOk] = useState<boolean | null>(null)
+  // brief pkt 23: domyślny handlowiec szkiców (id z profiles) — do wyboru spośród osób z dostępem do CRM
+  const [handlowcy, setHandlowcy] = useState<Array<{ id: string; name: string }>>([])
 
   const load = useCallback(async () => {
-    const [u, l] = await Promise.all([fetchUstawienia(), fetchLiczniki()])
+    const [u, l, ids] = await Promise.all([fetchUstawienia(), fetchLiczniki(), fetchCrmUserIds()])
     setError(u.error)
     if (!u.error) {
       setUst(u.data)
       const f: Record<string, string> = {}
       for (const k of CRM_FIRMA_KEYS) f[k.klucz] = u.data.find((x) => x.klucz === k.klucz)?.wartosc ?? ''
       for (const x of u.data) if (isOfertaKey(x.klucz)) f[x.klucz] = x.wartosc ?? ''
+      f[CRM_UST_SZKIC_HANDLOWIEC] = u.data.find((x) => x.klucz === CRM_UST_SZKIC_HANDLOWIEC)?.wartosc ?? ''
       setForm(f)
       setDirty(false)
+      const wybrany = f[CRM_UST_SZKIC_HANDLOWIEC]
+      const names = await fetchProfileNames(wybrany && !ids.includes(wybrany) ? [...ids, wybrany] : ids)
+      setHandlowcy([...names.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'pl')))
     }
     setLiczniki(l.data)
     setLicznikForm(Object.fromEntries(l.data.map((x) => [x.klucz, String(x.wartosc)])))
@@ -537,6 +544,28 @@ function FirmaSection({ pushToast }: Pick<Props, 'pushToast'>) {
               {l.updated_at && <span className="crm-pf-hint">zmieniono {fmtDateTime(l.updated_at)}</span>}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="crm-box crm-pf">
+        <h5>Szkice odpowiedzi mailowych</h5>
+        <p className="crm-muted crm-pf-hint">
+          Szkic pisze się stylem zalogowanego handlowca (z jego wysłanych maili w CRM → Poczta). Gdy robi go system sam (zadanie „dopytaj”, follow-up z cronu) i nie wie, kto prowadzi klienta, używa stylu osoby wybranej tu.
+        </p>
+        <div className="crm-pf-grid">
+          <label className="crm-pf-field">
+            <span className="crm-pf-label">Domyślny handlowiec szkiców</span>
+            <select value={form[CRM_UST_SZKIC_HANDLOWIEC] ?? ''} onChange={(e) => { setForm({ ...form, [CRM_UST_SZKIC_HANDLOWIEC]: e.target.value }); setDirty(true) }} disabled={busy}>
+              <option value="">— ustawienie systemu (Magdalena) —</option>
+              {handlowcy.map((h) => (
+                <option key={h.id} value={h.id}>{h.name}</option>
+              ))}
+            </select>
+            <span className="crm-pf-hint">Osoby z dostępem do CRM. Żeby styl był tej osoby, a nie „wspólny”, dodaj jej skrzynkę osobistą w CRM → Poczta i wczytaj próbki.</span>
+          </label>
+        </div>
+        <div className="crm-poczta-actions">
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy || !dirty}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz</button>
         </div>
       </section>
     </div>

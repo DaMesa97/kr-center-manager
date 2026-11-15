@@ -33,9 +33,11 @@ import {
   type CrmOfertaPozycja,
   type CrmRozbiciePozycja,
   type CrmRozmowa,
+  type CrmSzkic,
   type CrmUsluga,
   type CrmZamknijZadanie,
   type CrmZdarzenie,
+  CRM_SZKIC_RODZAJ,
 } from '../../types/crm'
 import {
   fetchBledyRozmow,
@@ -58,6 +60,7 @@ import {
   signedUrlDokument,
   fetchDokumenty,
   updateDokumentStatus,
+  generujSzkic,
   type CrmError,
   type CrmZadanieRow,
 } from '../../hooks/useCrm'
@@ -182,7 +185,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /** mailto: do domyślnego klienta poczty (Magda: Thunderbird) — adresat, temat i treść gotowe. */
-const mailtoFor = (o: CrmOferta): string | null => {
+const mailtoFor = (o: Pick<CrmOferta, 'mail_do' | 'mail_temat' | 'mail_tresc'>): string | null => {
   const to = (o.mail_do ?? '').trim()
   if (!to) return null
   const params = new URLSearchParams()
@@ -1379,6 +1382,130 @@ function Timeline({ items, names }: { items: CrmZdarzenie[]; names: Map<string, 
 
 // ---- WIDOK LEADA ----
 
+/**
+ * Szkic odpowiedzi mailowej (brief pkt 23): `leady.szkic` pisany przez crm-szkic w stylu zalogowanego
+ * handlowca. Przycisk zawsze, gdy klient ma e-mail (nie tylko przy „dopytaj”). Szkic znika sam przy
+ * zmianie zadania (trigger), a odświeża się jak reszta leada (realtime na crm.leady). Nic nie wysyłamy:
+ * „Otwórz w poczcie” = mailto do programu pocztowego, reszta to Kopiuj.
+ */
+function SzkicOdpowiedzi({ lead, disabled, pushToast, onChanged }: { lead: CrmLead; disabled: boolean; pushToast: Props['pushToast']; onChanged: (szkic: CrmSzkic | null) => void }) {
+  const [gen, setGen] = useState(false)
+  const [form, setForm] = useState(false)
+  const [uwagi, setUwagi] = useState('')
+  const [rodzaj, setRodzaj] = useState('')
+  const szkic = lead.szkic ?? null
+  const email = (lead.email ?? '').trim()
+  const zZadania = lead.nastepna_akcja === 'dopytaj' || lead.nastepna_akcja === 'follow_up' ? lead.nastepna_akcja : 'odpowiedz'
+  const onCopied = (ok: boolean, label: string) => pushToast(ok ? `Skopiowano: ${label.toLowerCase()}` : 'Nie udało się skopiować — zaznacz tekst i skopiuj ręcznie', ok ? 'success' : 'error')
+
+  const run = async () => {
+    setGen(true)
+    const r = await generujSzkic(lead.id, { rodzaj: rodzaj || undefined, uwagi })
+    setGen(false)
+    if (r.error || !r.data) {
+      pushToast(`Nie udało się napisać szkicu: ${r.error?.message ?? 'brak odpowiedzi'}`, 'error')
+      return
+    }
+    // wyścig: zadanie zmieniło się, gdy model pisał — szkic wrócił, ale nie jest w leady.szkic; pokazujemy aktualny stan leada
+    if (r.data.zapisano === false) {
+      pushToast(`Szkic nie został zapisany: ${r.data.powod || 'zadanie klienta zmieniło się w trakcie pisania'}`, 'error')
+      setForm(false)
+      onChanged(null)
+      return
+    }
+    pushToast(r.data.probki ? `Szkic gotowy — w stylu ${r.data.handlowiec || 'handlowca'} (${r.data.probki} próbek)` : 'Szkic gotowy — bez próbek stylu', 'success')
+    setForm(false)
+    setUwagi('')
+    onChanged(r.data)
+  }
+  const openInMail = () => {
+    if (!szkic) return
+    const url = mailtoFor({ mail_do: szkic.mail_do || email, mail_temat: szkic.temat, mail_tresc: szkic.tresc })
+    if (!url) {
+      pushToast('Brak adresu e-mail klienta — skopiuj treść i wyślij ręcznie', 'error')
+      return
+    }
+    void openExternalUrl(url).then((ok) => {
+      if (!ok) pushToast('Nie udało się otworzyć programu pocztowego — skopiuj adres, temat i treść przyciskami Kopiuj', 'error')
+    })
+  }
+
+  if (!email) return null
+  const stylInfo = szkic
+    ? szkic.probki
+      ? `w stylu ${szkic.handlowiec || 'handlowca'}, ${szkic.probki} ${szkic.probki === 1 ? 'próbka' : szkic.probki < 5 ? 'próbki' : 'próbek'}${szkic.probki_zrodlo === 'wspolna' ? ' ze wspólnej skrzynki' : ''}`
+      : 'bez próbek stylu — dodaj skrzynkę osobistą handlowca w CRM → Poczta'
+    : ''
+  const genForm = (
+    <div className="crm-szkic-form">
+      <label className="crm-pf-field">
+        <span className="crm-pf-label">Rodzaj</span>
+        <select value={rodzaj} onChange={(e) => setRodzaj(e.target.value)} disabled={gen}>
+          <option value="">jak w zadaniu ({CRM_SZKIC_RODZAJ[zZadania]})</option>
+          {Object.entries(CRM_SZKIC_RODZAJ).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
+      </label>
+      <label className="crm-pf-field crm-szkic-uwagi">
+        <span className="crm-pf-label">Co zmienić (opcjonalnie)</span>
+        <textarea value={uwagi} onChange={(e) => setUwagi(e.target.value)} rows={2} disabled={gen} placeholder="np. „krócej”, „dopisz, że mamy wolny termin w przyszłym tygodniu”" />
+      </label>
+      <div className="crm-mail-actions">
+        <button type="button" className="btn btn-primary" disabled={gen || disabled} onClick={() => void run()}>
+          {gen ? <Spinner inline size={14} /> : <RefreshCw size={14} />} {szkic ? 'Wygeneruj ponownie' : 'Wygeneruj odpowiedź'}
+        </button>
+        <button type="button" className="btn btn-sm btn-secondary" disabled={gen} onClick={() => setForm(false)}>Anuluj</button>
+        {gen && <span className="crm-muted">System pisze w stylu handlowca — zwykle 10–40 s…</span>}
+      </div>
+    </div>
+  )
+
+  return (
+    <section className="crm-szkic">
+      <h4>Szkic odpowiedzi</h4>
+      {szkic ? (
+        <>
+          <p className="crm-muted crm-szkic-meta">
+            {CRM_SZKIC_RODZAJ[szkic.rodzaj] ?? szkic.rodzaj} · {stylInfo}
+            {szkic.auto ? ' · zrobiony automatycznie' : ''}
+            {szkic.utworzono ? ` · ${fmtDateTime(szkic.utworzono)}` : ''}
+            {szkic.uwagi ? ` · uwagi: „${szkic.uwagi}”` : ''}
+          </p>
+          <div className="crm-mail-actions crm-mail-actions--top">
+            <button type="button" className="btn btn-primary" onClick={openInMail} title="Otwiera w Twoim programie pocztowym gotową wiadomość: adresat, temat i treść. Sprawdź i kliknij Wyślij.">
+              <Mail size={15} /> Otwórz w poczcie
+            </button>
+            {!form && (
+              <button type="button" className="btn btn-sm btn-secondary" disabled={gen || disabled} onClick={() => setForm(true)}>
+                <RefreshCw size={14} /> Wygeneruj ponownie
+              </button>
+            )}
+            <span className="crm-muted">Nic nie wysyłamy — po wysłaniu z czytanej skrzynki CRM sam zamknie zadanie.</span>
+          </div>
+          {form && genForm}
+          <CopyRow label="Adres" value={szkic.mail_do || email} onCopied={onCopied} />
+          <CopyRow label="Temat" value={szkic.temat} onCopied={onCopied} />
+          <CopyRow label="Treść" value={szkic.tresc} multiline onCopied={onCopied} />
+        </>
+      ) : form ? (
+        genForm
+      ) : (
+        <div className="crm-mail-actions">
+          <button type="button" className="btn btn-sm btn-secondary" disabled={gen || disabled} onClick={() => setForm(true)}>
+            <Mail size={14} /> Wygeneruj odpowiedź
+          </button>
+          <span className="crm-muted">
+            {lead.nastepna_akcja === 'dopytaj'
+              ? 'Przy zadaniu „dopytaj” system pisze szkic sam (do minuty od ustawienia zadania) — albo kliknij, żeby napisać teraz.'
+              : 'Gotowa odpowiedź mailowa w stylu zalogowanego handlowca, do otwarcia w poczcie albo skopiowania.'}
+          </span>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function LeadScreen({
   id,
   mode,
@@ -1633,6 +1760,18 @@ function LeadScreen({
       {zadanieDialog && (
         <CrmZadanieDialog klient={leadName(lead)} biezaceZadanie={lead.nastepna_akcja} busy={saving} onConfirm={confirmZadanie} onCancel={() => setZadanieDialog(false)} />
       )}
+
+      {/* brief pkt 23: szkic odpowiedzi mailowej pod zadaniem — zawsze, gdy klient ma e-mail */}
+      <SzkicOdpowiedzi
+        lead={lead}
+        disabled={saving}
+        pushToast={pushToast}
+        onChanged={(szkic) => {
+          // null = szkic nie zapisany (wyścig) — nie wstawiamy do stanu, tylko przeładowujemy leada
+          if (szkic) setLead((l) => (l ? { ...l, szkic } : l))
+          void load(true)
+        }}
+      />
 
       <section className="crm-lead-grid">
         <div>
