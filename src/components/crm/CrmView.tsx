@@ -288,7 +288,8 @@ function usePolling(active: boolean, fn: () => void) {
   }, [active, fn])
 }
 
-type CrmRtTable = 'leady' | 'oferty' | 'zdarzenia'
+/** `dokumenty` (brief pkt 22, migracja crm_dokumenty_realtime) tylko na żądanie — gdy ekran poda dla niej filtr */
+type CrmRtTable = 'leady' | 'oferty' | 'zdarzenia' | 'dokumenty'
 type CrmRtRow = Record<string, unknown>
 
 /**
@@ -308,7 +309,8 @@ function useCrmRealtime(
     if (key == null) return
     const f = JSON.parse(key) as Partial<Record<CrmRtTable, string>>
     const ch = supabase.channel(`crm:${Math.random().toString(36).slice(2, 10)}`)
-    for (const table of ['leady', 'oferty', 'zdarzenia'] as const) {
+    const tables: CrmRtTable[] = ['leady', 'oferty', 'zdarzenia', ...(f.dokumenty ? (['dokumenty'] as const) : [])]
+    for (const table of tables) {
       ch.on('postgres_changes', { event: '*', schema: 'crm', table, ...(f[table] ? { filter: f[table] } : {}) }, (payload) => {
         const row = ((payload.new && Object.keys(payload.new).length > 0 ? payload.new : payload.old) ?? {}) as CrmRtRow
         cb.current(table, row)
@@ -1444,7 +1446,7 @@ function LeadScreen({
   usePolling(oferty.some((o) => o.status === 'przelicz') || czekaNaOferte, silentReload)
   // realtime (filtr po stronie serwera): ten lead, jego oferty i zdarzenia (transkrypcja notatki głosowej, nowa oferta, zadanie)
   const debouncedReload = useDebounced(silentReload)
-  const rtFilters = useMemo(() => ({ leady: `id=eq.${id}`, oferty: `lead_id=eq.${id}`, zdarzenia: `lead_id=eq.${id}` }), [id])
+  const rtFilters = useMemo(() => ({ leady: `id=eq.${id}`, oferty: `lead_id=eq.${id}`, zdarzenia: `lead_id=eq.${id}`, dokumenty: `lead_id=eq.${id}` }), [id])
   useCrmRealtime(() => debouncedReload(), rtFilters)
   const [nagrywanieBusy, setNagrywanieBusy] = useState(false)
 

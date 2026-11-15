@@ -142,18 +142,19 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
         },
       }
     } else {
+      // umowę wskazuje dane.umowa_id (bez niej funkcja bierze ostatnią umowę klienta)
       req = {
         rodzaj,
         lead_id: lead.id,
-        ...(umowaId ? { dokument_id: umowaId } : {}),
         dane: {
+          ...(umowaId ? { umowa_id: umowaId } : {}),
           ...(dataOdbioru ? { data_odbioru: toPl(dataOdbioru) } : {}),
           ...(adresOdbioru.trim() ? { adres_montazu: adresOdbioru.trim() } : {}),
         },
       }
     }
-    // regeneracja: ten sam dokument (umowa zachowuje numer); dla protokołu dokument_id = umowa, więc nie nadpisujemy
-    if (istniejacy && rodzaj !== 'protokol') req.dokument_id = istniejacy.id
+    // regeneracja: dokument_id = ten sam wiersz dla karty, umowy (zachowuje numer) i protokołu (crm-dokumenty v3)
+    if (istniejacy) req.dokument_id = istniejacy.id
     setBusy(true)
     const res = await generujDokument(req)
     setBusy(false)
