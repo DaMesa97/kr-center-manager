@@ -492,6 +492,8 @@ export const CRM_SPRAWA: Record<string, string> = {
   klient: 'Obecny klient',
   odpowiedz: 'Odpowiedź na ofertę',
   status: 'Status zamówienia',
+  /** brief pkt 24: „Nowe zamówienie NNN” ze sklepu — bez adnotacji klienta bez leada i zadania (Baselinker), z nietypową adnotacją lead + oddzwon */
+  zamowienie: 'Zamówienie sklepowe',
   reklamacja: 'Reklamacja',
   dostawca: 'Dostawca / oferta dla nas',
   newsletter: 'Newsletter',
