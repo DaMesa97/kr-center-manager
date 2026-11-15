@@ -148,6 +148,8 @@ export type CrmOferta = {
   rodzaj?: 'sklep' | 'oficjalna' | string | null
   /** RRRR/MM/NNN z crm.liczniki; ten sam numer dla wszystkich wersji */
   numer?: string | null
+  /** jedno zdanie z odczytu konfiguracji (crm-oferta-pdf od v8): „Dotyczy” w PDF i §1 umowy; starsze oferty null */
+  streszczenie?: string | null
   producent?: string | null
   /** ścieżka pliku z konfiguratora w buckecie crm-dokumenty */
   konfiguracja_plik?: string | null
@@ -275,6 +277,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   wyslano: 'Wysłano do klienta',
   zaakceptowano: 'Klient zaakceptował',
   blad: 'Błąd',
+  dokument: 'Dokument',
 }
 
 /**
@@ -287,6 +290,12 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
   if (typ === 'mail_wyslany') {
     if (zrodlo === 'klik') return 'Oznaczono: oferta wysłana poza systemem'
     if (zrodlo === 'imap') return 'Mail wysłany do klienta (wykryty w poczcie)'
+  }
+  // brief pkt 22: zdarzenie `dokument` z dane.rodzaj / dane.numer
+  if (typ === 'dokument') {
+    const rodzaj = typeof dane?.rodzaj === 'string' ? CRM_DOKUMENT_RODZAJ[dane.rodzaj]?.label ?? dane.rodzaj : 'Dokument'
+    const numer = typeof dane?.numer === 'string' && dane.numer ? ` nr ${dane.numer}` : ''
+    return `📄 ${rodzaj}${numer}`
   }
   return CRM_ZDARZENIE_LABEL[typ] ?? typ
 }
@@ -550,6 +559,55 @@ export const CRM_FIRMA_KEYS: Array<{ klucz: string; label: string }> = [
   { klucz: 'firma_kapital', label: 'Kapitał zakładowy' },
 ]
 export type CrmLicznik = { klucz: string; wartosc: number; updated_at: string | null }
+
+/** etykieta licznika w Ustawieniach → Dane firmy: `oferta:2026` → „Oferty 2026” */
+export function licznikLabel(klucz: string): string {
+  const [typ, rok] = klucz.split(':')
+  const nazwy: Record<string, string> = { oferta: 'Oferty', umowa: 'Umowy' }
+  return `${nazwy[typ] ?? typ} ${rok ?? ''}`.trim()
+}
+
+// ---- Dokumenty klienta (brief pkt 22): karta pomiarowa, umowa, protokół — Edge Function crm-dokumenty ----
+export type CrmDokument = {
+  id: string
+  lead_id: string
+  oferta_id: string | null
+  /** karta_pomiarowa | umowa | protokol */
+  rodzaj: string
+  /** umowa i protokół: NN/MM/RRRR; karta: null */
+  numer: string | null
+  /** migawka pól użytych w PDF (do „Generuj ponownie” i podglądu) */
+  dane: Record<string, unknown>
+  plik_pdf: string | null
+  /** blankiet | projekt | wyslana | podpisana | anulowana — aplikacja zmienia TYLKO status */
+  status: string
+  utworzyl: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const CRM_DOKUMENT_RODZAJ: Record<string, { label: string; title: string }> = {
+  karta_pomiarowa: { label: 'Karta pomiarowa', title: 'Blankiet na pomiar (A4 poziomo), wypełniany długopisem' },
+  umowa: { label: 'Umowa', title: 'Umowa z oferty oficjalnej z montażem; załącznik = PDF oferty' },
+  protokol: { label: 'Protokół odbioru', title: 'Protokół odbioru do umowy, z rozliczeniem' },
+}
+
+export const CRM_DOKUMENT_STATUS: Record<string, { label: string; cls: string }> = {
+  blankiet: { label: 'Blankiet', cls: 'crm-status--muted' },
+  projekt: { label: 'Projekt', cls: 'crm-status--todo' },
+  wyslana: { label: 'Wysłana', cls: 'crm-status--sent' },
+  podpisana: { label: 'Podpisana', cls: 'crm-status--won' },
+  anulowana: { label: 'Anulowana', cls: 'crm-status--lost' },
+}
+
+export const CRM_OTWOR_RODZAJ = ['wewnętrzne', 'zewnętrzne', 'wejściowe'] as const
+/** karta pomiarowa ma zawsze 10 wierszy w tabeli — tyle można wpisać z góry */
+export const CRM_KARTA_OTWORY_MAX = 10
+
+/** odpowiedź crm-dokumenty: `url` = podpisany link 10 min do PDF */
+export type CrmDokumentOdp = { ok: boolean; dokument_id: string; rodzaj: string; numer: string | null; plik_pdf: string; url: string }
+
+export const CRM_EDGE_DOKUMENTY = 'crm-dokumenty'
 
 /** „Zrobione” z następnym krokiem (rpc crm.zamknij_zadanie, brief pkt 20) */
 export type CrmZamknijZadanie = { nastepna_akcja: string | null; za_dni: number; opis: string | null; wyslano_oferte: boolean }

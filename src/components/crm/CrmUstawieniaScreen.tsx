@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Save, X, Pencil, Trash2, RefreshCw, Send, ArrowUp, ArrowDown } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
-import { CRM_ALERT_KEYS, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_ZASADA_GRUPA, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
+import { CRM_ALERT_KEYS, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_ZASADA_GRUPA, licznikLabel, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
 import {
   addZasada,
   deleteZasada,
@@ -441,7 +441,7 @@ function FirmaSection({ pushToast }: Pick<Props, 'pushToast'>) {
       pushToast(err.message, 'error')
       return
     }
-    pushToast(`Licznik ${klucz} = ${v} (następna oferta dostanie ${v + 1})`, 'success')
+    pushToast(`${licznikLabel(klucz)}: ostatni numer ${v} (następny dokument dostanie ${v + 1})`, 'success')
     await load()
   }
 
@@ -519,12 +519,17 @@ function FirmaSection({ pushToast }: Pick<Props, 'pushToast'>) {
       </section>
 
       <section className="crm-box crm-pf">
-        <h5>Numeracja ofert</h5>
-        <p className="crm-muted crm-pf-hint">Numer oferty = RRRR/MM/NNN. Licznik trzyma OSTATNI użyty numer w roku; wpisz numer z rejestru, żeby numeracja była ciągła (następna oferta dostanie +1).</p>
+        <h5>Numeracja ofert i umów</h5>
+        <p className="crm-muted crm-pf-hint">Numer oferty = RRRR/MM/NNN, numer umowy = NN/MM/RRRR. Licznik trzyma OSTATNI użyty numer w roku; wpisz numer z rejestru, żeby numeracja była ciągła (następny dokument dostanie +1).</p>
         <div className="crm-pf-grid">
-          {(liczniki.length > 0 ? liczniki : [{ klucz: `oferta:${rok}`, wartosc: 0, updated_at: null }]).map((l) => (
+          {[`oferta:${rok}`, `umowa:${rok}`]
+            .filter((k) => !liczniki.some((l) => l.klucz === k))
+            .map((klucz): CrmLicznik => ({ klucz, wartosc: 0, updated_at: null }))
+            .concat(liczniki)
+            .sort((a, b) => a.klucz.localeCompare(b.klucz))
+            .map((l) => (
             <div key={l.klucz} className="crm-pf-field crm-pf-field--short">
-              <span className="crm-pf-label">{l.klucz}</span>
+              <span className="crm-pf-label" title={l.klucz}>{licznikLabel(l.klucz)}</span>
               <div className="crm-licznik-row">
                 <input type="number" min={0} value={licznikForm[l.klucz] ?? String(l.wartosc)} onChange={(e) => setLicznikForm({ ...licznikForm, [l.klucz]: e.target.value })} disabled={busy} />
                 <button type="button" className="btn btn-sm btn-secondary" disabled={busy || (licznikForm[l.klucz] ?? String(l.wartosc)) === String(l.wartosc)} onClick={() => void onSaveLicznik(l.klucz)}>Zapisz</button>

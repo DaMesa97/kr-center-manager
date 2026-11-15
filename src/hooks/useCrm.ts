@@ -23,8 +23,8 @@ import type {
   CrmZasada,
   CrmZdarzenie,
 } from '../types/crm'
-import { CRM_DOKUMENTY_BUCKET, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES } from '../types/crm'
-import type { CrmLicznik, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
+import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES } from '../types/crm'
+import type { CrmDokument, CrmDokumentOdp, CrmLicznik, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
 
@@ -48,7 +48,7 @@ export function crmErrorFrom(e: { code?: string; message?: string } | null | und
 
 const LEAD_EMBED = 'lead:leady(id, nazwa, miejscowosc, telefon, email, kategoria, status, nastepna_akcja, nastepny_krok, akcja_opis)'
 const OFERTA_LIST_COLS =
-  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at, rodzaj, numer, brutto, netto, vat_stawka, plik_pdf, konfiguracja_plik'
+  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at, rodzaj, numer, brutto, netto, vat_stawka, plik_pdf, konfiguracja_plik, z_montazem, streszczenie'
 
 type Result<T> = { data: T; error: CrmError | null }
 
@@ -316,6 +316,46 @@ export async function signedUrlDokument(sciezka: string): Promise<Result<string 
 export async function uploadLogo(file: File): Promise<CrmError | null> {
   const { error } = await supabase.storage.from(CRM_DOKUMENTY_BUCKET).upload(CRM_LOGO_PATH, file, { contentType: 'image/png', upsert: true })
   return error ? { kind: 'other', message: error.message } : null
+}
+
+// ---- Dokumenty klienta (brief pkt 22): karta pomiarowa / umowa / protokół ----
+
+export async function fetchDokumenty(leadId: string): Promise<Result<CrmDokument[]>> {
+  const { data, error } = await crm().from('dokumenty').select('*').eq('lead_id', leadId).order('created_at', { ascending: false })
+  return { data: (data ?? []) as unknown as CrmDokument[], error: crmErrorFrom(error) }
+}
+
+/** RLS: aplikacja zmienia w crm.dokumenty TYLKO status (np. umowa → wyslana po Autenti, → podpisana po podpisie) */
+export async function updateDokumentStatus(id: string, status: string): Promise<CrmError | null> {
+  const { error } = await crm().from('dokumenty').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+  return crmErrorFrom(error)
+}
+
+export type GenerujDokument = {
+  rodzaj: 'karta_pomiarowa' | 'umowa' | 'protokol'
+  lead_id: string
+  /** umowa: oferta oficjalna z montażem */
+  oferta_id?: string
+  /** regeneracja istniejącego dokumentu (umowa zachowuje numer); protokół: id umowy */
+  dokument_id?: string
+  dane: Record<string, unknown>
+}
+
+/**
+ * Wywołanie Edge Function crm-dokumenty: synchronicznie (kilka sekund, zimny start do ~1 min),
+ * z JWT użytkownika. 400 = brak danych („Brakuje: …”) — tekst błędu pokazujemy jak jest.
+ */
+export async function generujDokument(req: GenerujDokument): Promise<Result<CrmDokumentOdp | null>> {
+  const { data: auth } = await supabase.auth.getUser()
+  const body = { akcja: 'dokument', ...req, user_id: auth.user?.id ?? null }
+  try {
+    const { data, error } = await supabase.functions.invoke<CrmDokumentOdp>(CRM_EDGE_DOKUMENTY, { body })
+    if (error) return { data: null, error: { kind: 'other', message: await fnErrorMessage(error, 'Funkcja crm-dokumenty nie odpowiada') } }
+    if (!data?.ok || !data.dokument_id) return { data: null, error: { kind: 'other', message: (data as { error?: string } | null)?.error ?? 'Pusta odpowiedź funkcji crm-dokumenty' } }
+    return { data, error: null }
+  } catch (e) {
+    return { data: null, error: { kind: 'other', message: e instanceof Error ? e.message : String(e) } }
+  }
 }
 
 export async function fetchLiczniki(): Promise<Result<CrmLicznik[]>> {

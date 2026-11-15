@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: karta pomiarowa, umowa i protokół odbioru z karty klienta (beta.122)</h4>
+        <ul>
+          <li><b>Karta klienta → Dokumenty</b>: trzy przyciski. <b>Karta pomiarowa</b> (data, godzina, adres, kto jedzie, piętro, otwory wpisane z góry; wymaga telefonu i e-maila klienta), <b>Umowa</b> (widoczna przy policzonej ofercie oficjalnej z montażem: adres klienta, adres montażu, zaliczka %, termin w tygodniach albo do dnia, gwarancja, data i miejsce zawarcia, własny tekst §1; numer NN/MM/RRRR, załącznik = PDF oferty) i <b>Protokół odbioru</b> (do umowy, z rozliczeniem). PDF w szablonie Po Drzwi powstaje po kilku sekundach i otwiera się w przeglądarce.</li>
+          <li><b>Umowa to zobowiązanie</b>: system nic nie wysyła. Po wygenerowaniu pokazuje „obejrzyj przed wysłaniem”, wysyłka do Autenti zostaje ręczna. Status dokumentu zmieniasz sam na liście (Projekt → Wysłana → Podpisana; karta i protokół → Podpisana po skanie). „Generuj ponownie” robi nowy PDF z poprawionymi polami, umowa zachowuje numer.</li>
+          <li>W <b>Historii</b> wpis „📄 Umowa nr …” z „otwórz”. <b>Ustawienia → Dane firmy</b>: obok licznika ofert licznik umów w roku (wpisz ostatni numer z rejestru). PDF oferty wygląda teraz jak z wtyczki (Poppins, logo), to zmiana po stronie systemu.</li>
+        </ul>
         <h4>CRM Po Drzwi: Historia klienta — czytelniejsze wpisy (beta.121)</h4>
         <ul>
           <li>Zaznaczenie „wysłałem ofertę poza systemem" w dialogu „Zrobione, co dalej" pokazuje się w Historii jako <b>„Oznaczono: oferta wysłana poza systemem"</b> z Twoim imieniem, a nie jak mail wykryty w poczcie przez automat.</li>

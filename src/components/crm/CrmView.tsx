@@ -23,6 +23,10 @@ import {
   CRM_ZRODLO_LABEL,
   CRM_OFERTA_RODZAJ,
   CRM_RODZAJ_LOKALU,
+  CRM_DOKUMENT_RODZAJ,
+  CRM_DOKUMENT_STATUS,
+  type CrmDokument,
+  type CrmDokumentOdp,
   type CrmLead,
   type CrmMail,
   type CrmOferta,
@@ -52,6 +56,8 @@ import {
   zamknijZadanie,
   updateLeadDane,
   signedUrlDokument,
+  fetchDokumenty,
+  updateDokumentStatus,
   type CrmError,
   type CrmZadanieRow,
 } from '../../hooks/useCrm'
@@ -67,6 +73,7 @@ import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import CrmKontaktyScreen from './CrmKontaktyScreen'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
+import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
 import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
 import { EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
 import CrmNowyKlient from './CrmNowyKlient'
@@ -1239,7 +1246,7 @@ function OfertaOficjalnaSekcja({ oferta, onOpenDokument }: { oferta: CrmOferta; 
 
 type HistoriaWpis = { key: string; at: string; typ: string; cls: string; kto: string; opis: string; onOpen?: () => void }
 
-function HistoriaKlienta({ zdarzenia, rozmowy, maile, names, mode, onOpenMail, onOpenOferta }: {
+function HistoriaKlienta({ zdarzenia, rozmowy, maile, names, mode, onOpenMail, onOpenOferta, onOpenPlik }: {
   zdarzenia: CrmZdarzenie[]
   rozmowy: CrmRozmowa[]
   maile: CrmMail[]
@@ -1247,6 +1254,8 @@ function HistoriaKlienta({ zdarzenia, rozmowy, maile, names, mode, onOpenMail, o
   mode: CrmMode
   onOpenMail: (id: string) => void
   onOpenOferta: (id: string) => void
+  /** zdarzenie `dokument` (brief pkt 22): otwórz PDF z dane.plik_pdf */
+  onOpenPlik?: (sciezka: string) => void
 }) {
   const wpisy = useMemo<HistoriaWpis[]>(() => {
     const out: HistoriaWpis[] = []
@@ -1263,7 +1272,12 @@ function HistoriaKlienta({ zdarzenia, rozmowy, maile, names, mode, onOpenMail, o
         cls: `crm-timeline-item--${z.typ}`,
         kto: `${kto}${zr ? `${kto ? ' ' : ''}(${zr})` : ''}`,
         opis: z.opis ?? '',
-        onOpen: z.oferta_id ? () => onOpenOferta(z.oferta_id as string) : undefined,
+        onOpen:
+          z.typ === 'dokument' && typeof z.dane?.plik_pdf === 'string' && onOpenPlik
+            ? () => onOpenPlik(z.dane?.plik_pdf as string)
+            : z.oferta_id
+              ? () => onOpenOferta(z.oferta_id as string)
+              : undefined,
       })
     }
     for (const r of rozmowy) {
@@ -1288,7 +1302,7 @@ function HistoriaKlienta({ zdarzenia, rozmowy, maile, names, mode, onOpenMail, o
       })
     }
     return out.sort((a, b) => b.at.localeCompare(a.at))
-  }, [zdarzenia, rozmowy, maile, names, onOpenMail, onOpenOferta])
+  }, [zdarzenia, rozmowy, maile, names, onOpenMail, onOpenOferta, onOpenPlik])
 
   if (wpisy.length === 0) return <p className="crm-muted">Jeszcze nic się nie wydarzyło.</p>
   // tryb handlowca: bez wpisów diagnostycznych systemu (analiza, przeliczono…)
@@ -1386,6 +1400,10 @@ function LeadScreen({
   const etyk = useEtykiety()
   const [oferty, setOferty] = useState<CrmOferta[]>([])
   const [zdarzenia, setZdarzenia] = useState<CrmZdarzenie[]>([])
+  // dokumenty klienta (brief pkt 22): karta pomiarowa / umowa / protokół z crm.dokumenty
+  const [dokumenty, setDokumenty] = useState<CrmDokument[]>([])
+  const [dokForm, setDokForm] = useState<{ rodzaj: DokumentRodzaj; istniejacy?: CrmDokument } | null>(null)
+  const [dokWynik, setDokWynik] = useState<CrmDokumentOdp | null>(null)
   const [names, setNames] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
@@ -1406,11 +1424,12 @@ function LeadScreen({
       return dirty
     })
     if (l) {
-      const [r, o, z, m] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id }), fetchMaileLeada(l.id)])
+      const [r, o, z, m, dk] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id }), fetchMaileLeada(l.id), fetchDokumenty(l.id)])
       setRozmowy(r.data)
       setOferty(o.data)
       setZdarzenia(z.data)
       setMaile(m.data)
+      if (!dk.error) setDokumenty(dk.data)
       setNames(await fetchProfileNames(z.data.map((e) => e.kto ?? '')))
     }
     setLoading(false)
@@ -1507,6 +1526,25 @@ function LeadScreen({
       return
     }
     if (!(await openExternalUrl(r.data))) pushToast('Nie udało się otworzyć dokumentu w przeglądarce', 'error')
+  }
+
+  // brief pkt 22: po wygenerowaniu PDF otwieramy podpisany link z odpowiedzi (10 min) — bez drugiego wywołania
+  const handleDokumentCreated = (odp: CrmDokumentOdp) => {
+    setDokForm(null)
+    setDokWynik(odp)
+    const label = CRM_DOKUMENT_RODZAJ[odp.rodzaj]?.label ?? odp.rodzaj
+    pushToast(`${label}${odp.numer ? ` nr ${odp.numer}` : ''} gotowa — otwieram PDF`, 'success')
+    void openExternalUrl(odp.url)
+    void load(true)
+  }
+  const handleDokumentStatus = async (d: CrmDokument, status: string) => {
+    if (status === d.status) return
+    const err = await updateDokumentStatus(d.id, status)
+    if (err) {
+      pushToast(`Nie udało się zmienić statusu: ${err.message}`, 'error')
+      return
+    }
+    setDokumenty((ds) => ds.map((x) => (x.id === d.id ? { ...x, status } : x)))
   }
 
   if (loading) return <Spinner center label="Ładowanie klienta…" />
@@ -1712,10 +1750,85 @@ function LeadScreen({
         )}
       </section>
 
-      {/* dokumenty z ofert oficjalnych (brief pkt 20/21): plik konfiguracji + PDF, pobieranie przez signed URL */}
+      {/* dokumenty klienta (brief pkt 22): karta pomiarowa / umowa / protokół z crm.dokumenty + pliki ofert oficjalnych (pkt 21) */}
+      <section className="crm-dok">
+        <h4>Dokumenty</h4>
+        {dokWynik && !dokForm && (
+          <div className={`crm-box crm-dok-wynik${dokWynik.rodzaj === 'umowa' ? ' crm-dok-wynik--umowa' : ''}`}>
+            <b>{CRM_DOKUMENT_RODZAJ[dokWynik.rodzaj]?.label ?? dokWynik.rodzaj}{dokWynik.numer ? ` nr ${dokWynik.numer}` : ''} gotowa.</b>{' '}
+            {dokWynik.rodzaj === 'umowa' ? 'Obejrzyj PDF przed wysłaniem do Autenti — nic nie wysłaliśmy. Po wysłaniu ustaw status „Wysłana”.' : 'PDF otworzył się w przeglądarce; jeśli nie, pobierz poniżej.'}
+            <div className="crm-mail-actions">
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => void handleOpenDokument(dokWynik.plik_pdf)}><FileText size={14} /> Pokaż PDF</button>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setDokWynik(null)}>OK</button>
+            </div>
+          </div>
+        )}
+        {(() => {
+          const ofertyDoUmowy = oferty.filter((o) => o.rodzaj === 'oficjalna' && o.z_montazem !== false && o.brutto != null && o.numer && o.plik_pdf && (o.status === 'do_sprawdzenia' || o.status === 'wyslana'))
+          const umowy = dokumenty.filter((d) => d.rodzaj === 'umowa' && d.status !== 'anulowana')
+          return (
+            <>
+              {!dokForm && (
+                <div className="crm-mail-actions">
+                  <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: 'karta_pomiarowa' }) }} title={CRM_DOKUMENT_RODZAJ.karta_pomiarowa.title}><FileText size={14} /> Karta pomiarowa</button>
+                  {ofertyDoUmowy.length > 0 && (
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: 'umowa' }) }} title={CRM_DOKUMENT_RODZAJ.umowa.title}><FileText size={14} /> Umowa</button>
+                  )}
+                  {umowy.length > 0 && (
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: 'protokol' }) }} title={CRM_DOKUMENT_RODZAJ.protokol.title}><FileText size={14} /> Protokół odbioru</button>
+                  )}
+                  {ofertyDoUmowy.length === 0 && <span className="crm-muted">umowa wymaga policzonej oferty oficjalnej z montażem</span>}
+                </div>
+              )}
+              {dokForm && (
+                <CrmDokumentForm
+                  rodzaj={dokForm.rodzaj}
+                  lead={lead}
+                  ofertyDoUmowy={ofertyDoUmowy}
+                  umowy={umowy}
+                  istniejacy={dokForm.istniejacy ?? null}
+                  pushToast={pushToast}
+                  onCreated={handleDokumentCreated}
+                  onCancel={() => setDokForm(null)}
+                />
+              )}
+            </>
+          )
+        })()}
+        {dokumenty.length > 0 && (
+          <ul className="crm-dokumenty crm-dok-lista">
+            {dokumenty.map((d) => {
+              const st = CRM_DOKUMENT_STATUS[d.status] ?? { label: d.status, cls: 'crm-status--muted' }
+              const label = `${CRM_DOKUMENT_RODZAJ[d.rodzaj]?.label ?? d.rodzaj}${d.numer ? ` nr ${d.numer}` : ''}`
+              const szczegol = d.rodzaj === 'karta_pomiarowa' ? [d.dane.data_pomiaru, d.dane.godzina, d.dane.wykonal].filter(Boolean).join(' · ') : d.rodzaj === 'umowa' ? [d.dane.numer_oferty ? `oferta ${d.dane.numer_oferty}` : null, typeof d.dane.brutto === 'number' ? `${fmtPln(d.dane.brutto)} brutto` : null].filter(Boolean).join(' · ') : d.dane.numer_umowy ? `do umowy ${d.dane.numer_umowy}` : ''
+              return (
+                <li key={d.id} className="crm-dok-row">
+                  {d.plik_pdf ? (
+                    <button type="button" className="crm-link" onClick={() => void handleOpenDokument(d.plik_pdf as string)} title="Otwórz PDF (link ważny 10 min)"><FileText size={13} /> {label}</button>
+                  ) : (
+                    <span><FileText size={13} /> {label}</span>
+                  )}
+                  <span className="crm-muted"> · {fmtDate(d.created_at)}{szczegol ? ` · ${szczegol}` : ''}</span>
+                  <span className={`crm-status ${st.cls}`}>{st.label}</span>
+                  <select className="crm-dok-status" value={d.status} onChange={(e) => void handleDokumentStatus(d, e.target.value)} disabled={saving} aria-label={`Status: ${label}`} title="Status zmieniasz ręcznie: umowa → Wysłana po Autenti, Podpisana po podpisie; karta/protokół → Podpisana po skanie">
+                    {Object.entries(CRM_DOKUMENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                  {d.status !== 'podpisana' && d.status !== 'anulowana' && (
+                    <button type="button" className="crm-link" disabled={saving || Boolean(dokForm)} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: d.rodzaj as DokumentRodzaj, istniejacy: d }) }} title={d.rodzaj === 'umowa' ? 'Nowy PDF z poprawionymi polami, ten sam numer umowy' : 'Nowy PDF z poprawionymi polami'}>
+                      <Pencil size={13} /> generuj ponownie
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* pliki z ofert oficjalnych (brief pkt 20/21): plik konfiguracji + PDF, pobieranie przez signed URL */}
       {oferty.some((o) => o.plik_pdf || o.konfiguracja_plik) && (
         <section>
-          <h4>Dokumenty</h4>
+          <h4>Pliki ofert</h4>
           <ul className="crm-dokumenty">
             {[...oferty].reverse().flatMap((o) => [
               ...(o.plik_pdf ? [{ key: `${o.id}-pdf`, label: `Oferta nr ${o.numer ?? '…'} v${o.wersja} (PDF)`, sciezka: o.plik_pdf, at: o.updated_at }] : []),
@@ -1786,7 +1899,7 @@ function LeadScreen({
       {/* brief pkt 20: jedna oś czasu — zdarzenia + rozmowy + maile; handlowiec bez wpisów diagnostycznych */}
       <section className="crm-history">
         <h4>Historia</h4>
-        <HistoriaKlienta zdarzenia={zdarzenia} rozmowy={rozmowy} maile={maile} names={names} mode={mode} onOpenMail={onOpenMail} onOpenOferta={onOpenOferta} />
+        <HistoriaKlienta zdarzenia={zdarzenia} rozmowy={rozmowy} maile={maile} names={names} mode={mode} onOpenMail={onOpenMail} onOpenOferta={onOpenOferta} onOpenPlik={(s) => void handleOpenDokument(s)} />
       </section>
     </div>
   )

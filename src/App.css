@@ -9181,6 +9181,23 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-timeline-kto { color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crm-timeline-opis { overflow-wrap: anywhere; }
 .crm-timeline-opis-pelny { white-space: pre-line; }
+
+/* dokumenty klienta (brief pkt 22): karta pomiarowa / umowa / protokół */
+.crm-dok .crm-mail-actions { margin: 4px 0 8px; }
+.crm-dok-lista { margin-top: 6px; }
+.crm-dok-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 0; border-bottom: 1px dashed var(--color-border); }
+.crm-dok-row > span:first-child { display: inline-flex; align-items: center; gap: 4px; }
+.crm-dok-status { padding: 3px 8px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.85rem; background: #fff; }
+.crm-dok-wynik { border-left: 5px solid var(--pd-accent) !important; margin-bottom: 10px; }
+.crm-dok-wynik--umowa { border-left-color: #b45309 !important; }
+.crm-dok-wynik .crm-mail-actions { margin: 8px 0 0; }
+.crm-dok-form .crm-pf-hint { color: var(--color-text-muted); font-size: 0.85rem; }
+.crm-dok-uwaga { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: #fff7ed; border: 1px solid #fed7aa; color: #7c2d12; font-size: 0.9rem; }
+.crm-dok-termin { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.crm-dok-termin input[type="number"] { width: 70px; }
+.crm-dok-termin input { padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; }
+.crm-otwor-row { grid-template-columns: 150px minmax(0, 1fr) auto; }
+.crm-otwor-row select { padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; background: #fff; }
 .crm-timeline-item--blad .crm-timeline-typ { color: #b3261e; }
 .crm-timeline-item--wyslano .crm-timeline-typ { color: #166534; }
 
