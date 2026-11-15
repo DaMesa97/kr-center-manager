@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: oferta PDF — stawka VAT z konfiguracji producenta, czytelny stan „w przygotowaniu" (beta.120)</h4>
+        <ul>
+          <li><b>Oferta z montażem</b>: stawkę VAT system przepisuje z konfiguracji producenta (to jest źródło prawdy). Obiekt mieszkalny, rodzaj i powierzchnia są opcjonalne i służą tylko do kontroli, czy stawka z pliku ma sens; przy VAT na karcie oferty etykieta „z konfiguracji producenta".</li>
+          <li><b>„W przygotowaniu"</b> pokazuje się tylko, gdy oferta faktycznie się liczy. Błąd systemu od razu daje sekcję błędu z „Ponów przeliczenie" (dotąd mógł udawać trwające liczenie). Podpowiedź: zwykle 20–40 s, przy zimnym starcie do 3 minut.</li>
+        </ul>
         <h4>CRM Po Drzwi: Kontakty, pełna historia klienta, oferta z montażem w PDF (beta.119)</h4>
         <ul>
           <li><b>CRM → Kontakty</b>: wszyscy klienci, także bez zadania. Szukanie po nazwie, telefonie, e-mailu i miejscowości, filtry (status, kanał, etykieta, „bez zadania"), sortowanie po ostatniej aktywności, kolumna z zadaniem i ostatnią ofertą.</li>
