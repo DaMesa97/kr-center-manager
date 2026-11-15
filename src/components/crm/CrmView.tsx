@@ -18,7 +18,7 @@ import {
   CRM_ROZMOWA_STATUS,
   CRM_SPRAWA,
   CRM_SYSTEM_ERROR_PREFIX,
-  CRM_ZDARZENIE_LABEL,
+  zdarzenieLabel,
   CRM_DOSTAWA_LABEL,
   CRM_ZRODLO_LABEL,
   CRM_OFERTA_RODZAJ,
@@ -1254,12 +1254,14 @@ function HistoriaKlienta({ zdarzenia, rozmowy, maile, names, mode, onOpenMail, o
       // rozmowy i maile mają własne wpisy niżej — zdarzenie „rozmowa” z ingestu pomijamy, żeby nie dublować
       if (z.typ === 'rozmowa' && rozmowy.length > 0) continue
       const zr = typeof z.dane?.zrodlo === 'string' ? CRM_ZRODLO_LABEL[z.dane.zrodlo] : null
+      // „klik” = ktoś kliknął w aplikacji; bez profilu nie piszemy „system”, bo to nie automat
+      const kto = z.kto ? names.get(z.kto) ?? '…' : z.dane?.zrodlo === 'klik' ? '' : 'system'
       out.push({
         key: `z${z.id}`,
         at: z.created_at,
-        typ: CRM_ZDARZENIE_LABEL[z.typ] ?? z.typ,
+        typ: zdarzenieLabel(z.typ, z.dane),
         cls: `crm-timeline-item--${z.typ}`,
-        kto: `${z.kto ? names.get(z.kto) ?? '…' : 'system'}${zr ? ` (${zr})` : ''}`,
+        kto: `${kto}${zr ? `${kto ? ' ' : ''}(${zr})` : ''}`,
         opis: z.opis ?? '',
         onOpen: z.oferta_id ? () => onOpenOferta(z.oferta_id as string) : undefined,
       })
@@ -1297,9 +1299,9 @@ function HistoriaKlienta({ zdarzenia, rozmowy, maile, names, mode, onOpenMail, o
         <li key={w.key} className={`crm-timeline-item ${w.cls}`}>
           <span className="crm-timeline-when">{fmtDateTime(w.at)}</span>
           <span className="crm-timeline-typ">{w.typ}</span>
-          <span className="crm-timeline-kto">{w.kto}</span>
+          <span className="crm-timeline-kto" title={w.kto || undefined}>{w.kto}</span>
           <span className="crm-timeline-opis">
-            {w.opis}
+            <OpisRozwijany tekst={w.opis} />
             {w.onOpen && <button type="button" className="crm-link crm-timeline-open" onClick={w.onOpen}>otwórz</button>}
           </span>
         </li>
@@ -1308,21 +1310,53 @@ function HistoriaKlienta({ zdarzenia, rozmowy, maile, names, mode, onOpenMail, o
   )
 }
 
+const OPIS_KROTKI_MAX = 160
+
+/** Długi opis (np. zadanie_zrobione z całą analizą maila): pierwsza linia + „więcej” (zgłoszenie 15.11) */
+function OpisRozwijany({ tekst }: { tekst: string }) {
+  const [open, setOpen] = useState(false)
+  const t = tekst.trim()
+  const nl = t.indexOf('\n')
+  const pierwsza = nl >= 0 ? t.slice(0, nl) : t
+  const dlugi = nl >= 0 || t.length > OPIS_KROTKI_MAX
+  if (!t) return null
+  if (!dlugi) return <>{t}</>
+  if (open) {
+    return (
+      <>
+        <span className="crm-timeline-opis-pelny">{t}</span>
+        <button type="button" className="crm-link crm-timeline-open" onClick={() => setOpen(false)}>zwiń</button>
+      </>
+    )
+  }
+  const skrot = pierwsza.length > OPIS_KROTKI_MAX ? `${pierwsza.slice(0, OPIS_KROTKI_MAX).trimEnd()}…` : nl >= 0 ? `${pierwsza} …` : pierwsza
+  return (
+    <>
+      {skrot}
+      <button type="button" className="crm-link crm-timeline-open" onClick={() => setOpen(true)}>więcej</button>
+    </>
+  )
+}
+
 function Timeline({ items, names }: { items: CrmZdarzenie[]; names: Map<string, string> }) {
   if (items.length === 0) return <p className="crm-muted">Brak zdarzeń.</p>
   return (
     <ul className="crm-timeline">
-      {items.map((z) => (
-        <li key={z.id} className={`crm-timeline-item crm-timeline-item--${z.typ}`}>
-          <span className="crm-timeline-when">{fmtDateTime(z.created_at)}</span>
-          <span className="crm-timeline-typ">{CRM_ZDARZENIE_LABEL[z.typ] ?? z.typ}</span>
-          <span className="crm-timeline-kto">
-            {z.kto ? names.get(z.kto) ?? '…' : 'system'}
-            {typeof z.dane?.zrodlo === 'string' && CRM_ZRODLO_LABEL[z.dane.zrodlo] ? <span className="crm-muted"> ({CRM_ZRODLO_LABEL[z.dane.zrodlo]})</span> : null}
-          </span>
-          {z.opis && <span className="crm-timeline-opis">{z.opis}</span>}
-        </li>
-      ))}
+      {items.map((z) => {
+        const kto = z.kto ? names.get(z.kto) ?? '…' : z.dane?.zrodlo === 'klik' ? '' : 'system'
+        const zr = typeof z.dane?.zrodlo === 'string' ? CRM_ZRODLO_LABEL[z.dane.zrodlo] : null
+        return (
+          <li key={z.id} className={`crm-timeline-item crm-timeline-item--${z.typ}`}>
+            <span className="crm-timeline-when">{fmtDateTime(z.created_at)}</span>
+            <span className="crm-timeline-typ">{zdarzenieLabel(z.typ, z.dane)}</span>
+            <span className="crm-timeline-kto" title={kto || undefined}>
+              {kto}
+              {zr ? <span className="crm-muted">{kto ? ' ' : ''}({zr})</span> : null}
+            </span>
+            {z.opis && <span className="crm-timeline-opis"><OpisRozwijany tekst={z.opis} /></span>}
+          </li>
+        )
+      })}
     </ul>
   )
 }

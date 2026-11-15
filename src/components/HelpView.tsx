@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: Historia klienta — czytelniejsze wpisy (beta.121)</h4>
+        <ul>
+          <li>Zaznaczenie „wysłałem ofertę poza systemem" w dialogu „Zrobione, co dalej" pokazuje się w Historii jako <b>„Oznaczono: oferta wysłana poza systemem"</b> z Twoim imieniem, a nie jak mail wykryty w poczcie przez automat.</li>
+          <li>Długi adres e-mail w kolumnie „kto" jest obcinany z wielokropkiem (pełny po najechaniu) i nie nachodzi na opis. Długie opisy (np. cała analiza maila po „Zrobione") pokazują pierwszą linię i „więcej".</li>
+        </ul>
         <h4>CRM Po Drzwi: oferta PDF — stawka VAT z konfiguracji producenta, czytelny stan „w przygotowaniu" (beta.120)</h4>
         <ul>
           <li><b>Oferta z montażem</b>: stawkę VAT system przepisuje z konfiguracji producenta (to jest źródło prawdy). Obiekt mieszkalny, rodzaj i powierzchnia są opcjonalne i służą tylko do kontroli, czy stawka z pliku ma sens; przy VAT na karcie oferty etykieta „z konfiguracji producenta".</li>

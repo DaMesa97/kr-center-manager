@@ -266,7 +266,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   oferta_utworzona: 'Oferta utworzona',
   zadanie_zrobione: 'Zadanie zrobione',
   follow_up_zaplanowany: 'Follow-up zaplanowany',
-  mail_wyslany: 'Mail wysłany do klienta (wykryty w poczcie)',
+  mail_wyslany: 'Mail wysłany do klienta',
   klient_odpisal: 'Klient odpisał na ofertę',
   przegrany_automatycznie: 'Lead przegrany (30 dni bez aktywności)',
   brak_kandydatow: 'Brak pasującego produktu w cenniku',
@@ -275,6 +275,20 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   wyslano: 'Wysłano do klienta',
   zaakceptowano: 'Klient zaakceptował',
   blad: 'Błąd',
+}
+
+/**
+ * Etykieta zdarzenia zależna od `dane.zrodlo` (zgłoszenie 15.11): `mail_wyslany` z `klik` to checkbox
+ * „wysłałem ofertę poza systemem” w dialogu „Zrobione, co dalej” (rpc zamknij_zadanie), nie wykrycie
+ * maila w poczcie — bez słowa „mail”, żeby nie wyglądało na automat.
+ */
+export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null | undefined): string {
+  const zrodlo = typeof dane?.zrodlo === 'string' ? dane.zrodlo : null
+  if (typ === 'mail_wyslany') {
+    if (zrodlo === 'klik') return 'Oznaczono: oferta wysłana poza systemem'
+    if (zrodlo === 'imap') return 'Mail wysłany do klienta (wykryty w poczcie)'
+  }
+  return CRM_ZDARZENIE_LABEL[typ] ?? typ
 }
 
 /**

@@ -9175,7 +9175,12 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-timeline-item { display: grid; grid-template-columns: 130px 170px 120px 1fr; gap: 10px; font-size: 0.9rem; padding: 4px 0; border-bottom: 1px dashed var(--color-border); }
 .crm-timeline-when { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .crm-timeline-typ { font-weight: 600; }
-.crm-timeline-kto { color: var(--color-text-muted); }
+/* kolumny siatki nie mogą rosnąć ponad swoją szerokość (długi adres e-mail nachodził na opis — zgłoszenie 15.11) */
+.crm-timeline-item > span { min-width: 0; }
+.crm-timeline-typ { overflow-wrap: anywhere; }
+.crm-timeline-kto { color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-timeline-opis { overflow-wrap: anywhere; }
+.crm-timeline-opis-pelny { white-space: pre-line; }
 .crm-timeline-item--blad .crm-timeline-typ { color: #b3261e; }
 .crm-timeline-item--wyslano .crm-timeline-typ { color: #166534; }
 
