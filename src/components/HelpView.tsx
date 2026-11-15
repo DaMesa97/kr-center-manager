@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM Po Drzwi: terminy zadań tylko w dni robocze, dni wolne, zamówienia ze sklepu (beta.124)</h4>
+        <ul>
+          <li><b>Terminy zadań</b> omijają weekendy, święta państwowe i dni firmowe: sobota, niedziela albo święto → następny dzień roboczy, a termin „dziś” zapisany po 17:00 → jutro. Przesuwa baza, także dla zadań dodanych z aplikacji. W dialogu „Zrobione, co dalej” / „Dodaj zadanie” pod „Za ile dni” i w formularzu nowego klienta pod Terminem widać od razu, na jaki dzień termin wyląduje, np. „→ poniedziałek 28.12 (dzień wolny przesuwa się na następny dzień roboczy)”.</li>
+          <li><b>Ustawienia → Dni wolne</b> (administrator): święta na kolejne lata dopisuje system co roku 2 stycznia (z Wigilią); dni firmowe (inwentaryzacja, urlop zbiorowy) dodajesz sam przyciskiem „Dodaj dzień firmowy”. Usunąć można tylko dzień firmowy.</li>
+          <li><b>Maile „Nowe zamówienie NNN” ze sklepu</b> mają własną sprawę „Zamówienie sklepowe”: bez uwag klienta nie tworzą klienta ani zadania (obsługuje Baselinker); z nietypową uwagą powstaje klient i zadanie „Oddzwoń” z powodem.</li>
+        </ul>
         <h4>CRM Po Drzwi: gotowy szkic odpowiedzi mailowej w stylu handlowca (beta.123)</h4>
         <ul>
           <li><b>Karta klienta → Szkic odpowiedzi</b> (pod zadaniem, gdy klient ma e-mail): przy zadaniu „dopytaj” system sam pisze odpowiedź z pytaniami (do minuty), a w dniu terminu follow-upu przypomnienie. Przycisk <b>Wygeneruj odpowiedź</b> / <b>Wygeneruj ponownie</b> z polem „co zmienić” (np. „krócej”) działa zawsze. Szkic jest w stylu zalogowanego handlowca, uczonym z jego wysłanych maili; widać „w stylu Magdaleny, 6 próbek” albo „bez próbek stylu”.</li>
