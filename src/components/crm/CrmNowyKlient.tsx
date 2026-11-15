@@ -9,6 +9,7 @@ import { Save, X } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, type CrmEtykieta } from '../../types/crm'
 import { createLeadWizyta, zlecOferteZNagrania, type NowyKlient } from '../../hooks/useCrm'
+import { terminHintForIso } from '../../utils/crmTermin'
 import { EtykietaBadge } from './CrmEtykiety'
 import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import Spinner from '../Spinner'
@@ -147,6 +148,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
           <label className="crm-pf-field crm-pf-field--short">
             <span className="crm-pf-label">Termin</span>
             <input type="date" value={k.nastepny_krok ?? ''} onChange={(e) => set('nastepny_krok', e.target.value || null)} />
+            {terminHintForIso(k.nastepny_krok) && <span className="crm-pf-hint">{terminHintForIso(k.nastepny_krok)}</span>}
           </label>
         )}
       </div>

@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { Check, X } from 'lucide-react'
 import { CRM_AKCJA, CRM_FOLLOW_UP_DAYS, type CrmZamknijZadanie } from '../../types/crm'
+import { terminHint } from '../../utils/crmTermin'
 import Spinner from '../Spinner'
 
 type Props = {
@@ -58,7 +59,8 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
             <span className="crm-pf-label">Za ile dni</span>
             <input type="number" min={0} max={90} value={zaDni} onChange={(e) => setZaDni(Math.max(0, Math.min(90, Number(e.target.value) || 0)))} disabled={busy} />
           </label>
-          <span className="crm-muted">0 = dziś</span>
+          {/* terminy tylko w dni robocze (trigger leady_termin_roboczy) — pokazujemy, co baza zapisze */}
+          <span className="crm-muted">{terminHint(zaDni) ?? '0 = dziś · terminy tylko w dni robocze'}</span>
         </div>
       )}
       <label className="crm-pf-field">
