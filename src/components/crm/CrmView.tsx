@@ -53,6 +53,7 @@ import {
   markOfertaWyslana,
   requestOfertaPrzelicz,
   retryOfertaPrzelicz,
+  zlecOferteWstrzymana,
   zlecOferteZNotatki,
   zlecOferteZNagrania,
   zamknijZadanie,
@@ -490,6 +491,13 @@ function ZadaniaScreen({
                 </span>
               )
             }
+            if (r.oferta?.status === 'wstrzymana') {
+              return (
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => onOpenOferta(r.oferta!.id)} title="Ustalenia z rozmowy / maila czekają na Twoją akceptację — dopiero wtedy system policzy ofertę">
+                  Sprawdź ustalenia
+                </button>
+              )
+            }
             if (r.oferta) {
               return (
                 <button type="button" className="btn btn-sm btn-primary" onClick={() => onOpenOferta(r.oferta!.id)}>
@@ -904,12 +912,14 @@ function OfertaScreen({
   const sysErr = isSystemError(sprawdz)
   const canSend = oferta.status === 'do_sprawdzenia' && !sysErr
   const isRecalc = oferta.status === 'przelicz'
+  // 16.11: automat ofert wyłączony — oferta czeka, aż handlowiec przeczyta ustalenia i kliknie „policz”
+  const wstrzymana = oferta.status === 'wstrzymana'
   // brief pkt 21: oferta oficjalna z montażem (PDF) — pozycje przepisane z konfiguracji, VAT wg obiektu, bez koszyka
   const oficjalna = oferta.rodzaj === 'oficjalna'
   // brak treści = ingest założył wersję, backend jeszcze nie policzył (albo stara pusta robocza).
   // Oficjalna: crm-oferta-pdf zapisuje brutto, PDF, mail i status jednym update'em, więc znacznikiem jest sam status
   // 'przelicz' (zimny start funkcji 2–3 min to nie błąd); błąd = do_sprawdzenia + sprawdz[0] „BŁĄD systemu” + brutto null → sekcja błędu, nie „w przygotowaniu”
-  const pending = isRecalc || (!oficjalna && !oferta.mail_tresc && !oferta.produkt && oferta.cena_razem == null)
+  const pending = !wstrzymana && (isRecalc || (!oficjalna && !oferta.mail_tresc && !oferta.produkt && oferta.cena_razem == null))
   const dobor = oferta.dobor ?? {}
   const analiza = oferta.analiza ?? {}
   const pw = oferta.poprawka_wynik ?? {}
@@ -983,8 +993,38 @@ function OfertaScreen({
         </section>
       )}
 
+      {/* 0b. USTALENIA DO AKCEPTACJI (automat ofert wyłączony) */}
+      {wstrzymana && (
+        <section className="crm-check crm-check--pending">
+          <h4>Ustalenia {oferta.mail_id ? 'z maila' : oferta.rozmowa_id ? 'z rozmowy' : ''} — oferta czeka na Twoją akceptację</h4>
+          <p className="crm-pending-text">{typeof analiza.podsumowanie === 'string' && analiza.podsumowanie ? analiza.podsumowanie : 'Brak podsumowania w analizie.'}</p>
+          {analiza.dane && typeof analiza.dane === 'object' ? <KeyValueTable data={analiza.dane as Record<string, unknown>} /> : null}
+          {Array.isArray(analiza.brakuje) && analiza.brakuje.length > 0 && (
+            <p className="crm-muted">Brakuje: {(analiza.brakuje as unknown[]).map(String).join('; ')}</p>
+          )}
+          <div className="crm-mail-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true)
+                const err = await zlecOferteWstrzymana(oferta.id)
+                setSaving(false)
+                if (err) { pushToast(`Nie udało się zlecić oferty: ${err.message}`, 'error'); return }
+                pushToast('Oferta liczy się — zwykle 30–90 s', 'success')
+                void load(true)
+              }}
+            >
+              <Check size={14} /> Ustalenia OK — policz ofertę
+            </button>
+            <span className="crm-muted">Jeśli ustalenia są błędne: popraw notatkę na karcie klienta i tam kliknij „Zleć ofertę”, albo usuń tę ofertę.</span>
+          </div>
+        </section>
+      )}
+
       {/* 1. SPRAWDŹ TYLKO TO */}
-      {pending ? (
+      {wstrzymana ? null : pending ? (
         <section className="crm-check crm-check--pending">
           <h4>Oferta w przygotowaniu</h4>
           <p className="crm-pending-text">
@@ -1721,7 +1761,7 @@ function LeadScreen({
       <span className="crm-field-value">{children}</span>
     </div>
   )
-  const activeOferta = oferty.find((o) => o.status === 'do_sprawdzenia' || o.status === 'przelicz')
+  const activeOferta = oferty.find((o) => o.status === 'do_sprawdzenia' || o.status === 'przelicz' || o.status === 'wstrzymana')
 
   return (
     <div className="crm-screen">
@@ -1780,7 +1820,9 @@ function LeadScreen({
           </p>
           <div className="crm-mail-actions">
             {lead.nastepna_akcja === 'przygotuj_oferte' && activeOferta ? (
-              activeOferta.status === 'przelicz' ? (
+              activeOferta.status === 'wstrzymana' ? (
+                <button type="button" className="btn btn-primary" onClick={() => onOpenOferta(activeOferta.id)} title="Przeczytaj ustalenia z rozmowy / maila i zleć policzenie oferty">Sprawdź ustalenia i zleć ofertę</button>
+              ) : activeOferta.status === 'przelicz' ? (
                 <span className="crm-muted"><Spinner inline size={14} /> system liczy ofertę…</span>
               ) : (
                 <button type="button" className="btn btn-primary" onClick={() => onOpenOferta(activeOferta.id)}>Otwórz ofertę · {fmtPln(activeOferta.cena_razem)}</button>

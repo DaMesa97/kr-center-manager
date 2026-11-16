@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Save, X, Pencil, Trash2, RefreshCw, Send, ArrowUp, ArrowDown } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
-import { CRM_ALERT_KEYS, CRM_DZIEN_WOLNY_RODZAJ, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_UST_SZKIC_HANDLOWIEC, CRM_ZASADA_GRUPA, licznikLabel, type CrmDzienWolny, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
+import { CRM_ALERT_KEYS, CRM_UST_OFERTY_AUTO, CRM_DZIEN_WOLNY_RODZAJ, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_UST_SZKIC_HANDLOWIEC, CRM_ZASADA_GRUPA, licznikLabel, type CrmDzienWolny, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
 import {
   addDzienWolny,
   addZasada,
@@ -204,7 +204,7 @@ function AlertySection({ pushToast }: Pick<Props, 'pushToast'>) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState({ email: '', port: '465', skrzynka: '' })
+  const [form, setForm] = useState({ email: '', port: '465', skrzynka: '', ofertyAuto: false })
   const [dirty, setDirty] = useState(false)
   const [test, setTest] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -215,7 +215,7 @@ function AlertySection({ pushToast }: Pick<Props, 'pushToast'>) {
     setError(u.error)
     if (!u.error) {
       setUst(u.data)
-      setForm({ email: get(u.data, CRM_ALERT_KEYS.email), port: get(u.data, CRM_ALERT_KEYS.port) || '465', skrzynka: get(u.data, CRM_ALERT_KEYS.skrzynka) })
+      setForm({ email: get(u.data, CRM_ALERT_KEYS.email), port: get(u.data, CRM_ALERT_KEYS.port) || '465', skrzynka: get(u.data, CRM_ALERT_KEYS.skrzynka), ofertyAuto: get(u.data, CRM_UST_OFERTY_AUTO) === 'true' })
       setDirty(false)
     }
     setSkrzynki(s.data)
@@ -227,13 +227,13 @@ function AlertySection({ pushToast }: Pick<Props, 'pushToast'>) {
 
   const onSave = async () => {
     setBusy(true)
-    const err = await saveUstawienia({ [CRM_ALERT_KEYS.email]: form.email.trim(), [CRM_ALERT_KEYS.port]: form.port.trim(), [CRM_ALERT_KEYS.skrzynka]: form.skrzynka })
+    const err = await saveUstawienia({ [CRM_ALERT_KEYS.email]: form.email.trim(), [CRM_ALERT_KEYS.port]: form.port.trim(), [CRM_ALERT_KEYS.skrzynka]: form.skrzynka, [CRM_UST_OFERTY_AUTO]: form.ofertyAuto ? 'true' : 'false' })
     setBusy(false)
     if (err) {
       pushToast(err.message, 'error')
       return
     }
-    pushToast('Ustawienia alertów zapisane', 'success')
+    pushToast('Ustawienia zapisane', 'success')
     await load()
   }
 
@@ -264,6 +264,15 @@ function AlertySection({ pushToast }: Pick<Props, 'pushToast'>) {
         hostem, loginem i hasłem co IMAP).
       </p>
       <section className="crm-box crm-pf">
+        <h5>Automat ofert</h5>
+        <label className="crm-pf-field crm-pf-field--check">
+          <input type="checkbox" checked={form.ofertyAuto} onChange={(e) => { setForm({ ...form, ofertyAuto: e.target.checked }); setDirty(true) }} />
+          <span>System sam liczy ofertę (AI) po rozmowie i mailu klienta</span>
+        </label>
+        <p className="crm-pf-hint">
+          Wyłączone (zalecane, 16.11): rozmowa i mail nadal dostają analizę i ustalenia, ale oferta czeka w statusie „Czeka na akceptację” — handlowiec czyta ustalenia i klika „policz ofertę”. Oszczędza kredyty AI na zapytaniach, które i tak obsłuży człowiek.
+        </p>
+        <h5>Alerty o błędach</h5>
         <div className="crm-pf-grid">
           <label className="crm-pf-field crm-pf-field--wide">
             <span className="crm-pf-label">Adresy alertów (po przecinku)</span>

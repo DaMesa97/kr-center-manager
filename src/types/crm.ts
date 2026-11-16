@@ -82,6 +82,8 @@ export type CrmHistoriaWyslanych = { ok: boolean; zapisano?: number; duplikaty?:
 export const CRM_PROBKI_STYLU_ILE = 30
 /** klucz crm.ustawienia: kogo stylem pisze system, gdy nie wie, kto prowadzi klienta (id z profiles) */
 export const CRM_UST_SZKIC_HANDLOWIEC = 'szkic_domyslny_handlowiec'
+/** 'true' = system sam liczy ofertę po rozmowie / mailu; inaczej oferta czeka ('wstrzymana'), aż handlowiec zaakceptuje ustalenia (16.11) */
+export const CRM_UST_OFERTY_AUTO = 'oferty_automatyczne'
 
 /**
  * Dni wolne (brief pkt 25, crm.dni_wolne): święta państwowe (`swieto`, generowane co rok przez cron
@@ -298,6 +300,7 @@ export type CrmZdarzenie = {
 export const CRM_OFERTA_STATUS: Record<string, { label: string; cls: string }> = {
   do_sprawdzenia: { label: 'Do sprawdzenia', cls: 'crm-status--todo' },
   przelicz: { label: 'Liczy się', cls: 'crm-status--working' },
+  wstrzymana: { label: 'Czeka na akceptację', cls: 'crm-status--todo' },
   robocza: { label: 'Stara wersja', cls: 'crm-status--muted' },
   wyslana: { label: 'Wysłana', cls: 'crm-status--sent' },
   zaakceptowana: { label: 'Zaakceptowana', cls: 'crm-status--won' },
@@ -678,4 +681,4 @@ export const CRM_EDGE_DOKUMENTY = 'crm-dokumenty'
 export type CrmZamknijZadanie = { nastepna_akcja: string | null; za_dni: number; opis: string | null; wyslano_oferte: boolean }
 
 /** Statusy ofert „do roboty” — domyślny filtr listy (brief pkt 3). */
-export const CRM_OPEN_STATUSES = ['do_sprawdzenia', 'przelicz'] as const
+export const CRM_OPEN_STATUSES = ['do_sprawdzenia', 'przelicz', 'wstrzymana'] as const

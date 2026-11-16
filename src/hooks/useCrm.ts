@@ -150,6 +150,12 @@ export async function requestOfertaPrzelicz(oferta: CrmOferta, poprawka: string)
 }
 
 /** Ponowienie po „BŁĄD systemu”: ten sam update statusu, poprawka bez zmian. */
+/** Handlowiec przeczytał ustalenia z rozmowy / maila i chce policzyć ofertę (status wstrzymana → przelicz). */
+export async function zlecOferteWstrzymana(ofertaId: string): Promise<CrmError | null> {
+  const { error } = await crm().rpc('zlec_oferte_wstrzymana', { p_oferta_id: ofertaId })
+  return crmErrorFrom(error)
+}
+
 export async function retryOfertaPrzelicz(oferta: CrmOferta): Promise<CrmError | null> {
   const { error } = await crm().from('oferty').update({ status: 'przelicz' }).eq('id', oferta.id)
   return crmErrorFrom(error)
