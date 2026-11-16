@@ -9187,6 +9187,12 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-details--inline { margin-top: 6px; }
 .crm-details--inline > summary { padding: 4px 8px; font-size: 0.8rem; text-transform: none; letter-spacing: 0; }
 .crm-tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+/* brief pkt 28: tabela pozycji oferty sklepowej */
+.crm-poz-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0 0 6px; }
+.crm-poz-table th, .crm-poz-table td { padding: 4px 6px; border-bottom: 1px dashed var(--color-border); text-align: left; vertical-align: top; }
+.crm-poz-table th { font-size: 0.72rem; color: var(--color-text-muted); font-weight: 600; letter-spacing: .3px; }
+.crm-poz-table .crm-poz-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.crm-poz-hint { font-size: 0.78rem; margin: 0 0 10px; }
 .crm-tech-grid p { margin: 0 0 4px; }
 .crm-kv { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 .crm-kv th { text-align: left; padding: 3px 8px 3px 0; color: var(--color-text-muted); font-weight: 600; vertical-align: top; white-space: nowrap; }

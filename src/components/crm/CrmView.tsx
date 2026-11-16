@@ -913,6 +913,8 @@ function OfertaScreen({
   const sprawdz = asStrings(oferta.sprawdz)
   const zalozenia = asStrings(oferta.zalozenia)
   const rozbicie = (Array.isArray(oferta.rozbicie) ? oferta.rozbicie : []) as CrmRozbiciePozycja[]
+  // pkt 28: pozycje oferty sklepowej (null = stara oferta, jedna pozycja z product_id/wybory)
+  const pozycjeSklep = (Array.isArray(oferta.pozycje) ? oferta.pozycje : []) as CrmOfertaPozycja[]
   const sysErr = isSystemError(sprawdz)
   const canSend = oferta.status === 'do_sprawdzenia' && !sysErr
   const isRecalc = oferta.status === 'przelicz'
@@ -1170,6 +1172,30 @@ function OfertaScreen({
               )}
             </div>
             <div>
+              {/* brief pkt 28: oferta sklepowa z kilkoma pozycjami (crm-oferta v12) — tabela nad rozbiciem */}
+              {!oficjalna && pozycjeSklep.length > 0 && (pozycjeSklep.length > 1 || Number(pozycjeSklep[0]?.ilosc ?? 1) > 1) && (
+                <>
+                  <h5>Pozycje ({pozycjeSklep.length}, {pozycjeSklep.reduce((n, p) => n + (Number(p.ilosc) || 1), 0)} szt.)</h5>
+                  <table className="crm-poz-table">
+                    <thead>
+                      <tr><th>Lp</th><th>Produkt</th><th>Opis</th><th className="crm-poz-num">Ilość</th><th className="crm-poz-num">Cena szt.</th><th className="crm-poz-num">Razem</th></tr>
+                    </thead>
+                    <tbody>
+                      {pozycjeSklep.map((p, i) => (
+                        <tr key={i} title={p.rozbicie?.length ? p.rozbicie.map((r) => `${[r.opcja, r.wybor].filter(Boolean).join(': ')} ${r.kwota != null ? fmtPln(Number(r.kwota)) : ''}`).join('\n') : undefined}>
+                          <td>{p.lp ?? i + 1}</td>
+                          <td>{p.produkt || p.nazwa || '—'}{p.product_id != null ? <span className="crm-muted"> (ID {String(p.product_id)})</span> : null}</td>
+                          <td>{p.opis || '—'}</td>
+                          <td className="crm-poz-num">{Number(p.ilosc) || 1}</td>
+                          <td className="crm-poz-num">{p.cena_szt != null ? fmtPln(Number(p.cena_szt)) : '—'}</td>
+                          <td className="crm-poz-num"><b>{p.cena_razem != null ? fmtPln(Number(p.cena_razem)) : '—'}</b></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="crm-muted crm-poz-hint">Najedź na wiersz, żeby zobaczyć dopłaty pozycji. Poprawka handlowca może wskazać pozycję: „w pozycji 2 daj 70 lewe”, „dodaj jeszcze jedne 80 prawe”, „usuń trzecią pozycję”.</p>
+                </>
+              )}
               <h5>Rozbicie ceny</h5>
               {rozbicie.length === 0 ? (
                 <span className="crm-muted">—</span>

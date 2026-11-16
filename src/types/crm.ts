@@ -385,6 +385,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   blad: 'Błąd',
   dokument: 'Dokument',
   szkic: 'Szkic odpowiedzi',
+  dopasowano: 'Dopisano do istniejącego klienta',
 }
 
 /**
@@ -399,6 +400,11 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
     if (zrodlo === 'imap') return 'Mail wysłany do klienta (wykryty w poczcie)'
   }
   // brief pkt 22: zdarzenie `dokument` z dane.rodzaj / dane.numer
+  // brief pkt 27: mail od nowego adresu dopisany do klienta po domenie firmowej / adresie z połączonego kontaktu
+  if (typ === 'dopasowano') {
+    const powod = dane?.powod === 'domena' ? 'ta sama domena firmowa' : dane?.powod === 'inne_kontakty' ? 'adres z połączonego kontaktu' : null
+    return `🔗 Dopisano do klienta${powod ? ` (${powod})` : ''}`
+  }
   if (typ === 'dokument') {
     const rodzaj = typeof dane?.rodzaj === 'string' ? CRM_DOKUMENT_RODZAJ[dane.rodzaj]?.label ?? dane.rodzaj : 'Dokument'
     const numer = typeof dane?.numer === 'string' && dane.numer ? ` nr ${dane.numer}` : ''
@@ -641,8 +647,29 @@ export type CrmPoprawkaRow = {
 export const CRM_NAGRANIE_BUCKET = 'crm-nagrania'
 export const CRM_NAGRANIE_MAX_S = 180
 
-/** Pozycja oferty oficjalnej (przepisana z konfiguracji producenta, brief pkt 21). */
-export type CrmOfertaPozycja = { lp?: number; nazwa?: string; opis?: string; ilosc?: number; jm?: string; netto_szt?: number; netto?: number; brutto_szt_z_pliku?: number }
+/**
+ * Pozycja oferty: oficjalna (przepisana z konfiguracji producenta, brief pkt 21: nazwa/jm/netto_szt/netto)
+ * albo sklepowa (brief pkt 28, crm-oferta v12: produkt/wybory/cena_bazowa/cena_szt/cena_razem/rozbicie).
+ * Oferty sklepowe sprzed 16.11 mają `pozycje = null` → jedna pozycja z product_id/wybory oferty.
+ */
+export type CrmOfertaPozycja = {
+  lp?: number
+  nazwa?: string
+  opis?: string
+  ilosc?: number
+  jm?: string
+  netto_szt?: number
+  netto?: number
+  brutto_szt_z_pliku?: number
+  // sklep (pkt 28)
+  product_id?: number | string | null
+  produkt?: string
+  wybory?: Record<string, unknown> | null
+  cena_bazowa?: number | string | null
+  cena_szt?: number | string | null
+  cena_razem?: number | string | null
+  rozbicie?: CrmRozbiciePozycja[] | null
+}
 /** Usługa własna w ofercie oficjalnej: nazwa + kwota netto, bez stałych stawek. */
 export type CrmUsluga = { nazwa: string; netto: number }
 
