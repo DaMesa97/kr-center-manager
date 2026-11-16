@@ -9754,3 +9754,6 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .konf-kpi__sub { font-size: 12px; color: #64748b; }
 .konf-kpi--target .konf-kpi__value { color: #b3261e; }
 .konf-kpi--ok .konf-kpi__value { color: #1d6d45; }
+
+/* CRM Do zrobienia (#150): klik w wiersz otwiera klienta */
+.crm-table tr.crm-row--clickable { cursor: pointer; }

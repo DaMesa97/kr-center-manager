@@ -323,6 +323,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   oferta_utworzona: 'Oferta utworzona',
   zadanie_zrobione: 'Zadanie zrobione',
   zadanie_usuniete: 'Zadanie usunięte',
+  zadanie_zmienione: 'Zadanie zmienione',
   follow_up_zaplanowany: 'Follow-up zaplanowany',
   mail_wyslany: 'Mail wysłany do klienta',
   klient_odpisal: 'Klient odpisał na ofertę',

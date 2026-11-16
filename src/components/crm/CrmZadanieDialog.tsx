@@ -19,6 +19,8 @@ type Props = {
   busy: boolean
   onConfirm: (z: CrmZamknijZadanie) => void | Promise<void>
   onCancel: () => void
+  /** #150: edycja istniejącego zadania — wartości startowe; zapis bez zdarzenia „zrobione” */
+  edycja?: { akcja: string; zaDni: number; opis: string }
 }
 
 const OPCJE: Array<{ akcja: string | null; label: string; hint: string }> = [
@@ -31,21 +33,25 @@ const OPCJE: Array<{ akcja: string | null; label: string; hint: string }> = [
   { akcja: 'montaz', label: 'Montaż', hint: 'Umówiony montaż — termin = dzień montażu' },
 ]
 
-export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfirm, onCancel }: Props) {
+export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfirm, onCancel, edycja }: Props) {
   const dodaj = biezaceZadanie == null
-  const [akcja, setAkcja] = useState<string | null>(dodaj ? 'follow_up' : 'follow_up')
-  const [zaDni, setZaDni] = useState<number>(CRM_FOLLOW_UP_DAYS)
-  const [opis, setOpis] = useState('')
+  const [akcja, setAkcja] = useState<string | null>(edycja ? edycja.akcja : 'follow_up')
+  const [zaDni, setZaDni] = useState<number>(edycja ? edycja.zaDni : CRM_FOLLOW_UP_DAYS)
+  const [opis, setOpis] = useState(edycja ? edycja.opis : '')
   const [wyslano, setWyslano] = useState(false)
   const dniWolne = useDniWolne()
 
-  const opcje = dodaj ? OPCJE.filter((o) => o.akcja != null) : OPCJE
-  const tytul = dodaj ? `Nowe zadanie dla ${klient}` : `Zrobione: ${CRM_AKCJA[biezaceZadanie]?.label ?? biezaceZadanie} · ${klient}`
+  const opcje = dodaj || edycja ? OPCJE.filter((o) => o.akcja != null) : OPCJE
+  const tytul = edycja
+    ? `Zmień zadanie · ${klient}`
+    : dodaj
+      ? `Nowe zadanie dla ${klient}`
+      : `Zrobione: ${CRM_AKCJA[biezaceZadanie]?.label ?? biezaceZadanie} · ${klient}`
 
   return (
     <section className="crm-box crm-zadanie-dialog" role="dialog" aria-label={tytul}>
       <h4>{tytul}</h4>
-      <p className="crm-muted">{dodaj ? 'Co ma być następnym krokiem?' : 'Co dalej z tym klientem?'}</p>
+      <p className="crm-muted">{edycja ? 'Popraw rodzaj, termin albo opis zadania.' : dodaj ? 'Co ma być następnym krokiem?' : 'Co dalej z tym klientem?'}</p>
       <div className="crm-zadanie-opcje" role="radiogroup">
         {opcje.map((o) => (
           <label key={o.akcja ?? 'nic'} className={`crm-zadanie-opcja${akcja === o.akcja ? ' crm-zadanie-opcja--on' : ''}`}>
@@ -71,7 +77,7 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
         <span className="crm-pf-label">Co ustalono (opcjonalnie)</span>
         <textarea className="crm-fix-textarea" rows={2} value={opis} onChange={(e) => setOpis(e.target.value)} placeholder="np. klient wybiera kolor, odezwie się po weekendzie" disabled={busy} />
       </label>
-      {!dodaj && (
+      {!dodaj && !edycja && (
         <label className="crm-pf-field crm-pf-field--check">
           <input type="checkbox" checked={wyslano} onChange={(e) => setWyslano(e.target.checked)} disabled={busy} />
           <span>Wysłałem ofertę poza systemem (status klienta: „Ma ofertę”)</span>
@@ -79,7 +85,7 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
       )}
       <div className="crm-poczta-actions">
         <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onConfirm({ nastepna_akcja: akcja, za_dni: zaDni, opis, wyslano_oferte: wyslano })}>
-          {busy ? <Spinner inline size={14} /> : <Check size={14} />} {dodaj ? 'Dodaj zadanie' : 'Zapisz'}
+          {busy ? <Spinner inline size={14} /> : <Check size={14} />} {edycja ? 'Zapisz zmiany' : dodaj ? 'Dodaj zadanie' : 'Zapisz'}
         </button>
         <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onCancel}><X size={14} /> Anuluj</button>
       </div>

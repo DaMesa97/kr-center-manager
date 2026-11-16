@@ -23,6 +23,7 @@ import type {
   CrmZasada,
   CrmZdarzenie,
 } from '../types/crm'
+import { CRM_AKCJA } from '../types/crm'
 import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_EDGE_SZKIC, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES, CRM_PROBKI_STYLU_ILE } from '../types/crm'
 import type { CrmDokument, CrmDokumentOdp, CrmDzienWolny, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
@@ -252,6 +253,25 @@ export async function deleteOferta(oferta: Pick<CrmOferta, 'id' | 'plik_pdf'>): 
   await removeCrmFiles([oferta.plik_pdf])
   const { error } = await crm().from('oferty').delete().eq('id', oferta.id)
   return crmErrorFrom(error)
+}
+
+/** Zmienia zadanie (typ / termin / opis) bez oznaczania „zrobione” — termin przelicza trigger dni roboczych. */
+export async function edytujZadanie(lead: CrmLead, z: CrmZamknijZadanie, userId: string): Promise<CrmError | null> {
+  if (!z.nastepna_akcja) return { kind: 'other', message: 'Wybierz rodzaj zadania' }
+  const dzis = new Date()
+  const termin = new Date(dzis.getFullYear(), dzis.getMonth(), dzis.getDate() + Math.max(0, z.za_dni))
+  const terminIso = `${termin.getFullYear()}-${String(termin.getMonth() + 1).padStart(2, '0')}-${String(termin.getDate()).padStart(2, '0')}`
+  const opis = `${CRM_AKCJA[z.nastepna_akcja]?.hint ?? ''}${z.opis ? ` ${z.opis}` : ''}`.trim().slice(0, 500)
+  const { error } = await crm().from('leady').update({ nastepna_akcja: z.nastepna_akcja, nastepny_krok: terminIso, akcja_opis: opis || null, akcja_od: new Date().toISOString() }).eq('id', lead.id)
+  if (error) return crmErrorFrom(error)
+  await crm().from('zdarzenia').insert({
+    lead_id: lead.id,
+    typ: 'zadanie_zmienione',
+    opis: `Zmieniono zadanie: ${lead.nastepna_akcja ?? '—'} → ${z.nastepna_akcja}, termin ${terminIso}${z.opis ? ` · ${z.opis}` : ''}`.slice(0, 500),
+    kto: userId,
+    dane: { zrodlo: 'klik', z: lead.nastepna_akcja, na: z.nastepna_akcja },
+  })
+  return null
 }
 
 /** Zdejmuje zadanie z klienta bez oznaczania „zrobione” (ślad w historii: zadanie_usuniete). */

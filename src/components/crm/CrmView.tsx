@@ -60,6 +60,7 @@ import {
   deleteLead,
   deleteOferta,
   usunZadanie,
+  edytujZadanie,
   signedUrlDokument,
   fetchDokumenty,
   updateDokumentStatus,
@@ -575,6 +576,9 @@ function ZadaniaScreen({
           rows={etykietaFilter ? rows.filter((r) => (r.etykiety ?? []).includes(etykietaFilter)) : rows}
           rowKey={(r) => r.id}
           columns={columns}
+          // #150: klik w wiersz = karta klienta (tam szczegóły zadania, „Zmień zadanie”, „Usuń zadanie”)
+          onRowClick={(r) => onOpenLead(r.id)}
+          rowClassName={() => 'crm-row--clickable'}
           className="crm-table"
           emptyText={etykietaFilter ? 'Brak zadań z tą etykietą.' : 'Nic do zrobienia — wszystkie zadania załatwione.'}
         />
@@ -1635,17 +1639,20 @@ function LeadScreen({
 
   // brief pkt 20: „Zrobione” / „Dodaj zadanie” przez panel z następnym krokiem (rpc zamknij_zadanie)
   const [zadanieDialog, setZadanieDialog] = useState(false)
+  // #150: „Zmień zadanie” — ten sam dialog, zapis przez edytujZadanie (bez zdarzenia „zrobione”)
+  const [zadanieEdycja, setZadanieEdycja] = useState(false)
   const confirmZadanie = async (z: CrmZamknijZadanie) => {
     if (!lead || !currentUser) return
     setSaving(true)
-    const err = await zamknijZadanie(lead.id, z)
+    const err = zadanieEdycja ? await edytujZadanie(lead, z, currentUser.id) : await zamknijZadanie(lead.id, z)
     setSaving(false)
     if (err) {
       pushToast(`Nie udało się zapisać: ${err.message}`, 'error')
       return
     }
-    pushToast(z.nastepna_akcja ? `Zapisane — następne: ${CRM_AKCJA[z.nastepna_akcja]?.label ?? z.nastepna_akcja}` : 'Zadanie zrobione', 'success')
+    pushToast(zadanieEdycja ? 'Zadanie zmienione' : z.nastepna_akcja ? `Zapisane — następne: ${CRM_AKCJA[z.nastepna_akcja]?.label ?? z.nastepna_akcja}` : 'Zadanie zrobione', 'success')
     setZadanieDialog(false)
+    setZadanieEdycja(false)
     await load(true)
   }
   const handleZrobione = () => setZadanieDialog(true)
@@ -1793,6 +1800,15 @@ function LeadScreen({
               type="button"
               className="btn btn-sm btn-secondary"
               disabled={saving || zadanieDialog}
+              title="Zmień rodzaj, termin albo opis zadania"
+              onClick={() => { setZadanieEdycja(true); setZadanieDialog(true) }}
+            >
+              <Pencil size={14} /> Zmień zadanie
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={saving || zadanieDialog}
               title="Zdejmij zadanie bez oznaczania jako zrobione"
               onClick={async () => {
                 if (!(await appConfirm('Usunąć to zadanie? Klient zniknie z listy „Do zrobienia”, w historii zostanie ślad.'))) return
@@ -1816,7 +1832,18 @@ function LeadScreen({
         </div>
       )}
       {zadanieDialog && (
-        <CrmZadanieDialog klient={leadName(lead)} biezaceZadanie={lead.nastepna_akcja} busy={saving} onConfirm={confirmZadanie} onCancel={() => setZadanieDialog(false)} />
+        <CrmZadanieDialog
+          klient={leadName(lead)}
+          biezaceZadanie={lead.nastepna_akcja}
+          busy={saving}
+          onConfirm={confirmZadanie}
+          onCancel={() => { setZadanieDialog(false); setZadanieEdycja(false) }}
+          edycja={zadanieEdycja && lead.nastepna_akcja ? {
+            akcja: lead.nastepna_akcja,
+            zaDni: lead.nastepny_krok ? Math.max(0, Math.round((new Date(lead.nastepny_krok).getTime() - new Date(new Date().toDateString()).getTime()) / 86_400_000)) : 0,
+            opis: (lead.akcja_opis ?? '').replace(CRM_AKCJA[lead.nastepna_akcja]?.hint ?? '\u0000', '').trim(),
+          } : undefined}
+        />
       )}
 
       {/* brief pkt 23: szkic odpowiedzi mailowej pod zadaniem — zawsze, gdy klient ma e-mail */}
