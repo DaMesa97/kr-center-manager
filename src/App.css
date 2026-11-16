@@ -9745,3 +9745,12 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-licznik-row input { width: 110px; padding: 7px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; }
 
 .crm-vat-src { margin-left: 8px; font-weight: 600; background: #f3f1ec; color: #374151; }
+
+/* Statystyki → Konfigurator (#145): kafelki KPI nad wykresem */
+.konf-kpis { display: flex; flex-wrap: wrap; gap: 12px; margin: 4px 0 12px; }
+.konf-kpi { flex: 1 1 160px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
+.konf-kpi__label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; }
+.konf-kpi__value { font-size: 26px; font-weight: 700; line-height: 1.2; }
+.konf-kpi__sub { font-size: 12px; color: #64748b; }
+.konf-kpi--target .konf-kpi__value { color: #b3261e; }
+.konf-kpi--ok .konf-kpi__value { color: #1d6d45; }

@@ -788,6 +788,7 @@ export type StatsSubTab =
   | 'Reklamacje'
   | 'Produktywność'
   | 'Czas realizacji'
+  | 'Konfigurator'
   | 'Zużycie magazynu'
 
 export type OrderPhoto = {

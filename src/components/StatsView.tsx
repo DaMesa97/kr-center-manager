@@ -6,6 +6,7 @@ import ComplaintsStatsDashboard from './stats/ComplaintsStatsDashboard'
 import InternalDoorStatsDashboard from './stats/InternalDoorStatsDashboard'
 import ProductivityView from './stats/ProductivityView'
 import LeadTimeStatsView from './stats/LeadTimeStatsView'
+import ConfiguratorShareView from './stats/ConfiguratorShareView'
 import MonthlyConsumptionView from './warehouse/MonthlyConsumptionView'
 import type { ComponentProps } from 'react'
 
@@ -66,6 +67,7 @@ function StatsView({
       )}
       {activeSubTab === 'Produktywność' && <ProductivityView />}
       {activeSubTab === 'Czas realizacji' && <LeadTimeStatsView />}
+      {activeSubTab === 'Konfigurator' && <ConfiguratorShareView />}
       {activeSubTab === 'Zużycie magazynu' && <MonthlyConsumptionView {...monthlyConsumption} />}
     </div>
   )
