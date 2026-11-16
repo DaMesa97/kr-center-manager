@@ -69,6 +69,7 @@ function ShippingDetailsModal({ open, order, companyInfo, glassAllowances, curre
             Zamówienie nr {order.order_number}
             {isUrgent && <span className="shipping-details-urgent-badge">PILNE</span>}
             {isReady && <span className="shipping-details-ready-badge">GOTOWE DO FAKTUROWANIA</span>}
+            {String(order.erp_ro_number ?? '').trim() && <span className="shipping-details-ro-badge" title="Numer RO w Optimie">RO {order.erp_ro_number}</span>}
           </h2>
           <button className="btn btn-icon btn-ghost" onClick={onClose}>
             X

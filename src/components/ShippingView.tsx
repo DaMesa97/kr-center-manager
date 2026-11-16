@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { GlassAllowance, LeadTimeRule, Order } from '../types'
 import { CATEGORY_LABELS, ROUTE_PLAN_ENABLED } from '../constants'
 import { aluOrderExtra } from '../lib/alu'
-import ErpStatusBadge from './ErpStatusBadge'
+import ErpStatusBadge, { shortRoNumber } from './ErpStatusBadge'
 import {
   autoSuggestReadyToInvoice,
   countCompletedStages,
@@ -568,19 +568,25 @@ export default function ShippingView({
           ? 'Sugestia: wszystkie etapy ukończone lub data wydania ustawiona — można oznaczyć jako gotowe do fakturowania'
           : undefined,
       render: (order) => (
-        <input
-          type="checkbox"
-          checked={isOrderReadyToInvoice(order)}
-          disabled={!canInvoice || loading || order.id === undefined}
-          title={canInvoice ? undefined : 'Brak uprawnień do oznaczania fakturowania'}
-          onChange={(e) => {
-            e.stopPropagation()
-            if (!canInvoice) return
-            void onToggleReadyToInvoice(order, e.target.checked)
-          }}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`Gotowe do fakturowania — ${order.order_number}`}
-        />
+        <>
+          <input
+            type="checkbox"
+            checked={isOrderReadyToInvoice(order)}
+            disabled={!canInvoice || loading || order.id === undefined}
+            title={canInvoice ? undefined : 'Brak uprawnień do oznaczania fakturowania'}
+            onChange={(e) => {
+              e.stopPropagation()
+              if (!canInvoice) return
+              void onToggleReadyToInvoice(order, e.target.checked)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Gotowe do fakturowania — ${order.order_number}`}
+          />
+          {/* #147: numer RO z Optimy od razu przy fakturowaniu (pełny w tytule) */}
+          {shortRoNumber(order.erp_ro_number) && (
+            <span className="shipping-invoice-ro" title={`RO w Optimie: ${order.erp_ro_number}`}>RO {shortRoNumber(order.erp_ro_number)}</span>
+          )}
+        </>
       ),
       sortValue: sv((o) => (isOrderReadyToInvoice(o) ? 1 : 0)),
     }),
