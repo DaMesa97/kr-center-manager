@@ -9,7 +9,7 @@
 // co 10 s, póki coś jest w przeliczaniu.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText, Pencil } from 'lucide-react'
+import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText, Pencil, Trash2 } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_AKCJA,
@@ -57,6 +57,9 @@ import {
   zlecOferteZNagrania,
   zamknijZadanie,
   updateLeadDane,
+  deleteLead,
+  deleteOferta,
+  usunZadanie,
   signedUrlDokument,
   fetchDokumenty,
   updateDokumentStatus,
@@ -941,6 +944,24 @@ function OfertaScreen({
           </div>
         </div>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież"><RefreshCw size={14} /></button>
+        <button
+          type="button"
+          className="btn btn-sm btn-danger"
+          disabled={saving || oferta.status === 'przelicz'}
+          title="Usuń ofertę (nieodwracalne)"
+          onClick={async () => {
+            const ok = await appConfirm(`Usunąć ofertę v${oferta.wersja}${oferta.numer ? ` nr ${oferta.numer}` : ''}? Zniknie z historii klienta razem z plikiem PDF. Tego nie da się cofnąć.`)
+            if (!ok) return
+            setSaving(true)
+            const err = await deleteOferta(oferta)
+            setSaving(false)
+            if (err) { pushToast(`Nie udało się usunąć oferty: ${err.message}`, 'error'); return }
+            pushToast('Oferta usunięta', 'success')
+            onBack()
+          }}
+        >
+          <Trash2 size={14} /> Usuń ofertę
+        </button>
       </div>
 
       {/* 0. BŁĄD SYSTEMU przy liczeniu */}
@@ -1708,6 +1729,26 @@ function LeadScreen({
             {lead.kampania ? ` · kampania: ${lead.kampania}` : ''}
           </div>
         </div>
+        <button
+          type="button"
+          className="btn btn-sm btn-danger"
+          disabled={saving}
+          title="Usuń klienta ze wszystkim, co ma w CRM (nieodwracalne)"
+          onClick={async () => {
+            const ok = await appConfirm(
+              `Usunąć klienta „${leadName(lead)}”? Razem z nim znikną: ${oferty.length} ofert, ${dokumenty.length} dokumentów, ${rozmowy.length} rozmów i cała historia. Maile zostaną, ale bez powiązania. Tego nie da się cofnąć.`,
+            )
+            if (!ok) return
+            setSaving(true)
+            const err = await deleteLead(lead.id)
+            setSaving(false)
+            if (err) { pushToast(`Nie udało się usunąć klienta: ${err.message}`, 'error'); return }
+            pushToast('Klient usunięty', 'success')
+            onBack()
+          }}
+        >
+          <Trash2 size={14} /> Usuń klienta
+        </button>
       </div>
 
       {/* etykiety (brief pkt 12): klik w badge zdejmuje, „+” otwiera wybór ze słownika */}
@@ -1748,6 +1789,23 @@ function LeadScreen({
             {lead.nastepna_akcja === 'przygotuj_oferte' && activeOferta && activeOferta.status !== 'przelicz' && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={saving || zadanieDialog} onClick={handleZrobione} title="Zamknij zadanie i ustaw następny krok">Zrobione</button>
             )}
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={saving || zadanieDialog}
+              title="Zdejmij zadanie bez oznaczania jako zrobione"
+              onClick={async () => {
+                if (!(await appConfirm('Usunąć to zadanie? Klient zniknie z listy „Do zrobienia”, w historii zostanie ślad.'))) return
+                setSaving(true)
+                const err = await usunZadanie(lead, currentUser?.id ?? '')
+                setSaving(false)
+                if (err) { pushToast(`Nie udało się usunąć zadania: ${err.message}`, 'error'); return }
+                pushToast('Zadanie usunięte', 'success')
+                void load(true)
+              }}
+            >
+              <Trash2 size={14} /> Usuń zadanie
+            </button>
           </div>
         </section>
       )}

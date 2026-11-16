@@ -225,6 +225,49 @@ export async function zamknijZadanie(leadId: string, z: CrmZamknijZadanie): Prom
 
 // ---- Kontakty (brief pkt 20): wszyscy klienci + ostatnia oferta ----
 
+// ── Usuwanie (zgłoszenie #142, Tymek 16.11): klient, oferta, zadanie ──────────
+// RLS: leady/oferty = ALL dla osób z dostępem do CRM; FK kaskadowe (oferty, rozmowy,
+// zdarzenia, dokumenty) sprzątają resztę, maile zostają bez lead_id. Pliki PDF z bucketu
+// crm-dokumenty usuwamy najlepiej jak się da (błąd pliku nie blokuje usunięcia rekordu).
+async function removeCrmFiles(paths: Array<string | null | undefined>): Promise<void> {
+  const list = paths.filter((p): p is string => !!p && p.trim().length > 0)
+  if (list.length === 0) return
+  const { error } = await supabase.storage.from('crm-dokumenty').remove(list)
+  if (error) console.warn('[CRM] nie usunięto plików:', error.message)
+}
+
+/** Usuwa klienta razem z ofertami, rozmowami, historią i dokumentami. Nieodwracalne. */
+export async function deleteLead(id: string): Promise<CrmError | null> {
+  const [{ data: of }, { data: dk }] = await Promise.all([
+    crm().from('oferty').select('plik_pdf').eq('lead_id', id),
+    crm().from('dokumenty').select('plik_pdf').eq('lead_id', id),
+  ])
+  await removeCrmFiles([...(of ?? []), ...(dk ?? [])].map((r) => (r as { plik_pdf: string | null }).plik_pdf))
+  const { error } = await crm().from('leady').delete().eq('id', id)
+  return crmErrorFrom(error)
+}
+
+/** Usuwa jedną ofertę (i jej zdarzenia); dokumenty i maile tracą tylko powiązanie. */
+export async function deleteOferta(oferta: Pick<CrmOferta, 'id' | 'plik_pdf'>): Promise<CrmError | null> {
+  await removeCrmFiles([oferta.plik_pdf])
+  const { error } = await crm().from('oferty').delete().eq('id', oferta.id)
+  return crmErrorFrom(error)
+}
+
+/** Zdejmuje zadanie z klienta bez oznaczania „zrobione” (ślad w historii: zadanie_usuniete). */
+export async function usunZadanie(lead: CrmLead, userId: string): Promise<CrmError | null> {
+  const { error } = await crm().from('leady').update({ nastepna_akcja: null, nastepny_krok: null, akcja_opis: null, akcja_od: null }).eq('id', lead.id)
+  if (error) return crmErrorFrom(error)
+  await crm().from('zdarzenia').insert({
+    lead_id: lead.id,
+    typ: 'zadanie_usuniete',
+    opis: `Usunięto zadanie: ${lead.nastepna_akcja ?? ''} ${lead.akcja_opis ?? ''}`.trim(),
+    kto: userId,
+    dane: { zrodlo: 'klik', akcja: lead.nastepna_akcja },
+  })
+  return null
+}
+
 export type CrmKontaktRow = CrmLead & {
   ostatnia_oferta?: Pick<CrmOferta, 'id' | 'status' | 'wersja' | 'cena_razem' | 'rodzaj' | 'numer' | 'brutto' | 'created_at'> | null
 }

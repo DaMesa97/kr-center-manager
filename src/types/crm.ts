@@ -322,6 +322,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   oferta_zlecona: 'Oferta zlecona do przeliczenia',
   oferta_utworzona: 'Oferta utworzona',
   zadanie_zrobione: 'Zadanie zrobione',
+  zadanie_usuniete: 'Zadanie usunięte',
   follow_up_zaplanowany: 'Follow-up zaplanowany',
   mail_wyslany: 'Mail wysłany do klienta',
   klient_odpisal: 'Klient odpisał na ofertę',
