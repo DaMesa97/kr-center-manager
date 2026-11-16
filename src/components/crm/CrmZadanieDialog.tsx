@@ -27,6 +27,8 @@ const OPCJE: Array<{ akcja: string | null; label: string; hint: string }> = [
   { akcja: 'oddzwon', label: 'Oddzwoń', hint: 'Zamknie się samo po odebranej rozmowie z Ringostatu' },
   { akcja: 'dopytaj', label: 'Dopytaj', hint: 'Brakuje danych do oferty (wymiar, kolor…)' },
   { akcja: 'przygotuj_oferte', label: 'Przygotuj ofertę', hint: 'Z notatką w karcie system sam policzy ofertę' },
+  { akcja: 'pomiar', label: 'Pomiar', hint: 'Umówiony pomiar u klienta — termin = dzień pomiaru' },
+  { akcja: 'montaz', label: 'Montaż', hint: 'Umówiony montaż — termin = dzień montażu' },
 ]
 
 export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfirm, onCancel }: Props) {

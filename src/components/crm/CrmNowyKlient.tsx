@@ -24,7 +24,7 @@ type Props = {
   onCancel: () => void
 }
 
-const AKCJE_WIZYTA = ['przygotuj_oferte', 'dopytaj', 'oddzwon'] as const
+const AKCJE_WIZYTA = ['przygotuj_oferte', 'dopytaj', 'oddzwon', 'pomiar', 'montaz'] as const
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 

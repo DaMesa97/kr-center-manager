@@ -236,6 +236,8 @@ export const CRM_AKCJA: Record<string, { label: string; icon: string; hint: stri
   przygotuj_oferte: { label: 'Sprawdź i wyślij ofertę', icon: '📄', hint: 'System policzył ofertę — przeczytaj mail i wyślij' },
   follow_up: { label: 'Zapytaj o decyzję', icon: '🔁', hint: 'Oferta wysłana, brak odpowiedzi — zapytaj klienta o decyzję' },
   reklamacja: { label: 'Reklamacja', icon: '⚠️', hint: 'Klient zgłasza reklamację' },
+  pomiar: { label: 'Pomiar', icon: '📐', hint: 'Umówiony pomiar u klienta' },
+  montaz: { label: 'Montaż', icon: '🔧', hint: 'Umówiony montaż u klienta' },
 }
 
 /** „Co zrobił system” z rozmową (brief pkt 13.4) */
