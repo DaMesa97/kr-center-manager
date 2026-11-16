@@ -7,9 +7,23 @@
 import { useState } from 'react'
 import { Check, X } from 'lucide-react'
 import { CRM_AKCJA, CRM_FOLLOW_UP_DAYS, type CrmZamknijZadanie } from '../../types/crm'
-import { terminHint } from '../../utils/crmTermin'
+import { isoLocal, terminHint, terminHintForIso } from '../../utils/crmTermin'
 import { useDniWolne } from '../../hooks/useDniWolne'
 import Spinner from '../Spinner'
+
+const fmtPl = (iso: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso
+}
+/** liczba dni od dziś do daty RRRR-MM-DD (ujemna = przeszłość) */
+const dniDo = (iso: string): number => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!m) return 0
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  const t = new Date()
+  const dzis = new Date(t.getFullYear(), t.getMonth(), t.getDate())
+  return Math.round((d.getTime() - dzis.getTime()) / 86_400_000)
+}
 
 type Props = {
   /** nazwa klienta do nagłówka */
@@ -19,8 +33,8 @@ type Props = {
   busy: boolean
   onConfirm: (z: CrmZamknijZadanie) => void | Promise<void>
   onCancel: () => void
-  /** #150: edycja istniejącego zadania — wartości startowe; zapis bez zdarzenia „zrobione” */
-  edycja?: { akcja: string; zaDni: number; opis: string }
+  /** #150: edycja istniejącego zadania — wartości startowe; zapis bez zdarzenia „zrobione”. `termin` = obecny nastepny_krok (RRRR-MM-DD) */
+  edycja?: { akcja: string; zaDni: number; opis: string; termin?: string | null }
 }
 
 const OPCJE: Array<{ akcja: string | null; label: string; hint: string }> = [
@@ -37,9 +51,17 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
   const dodaj = biezaceZadanie == null
   const [akcja, setAkcja] = useState<string | null>(edycja ? edycja.akcja : 'follow_up')
   const [zaDni, setZaDni] = useState<number>(edycja ? edycja.zaDni : CRM_FOLLOW_UP_DAYS)
+  // konkretna data z kalendarza (Tymek 16.11): nadrzędna wobec „za ile dni”; wpis w „za ile dni” ją czyści
+  const [termin, setTermin] = useState<string>(edycja?.termin && /^\d{4}-\d{2}-\d{2}$/.test(edycja.termin) ? edycja.termin : '')
   const [opis, setOpis] = useState(edycja ? edycja.opis : '')
   const [wyslano, setWyslano] = useState(false)
   const dniWolne = useDniWolne()
+  const terminWstecz = termin !== '' && dniDo(termin) < 0
+  const podpowiedz = termin
+    ? terminWstecz
+      ? 'termin w przeszłości — zadanie od razu będzie zaległe'
+      : (terminHintForIso(termin, new Date(), dniWolne) ?? `termin ${fmtPl(termin)}`)
+    : (terminHint(zaDni, new Date(), dniWolne) ?? '0 = dziś · terminy tylko w dni robocze')
 
   const opcje = dodaj || edycja ? OPCJE.filter((o) => o.akcja != null) : OPCJE
   const tytul = edycja
@@ -67,10 +89,24 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
         <div className="crm-zadanie-row">
           <label className="crm-pf-field crm-pf-field--short">
             <span className="crm-pf-label">Za ile dni</span>
-            <input type="number" min={0} max={90} value={zaDni} onChange={(e) => setZaDni(Math.max(0, Math.min(90, Number(e.target.value) || 0)))} disabled={busy} />
+            <input
+              type="number"
+              min={0}
+              max={365}
+              value={termin ? Math.max(0, dniDo(termin)) : zaDni}
+              onChange={(e) => {
+                setTermin('')
+                setZaDni(Math.max(0, Math.min(365, Number(e.target.value) || 0)))
+              }}
+              disabled={busy}
+            />
+          </label>
+          <label className="crm-pf-field crm-pf-field--short">
+            <span className="crm-pf-label">albo termin</span>
+            <input type="date" value={termin} min={isoLocal(new Date())} onChange={(e) => setTermin(e.target.value)} disabled={busy} aria-label="Konkretny termin zadania" />
           </label>
           {/* terminy tylko w dni robocze (trigger leady_termin_roboczy) — pokazujemy, co baza zapisze */}
-          <span className="crm-muted">{terminHint(zaDni, new Date(), dniWolne) ?? '0 = dziś · terminy tylko w dni robocze'}</span>
+          <span className="crm-muted">{podpowiedz}</span>
         </div>
       )}
       <label className="crm-pf-field">
@@ -84,7 +120,7 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
         </label>
       )}
       <div className="crm-poczta-actions">
-        <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onConfirm({ nastepna_akcja: akcja, za_dni: zaDni, opis, wyslano_oferte: wyslano })}>
+        <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onConfirm({ nastepna_akcja: akcja, za_dni: termin ? Math.max(0, dniDo(termin)) : zaDni, opis, wyslano_oferte: wyslano, termin: termin || null })}>
           {busy ? <Spinner inline size={14} /> : <Check size={14} />} {edycja ? 'Zapisz zmiany' : dodaj ? 'Dodaj zadanie' : 'Zapisz'}
         </button>
         <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onCancel}><X size={14} /> Anuluj</button>

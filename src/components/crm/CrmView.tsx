@@ -1884,6 +1884,7 @@ function LeadScreen({
             akcja: lead.nastepna_akcja,
             zaDni: lead.nastepny_krok ? Math.max(0, Math.round((new Date(lead.nastepny_krok).getTime() - new Date(new Date().toDateString()).getTime()) / 86_400_000)) : 0,
             opis: (lead.akcja_opis ?? '').replace(CRM_AKCJA[lead.nastepna_akcja]?.hint ?? '\u0000', '').trim(),
+            termin: lead.nastepny_krok ? String(lead.nastepny_krok).slice(0, 10) : null,
           } : undefined}
         />
       )}

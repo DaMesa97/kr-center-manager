@@ -227,7 +227,14 @@ export async function zamknijZadanie(leadId: string, z: CrmZamknijZadanie): Prom
     p_opis: z.opis?.trim() || null,
     p_wyslano_oferte: z.wyslano_oferte,
   })
-  return crmErrorFrom(error)
+  if (error) return crmErrorFrom(error)
+  // konkretna data z kalendarza: rpc liczy dziś+za_dni po czasie serwera (UTC), więc dopinamy dokładny termin;
+  // trigger leady_termin_roboczy sam przesunie weekend/święto
+  if (z.nastepna_akcja && z.termin) {
+    const { error: e2 } = await crm().from('leady').update({ nastepny_krok: z.termin }).eq('id', leadId)
+    if (e2) return crmErrorFrom(e2)
+  }
+  return null
 }
 
 // ---- Kontakty (brief pkt 20): wszyscy klienci + ostatnia oferta ----
@@ -266,7 +273,7 @@ export async function edytujZadanie(lead: CrmLead, z: CrmZamknijZadanie, userId:
   if (!z.nastepna_akcja) return { kind: 'other', message: 'Wybierz rodzaj zadania' }
   const dzis = new Date()
   const termin = new Date(dzis.getFullYear(), dzis.getMonth(), dzis.getDate() + Math.max(0, z.za_dni))
-  const terminIso = `${termin.getFullYear()}-${String(termin.getMonth() + 1).padStart(2, '0')}-${String(termin.getDate()).padStart(2, '0')}`
+  const terminIso = z.termin || `${termin.getFullYear()}-${String(termin.getMonth() + 1).padStart(2, '0')}-${String(termin.getDate()).padStart(2, '0')}`
   const opis = `${CRM_AKCJA[z.nastepna_akcja]?.hint ?? ''}${z.opis ? ` ${z.opis}` : ''}`.trim().slice(0, 500)
   const { error } = await crm().from('leady').update({ nastepna_akcja: z.nastepna_akcja, nastepny_krok: terminIso, akcja_opis: opis || null, akcja_od: new Date().toISOString() }).eq('id', lead.id)
   if (error) return crmErrorFrom(error)

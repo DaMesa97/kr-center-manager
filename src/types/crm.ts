@@ -678,7 +678,8 @@ export type CrmDokumentOdp = { ok: boolean; dokument_id: string; rodzaj: string;
 export const CRM_EDGE_DOKUMENTY = 'crm-dokumenty'
 
 /** „Zrobione” z następnym krokiem (rpc crm.zamknij_zadanie, brief pkt 20) */
-export type CrmZamknijZadanie = { nastepna_akcja: string | null; za_dni: number; opis: string | null; wyslano_oferte: boolean }
+/** `termin` (RRRR-MM-DD) = konkretna data z kalendarza (Tymek 16.11); gdy jest, `za_dni` to tylko jej przeliczenie na dziś */
+export type CrmZamknijZadanie = { nastepna_akcja: string | null; za_dni: number; opis: string | null; wyslano_oferte: boolean; termin?: string | null }
 
 /** Statusy ofert „do roboty” — domyślny filtr listy (brief pkt 3). */
 export const CRM_OPEN_STATUSES = ['do_sprawdzenia', 'przelicz', 'wstrzymana'] as const
