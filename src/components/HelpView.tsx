@@ -25,6 +25,15 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: otwieranie i edycja zadań, duplikaty klientów, termin z kalendarza; etykiety; RO w fakturowaniu (beta.126)</h4>
+        <ul>
+          <li><b>CRM → Do zrobienia:</b> klik w wiersz otwiera kartę klienta ze szczegółami zadania; na karcie <b>Zmień zadanie</b> (rodzaj, termin, opis bez oznaczania „zrobione”) i <b>Usuń zadanie</b>. W dialogu zadania obok „Za ile dni” jest pole <b>„albo termin”</b> z kalendarzem; podpowiedź pokazuje, na jaki dzień roboczy termin wyląduje, a data wstecz dostaje ostrzeżenie.</li>
+          <li><b>CRM → Kontakty, filtr „duplikaty”:</b> pary klientów z tym samym telefonem, e-mailem, nazwą (bez „Sp. z o.o.” itp.) albo domeną firmową, z powodem i pewnością. Na karcie klienta baner <b>„Możliwy duplikat”</b> z linkiem do drugiej karty i <b>Połącz</b>: wybierasz, który kontakt zostaje, drugi wchodzi w niego z całą historią, ofertami i dokumentami (nieodwracalne, z potwierdzeniem). Dane połączonego kontaktu widać w „Inne dane kontaktowe” i działają w wyszukiwarce; w Historii wpis „Połączono klientów”. Mail od nowego adresu z tej samej domeny firmowej trafia do istniejącego klienta („Dopisano do klienta”).</li>
+          <li><b>CRM → oferty nie liczą się same:</b> oferta z rozmowy lub maila powstaje jako „Czeka na akceptację” z zadaniem „Sprawdź ustalenia i zleć ofertę”; na ekranie oferty blok „Ustalenia” z przyciskiem „Ustalenia OK — policz ofertę”. Automat włącza się w CRM → Ustawienia. Oferta sklepowa może mieć kilka pozycji (różne drzwi, ilości) — tabela pozycji w „Danych technicznych”, poprawki typu „w pozycji 2 daj 70 lewe”.</li>
+          <li><b>CRM → Dokumenty → Karta pomiarowa:</b> wymagane jest tylko nazwisko klienta; puste pola (data, godzina, adres, kto jedzie) zostają na blankiecie jako kropki do wpisania na pomiarze.</li>
+          <li><b>Konfiguracja → Szablony etykiet:</b> przy każdym polu przycisk <b>„if”</b> wstawia pole w warunku <code>{'{if pole}…{/if}'}</code>, opis warunków widać pod listą, a <b>„Owiń wiersze tabeli warunkami”</b> robi to dla całego szablonu jednym klikiem (wiersz z pustym parametrem znika zamiast „-”). Szablony STA, Disting i Aluminium są już owinięte; kopie sprzed zmiany można usunąć.</li>
+          <li><b>Wysyłka → FAKTURA:</b> pod checkboxem numer RO z Optimy (pełny po najechaniu) i plakietka „RO …” w szczegółach zamówienia.</li>
+        </ul>
         <h4>Zgłoszenia z 16.11: konfigurator w Statystykach, pozycje w szkicu ZD, CRM (beta.125)</h4>
         <ul>
           <li><b>Statystyki → Konfigurator:</b> ile procent zleceń przychodzi z konfiguratora, miesiąc po miesiącu, z linią celu 50% (koniec 2027). Kafelki: bieżący i poprzedni miesiąc, cały okres; linie per kategoria do włączenia; tabela wg kategorii. Liczone po dacie zamówienia, bez anulowanych.</li>
