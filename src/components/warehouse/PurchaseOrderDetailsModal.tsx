@@ -52,6 +52,9 @@ export default function PurchaseOrderDetailsModal({
   const [editing, setEditing] = useState(false)
   const [draftQtyByItem, setDraftQtyByItem] = useState<Record<number, number>>({})
   const [saving, setSaving] = useState(false)
+  // #121 (Tymek 9.11): w szkicu ZD można dodawać i usuwać pozycje, nie tylko zmieniać ilości
+  const [newComponentId, setNewComponentId] = useState<number | ''>('')
+  const [newQty, setNewQty] = useState(1)
   const canOperate =
     isManager ||
     currentUser?.role === 'magazynier' ||
@@ -76,6 +79,15 @@ export default function PurchaseOrderDetailsModal({
   )
   const componentById = useMemo(() => new Map(components.map((c) => [c.id, c])), [components])
   const profileById = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles])
+  const addableComponents = useMemo(() => {
+    const present = new Set(items.map((i) => i.component_id))
+    const list = components.filter((c) => c.is_active && !present.has(c.id)).sort((a, b) => a.name.localeCompare(b.name, 'pl'))
+    const sid = purchaseOrder?.supplier_id ?? null
+    return {
+      supplier: sid == null ? [] : list.filter((c) => c.supplier_id === sid),
+      other: sid == null ? list : list.filter((c) => c.supplier_id !== sid),
+    }
+  }, [components, items, purchaseOrder?.supplier_id])
 
   const profileDisplayName = (profile: DbProfileRow): string => {
     const firstLast = `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim()
@@ -167,6 +179,48 @@ export default function PurchaseOrderDetailsModal({
     setSaving(false)
     setEditing(false)
     pushToast('Pozycje zamówienia zapisane', 'success')
+    onAfterAction()
+  }
+
+  const addDraftItem = async () => {
+    if (!purchaseOrder || saving || newComponentId === '') return
+    if (items.some((i) => i.component_id === newComponentId)) {
+      pushToast('Ten komponent już jest w zamówieniu — zmień ilość w jego wierszu', 'error')
+      return
+    }
+    setSaving(true)
+    const { error } = await supabase.from('purchase_order_items').insert({
+      purchase_order_id: purchaseOrder.id,
+      component_id: newComponentId,
+      quantity_ordered: Math.max(1, Number(newQty) || 1),
+    })
+    setSaving(false)
+    if (error) {
+      pushToast(`Błąd dodawania pozycji: ${error.message}`, 'error')
+      return
+    }
+    setNewComponentId('')
+    setNewQty(1)
+    pushToast('Pozycja dodana', 'success')
+    onAfterAction()
+  }
+
+  const removeDraftItem = async (item: PurchaseOrderItem) => {
+    if (!purchaseOrder || saving) return
+    if (items.length <= 1) {
+      pushToast('Zamówienie musi mieć co najmniej jedną pozycję — jeśli nie jest potrzebne, anuluj całe zamówienie', 'error')
+      return
+    }
+    const name = componentById.get(item.component_id)?.name ?? `SKU #${item.component_id}`
+    if (!(await appConfirm(`Usunąć pozycję „${name}” ze szkicu zamówienia?`))) return
+    setSaving(true)
+    const { error } = await supabase.from('purchase_order_items').delete().eq('id', item.id)
+    setSaving(false)
+    if (error) {
+      pushToast(`Błąd usuwania pozycji: ${error.message}`, 'error')
+      return
+    }
+    pushToast('Pozycja usunięta', 'success')
     onAfterAction()
   }
 
@@ -268,12 +322,15 @@ export default function PurchaseOrderDetailsModal({
       label: 'Akcje',
       thStyle: { width: 140 },
       render: (item) =>
-        canOperate &&
-        (item.status_per_item === 'pending' || item.status_per_item === 'partial') && (
+        canEditQty ? (
+          <button type="button" className="btn btn-sm btn-danger" onClick={() => void removeDraftItem(item)} disabled={saving}>
+            Usuń
+          </button>
+        ) : canOperate && purchaseOrder.status !== 'draft' && (item.status_per_item === 'pending' || item.status_per_item === 'partial') ? (
           <button type="button" className="btn btn-sm btn-danger" onClick={() => void cancelItem(item.id)}>
             Zamknij pozycję
           </button>
-        ),
+        ) : null,
     },
   ]
 
@@ -311,6 +368,44 @@ export default function PurchaseOrderDetailsModal({
           </div>
         )}
         <DataTable rows={items} rowKey={(item) => item.id} columns={itemColumns} emptyText="Brak pozycji." />
+        {canEditQty && (
+          <div className="orders-filters" style={{ marginTop: 10, gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600 }}>Dodaj pozycję:</span>
+            <select
+              className="day-filter"
+              style={{ minWidth: 320, flex: '1 1 320px' }}
+              value={newComponentId === '' ? '' : String(newComponentId)}
+              onChange={(e) => setNewComponentId(e.target.value === '' ? '' : Number(e.target.value))}
+              disabled={saving}
+            >
+              <option value="">— wybierz komponent —</option>
+              {addableComponents.supplier.length > 0 && (
+                <optgroup label={`Dostawca: ${supplier?.name ?? '—'}`}>
+                  {addableComponents.supplier.map((c) => (
+                    <option key={c.id} value={String(c.id)}>{c.name}{c.code ? ` (${c.code})` : ''}</option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Pozostałe komponenty">
+                {addableComponents.other.map((c) => (
+                  <option key={c.id} value={String(c.id)}>{c.name}{c.code ? ` (${c.code})` : ''}</option>
+                ))}
+              </optgroup>
+            </select>
+            <input
+              type="number"
+              min={1}
+              className="extension-qty-input"
+              style={{ width: 90 }}
+              value={newQty}
+              onChange={(e) => setNewQty(Math.max(1, Number(e.target.value) || 1))}
+              disabled={saving}
+            />
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => void addDraftItem()} disabled={saving || newComponentId === ''}>
+              + Dodaj
+            </button>
+          </div>
+        )}
         </div>
 
         <div className="order-form-actions">
