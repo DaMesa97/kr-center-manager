@@ -92,22 +92,19 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
   const onSave = async () => {
     let req: GenerujDokument
     if (rodzaj === 'karta_pomiarowa') {
-      if (!dataPomiaru || !godzina || !adresPomiaru.trim() || !wykonal.trim()) {
-        pushToast('Wpisz datę, godzinę, adres pomiaru i kto jedzie', 'error')
-        return
-      }
-      if (!lead.telefon || !lead.email) {
-        pushToast('Karta wymaga telefonu i e-maila klienta — uzupełnij dane w karcie klienta („edytuj” przy Kontakcie)', 'error')
+      // crm-dokumenty v4 (zgłoszenie #151): karta wymaga tylko nazwiska klienta — reszta to puste pola do wpisania ręcznie na pomiarze
+      if (!lead.nazwa?.trim()) {
+        pushToast('Karta wymaga nazwiska klienta — uzupełnij dane w karcie klienta („edytuj” przy Kontakcie)', 'error')
         return
       }
       req = {
         rodzaj,
         lead_id: lead.id,
         dane: {
-          data_pomiaru: toPl(dataPomiaru),
-          godzina,
-          adres_pomiaru: adresPomiaru.trim(),
-          wykonal: wykonal.trim(),
+          data_pomiaru: dataPomiaru ? toPl(dataPomiaru) : undefined,
+          godzina: godzina || undefined,
+          adres_pomiaru: adresPomiaru.trim() || undefined,
+          wykonal: wykonal.trim() || undefined,
           pietro: pietro.trim() || undefined,
           otwory: otwory.filter((o) => o.pomieszczenie.trim() || o.rodzaj).map((o) => ({ rodzaj: o.rodzaj, pomieszczenie: o.pomieszczenie.trim() })),
         },
@@ -178,19 +175,19 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
         <>
           <div className="crm-pf-grid">
             <label className="crm-pf-field crm-pf-field--short">
-              <span className="crm-pf-label">Data pomiaru *</span>
+              <span className="crm-pf-label">Data pomiaru</span>
               <input type="date" value={dataPomiaru} onChange={(e) => setDataPomiaru(e.target.value)} disabled={busy} />
             </label>
             <label className="crm-pf-field crm-pf-field--short">
-              <span className="crm-pf-label">Godzina *</span>
+              <span className="crm-pf-label">Godzina</span>
               <input type="time" value={godzina} onChange={(e) => setGodzina(e.target.value)} disabled={busy} />
             </label>
             <label className="crm-pf-field crm-pf-field--wide">
-              <span className="crm-pf-label">Adres pomiaru *</span>
+              <span className="crm-pf-label">Adres pomiaru</span>
               <input type="text" value={adresPomiaru} onChange={(e) => setAdresPomiaru(e.target.value)} placeholder="ulica, kod, miejscowość" disabled={busy} />
             </label>
             <label className="crm-pf-field">
-              <span className="crm-pf-label">Kto jedzie na pomiar *</span>
+              <span className="crm-pf-label">Kto jedzie na pomiar</span>
               <input type="text" value={wykonal} onChange={(e) => setWykonal(e.target.value)} placeholder="imię i nazwisko" disabled={busy} autoComplete="off" />
             </label>
             <label className="crm-pf-field crm-pf-field--short">
@@ -213,7 +210,7 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy || otwory.length >= CRM_KARTA_OTWORY_MAX} onClick={() => setOtwory((s) => [...s, { rodzaj: CRM_OTWOR_RODZAJ[0], pomieszczenie: '' }])}><Plus size={14} /> Dodaj otwór</button>
             </div>
           </div>
-          {(!lead.telefon || !lead.email) && <p className="crm-muted">Karta wymaga telefonu i e-maila klienta — brakuje: {[!lead.telefon && 'telefon', !lead.email && 'e-mail'].filter(Boolean).join(', ')}.</p>}
+          <p className="crm-muted">Wymagane jest tylko nazwisko klienta. Puste pola zostają na karcie jako kropki do wpisania długopisem na pomiarze{(!lead.telefon || !lead.email) ? ` — w danych klienta brakuje: ${[!lead.telefon && 'telefon', !lead.email && 'e-mail'].filter(Boolean).join(', ')}` : ''}.</p>
         </>
       )}
 
