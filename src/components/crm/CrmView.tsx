@@ -9,7 +9,7 @@
 // co 10 s, póki coś jest w przeliczaniu.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText, Pencil, Trash2, Merge } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_AKCJA,
@@ -27,6 +27,8 @@ import {
   CRM_DOKUMENT_STATUS,
   type CrmDokument,
   type CrmDokumentOdp,
+  type CrmDuplikatLeada,
+  CRM_KANAL,
   type CrmLead,
   type CrmMail,
   type CrmOferta,
@@ -64,6 +66,7 @@ import {
   edytujZadanie,
   signedUrlDokument,
   fetchDokumenty,
+  fetchDuplikatyLeada,
   updateDokumentStatus,
   generujSzkic,
   type CrmError,
@@ -82,6 +85,7 @@ import CrmKontaktyScreen from './CrmKontaktyScreen'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
+import CrmPolaczPanel from './CrmPolaczPanel'
 import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
 import { EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
 import CrmNowyKlient from './CrmNowyKlient'
@@ -1579,6 +1583,7 @@ function LeadScreen({
   onBack,
   onOpenOferta,
   onOpenMail,
+  onOpenLead,
 }: {
   id: string
   mode: CrmMode
@@ -1587,6 +1592,7 @@ function LeadScreen({
   onBack: () => void
   onOpenOferta: (id: string) => void
   onOpenMail: (id: string) => void
+  onOpenLead: (id: string) => void
 }) {
   const [lead, setLead] = useState<CrmLead | null>(null)
   const [rozmowy, setRozmowy] = useState<CrmRozmowa[]>([])
@@ -1598,6 +1604,9 @@ function LeadScreen({
   const [dokumenty, setDokumenty] = useState<CrmDokument[]>([])
   const [dokForm, setDokForm] = useState<{ rodzaj: DokumentRodzaj; istniejacy?: CrmDokument } | null>(null)
   const [dokWynik, setDokWynik] = useState<CrmDokumentOdp | null>(null)
+  // brief pkt 26: możliwe duplikaty tego klienta (rpc duplikaty_leada) + otwarty panel łączenia
+  const [duplikaty, setDuplikaty] = useState<CrmDuplikatLeada[]>([])
+  const [polacz, setPolacz] = useState<CrmDuplikatLeada | null>(null)
   const [names, setNames] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
@@ -1618,12 +1627,13 @@ function LeadScreen({
       return dirty
     })
     if (l) {
-      const [r, o, z, m, dk] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id }), fetchMaileLeada(l.id), fetchDokumenty(l.id)])
+      const [r, o, z, m, dk, dp] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id }), fetchMaileLeada(l.id), fetchDokumenty(l.id), fetchDuplikatyLeada(l.id)])
       setRozmowy(r.data)
       setOferty(o.data)
       setZdarzenia(z.data)
       setMaile(m.data)
       if (!dk.error) setDokumenty(dk.data)
+      if (!dp.error) setDuplikaty(dp.data)
       setNames(await fetchProfileNames(z.data.map((e) => e.kto ?? '')))
     }
     setLoading(false)
@@ -1809,6 +1819,47 @@ function LeadScreen({
         />
       </div>
 
+      {/* brief pkt 26: możliwe duplikaty — baner z linkiem do drugiej karty i „Połącz” (panel w miejscu, nieodwracalne) */}
+      {duplikaty.length > 0 && (
+        <section className="crm-dup-baner">
+          <h4><Merge size={15} /> Możliwy duplikat{duplikaty.length > 1 ? ` (${duplikaty.length})` : ''}</h4>
+          <ul className="crm-dup-lista">
+            {duplikaty.map((d) => (
+              <li key={d.id} className="crm-dup-row">
+                <button type="button" className="crm-link" onClick={() => onOpenLead(d.id)} title="Otwórz kartę tego klienta">
+                  <b>{(d.nazwa || d.telefon || d.email || 'Klient bez nazwy').trim()}</b>
+                </button>
+                <span className="crm-muted">
+                  {[d.telefon, d.email, d.miejscowosc].filter(Boolean).join(' · ')}
+                  {d.status ? ` · ${CRM_LEAD_STATUS[d.status] ?? d.status}` : ''}
+                </span>
+                <span className="crm-dup-powod">{d.powod} · {d.pewnosc}%</span>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={saving || (polacz != null && polacz.id !== d.id)} onClick={() => setPolacz(polacz?.id === d.id ? null : d)}>
+                  <Merge size={14} /> Połącz
+                </button>
+              </li>
+            ))}
+          </ul>
+          {polacz && (
+            <CrmPolaczPanel
+              a={{ id: lead.id, nazwa: lead.nazwa, email: lead.email, telefon: lead.telefon, miejscowosc: lead.miejscowosc }}
+              b={{ id: polacz.id, nazwa: polacz.nazwa, email: polacz.email, telefon: polacz.telefon, miejscowosc: polacz.miejscowosc }}
+              powod={polacz.powod}
+              pewnosc={polacz.pewnosc}
+              opisA={`${zdarzenia.length} wpisów historii, ${oferty.length} ofert, ${dokumenty.length} dokumentów`}
+              pushToast={pushToast}
+              onCancel={() => setPolacz(null)}
+              onDone={(celId) => {
+                setPolacz(null)
+                // ten klient był źródłem → zniknął, przechodzimy na kartę celu; inaczej odświeżamy
+                if (celId !== lead.id) onOpenLead(celId)
+                else void load(true)
+              }}
+            />
+          )}
+        </section>
+      )}
+
       {/* zadanie na leadzie */}
       {lead.nastepna_akcja && (
         <section className={`crm-check ${terminState(lead.nastepny_krok) === 'overdue' ? 'crm-check--bad' : ''}`}>
@@ -1931,6 +1982,19 @@ function LeadScreen({
               <Field label="E-mail">{lead.email ? <span className="crm-ext crm-copy-value"><Mail size={13} /> {lead.email}</span> : '—'}</Field>
               <Field label="Miejscowość">{lead.miejscowosc || '—'}</Field>
             </>
+          )}
+          {/* brief pkt 26: dane klientów połączonych w tego */}
+          {(lead.inne_kontakty?.length ?? 0) > 0 && (
+            <Field label="Inne dane kontaktowe">
+              <ul className="crm-inne-kontakty">
+                {(lead.inne_kontakty ?? []).map((k, i) => (
+                  <li key={i} title={k.polaczono ? `połączono ${fmtDateTime(k.polaczono)}` : undefined}>
+                    {[k.nazwa, k.telefon, k.email, k.miejscowosc].filter((x) => (x ?? '').trim()).join(' · ') || '—'}
+                    {k.zrodlo && CRM_KANAL[k.zrodlo] ? <span className="crm-muted"> · {CRM_KANAL[k.zrodlo].label}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </Field>
           )}
           <Field label="Wartość szac.">{fmtPln(lead.wartosc_szac)}</Field>
           <Field label="Ostatnia rozmowa">{fmtDateTime(lead.ostatnia_rozmowa_at)}</Field>
@@ -2256,7 +2320,7 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       {screen.kind === 'oferta' && (
         <OfertaScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
       )}
-      {screen.kind === 'lead' && <LeadScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenOferta={openOferta} onOpenMail={openMail} />}
+      {screen.kind === 'lead' && <LeadScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenOferta={openOferta} onOpenMail={openMail} onOpenLead={openLead} />}
     </div>
   )
 }

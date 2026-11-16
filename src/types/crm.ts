@@ -38,7 +38,52 @@ export type CrmLead = {
   etykiety?: string[] | null
   /** szkic odpowiedzi mailowej (brief pkt 23); null = brak. Znika sam przy zmianie zadania (trigger). */
   szkic?: CrmSzkic | null
+  /** brief pkt 26: dane kontaktowe klientów połączonych w tego (rpc polacz_leady) */
+  inne_kontakty?: CrmInnyKontakt[] | null
 }
+
+/** Wpis w leady.inne_kontakty po połączeniu duplikatów (brief pkt 26) */
+export type CrmInnyKontakt = {
+  nazwa: string | null
+  email: string | null
+  telefon: string | null
+  miejscowosc: string | null
+  zrodlo: string | null
+  /** ISO — kiedy połączono */
+  polaczono: string | null
+}
+
+/**
+ * Duplikaty klientów (brief pkt 26). Widok `crm.duplikaty` = pary (każda raz) z powodem i pewnością:
+ * ten sam telefon 100 / e-mail 95 / nazwa 85 (bez „sp. z o.o.”, kropek, diakrytyków) / domena firmowa 70 /
+ * podobna nazwa 50. Rpc `duplikaty_leada(p_lead)` = to samo dla jednego klienta (baner na karcie).
+ * Rpc `polacz_leady(p_cel, p_zrodlo)` — NIEODWRACALNE: historia, oferty, rozmowy, maile, dokumenty
+ * źródła przechodzą na cel, kontakt źródła ląduje w `inne_kontakty`, zdarzenie `polaczono`, źródło znika.
+ */
+export type CrmDuplikat = {
+  lead_id: string
+  nazwa: string | null
+  email: string | null
+  telefon: string | null
+  duplikat_id: string
+  duplikat_nazwa: string | null
+  duplikat_email: string | null
+  duplikat_telefon: string | null
+  powod: string
+  pewnosc: number
+}
+export type CrmDuplikatLeada = {
+  id: string
+  nazwa: string | null
+  email: string | null
+  telefon: string | null
+  miejscowosc: string | null
+  status: string | null
+  powod: string
+  pewnosc: number
+}
+/** minimalny opis strony do panelu łączenia (karta klienta i Kontakty używają tego samego panelu) */
+export type CrmStronaPolaczenia = { id: string; nazwa: string | null; email: string | null; telefon: string | null; miejscowosc?: string | null }
 
 /**
  * Szkic odpowiedzi mailowej w stylu handlowca (brief pkt 23, funkcja crm-szkic). Powstaje sam przy
@@ -327,6 +372,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   zadanie_zrobione: 'Zadanie zrobione',
   zadanie_usuniete: 'Zadanie usunięte',
   zadanie_zmienione: 'Zadanie zmienione',
+  polaczono: 'Połączono klientów',
   follow_up_zaplanowany: 'Follow-up zaplanowany',
   mail_wyslany: 'Mail wysłany do klienta',
   klient_odpisal: 'Klient odpisał na ofertę',

@@ -25,7 +25,7 @@ import type {
 } from '../types/crm'
 import { CRM_AKCJA } from '../types/crm'
 import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_EDGE_SZKIC, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES, CRM_PROBKI_STYLU_ILE } from '../types/crm'
-import type { CrmDokument, CrmDokumentOdp, CrmDzienWolny, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
+import type { CrmDokument, CrmDokumentOdp, CrmDuplikat, CrmDuplikatLeada, CrmDzienWolny, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
 
@@ -800,6 +800,25 @@ export async function updateZasada(id: string, patch: Partial<Pick<CrmZasada, 't
 export async function deleteZasada(id: string): Promise<CrmError | null> {
   const { error } = await crm().from('zasady').delete().eq('id', id)
   return crmErrorFrom(error)
+}
+
+// ---- Duplikaty klientów (brief pkt 26) ----
+
+/** Wszystkie pary możliwych duplikatów (widok crm.duplikaty), najpewniejsze pierwsze. */
+export async function fetchDuplikaty(): Promise<Result<CrmDuplikat[]>> {
+  const { data, error } = await crm().from('duplikaty').select('*').order('pewnosc', { ascending: false })
+  return { data: (data ?? []) as unknown as CrmDuplikat[], error: crmErrorFrom(error) }
+}
+/** Możliwe duplikaty jednego klienta (rpc duplikaty_leada) — baner na karcie. */
+export async function fetchDuplikatyLeada(leadId: string): Promise<Result<CrmDuplikatLeada[]>> {
+  const { data, error } = await crm().rpc('duplikaty_leada', { p_lead: leadId })
+  return { data: (data ?? []) as unknown as CrmDuplikatLeada[], error: crmErrorFrom(error) }
+}
+/** NIEODWRACALNE: źródło wchodzi w cel (rpc polacz_leady). Zwraca id celu; błąd = komunikat rpc po polsku. */
+export async function polaczLeady(celId: string, zrodloId: string): Promise<Result<string | null>> {
+  const { data, error } = await crm().rpc('polacz_leady', { p_cel: celId, p_zrodlo: zrodloId })
+  if (error) return { data: null, error: crmErrorFrom(error) }
+  return { data: (data as string | null) ?? celId, error: null }
 }
 
 // ---- Dni wolne (crm.dni_wolne, brief pkt 25) ----

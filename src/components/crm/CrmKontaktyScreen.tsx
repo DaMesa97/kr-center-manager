@@ -4,12 +4,13 @@
 // „bez zadania”), sort domyślnie po ostatniej aktywności. Klik = karta klienta.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Search } from 'lucide-react'
+import { Merge, RefreshCw, Search } from 'lucide-react'
 import type { ToastVariant } from '../../types'
-import { CRM_AKCJA, CRM_KANAL, CRM_LEAD_STATUS, CRM_OFERTA_RODZAJ, CRM_OFERTA_STATUS } from '../../types/crm'
-import { fetchKontakty, type CrmError, type CrmKontaktRow } from '../../hooks/useCrm'
+import { CRM_AKCJA, CRM_KANAL, CRM_LEAD_STATUS, CRM_OFERTA_RODZAJ, CRM_OFERTA_STATUS, type CrmDuplikat } from '../../types/crm'
+import { fetchDuplikaty, fetchKontakty, type CrmError, type CrmKontaktRow } from '../../hooks/useCrm'
 import { useEtykiety } from '../../hooks/useEtykiety'
 import { EtykietyRow, KanalBadge } from './CrmEtykiety'
+import CrmPolaczPanel from './CrmPolaczPanel'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
 
@@ -45,12 +46,17 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
   const [kanal, setKanal] = useState('')
   const [etykieta, setEtykieta] = useState('')
   const [bezZadania, setBezZadania] = useState(false)
+  // brief pkt 26: pary możliwych duplikatów (widok crm.duplikaty) + otwarty panel łączenia
+  const [duplikaty, setDuplikaty] = useState<CrmDuplikat[]>([])
+  const [pokazDuplikaty, setPokazDuplikaty] = useState(false)
+  const [polacz, setPolacz] = useState<CrmDuplikat | null>(null)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
-    const r = await fetchKontakty()
+    const [r, d] = await Promise.all([fetchKontakty(), fetchDuplikaty()])
     setError(r.error)
     if (!r.error) setRows(r.data)
+    if (!d.error) setDuplikaty(d.data)
     setLoading(false)
   }, [])
   useEffect(() => {
@@ -67,9 +73,11 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
         if (etykieta && !(l.etykiety ?? []).includes(etykieta)) return false
         if (bezZadania && l.nastepna_akcja) return false
         if (!nq) return true
-        const hay = norm([l.nazwa, l.email, l.miejscowosc].filter(Boolean).join(' '))
+        // brief pkt 26: szukamy też po danych klientów połączonych w tego (inne_kontakty)
+        const inne = l.inne_kontakty ?? []
+        const hay = norm([l.nazwa, l.email, l.miejscowosc, ...inne.flatMap((k) => [k.nazwa, k.email, k.miejscowosc])].filter(Boolean).join(' '))
         if (hay.includes(nq)) return true
-        if (digits.length >= 3 && (l.telefon ?? '').replace(/\D/g, '').includes(digits)) return true
+        if (digits.length >= 3 && [l.telefon, ...inne.map((k) => k.telefon)].some((t) => (t ?? '').replace(/\D/g, '').includes(digits))) return true
         return false
       })
       .sort((a, b) => aktywnosc(b).localeCompare(aktywnosc(a)))
@@ -161,12 +169,56 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
         <label className="crm-check-inline">
           <input type="checkbox" checked={bezZadania} onChange={(e) => setBezZadania(e.target.checked)} /> bez zadania
         </label>
+        <label className={`crm-check-inline${duplikaty.length ? ' crm-check-inline--warn' : ''}`} title="Pary klientów z tym samym telefonem, e-mailem, nazwą albo domeną firmową — do połączenia">
+          <input type="checkbox" checked={pokazDuplikaty} onChange={(e) => setPokazDuplikaty(e.target.checked)} /> <Merge size={13} /> duplikaty{duplikaty.length ? ` (${duplikaty.length})` : ''}
+        </label>
         <span className="crm-toolbar-hint">{filtered.length} z {rows.length}</span>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież"><RefreshCw size={14} /> Odśwież</button>
       </div>
       {error && <div className="crm-box crm-box--bad">{error.message}</div>}
       {loading ? (
         <Spinner center label="Ładowanie kontaktów…" />
+      ) : pokazDuplikaty ? (
+        <section className="crm-dup-baner crm-dup-baner--lista">
+          <h4><Merge size={15} /> Możliwe duplikaty ({duplikaty.length})</h4>
+          <p className="crm-muted">Każda para raz, najpewniejsze pierwsze. „Połącz” pyta, który kontakt zostaje; drugi wchodzi w niego z całą historią (nieodwracalne).</p>
+          {duplikaty.length === 0 && <p className="crm-muted">Nie ma par wyglądających na duplikaty.</p>}
+          <ul className="crm-dup-lista">
+            {duplikaty.map((d) => {
+              const key = `${d.lead_id}:${d.duplikat_id}`
+              const open = polacz != null && `${polacz.lead_id}:${polacz.duplikat_id}` === key
+              return (
+                <li key={key} className={`crm-dup-row${open ? ' crm-dup-row--open' : ''}`}>
+                  <span className="crm-dup-para">
+                    <button type="button" className="crm-link" onClick={() => onOpenLead(d.lead_id)} title="Otwórz kartę klienta"><b>{(d.nazwa || d.telefon || d.email || 'Klient bez nazwy').trim()}</b></button>
+                    <span className="crm-muted">{[d.telefon, d.email].filter(Boolean).join(' · ')}</span>
+                    <span className="crm-dup-strzalka">↔</span>
+                    <button type="button" className="crm-link" onClick={() => onOpenLead(d.duplikat_id)} title="Otwórz kartę klienta"><b>{(d.duplikat_nazwa || d.duplikat_telefon || d.duplikat_email || 'Klient bez nazwy').trim()}</b></button>
+                    <span className="crm-muted">{[d.duplikat_telefon, d.duplikat_email].filter(Boolean).join(' · ')}</span>
+                  </span>
+                  <span className="crm-dup-powod">{d.powod} · {d.pewnosc}%</span>
+                  <button type="button" className="btn btn-sm btn-secondary" disabled={polacz != null && !open} onClick={() => setPolacz(open ? null : d)}>
+                    <Merge size={14} /> Połącz
+                  </button>
+                  {open && polacz && (
+                    <CrmPolaczPanel
+                      a={{ id: polacz.lead_id, nazwa: polacz.nazwa, email: polacz.email, telefon: polacz.telefon }}
+                      b={{ id: polacz.duplikat_id, nazwa: polacz.duplikat_nazwa, email: polacz.duplikat_email, telefon: polacz.duplikat_telefon }}
+                      powod={polacz.powod}
+                      pewnosc={polacz.pewnosc}
+                      pushToast={pushToast}
+                      onCancel={() => setPolacz(null)}
+                      onDone={() => {
+                        setPolacz(null)
+                        void load(true)
+                      }}
+                    />
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
       ) : (
         <DataTable rows={filtered} rowKey={(r) => r.id} columns={columns} className="crm-table" emptyText={rows.length === 0 ? 'Nie ma jeszcze żadnego klienta.' : 'Nikt nie pasuje do filtrów.'} />
       )}

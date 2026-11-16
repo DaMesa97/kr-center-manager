@@ -9144,6 +9144,26 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-check { border-left: 5px solid #f59e0b !important; }
 .crm-check--clean { border-left-color: #16a34a !important; }
 .crm-check--bad { border-left-color: #dc2626 !important; background: #fff7f7 !important; }
+/* brief pkt 26: duplikaty klientów — baner na karcie, lista w Kontaktach, panel łączenia */
+.crm-dup-baner { border-left: 5px solid #7c3aed; background: #faf5ff; }
+.crm-dup-baner h4 { display: flex; align-items: center; gap: 6px; }
+.crm-dup-baner--lista { margin-top: 10px; }
+.crm-dup-lista { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.crm-dup-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 8px; border-radius: 8px; background: #fff; border: 1px solid #e9d5ff; }
+.crm-dup-row--open { border-color: #7c3aed; }
+.crm-dup-row .crm-polacz-panel { flex-basis: 100%; }
+.crm-dup-para { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; flex: 1; }
+.crm-dup-strzalka { color: #7c3aed; font-weight: 700; }
+.crm-dup-powod { font-size: 0.8rem; color: #6d28d9; background: #ede9fe; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.crm-check-inline--warn { color: #6d28d9; font-weight: 600; }
+.crm-polacz-panel { margin-top: 8px; padding: 10px 12px; border: 1px dashed #7c3aed; border-radius: 8px; background: #fff; }
+.crm-polacz-powod { margin: 0 0 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.crm-polacz-wybor { display: flex; flex-direction: column; gap: 6px; }
+.crm-polacz-opcja { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer; }
+.crm-polacz-opcja--on { border-color: #16a34a; background: #f0fdf4; }
+.crm-polacz-strona { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.crm-polacz-strona .crm-muted { font-size: 0.82rem; }
+.crm-inne-kontakty { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 0.9rem; }
 .crm-check-koszyk { margin-bottom: 8px; }
 .crm-check-list { margin: 0; padding-left: 22px; font-size: 1rem; line-height: 1.5; }
 .crm-check-list li { margin-bottom: 4px; }
