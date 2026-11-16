@@ -2,7 +2,7 @@ import { appConfirm } from '../lib/appDialogs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
-import { renderLabelHtml, ALU_LABEL_FIELDS, LABEL_FIELDS, type AluLabelCtx, type LabelTemplate } from '../lib/labelRender'
+import { renderLabelHtml, wrapRowsWithConditionals, ALU_LABEL_FIELDS, LABEL_FIELDS, type AluLabelCtx, type LabelTemplate } from '../lib/labelRender'
 import { ALU_CATEGORY } from '../constants'
 import type { AluPosition, Order, ToastVariant } from '../types'
 
@@ -195,19 +195,43 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
             </div>
             <textarea className="label-tpl-html" value={form.html} onChange={(e) => setForm((p) => ({ ...p, html: e.target.value }))} rows={12} spellCheck={false} />
             <div className="label-tpl-placeholders">
-              <span className="label-tpl-ph-title">Dostępne pola (kliknij, by wstawić):</span>
+              <span className="label-tpl-ph-title">Dostępne pola (kliknij, by wstawić; „if” wstawia pole w warunku):</span>
               <div className="label-tpl-ph-grid">
                 {(form.category === ALU_CATEGORY ? [...ALU_LABEL_FIELDS, ...LABEL_FIELDS] : LABEL_FIELDS).map((f) => (
-                  <button
-                    key={f.key}
-                    type="button"
-                    className="label-tpl-ph-chip"
-                    title={`Wstaw ${f.label}`}
-                    onClick={() => setForm((p) => ({ ...p, html: `${p.html}{{${f.key}}}` }))}
-                  >
-                    <code>{`{{${f.key}}}`}</code> <span className="label-tpl-ph-label">{f.label}</span>
-                  </button>
+                  <span key={f.key} className="label-tpl-ph-chip">
+                    <button type="button" className="label-tpl-ph-btn" title={`Wstaw ${f.label}`} onClick={() => setForm((p) => ({ ...p, html: `${p.html}{{${f.key}}}` }))}>
+                      <code>{`{{${f.key}}}`}</code> <span className="label-tpl-ph-label">{f.label}</span>
+                    </button>
+                    {f.key !== 'qr' && (
+                      <button
+                        type="button"
+                        className="label-tpl-ph-if"
+                        title={`Wstaw {if ${f.key}}{{${f.key}}}{/if} — drukuje się tylko, gdy pole ma wartość`}
+                        onClick={() => setForm((p) => ({ ...p, html: `${p.html}{if ${f.key}}{{${f.key}}}{/if}` }))}
+                      >
+                        if
+                      </button>
+                    )}
+                  </span>
                 ))}
+              </div>
+              {/* #155/#156: warunki widoczne bez rozwijania instrukcji + jeden klik dla całej tabeli */}
+              <div className="label-tpl-ph-cond">
+                <span>
+                  <strong>Warunek</strong> <code>{'{if pole}…{/if}'}</code> drukuje fragment tylko, gdy pole ma wartość (pusty wiersz tabeli znika zamiast „-”); <code>{'{if !pole}'}</code> odwrotnie.
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  title="Każdy wiersz <tr> z jednym polem {{x}} dostaje {if x}…{/if}; wiersze z dwoma polami, z QR i już owinięte zostają bez zmian"
+                  onClick={() => {
+                    const r = wrapRowsWithConditionals(form.html)
+                    setForm((p) => ({ ...p, html: r.html }))
+                    pushToast(r.wrapped ? `Owinięto warunkami ${r.wrapped} ${r.wrapped === 1 ? 'wiersz' : r.wrapped < 5 ? 'wiersze' : 'wierszy'} tabeli — zapisz szablon` : 'Nie ma wierszy do owinięcia (każdy <tr> z jednym polem już ma warunek albo ma więcej pól)', r.wrapped ? 'success' : 'info')
+                  }}
+                >
+                  Owiń wiersze tabeli warunkami
+                </button>
               </div>
             </div>
             <div className="label-tpl-actions">

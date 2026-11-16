@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { labelPagesHtml, renderLabelHtml, type LabelTemplate } from '../lib/labelRender'
+import { labelPagesHtml, renderLabelHtml, wrapRowsWithConditionals, type LabelTemplate } from '../lib/labelRender'
 import type { AluPosition, Order } from '../types'
 
 // Render etykiet — zgodnie z Pomocą: podstawianie pól, "-" dla pustych,
@@ -141,5 +141,26 @@ describe('warunki {if pole}…{/if} (#91)', () => {
     const html = await renderLabelHtml(tpl('[{if literowka}X{/if}]{/if}{if firma}'), order({ id: 1, company: 'T' }))
     expect(html).toContain('[]')
     expect(html).not.toMatch(/\{\/?if/)
+  })
+})
+
+describe('wrapRowsWithConditionals (#156: wiersze tabeli w warunkach)', () => {
+  it('owija wiersz z jednym polem, zostawia wiersz z dwoma i nagłówek bez pól', () => {
+    const src = '<table><tr><td>Kolor</td><td>{{kolor}}</td></tr>\n<tr><td>Rozmiar</td><td>{{wymiar}} {{kierunek}}</td></tr><tr><td>STAŁE</td></tr></table>'
+    const r = wrapRowsWithConditionals(src)
+    expect(r.wrapped).toBe(1)
+    expect(r.html).toBe('<table>{if kolor}<tr><td>Kolor</td><td>{{kolor}}</td></tr>{/if}\n<tr><td>Rozmiar</td><td>{{wymiar}} {{kierunek}}</td></tr><tr><td>STAŁE</td></tr></table>')
+  })
+
+  it('nie owija drugi raz ani wiersza z QR; to samo pole dwa razy = jedno pole', async () => {
+    const src = '{if model}<tr><td>{{model}}</td></tr>{/if}<tr style="x"><td>{{qr}}</td></tr><tr><td>{{firma}} / {{firma}}</td></tr>'
+    const r = wrapRowsWithConditionals(src)
+    expect(r.wrapped).toBe(1)
+    expect(r.html).toBe('{if model}<tr><td>{{model}}</td></tr>{/if}<tr style="x"><td>{{qr}}</td></tr>{if firma}<tr><td>{{firma}} / {{firma}}</td></tr>{/if}')
+    // owinięty wiersz znika przy pustym polu, a wypełniony drukuje się normalnie
+    const html = await renderLabelHtml(tpl(`<table>${r.html}</table>`), order({ id: 1, model: 'OTELLO' }))
+    expect(html).toContain('OTELLO')
+    expect(html).not.toContain('{{firma}}')
+    expect(html).not.toMatch(/<tr><td>-/)
   })
 })

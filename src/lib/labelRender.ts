@@ -152,6 +152,34 @@ export function applyLabelConditionals(html: string, hasValue: (key: string) => 
   return out.replace(STRAY_IF_RE, '')
 }
 
+// #156: owijanie wierszy tabeli warunkami. Każdy `<tr>…</tr>` z DOKŁADNIE jednym polem {{x}}
+// (poza {{qr}}) dostaje `{if x}…{/if}`, więc pusty parametr nie zostawia wiersza z „-".
+// Wiersze z dwoma polami (np. {{wymiar}} {{kierunek}}) i już owinięte zostają bez zmian.
+const TR_RE = /<tr\b[^>]*>[\s\S]*?<\/tr>/gi
+const PLACEHOLDER_RE = /\{\{\s*([\wąćęłńóśźż.-]+)\s*\}\}/gi
+
+export function wrapRowsWithConditionals(html: string): { html: string; wrapped: number } {
+  let wrapped = 0
+  let last = 0
+  let out = ''
+  for (const m of html.matchAll(TR_RE)) {
+    const tr = m[0]
+    const start = m.index ?? 0
+    const before = html.slice(last, start)
+    out += before
+    last = start + tr.length
+    const keys = [...new Set([...tr.matchAll(PLACEHOLDER_RE)].map((x) => x[1].toLowerCase()))]
+    const alreadyWrapped = /\{if\s+!?\s*[\wąćęłńóśźż.-]+\s*\}\s*$/i.test(out) || /\{if\s/i.test(tr)
+    if (keys.length === 1 && keys[0] !== 'qr' && !alreadyWrapped) {
+      out += `{if ${keys[0]}}${tr}{/if}`
+      wrapped++
+    } else {
+      out += tr
+    }
+  }
+  return { html: out + html.slice(last), wrapped }
+}
+
 function fieldHasValue(order: Order, alu: AluLabelCtx | undefined): (key: string) => boolean {
   return (key) => {
     if (key === 'qr') return Boolean(str(order.id) || str(order.order_number))

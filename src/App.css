@@ -4376,7 +4376,7 @@ html.hl-off-priority:not(.hl-off-notes) .orders-table tbody tr.orders-table-row-
 .shipping-view .orders-table colgroup col.col-prog   { width: 150px; }
 .shipping-view .orders-table colgroup col.col-status { width: 104px; }
 .shipping-view .orders-table colgroup col.col-stock  { width: 84px; }
-.shipping-view .orders-table colgroup col.col-inv    { width: 76px; }
+.shipping-view .orders-table colgroup col.col-inv    { width: 96px; }
 .shipping-view .orders-table colgroup col.col-act    { width: 92px; }
 
 /* Firma — nie zawijaj, długie nazwy ucinane wielokropkiem */
@@ -4775,6 +4775,9 @@ html.hl-off-priority:not(.hl-off-notes) .orders-table tbody tr.orders-table-row-
   font-weight: 600;
 }
 
+/* #147: numer RO z Optimy przy fakturowaniu */
+.shipping-invoice-ro { display: block; font-size: 0.68rem; color: #1d6d45; font-weight: 600; white-space: nowrap; margin-top: 2px; }
+.shipping-details-ro-badge { background: #e0f2fe; color: #075985; padding: 2px 7px; border-radius: 4px; font-size: 0.8rem; margin-left: 8px; white-space: nowrap; }
 .shipping-details-ready-badge {
   background: #d8f0e4;
   color: #1d6d45;
@@ -7922,6 +7925,12 @@ html.hl-off-priority:not(.hl-off-notes) .orders-table tbody tr.orders-table-row-
 .label-tpl-ph-chip:hover { background: #e0f2fe; border-color: #bae6fd; }
 .label-tpl-ph-chip code { background: transparent; padding: 0; color: #0369a1; font-weight: 600; }
 .label-tpl-ph-label { color: #64748b; }
+/* #155/#156: chip = przycisk pola + mały przycisk „if” (pole w warunku) */
+.label-tpl-ph-chip { padding: 0; overflow: hidden; }
+.label-tpl-ph-btn { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; background: transparent; border: 0; cursor: pointer; font: inherit; }
+.label-tpl-ph-if { padding: 3px 6px; border: 0; border-left: 1px solid #e2e8f0; background: #e2e8f0; color: #334155; cursor: pointer; font: inherit; font-size: 0.68rem; font-weight: 700; }
+.label-tpl-ph-if:hover { background: #bae6fd; color: #0c4a6e; }
+.label-tpl-ph-cond { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 0.74rem; color: #475569; }
 
 /* Pomoc / instrukcja */
 .help-view { max-width: 900px; }
