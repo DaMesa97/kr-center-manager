@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Zgłoszenia z 16.11: konfigurator w Statystykach, pozycje w szkicu ZD, CRM (beta.125)</h4>
+        <ul>
+          <li><b>Statystyki → Konfigurator:</b> ile procent zleceń przychodzi z konfiguratora, miesiąc po miesiącu, z linią celu 50% (koniec 2027). Kafelki: bieżący i poprzedni miesiąc, cały okres; linie per kategoria do włączenia; tabela wg kategorii. Liczone po dacie zamówienia, bez anulowanych.</li>
+          <li><b>Zamawianie → szkic ZD:</b> po „Edytuj pozycje” pod tabelą jest „Dodaj pozycję” (komponenty tego dostawcy na górze), a przy każdej pozycji „Usuń”. Ostatniej pozycji nie da się usunąć — wtedy anuluj całe zamówienie.</li>
+          <li><b>CRM:</b> nowe zadania <b>Pomiar</b> i <b>Montaż</b> (termin = dzień pomiaru / montażu) w dialogu zadania i przy nowym kliencie z salonu. <b>Usuwanie:</b> „Usuń klienta” na karcie (znika z ofertami, rozmowami, historią i dokumentami, maile zostają bez powiązania), „Usuń ofertę” na ekranie oferty, „Usuń zadanie” bez oznaczania jako zrobione (ślad w historii). Wszystko z potwierdzeniem, nieodwracalne.</li>
+        </ul>
         <h4>CRM Po Drzwi: terminy zadań tylko w dni robocze, dni wolne, zamówienia ze sklepu (beta.124)</h4>
         <ul>
           <li><b>Terminy zadań</b> omijają weekendy, święta państwowe i dni firmowe: sobota, niedziela albo święto → następny dzień roboczy, a termin „dziś” zapisany po 17:00 → jutro. Przesuwa baza, także dla zadań dodanych z aplikacji. W dialogu „Zrobione, co dalej” / „Dodaj zadanie” pod „Za ile dni” i w formularzu nowego klienta pod Terminem widać od razu, na jaki dzień termin wyląduje, np. „→ poniedziałek 28.12 (dzień wolny przesuwa się na następny dzień roboczy)”.</li>
