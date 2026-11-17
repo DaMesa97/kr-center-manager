@@ -115,10 +115,9 @@ export function deskWarnings(order: Order, allOrders: Order[]): DeskWarning[] {
   if (set && !set.complete && set.missing.length) {
     out.push({ kind: 'pair', text: `niekompletny komplet: ${set.missing.join(', ')}` })
   }
-  const stock = String(order.stock_status ?? '')
-  if (stock === 'insufficient' || stock === 'partial_recipe' || stock === 'no_recipe') {
-    out.push({ kind: 'stock', text: stock === 'insufficient' ? 'niedobór magazynowy' : stock === 'partial_recipe' ? 'częściowa receptura' : 'brak receptury' })
-  }
+  // Tylko realne braki (Tymek 17.11): „brak receptury” / „częściowa receptura” to sprawa
+  // magazynu i receptur, nie logistyki — na biurku tylko śmieciły i odrywały uwagę.
+  if (String(order.stock_status ?? '') === 'insufficient') out.push({ kind: 'stock', text: 'niedobór magazynowy' })
   if (isRushOrderSequence(order.sequence)) out.push({ kind: 'rush', text: 'PILNE' })
   const extra = order.extra_fields as Record<string, unknown> | null
   if (extra?.problem === true) out.push({ kind: 'problem', text: String(extra.problem_note ?? 'problem') })

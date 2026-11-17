@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Biurko logistyki: w uwagach tylko realne braki (beta.130)</h4>
+        <ul>
+          <li>W wierszu zlecenia nie pokazujemy już „brak receptury" ani „częściowa receptura" — to sprawa magazynu i receptur, nie logistyki. Zostają: niedobór magazynowy, szyba jeszcze nie przyszła, niekompletny komplet, PILNE, zgłoszony problem oraz uwagi wpisane ręcznie w zleceniu.</li>
+        </ul>
         <h4>Samozamykacz w zleceniach STA i Disting, także jako kryterium receptur (beta.129)</h4>
         <ul>
           <li><b>Zlecenia STA / Disting:</b> nowe pole <b>Samozamykacz</b> w formularzu (obok Osłonek), w szczegółach zlecenia, na stanowisku (dane skrzydła i pakowanie), w historii zmian, w archiwum i jako pole etykiety <code>{'{{samozamykacz}}'}</code>. Wartości w <b>Konfiguracja → STA / Disting → Samozamykacz</b> (na start BRAK i TAK; konkretne modele dopisuje biuro). Przy zleceniach Disting Plus pole przenosi się między STA a Distingiem jak reszta wspólnych danych.</li>

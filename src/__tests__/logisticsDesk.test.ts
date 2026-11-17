@@ -44,6 +44,10 @@ describe('logisticsDesk — biurko kierownika logistyki', () => {
     expect(w.map((x) => x.kind)).toEqual(['glass', 'stock', 'rush'])
     expect(w[0].text).toContain('12.11')
     expect(deskWarnings(order({ glass_order_date: '2026-11-12', glass_received: true }), [])).toEqual([])
+    // receptury to sprawa magazynu — na biurku logistyki nie są ostrzeżeniem (Tymek 17.11)
+    expect(deskWarnings(order({ stock_status: 'no_recipe' }), [])).toEqual([])
+    expect(deskWarnings(order({ stock_status: 'partial_recipe' }), [])).toEqual([])
+    expect(deskWarnings(order({ stock_status: 'insufficient' }), []).map((w) => w.kind)).toEqual(['stock'])
   })
 
   it('przypięcie do trasy wygrywa nad firmą i wygasa po 7 dniach', () => {
