@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Biurko logistyki: odbiór osobisty, montaż własny i firmy bez trasy (beta.128)</h4>
+        <ul>
+          <li>Lista „Trasa” ma poza dniami tygodnia także <b>Odbiór osobisty</b>, <b>Montaż własny</b> (aluminium) i <b>Bez trasy</b> (firma bez ustawionego dnia trasy w Kontrahentach), z liczbą zleceń przy każdej pozycji. Oznaczanie do fakturowania, lista do druku i „Dodaj do trasy” działają tam tak samo.</li>
+          <li>Przy trasie specjalnej dzień produkcji pokazuje „—”; przycisk wyjazdu nazywa się odpowiednio „Odebrane osobiście”, „Wyjechało na montaż” albo „Trasa wyjechała”.</li>
+        </ul>
         <h4>Wysyłka: biurko kierownika logistyki; CRM: oferty liczą się dopiero po akceptacji ustaleń (beta.127)</h4>
         <ul>
           <li><b>Wysyłka → „Biurko logistyki”</b> (przełącznik obok „Lista zleceń”, wybór pamiętany na komputerze): wybierasz dzień produkcji, trasa ustawia się sama (czwartek → poniedziałek). Firma po firmie oznaczasz zlecenia <b>do fakturowania</b> (ten sam znacznik co kolumna FAKTURA, nic go nie blokuje), „Oznacz wszystkie”, „Schowaj oznaczone”. Wiersz: pasek z lewej (zielony = na magazynie wysyłkowym), numer, model, system, kolor, rozmiar z kierunkiem, sztuki, kategoria; pod spodem nr klienta, RO z Optimy („BRAK RO” tylko przy zleceniach z konfiguratora), data złożenia z wiekiem, ostrzeżenia (szyba, komplet, niedobór). Nic się nie zawija, pełne uwagi po najechaniu, „Szczegóły” rozwija kolor/wymiar, magazyn, szybę, uwagi i „Otwórz zlecenie”.</li>
