@@ -304,7 +304,6 @@ export default function LogisticsDeskView({
           )}
           <div className="ldesk-actions ldesk-noprint">
             <button type="button" className="btn btn-primary btn-sm" onClick={printNow} disabled={printList.length === 0}>Drukuj / zapisz PDF</button>
-            <span className="ldesk-muted">Bez cen. Docelowo to samo zestawienie idzie do automatu faktur w Optimie.</span>
           </div>
         </section>
       )}

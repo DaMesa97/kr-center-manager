@@ -25,9 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
-        <h4>Biurko logistyki: w uwagach tylko realne braki (beta.130)</h4>
+        <h4>Biurko logistyki: w uwagach tylko realne braki (beta.130–131)</h4>
         <ul>
           <li>W wierszu zlecenia nie pokazujemy już „brak receptury" ani „częściowa receptura" — to sprawa magazynu i receptur, nie logistyki. Zostają: niedobór magazynowy, szyba jeszcze nie przyszła, niekompletny komplet, PILNE, zgłoszony problem oraz uwagi wpisane ręcznie w zleceniu.</li>
+          <li>Przy liście do fakturowania zniknął dopisek o cenach i automacie faktur (beta.131) — na biurku ma być tylko to, co potrzebne do pracy.</li>
         </ul>
         <h4>Samozamykacz w zleceniach STA i Disting, także jako kryterium receptur (beta.129)</h4>
         <ul>
