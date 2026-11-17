@@ -124,7 +124,7 @@ export const EDITABLE_CATEGORIES = [
 
 export type EditableCategory = typeof EDITABLE_CATEGORIES[number]
 
-export const STATS_SUB_TABS = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Reklamacje', 'Produktywność', 'Czas realizacji', 'Konfigurator', 'Zużycie magazynu'] as const
+export const STATS_SUB_TABS = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Reklamacje', 'Firmy', 'Produktywność', 'Czas realizacji', 'Konfigurator', 'Zużycie magazynu'] as const
 
 export const CATEGORY_LABELS: Record<OrderCategory, string> = {
   STA: 'STA',

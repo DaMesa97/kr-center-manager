@@ -3,6 +3,7 @@ import { CATEGORY_LABELS } from '../constants'
 import type { Complaint, InternalDoorItem, Order, StatsSubTab } from '../types'
 import CategoryStatsDashboard from './stats/CategoryStatsDashboard'
 import ComplaintsStatsDashboard from './stats/ComplaintsStatsDashboard'
+import CompanyStatsView from './stats/CompanyStatsView'
 import InternalDoorStatsDashboard from './stats/InternalDoorStatsDashboard'
 import ProductivityView from './stats/ProductivityView'
 import LeadTimeStatsView from './stats/LeadTimeStatsView'
@@ -56,6 +57,9 @@ function StatsView({
       )}
       {activeSubTab === 'Reklamacje' && (
         <ComplaintsStatsDashboard complaints={complaints} loading={loading} />
+      )}
+      {activeSubTab === 'Firmy' && (
+        <CompanyStatsView orders={orders} complaints={complaints} loading={loading} />
       )}
       {activeSubTab === 'DrzwiWewnetrzne' && (
         <InternalDoorStatsDashboard

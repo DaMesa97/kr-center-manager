@@ -791,6 +791,7 @@ export type StatsSubTab =
   | 'Bastion'
   | 'DrzwiWewnetrzne'
   | 'Reklamacje'
+  | 'Firmy'
   | 'Produktywność'
   | 'Czas realizacji'
   | 'Konfigurator'

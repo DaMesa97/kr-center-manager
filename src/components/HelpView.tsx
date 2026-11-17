@@ -29,6 +29,7 @@ const SECTIONS: Section[] = [
         <ul>
           <li><b>Zlecenia STA / Disting:</b> nowe pole <b>Samozamykacz</b> w formularzu (obok Osłonek), w szczegółach zlecenia, na stanowisku (dane skrzydła i pakowanie), w historii zmian, w archiwum i jako pole etykiety <code>{'{{samozamykacz}}'}</code>. Wartości w <b>Konfiguracja → STA / Disting → Samozamykacz</b> (na start BRAK i TAK; konkretne modele dopisuje biuro). Przy zleceniach Disting Plus pole przenosi się między STA a Distingiem jak reszta wspólnych danych.</li>
           <li><b>Magazyn → Receptury:</b> nowe kryterium „Samozamykacz” — receptura z tym kryterium dobiera komponent tylko do zleceń, które mają samozamykacz; zmiana pola w zleceniu przerezerwowuje komponenty.</li>
+          <li><b>Statystyki → Firmy</b> (zgłoszenie #118): wpisz albo wybierz firmę (lista od najczęściej zamawiających; nazwa „zawiera” łapie warianty pisowni i liczy je razem) i okres (3–24 miesiące albo cały). Kafelki: zlecenia i sztuki, w realizacji, reklamacje (na 100 zleceń), średni czas realizacji z medianą, udział konfiguratora; wykresy: zamówienia i reklamacje w czasie, kategorie, top 10 modeli i kolorów; tabela ostatnich 20 zleceń z dniami realizacji. Wybór firmy i okresu pamiętany na komputerze.</li>
           <li><b>Excel:</b> automat czyta kolumnę „Samozamykacz” z arkusza i formularza. Dopóki arkusze STA i Disting jej nie mają, zlecenia z Excela mają pole puste i receptura z tym kryterium ich nie obejmie (zgłoszenie #157, Dawid).</li>
         </ul>
         <h4>Biurko logistyki: odbiór osobisty, montaż własny i firmy bez trasy (beta.128)</h4>
@@ -597,7 +598,7 @@ const SECTIONS: Section[] = [
       <>
         <ul>
           <li><b>Pulpit</b> — szybki przegląd dnia dla kierownika: liczby, zaległe, skróty.</li>
-          <li><b>Statystyki</b> (Analizy) — produkcja wg kategorii (wykresy statusów, trendy), reklamacje (co i dlaczego reklamowane), drzwi wewnętrzne, produktywność, czasy realizacji, zużycie magazynu (miesięczne zejścia per komponent).</li>
+          <li><b>Statystyki</b> (Analizy) — produkcja wg kategorii (wykresy statusów, trendy), reklamacje (co i dlaczego reklamowane), firmy (jedna firma pod lupą: zlecenia, reklamacje, czas realizacji, co zamawia), drzwi wewnętrzne, produktywność, czasy realizacji, zużycie magazynu (miesięczne zejścia per komponent).</li>
           <li><b>Audyt</b> (Analizy) — pełna historia zmian: kto, kiedy, co zmienił.</li>
           <li>Wykres statusu pokazuje sumę drzwi w środku, procenty na wycinkach i legendę z wartościami.</li>
         </ul>
