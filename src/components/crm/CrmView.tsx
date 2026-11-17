@@ -1607,6 +1607,7 @@ function LeadScreen({
   currentUser,
   pushToast,
   onBack,
+  onDeleted,
   onOpenOferta,
   onOpenMail,
   onOpenLead,
@@ -1616,11 +1617,16 @@ function LeadScreen({
   currentUser: CurrentUser | null
   pushToast: Props['pushToast']
   onBack: () => void
+  /** po usunięciu klienta: wyjście z karty poza historię ekranów (#142) */
+  onDeleted: () => void
   onOpenOferta: (id: string) => void
   onOpenMail: (id: string) => void
   onOpenLead: (id: string) => void
 }) {
   const [lead, setLead] = useState<CrmLead | null>(null)
+  // #142: po „Usuń klienta” realtime (DELETE na leady/oferty/zdarzenia) odpalał przeładowanie,
+  // fetchLead zwracał null i karta pokazywała „Nie znaleziono klienta” zamiast zniknąć
+  const goneRef = useRef(false)
   const [rozmowy, setRozmowy] = useState<CrmRozmowa[]>([])
   const [maile, setMaile] = useState<CrmMail[]>([])
   const etyk = useEtykiety()
@@ -1644,8 +1650,10 @@ function LeadScreen({
   const [zleconoAt, setZleconoAt] = useState<number | null>(null)
 
   const load = useCallback(async (silent = false) => {
+    if (goneRef.current) return
     if (!silent) setLoading(true)
     const { data: l, error: err } = await fetchLead(id)
+    if (goneRef.current) return
     setError(err)
     setLead(l)
     setNotatkaDirty((dirty) => {
@@ -1826,8 +1834,9 @@ function LeadScreen({
             const err = await deleteLead(lead.id)
             setSaving(false)
             if (err) { pushToast(`Nie udało się usunąć klienta: ${err.message}`, 'error'); return }
+            goneRef.current = true
             pushToast('Klient usunięty', 'success')
-            onBack()
+            onDeleted()
           }}
         >
           <Trash2 size={14} /> Usuń klienta
@@ -2346,7 +2355,7 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       {screen.kind === 'oferta' && (
         <OfertaScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
       )}
-      {screen.kind === 'lead' && <LeadScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenOferta={openOferta} onOpenMail={openMail} onOpenLead={openLead} />}
+      {screen.kind === 'lead' && <LeadScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onDeleted={() => goTop('kontakty')} onOpenOferta={openOferta} onOpenMail={openMail} onOpenLead={openLead} />}
     </div>
   )
 }
