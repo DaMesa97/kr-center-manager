@@ -25,6 +25,16 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wysyłka: biurko kierownika logistyki; CRM: oferty liczą się dopiero po akceptacji ustaleń (beta.127)</h4>
+        <ul>
+          <li><b>Wysyłka → „Biurko logistyki”</b> (przełącznik obok „Lista zleceń”, wybór pamiętany na komputerze): wybierasz dzień produkcji, trasa ustawia się sama (czwartek → poniedziałek). Firma po firmie oznaczasz zlecenia <b>do fakturowania</b> (ten sam znacznik co kolumna FAKTURA, nic go nie blokuje), „Oznacz wszystkie”, „Schowaj oznaczone”. Wiersz: pasek z lewej (zielony = na magazynie wysyłkowym), numer, model, system, kolor, rozmiar z kierunkiem, sztuki, kategoria; pod spodem nr klienta, RO z Optimy („BRAK RO” tylko przy zleceniach z konfiguratora), data złożenia z wiekiem, ostrzeżenia (szyba, komplet, niedobór). Nic się nie zawija, pełne uwagi po najechaniu, „Szczegóły” rozwija kolor/wymiar, magazyn, szybę, uwagi i „Otwórz zlecenie”.</li>
+          <li><b>„Na magazynie”</b>: STA i Titan-skrzydło po wydaniu z Excela (przekazane z Marklowickiej na Bukową), reszta po komplecie etapów. Wydań z Excela nic nie zmienia.</li>
+          <li><b>„Dodaj do trasy zlecenie nr”</b> dopina zlecenie z innej trasy (przy numerze powtarzającym się między kategoriami pyta, które); plakietka „dodane do trasy” przez 7 dni, „Odepnij” w szczegółach.</li>
+          <li><b>„Lista do fakturowania (N)”</b>: zestawienie per firma bez cen (nr, kategoria, model, system · kolor · rozmiar, szt., nr zamówienia klienta, RO) do druku / PDF.</li>
+          <li><b>„Trasa wyjechała”</b> (kierownik): zapisuje wyjazd wszystkich widocznych zleceń trasy jako osobne zdarzenie; wiersze zostają do końca dnia z godziną, jutro znikają; „Cofnij wyjazd” w szczegółach, gdy coś zostało na hali.</li>
+          <li><b>CRM: automat ofert wyłączony.</b> Rozmowa z Ringostatu i mail klienta dalej dostają analizę (ustalenia), ale oferta czeka w statusie „Czeka na akceptację” i nie zużywa kredytów AI. Na liście „Do zrobienia” i na karcie klienta „Sprawdź ustalenia”, na ekranie oferty „Ustalenia OK — policz ofertę”. „Zleć ofertę” z notatki liczy od razu. Przełącznik w CRM → Ustawienia.</li>
+          <li>CRM: dobór nie proponuje już produktu „zastępczego” — gdy w sklepie nie ma nic pasującego (mieszkanie na istniejącej ościeżnicy, drzwi EI, przetarg), oferta zostaje bez produktu z zadaniem „Przygotuj ofertę ręcznie”. Dopasowanie słów kluczowych od początku wyrazu („ustalenia” nie jest już „stal”).</li>
+        </ul>
         <h4>CRM: otwieranie i edycja zadań, duplikaty klientów, termin z kalendarza; etykiety; RO w fakturowaniu (beta.126)</h4>
         <ul>
           <li><b>CRM → Do zrobienia:</b> klik w wiersz otwiera kartę klienta ze szczegółami zadania; na karcie <b>Zmień zadanie</b> (rodzaj, termin, opis bez oznaczania „zrobione”) i <b>Usuń zadanie</b>. W dialogu zadania obok „Za ile dni” jest pole <b>„albo termin”</b> z kalendarzem; podpowiedź pokazuje, na jaki dzień roboczy termin wyląduje, a data wstecz dostaje ostrzeżenie.</li>
