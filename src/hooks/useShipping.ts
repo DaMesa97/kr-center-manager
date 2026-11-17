@@ -179,6 +179,49 @@ export function useShipping({
     [pushToast],
   )
 
+  // Biurko logistyki (makieta 16–17.11): „Trasa wyjechała” — jedna trasa, jedno kliknięcie.
+  // shipped_at jest osobne od release_date (wydania z Excela nie ruszamy).
+  const markOrdersShipped = useCallback(
+    async (ids: number[], route: string, shipped: boolean): Promise<number> => {
+      if (ids.length === 0) return 0
+      const { data, error } = await supabase.rpc('mark_orders_shipped', { p_order_ids: ids, p_route: route, p_shipped: shipped })
+      if (error) {
+        pushToast(`Błąd: ${error.message}`, 'error')
+        return 0
+      }
+      const n = Number(data) || 0
+      const now = new Date().toISOString()
+      const apply = (prev: Order[]) =>
+        prev.map((o) => (o.id !== undefined && ids.includes(o.id) ? { ...o, shipped_at: shipped ? now : null, shipped_route: shipped ? route : null } : o))
+      setShippingOrders(apply)
+      setShippingReleasedOrders(apply)
+      pushToast(shipped ? `Trasa ${route}: wyjechało ${n} ${n === 1 ? 'zlecenie' : n < 5 ? 'zlecenia' : 'zleceń'}` : 'Cofnięto wyjazd', 'success')
+      return n
+    },
+    [pushToast],
+  )
+
+  // Przypięcie zlecenia do innej trasy niż firmowa (extra_fields.route_pin, wygasa po 7 dniach); null = odepnij
+  const pinOrderToRoute = useCallback(
+    async (order: Order, route: string | null) => {
+      const id = order.id
+      if (id === undefined) return
+      const { data: newExtra, error } = await supabase.rpc('merge_order_extra_fields', {
+        p_order_id: id,
+        p_patch: { route_pin: route ? { route, at: new Date().toISOString() } : null },
+      })
+      if (error) {
+        pushToast(`Błąd: ${error.message}`, 'error')
+        return
+      }
+      const apply = (prev: Order[]) =>
+        prev.map((o) => (o.id === id ? { ...o, extra_fields: (newExtra as Order['extra_fields']) ?? o.extra_fields } : o))
+      setShippingOrders(apply)
+      setShippingReleasedOrders(apply)
+      pushToast(route ? `Dodano ${order.order_number} do trasy ${route}` : `Odpięto ${order.order_number} od trasy`, 'success')
+    },
+    [pushToast],
+  )
   // Plan wydań: klik przełącza puste → X (na jutro) → XX (na dziś) → puste.
   // Merge po stronie bazy — jak fakturowanie.
   const handleToggleRouteMark = useCallback(
@@ -310,5 +353,7 @@ export function useShipping({
     handleToggleRouteMark,
     handleShippingRushToggle,
     handleOpenShippingOrder,
+    markOrdersShipped,
+    pinOrderToRoute,
   }
 }

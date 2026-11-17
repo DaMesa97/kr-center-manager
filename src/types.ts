@@ -48,6 +48,9 @@ export type Order = {
   glass_received?: boolean
   glass_received_date?: string | null
   release_date?: string | null
+  /** wyjechało na trasę (bus z Bukowej) — biurko logistyki, osobne od release_date */
+  shipped_at?: string | null
+  shipped_route?: string | null
   disting_sheet: string
   notes: string
   client_order_number: string
