@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Order } from '../types'
 import {
-  ROUTE_OF_PROD, PROD_OF_ROUTE, buildPrintList, defaultRouteForToday, deskNoRo, deskRouteOf, deskSpec, deskWarehouseState,
+  NO_ROUTE, ROUTE_OF_PROD, PROD_OF_ROUTE, buildPrintList, shipButtonLabel, defaultRouteForToday, deskNoRo, deskRouteOf, deskSpec, deskWarehouseState,
   deskWarnings, readRoutePin, shippedToday,
 } from '../lib/logisticsDesk'
 
@@ -54,6 +54,10 @@ describe('logisticsDesk — biurko kierownika logistyki', () => {
     const stale = order({ extra_fields: { route_pin: { route: 'WTOREK', at: new Date(Date.now() - 8 * 86_400_000).toISOString() } } })
     expect(readRoutePin(stale)).toBeNull()
     expect(deskRouteOf(stale, company)).toBe('PONIEDZIAŁEK')
+    expect(deskRouteOf(order({}), { production_day: '', route_day: '' })).toBe(NO_ROUTE)
+    expect(deskRouteOf(order({ notes: 'ODBIÓR OSOBISTY' }), company)).toBe('Odbiór osobisty')
+    expect(shipButtonLabel('Odbiór osobisty')).toBe('Odebrane osobiście')
+    expect(shipButtonLabel('WTOREK')).toBe('Trasa wyjechała')
   })
 
   it('spec, wyjechało dziś i lista do druku bez cen', () => {

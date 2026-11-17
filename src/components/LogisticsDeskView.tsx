@@ -19,8 +19,8 @@ import { isOrderReadyToInvoice } from '../utils'
 import { appConfirm } from '../lib/appDialogs'
 import { createCompanyResolver, type CompanyShippingInfo } from '../lib/companyMatch'
 import {
-  DESK_DAYS, PROD_OF_ROUTE, ROUTE_OF_PROD, buildPrintList, defaultRouteForToday, deskAge, deskNoRo, deskRouteOf, deskSpec,
-  deskWarehouseState, deskWarnings, fmtDay, fmtDayFull, isDeskDay, isShipped, readRoutePin, shippedToday, type DeskDay,
+  DESK_DAYS, PROD_OF_ROUTE, ROUTE_OF_PROD, SPECIAL_ROUTES, buildPrintList, defaultRouteForToday, deskAge, deskNoRo, deskRouteOf, deskSpec,
+  deskWarehouseState, deskWarnings, fmtDay, fmtDayFull, isDeskDay, isShipped, readRoutePin, shipButtonLabel, shippedToday, type DeskDay,
 } from '../lib/logisticsDesk'
 import { shortRoNumber } from './ErpStatusBadge'
 import Spinner from './Spinner'
@@ -52,7 +52,8 @@ const CAT_STYLE: Record<string, { bg: string; fg: string }> = {
 const CAT_ORDER = ['STA', 'Disting', 'ST', 'Bastion', 'Techniczne', 'DrzwiWewnetrzne', 'Aluminium']
 const PREFS_KEY = 'kr-logistics-desk'
 
-type Prefs = { prod: DeskDay; route: DeskDay; hideMarked: boolean }
+/** route = dzień tygodnia albo trasa specjalna (odbiór osobisty, montaż własny, bez trasy); prod = null poza dniami */
+type Prefs = { prod: DeskDay | null; route: string; hideMarked: boolean }
 
 function loadPrefs(): Prefs {
   const def = defaultRouteForToday()
@@ -61,8 +62,8 @@ function loadPrefs(): Prefs {
     if (raw) {
       const p = JSON.parse(raw) as Partial<Prefs> & { savedDay?: string }
       // zapamiętany wybór obowiązuje tylko tego samego dnia — rano biurko wraca do dzisiejszej trasy
-      if (p.savedDay === new Date().toDateString() && isDeskDay(p.prod) && isDeskDay(p.route)) {
-        return { prod: p.prod, route: p.route, hideMarked: !!p.hideMarked }
+      if (p.savedDay === new Date().toDateString() && typeof p.route === 'string' && p.route) {
+        return { prod: isDeskDay(p.prod) ? p.prod : null, route: p.route, hideMarked: !!p.hideMarked }
       }
       return { prod: def.prod, route: def.route, hideMarked: !!p.hideMarked }
     }
@@ -168,7 +169,19 @@ export default function LogisticsDeskView({
   )
 
   const setProd = (p: DeskDay) => setPrefs((x) => ({ ...x, prod: p, route: ROUTE_OF_PROD[p] }))
-  const setRoute = (r: DeskDay) => setPrefs((x) => ({ ...x, route: r, prod: PROD_OF_ROUTE[r] }))
+  const setRoute = (r: string) => setPrefs((x) => ({ ...x, route: r, prod: isDeskDay(r) ? PROD_OF_ROUTE[r] : null }))
+
+  // trasy do wyboru: dni tygodnia + specjalne + cokolwiek innego, co firmy mają wpisane (z licznikiem zleceń)
+  const routeOptions = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const o of candidates) {
+      const r = deskRouteOf(o, resolveCompany(o.company))
+      counts.set(r, (counts.get(r) ?? 0) + 1)
+    }
+    const known = new Set<string>([...DESK_DAYS, ...SPECIAL_ROUTES])
+    const other = Array.from(counts.keys()).filter((r) => !known.has(r)).sort((a, b) => a.localeCompare(b, 'pl'))
+    return { list: [...DESK_DAYS, ...SPECIAL_ROUTES, ...other], counts }
+  }, [candidates, resolveCompany])
 
   // „Dodaj do trasy zlecenie nr” — numer zlecenia powtarza się między kategoriami
   const doPin = useCallback(async (chosen?: Order) => {
@@ -204,7 +217,7 @@ export default function LogisticsDeskView({
     if (ids.length === 0) { return }
     const notPacked = firms.flatMap((f) => f.rows.filter((r) => !isShipped(r.order) && !r.state.packed)).length
     const ok = await appConfirm(
-      `Oznaczyć wyjazd trasy ${prefs.route}: ${ids.length} zleceń z ${firms.length} firm?` +
+      `${shipButtonLabel(prefs.route)} — ${prefs.route}: oznaczyć ${ids.length} zleceń z ${firms.length} firm?` +
       (notPacked ? ` Uwaga: ${notPacked} z nich nie ma kompletu etapów / wydania — jeśli zostały na hali, odznacz je po oznaczeniu („cofnij” w wierszu).` : '') +
       ' Data wydania z Excela zostaje bez zmian.',
     )
@@ -233,14 +246,17 @@ export default function LogisticsDeskView({
         </div>
         <label className="ldesk-field">
           <span>Dzień produkcji</span>
-          <select className="day-filter" value={prefs.prod} onChange={(e) => setProd(e.target.value as DeskDay)}>
+          <select className="day-filter" value={prefs.prod ?? ''} onChange={(e) => { if (isDeskDay(e.target.value)) setProd(e.target.value) }}>
+            {prefs.prod == null && <option value="">— (trasa specjalna)</option>}
             {DESK_DAYS.map((d) => <option key={d} value={d}>{d} → trasa {ROUTE_OF_PROD[d]}</option>)}
           </select>
         </label>
         <label className="ldesk-field">
           <span>Trasa</span>
-          <select className="day-filter" value={prefs.route} onChange={(e) => setRoute(e.target.value as DeskDay)}>
-            {DESK_DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+          <select className="day-filter" value={prefs.route} onChange={(e) => setRoute(e.target.value)}>
+            {routeOptions.list.map((r) => (
+              <option key={r} value={r}>{r}{routeOptions.counts.get(r) ? ` (${routeOptions.counts.get(r)})` : ''}</option>
+            ))}
           </select>
         </label>
         <label className="ldesk-field ldesk-field--grow">
@@ -261,8 +277,8 @@ export default function LogisticsDeskView({
           <span className="ldesk-kpi__label">Wyjazd</span>
           <span className="ldesk-kpi__value">{kpi.shipped ? `wyjechało dziś ${kpi.shipped}` : 'jeszcze nie wyjechała'}</span>
           {canShip && (
-            <button type="button" className="btn btn-sm btn-primary" disabled={busy || loading || kpi.orders - kpi.shipped === 0} onClick={() => void shipRoute()} title="Oznacza wyjazd wszystkich widocznych zleceń tej trasy (shipped_at); wydanie z Excela bez zmian">
-              Trasa wyjechała
+            <button type="button" className="btn btn-sm btn-primary" disabled={busy || loading || kpi.orders - kpi.shipped === 0} onClick={() => void shipRoute()} title="Oznacza wyjazd / odbiór wszystkich widocznych zleceń tej trasy (shipped_at); wydanie z Excela bez zmian">
+              {shipButtonLabel(prefs.route)}
             </button>
           )}
         </div>

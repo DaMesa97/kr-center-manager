@@ -13,7 +13,7 @@
 // =====================================================================
 import type { Order } from '../types'
 import { countCompletedStages, getDaysElapsed, isReleaseDateEmpty, isRushOrderSequence, isStTitanOrder, isTitanBastionOrder, orderSetCompleteness } from '../utils'
-import { PERSONAL_PICKUP_ROUTE, getOrderRouteDay, type CompanyShippingInfo } from './companyMatch'
+import { ALU_MONTAZ_ROUTE, PERSONAL_PICKUP_ROUTE, getOrderRouteDay, type CompanyShippingInfo } from './companyMatch'
 
 export const DESK_DAYS = ['PONIEDZIAŁEK', 'WTOREK', 'ŚRODA', 'CZWARTEK', 'PIĄTEK'] as const
 export type DeskDay = (typeof DESK_DAYS)[number]
@@ -24,6 +24,18 @@ export const ROUTE_OF_PROD: Record<DeskDay, DeskDay> = {
 }
 export const PROD_OF_ROUTE: Record<DeskDay, DeskDay> = {
   ŚRODA: 'PONIEDZIAŁEK', CZWARTEK: 'WTOREK', PIĄTEK: 'ŚRODA', PONIEDZIAŁEK: 'CZWARTEK', WTOREK: 'PIĄTEK',
+}
+
+/** Firma bez dnia trasy — też musi dać się obejrzeć i oznaczyć (Tymek 17.11) */
+export const NO_ROUTE = 'Bez trasy'
+/** Trasy poza dniami tygodnia: odbiór osobisty, montaż własny (aluminium), brak trasy */
+export const SPECIAL_ROUTES: readonly string[] = [PERSONAL_PICKUP_ROUTE, ALU_MONTAZ_ROUTE, NO_ROUTE]
+
+/** Etykieta przycisku wyjazdu dla trasy: odbiór osobisty to nie bus */
+export function shipButtonLabel(route: string): string {
+  if (route === PERSONAL_PICKUP_ROUTE) return 'Odebrane osobiście'
+  if (route === ALU_MONTAZ_ROUTE) return 'Wyjechało na montaż'
+  return 'Trasa wyjechała'
 }
 
 export function isDeskDay(v: string | null | undefined): v is DeskDay {
@@ -127,11 +139,11 @@ export function readRoutePin(order: Order): RoutePin | null {
   return pin
 }
 
-/** Trasa zlecenia na biurku: przypięcie wygrywa nad firmą */
+/** Trasa zlecenia na biurku: przypięcie wygrywa nad firmą; firma bez trasy = „Bez trasy” */
 export function deskRouteOf(order: Order, companyInfo: CompanyShippingInfo | null | undefined): string {
   const pin = readRoutePin(order)
   if (pin) return pin.route
-  return getOrderRouteDay(order, companyInfo)
+  return getOrderRouteDay(order, companyInfo) || NO_ROUTE
 }
 
 /** Wyjechało dziś (lokalnie) — zostaje na liście z plakietką; starsze znikają */
