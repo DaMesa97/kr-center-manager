@@ -106,6 +106,11 @@ describe('computeCompanyStats', () => {
     expect(s.byMonth.map((r) => r.month)).toEqual(['2024-06', '2025-01', '2026-10', '2026-11'])
   })
 
+  it('anulowana reklamacja nie liczy się', () => {
+    const s = computeCompanyStats(orders, [...complaints, complaint({ company: 'PO DRZWI', complaint_date: '2026-11-14', extra_fields: { cancelled: true } })], ['PO DRZWI'], 12, NOW)
+    expect(s.complaints).toBe(1)
+  })
+
   it('kilka wariantów nazwy liczy się razem', () => {
     const s = computeCompanyStats(
       [...orders, order({ company: 'PO DRZWI ŻORY', order_date: '2026-11-12', quantity: 5 })],

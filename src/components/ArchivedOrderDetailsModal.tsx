@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import { hasComplaints } from '../constants'
 import type { ArchivedOrder } from '../types'
 
 type Props = {
@@ -101,9 +102,11 @@ export default function ArchivedOrderDetailsModal({ open, order, onClose, onCrea
           <button type="button" className="btn btn-sm btn-primary" onClick={onClose}>
             Zamknij
           </button>
-          <button type="button" className="btn btn-sm btn-warning" onClick={() => onCreateComplaint(order)}>
-            Utwórz reklamację
-          </button>
+          {hasComplaints(order.category) && (
+            <button type="button" className="btn btn-sm btn-warning" onClick={() => onCreateComplaint(order)}>
+              Utwórz reklamację
+            </button>
+          )}
         </div>
       </div>
     </div>,

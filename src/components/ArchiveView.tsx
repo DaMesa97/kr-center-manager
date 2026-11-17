@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { hasComplaints } from '../constants'
 import ArchivedOrderDetailsModal from './ArchivedOrderDetailsModal'
 import type { ArchivedOrder, ArchiveRunLog } from '../types'
 import { supabase } from '../supabaseClient'
@@ -177,9 +178,11 @@ export default function ArchiveView({ orders, loading, runLogs, onRefresh, onCre
               Szczegóły
             </button>
             {/* #140: kolor warning (reklamacja), ten sam rozmiar co sąsiedni przycisk */}
-            <button type="button" className="btn btn-sm btn-warning" onClick={() => onCreateComplaint(o)}>
-              Utwórz reklamację
-            </button>
+            {hasComplaints(o.category) && (
+              <button type="button" className="btn btn-sm btn-warning" onClick={() => onCreateComplaint(o)}>
+                Utwórz reklamację
+              </button>
+            )}
           </>
         ),
       },

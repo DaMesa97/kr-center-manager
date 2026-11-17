@@ -16,6 +16,11 @@ export function isCancelledOrder(o: Order): boolean {
   return ef?.cancelled === true
 }
 
+export function isCancelledComplaint(c: Complaint): boolean {
+  const ef = c.extra_fields as Record<string, unknown> | null | undefined
+  return ef?.cancelled === true
+}
+
 /**
  * Nazwy firm z zleceń (bez anulowanych), od najczęstszej. Jedna firma bywa
  * zapisana różnie („PO DRZWI” / „PO DRZWI ŻORY”), dlatego lista jest po
@@ -115,6 +120,7 @@ export function computeCompanyStats(
   })
   const complaints = allComplaints.filter((c) => {
     if (!wanted.has(normCompany(c.company))) return false
+    if (isCancelledComplaint(c)) return false
     const d = complaintDate(c)
     return !from || d >= from
   })

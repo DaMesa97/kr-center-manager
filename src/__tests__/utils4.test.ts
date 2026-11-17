@@ -53,6 +53,14 @@ describe('getComplaintBlockedStages — reklamacje zleceń łączonych', () => {
     expect(getComplaintBlockedStages('STA', 'Komplet', null)).toEqual([])
     expect(getComplaintBlockedStages('STA', '', null)).toEqual([])
   })
+  it('Bastion ma własne klucze etapów: Skrzydło blokuje ościeżnicę, Ościeżnica blokuje skrzydło', () => {
+    expect(getComplaintBlockedStages('Bastion', 'Skrzydło', null)).toEqual(['oscieznica_cnc', 'oscieznica_skrecanie', 'magazyn_regulowana', 'regulowana_do_zlozenia'])
+    expect(getComplaintBlockedStages('Bastion', 'Ościeżnica', null)).toEqual(['cnc', 'okleinowanie_skrzydla', 'okuwanie_skrzydla'])
+  })
+  it('para Disting Plus + „Skrzydło”: Disting ma zablokowane i etapy skrzydła (para), i ościeżnicy (nie reklamowana)', () => {
+    expect(getComplaintBlockedStages('Disting', 'Skrzydło', 7)).toEqual(['e3', 'e4', 'e1', 'e2_1', 'e2_2'])
+    expect(getComplaintBlockedStages('STA', 'Skrzydło', 7)).toEqual(['e1', 'e2_1', 'e2_2'])
+  })
 })
 
 describe('konwersje do bazy', () => {

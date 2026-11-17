@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { isCancelledComplaint } from '../../lib/companyStats'
 import {
   Bar,
   BarChart,
@@ -44,8 +45,10 @@ type Props = {
   loading: boolean
 }
 
-export default function ComplaintsStatsDashboard({ complaints, loading }: Props) {
+export default function ComplaintsStatsDashboard({ complaints: complaintsAll, loading }: Props) {
   const [rangeMonths, setRangeMonths] = useState(12)
+  // anulowane reklamacje (np. testowe) nie liczą się do statystyk — jak anulowane zlecenia
+  const complaints = useMemo(() => complaintsAll.filter((c) => !isCancelledComplaint(c)), [complaintsAll])
 
   const complaintsByMonth = useMemo(() => {
     const now = new Date()

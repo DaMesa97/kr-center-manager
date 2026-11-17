@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, type MutableRefObject, type ReactNode } from 'react'
+import { ST_MIXED_STAGE_DEFS, ST_STAGE_DEFS, ST_TITAN_STAGE_DEFS } from '../constants'
 import ProductionStageCell from './ProductionStageCell'
 import DataTable, { type DataTableColumn } from './DataTable'
 import type { Complaint, StageDef, StStageLayoutMode, WhatComplained } from '../types'
@@ -43,7 +44,7 @@ export default function ComplaintsView({
   filteredComplaints,
   orderStageColumnDefs,
   linkedComplaints,
-  stOrdersStageLayout,
+  stOrdersStageLayout: stOrdersStageLayoutProp,
   tableWrapperRef,
   onAddComplaint,
   onComplaintRushToggle,
@@ -52,6 +53,17 @@ export default function ComplaintsView({
   onRestoreComplaint,
   onCompleteComplaint,
 }: ComplaintsViewProps) {
+  // Układ etapów ST liczony po REKLAMACJACH, nie po liście zamówień (przegląd 17.11):
+  // gdy aktywne zlecenia ST były same Titany, zwykła reklamacja ST traciła CNC/OŚC/SKR/MON/MAG.
+  const stOrdersStageLayout = useMemo(() => {
+    if (activeTab !== 'ST') return null
+    if (filteredComplaints.length === 0) return stOrdersStageLayoutProp ?? { mode: 'std' as const, defs: ST_STAGE_DEFS }
+    const tit = filteredComplaints.filter(isStTitanComplaint)
+    if (tit.length === filteredComplaints.length) return { mode: 'titan' as const, defs: ST_TITAN_STAGE_DEFS }
+    if (tit.length === 0) return { mode: 'std' as const, defs: ST_STAGE_DEFS }
+    return { mode: 'mixed' as const, defs: ST_MIXED_STAGE_DEFS }
+  }, [activeTab, filteredComplaints, stOrdersStageLayoutProp])
+
   const syncComplaintsStickyWidths = useCallback(() => {
     const root = tableWrapperRef.current
     if (!root) return
@@ -298,18 +310,20 @@ export default function ComplaintsView({
       }
     }
     if (info?.blockedKeys.includes(def.key)) {
+      // Para Disting Plus: STA robi E3/E4 i mirror zapisuje je u Distinga jako sta_e3/sta_e4
+      // (lib/stageMirror) — komórka Distinga ma czytać mirror, nie własne (puste) e3/e4.
+      const isDistingMirror = c.category === 'Disting' && c.linked_complaint_id != null
+      const shown = (isDistingMirror ? String(rowStages['sta_' + def.key] ?? '').trim() : '') || value.trim()
       return {
         content: (
           <span
             className={[
               'production-stage-readonly',
-              value.trim() ? 'production-stage-readonly--linked-done' : 'production-stage-readonly--linked-empty',
+              shown ? 'production-stage-readonly--linked-done' : 'production-stage-readonly--linked-empty',
             ].join(' ')}
-            title={
-              c.category === 'Disting' && c.linked_complaint_id != null ? distingPlusMirrorTitle(def.key) : undefined
-            }
+            title={isDistingMirror ? distingPlusMirrorTitle(def.key) : undefined}
           >
-            {value.trim() ? value.trim() : '—'}
+            {shown ? shown : '—'}
           </span>
         ),
       }

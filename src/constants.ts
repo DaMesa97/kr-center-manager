@@ -306,6 +306,11 @@ export const ZKP_ROLE_LABELS: Record<string, string> = {
 }
 
 export const CONFIG_FORM_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'Wewnetrzne'] as const
+// Kategorie z podzakładką Reklamacje (zlecenia naprawcze z etapami); reklamacja w innej
+// kategorii nie byłaby nigdzie widoczna (przegląd 17.11)
+export const COMPLAINT_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'] as const
+export const hasComplaints = (category: string | null | undefined): boolean =>
+  (COMPLAINT_CATEGORIES as readonly string[]).includes(String(category ?? ''))
 
 export const CONFIG_DICTIONARIES: ConfigDictionaryDef[] = [
   { key: 'sta-system', label: 'Systemy', category: 'STA', type: 'system' },

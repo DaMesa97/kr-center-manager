@@ -28,6 +28,10 @@ type UseComplaintsParams = {
   setActiveSubTab: (tab: SubTab) => void
 }
 
+// Baza (RLS) potrafi odrzucić UPDATE bez błędu — 0 zmienionych wierszy. Tak wyglądało
+// „nie działa” u superadmina 17.11 (polityki complaints bez tej roli; supabase/sql/rls_superadmin_policies.sql).
+const COMPLAINT_RLS_HINT = 'Zapis odrzucony przez uprawnienia bazy (RLS) — reklamacja bez zmian. Sprawdź rolę konta.'
+
 export function useComplaints({
   pushToast,
   touchSession,
@@ -232,14 +236,19 @@ export function useComplaints({
       })
       setShowComplaintForm(true)
       setActiveTab(archivedOrder.category as (typeof TABS)[number])
-      setActiveSubTab('Reklamacje')
+      // Efekt w App resetuje podzakładkę na „Zamówienia” przy każdej zmianie kategorii —
+      // podzakładkę „Reklamacje” ustawiamy dopiero po nim (#99: użytkownik lądował w Zamówieniach).
+      window.setTimeout(() => setActiveSubTab('Reklamacje'), 0)
     },
     [setActiveTab, setActiveSubTab],
   )
 
   const handleSaveComplaint = useCallback(async () => {
     touchSession()
-    if (!complaintFormData.order_id && !complaintFormData.order_number.trim()) return
+    if (!complaintFormData.order_id && !complaintFormData.order_number.trim()) {
+      pushToast('Wybierz zamówienie, którego dotyczy reklamacja', 'error')
+      return
+    }
     if (!complaintFormData.what_complained?.trim()) {
       pushToast('Wybierz co jest reklamowane', 'error')
       return
@@ -600,9 +609,13 @@ export function useComplaints({
       if (id === undefined) return
       const today = new Date().toISOString().split('T')[0]
       const value = done ? today : null
-      const { error } = await supabase.from('complaints').update({ release_date: value }).eq('id', id)
+      const { data, error } = await supabase.from('complaints').update({ release_date: value }).eq('id', id).select('id')
       if (error) {
         pushToast(`Błąd: ${error.message}`, 'error')
+        return
+      }
+      if (!data || data.length === 0) {
+        pushToast(COMPLAINT_RLS_HINT, 'error')
         return
       }
       // para Disting Plus kończy się razem
@@ -624,12 +637,19 @@ export function useComplaints({
         return
       }
       if (complaint.is_rush === checked) return
-      const { error } = await supabase.from('complaints').update({ is_rush: checked }).eq('id', id)
+      const { data, error } = await supabase.from('complaints').update({ is_rush: checked }).eq('id', id).select('id')
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
         return
       }
-      setComplaints((prev) => prev.map((c) => (c.id === id ? { ...c, is_rush: checked } : c)))
+      if (!data || data.length === 0) {
+        pushToast(COMPLAINT_RLS_HINT, 'error')
+        return
+      }
+      // para Disting Plus: pilność jedna dla obu wierszy (stanowisko liczy ją per wiersz)
+      const linkedId = complaint.linked_complaint_id
+      if (linkedId != null) await supabase.from('complaints').update({ is_rush: checked }).eq('id', linkedId)
+      setComplaints((prev) => prev.map((c) => (c.id === id || (linkedId != null && c.id === linkedId) ? { ...c, is_rush: checked } : c)))
     },
     [isManager, pushToast],
   )

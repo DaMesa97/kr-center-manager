@@ -262,37 +262,46 @@ export function getComplaintBlockedStages(
   whatComplained: WhatComplained | '',
   linkedComplaintId?: number | null,
 ): string[] {
-  if (linkedComplaintId != null) {
-    if (category === 'STA') {
-      return ['e1', 'e2_1', 'e2_2']
-    }
-    if (category === 'Disting') {
-      // E5 (pakowanie ościeżnicy) ROBI Disting — jak w zamówieniach.
-      // Blokada e5 zamrażała plakietkę OŚC w STA na zawsze.
-      return ['e3', 'e4']
-    }
-  }
+  // Para Disting Plus: STA nie robi ościeżnicy, Disting nie robi skrzydła.
+  // E5 (pakowanie ościeżnicy) ROBI Disting — jak w zamówieniach; blokada e5
+  // zamrażała plakietkę OŚC w STA na zawsze.
+  const linked: string[] =
+    linkedComplaintId != null
+      ? category === 'STA'
+        ? ['e1', 'e2_1', 'e2_2']
+        : category === 'Disting'
+          ? ['e3', 'e4']
+          : []
+      : []
 
-  if (whatComplained === 'Komplet' || whatComplained === '') return []
-
+  // Etapy OŚCIEŻNICY (blokowane, gdy reklamowane jest tylko skrzydło) i SKRZYDŁA
+  // (blokowane, gdy reklamowana jest tylko ościeżnica). Bastion ma własne klucze
+  // etapów (constants BASTION_STAGE_DEFS) — wcześniej miał tu e1…e5, które u niego
+  // nie istnieją, więc nic nie było blokowane (przegląd 17.11).
   const frameStageKeys: Record<string, string[]> = {
     STA: ['e1', 'e2_1', 'e2_2'],
     Disting: ['e1', 'e2_1', 'e2_2'],
-    Bastion: ['e1', 'e2_1', 'e2_2'],
+    Bastion: ['oscieznica_cnc', 'oscieznica_skrecanie', 'magazyn_regulowana', 'regulowana_do_zlozenia'],
     ST: ['cnc', 'osc'],
     Techniczne: [],
   }
   const wingStageKeys: Record<string, string[]> = {
     STA: ['e3', 'e4', 'e5'],
     Disting: ['e3', 'e4', 'e5'],
-    Bastion: ['e3', 'e4', 'e5'],
+    Bastion: ['cnc', 'okleinowanie_skrzydla', 'okuwanie_skrzydla'],
     ST: ['skr', 'mon', 'mag'],
     Techniczne: [],
   }
 
-  if (whatComplained === 'Skrzydło') return frameStageKeys[category] ?? []
-  if (whatComplained === 'Ościeżnica') return wingStageKeys[category] ?? []
-  return []
+  // Blokady z pary i z „co reklamowane” sumują się: reklamacja Disting „Skrzydło”
+  // w parze nie ma otwierać Distingowi etapów ościeżnicy, której nikt nie reklamował.
+  const byWhat =
+    whatComplained === 'Skrzydło'
+      ? frameStageKeys[category] ?? []
+      : whatComplained === 'Ościeżnica'
+        ? wingStageKeys[category] ?? []
+        : []
+  return Array.from(new Set([...linked, ...byWhat]))
 }
 
 export async function generateComplaintNumber(): Promise<string> {
