@@ -107,6 +107,7 @@ import AuditLogView from './components/AuditLogView'
 import OrderHistoryModal from './components/OrderHistoryModal'
 import ArchiveView from './components/ArchiveView'
 import ShippingView from './components/ShippingView'
+import LogisticsDeskView from './components/LogisticsDeskView'
 import ShippingDetailsModal from './components/ShippingDetailsModal'
 import WorkerStagesModal from './components/WorkerStagesModal'
 import MyStationView from './components/MyStationView'
@@ -973,6 +974,8 @@ function App() {
     handleToggleRouteMark,
     handleShippingRushToggle,
     handleOpenShippingOrder,
+    markOrdersShipped,
+    pinOrderToRoute,
   } = useShipping({
     pushToast,
     touchSession,
@@ -1795,6 +1798,14 @@ function App() {
   const isAuditTab = activeTab === 'Audyt'
   const isArchiveTab = activeTab === 'Archiwum'
   const isShippingTab = activeTab === 'Wysyłka'
+  // Wysyłka: „Biurko logistyki” (makieta 16–17.11, do fakturowania + wyjazd trasy) albo stara lista; wybór pamiętany na komputerze
+  const [shippingMode, setShippingMode] = useState<'biurko' | 'lista'>(() => {
+    try { return localStorage.getItem('kr-shipping-mode') === 'lista' ? 'lista' : 'biurko' } catch { return 'biurko' }
+  })
+  const setShippingModePersist = (m: 'biurko' | 'lista') => {
+    setShippingMode(m)
+    try { localStorage.setItem('kr-shipping-mode', m) } catch { /* ignore */ }
+  }
   const isMyStationTab = activeTab === 'Moje stanowisko'
   const isLabelsTab = activeTab === 'Etykiety'
   const isHelpTab = activeTab === 'Pomoc'
@@ -3585,23 +3596,50 @@ function App() {
             onSwitchUser={() => void handleSignOut()}
           />
         ) : isShippingTab && can(currentUser?.role, 'shipping.view') ? (
-          <ShippingView
-            orders={shippingOrdersScoped}
-            releasedOrders={shippingReleasedScoped}
-            fullOrders={shippingOrders}
-            companiesMap={shippingCompaniesMap}
-            loading={shippingOrdersLoading}
-            onRefresh={() => void fetchShippingOrders()}
-            onShowDetails={handleOpenShippingOrder}
-            onToggleReadyToInvoice={handleToggleReadyToInvoice}
-            onToggleRouteMark={handleToggleRouteMark}
-            onRushToggle={handleShippingRushToggle}
-            rushUpdatingOrderId={rushUpdatingOrderId}
-            isManager={isManager}
-            canInvoice={can(currentUser?.role, 'shipping.invoice')}
-            glassAllowances={glassAllowances}
-            leadTimeRules={leadTimeRules}
-          />
+          <div className="shipping-view">
+            <div className="subtab-bar" role="tablist" aria-label="Wysyłka — widok">
+              {(['biurko', 'lista'] as const).map((m) => (
+                <button key={m} type="button" role="tab" aria-selected={shippingMode === m} className={`btn btn-sm ${shippingMode === m ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setShippingModePersist(m)}>
+                  {m === 'biurko' ? 'Biurko logistyki' : 'Lista zleceń'}
+                </button>
+              ))}
+            </div>
+            {shippingMode === 'biurko' ? (
+              <LogisticsDeskView
+                orders={shippingOrdersScoped}
+                releasedOrders={shippingReleasedScoped}
+                allOrders={shippingOrders}
+                companiesMap={shippingCompaniesMap}
+                loading={shippingOrdersLoading}
+                canInvoice={can(currentUser?.role, 'shipping.invoice')}
+                canShip={isManager}
+                userLabel={currentUser?.full_name || currentUser?.initials || ''}
+                onRefresh={() => void fetchShippingOrders()}
+                onShowDetails={handleOpenShippingOrder}
+                onToggleReadyToInvoice={handleToggleReadyToInvoice}
+                onPin={pinOrderToRoute}
+                onMarkShipped={markOrdersShipped}
+              />
+            ) : (
+              <ShippingView
+                orders={shippingOrdersScoped}
+                releasedOrders={shippingReleasedScoped}
+                fullOrders={shippingOrders}
+                companiesMap={shippingCompaniesMap}
+                loading={shippingOrdersLoading}
+                onRefresh={() => void fetchShippingOrders()}
+                onShowDetails={handleOpenShippingOrder}
+                onToggleReadyToInvoice={handleToggleReadyToInvoice}
+                onToggleRouteMark={handleToggleRouteMark}
+                onRushToggle={handleShippingRushToggle}
+                rushUpdatingOrderId={rushUpdatingOrderId}
+                isManager={isManager}
+                canInvoice={can(currentUser?.role, 'shipping.invoice')}
+                glassAllowances={glassAllowances}
+                leadTimeRules={leadTimeRules}
+              />
+            )}
+          </div>
         ) : isLabelsTab ? (
           <LabelsView
             isManager={isManager}

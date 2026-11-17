@@ -103,6 +103,19 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [ ] **Deklaracje (6.9):** ⚙ Certyfikaty i podpis (wpisz choć podpisującego) → „+ Wystaw deklarację” → grupa zlecenie × kod typu → numer KDWU/26/0001 → PDF otwiera się sam; „🏷 tabliczki” = tabliczka 6.26 + etykieta B/CE na konstrukcję (A5); numer widać w karcie, rejestrze 6.33 i teczce (poz. 9–10 „jest”, gdy wszystkie konstrukcje mają).
 - [ ] **Decyzje PJ:** nominał ościeżnicy z LP do ±2 mm; układ tabliczki vs DWG systemodawcy; UD / uderzenie = NPD do czasu dokumentów ALURON.
 
+## 🚚 WYSYŁKA — biurko kierownika logistyki (makieta „Wysyłka — lista dnia”, 16–17.11, Claude, na , migracja WGRANA, bez nowej bety)
+
+Decyzje Tymka: ekran dla kierownika logistyki na komputerze (bez mobilnej), wiersz w wariancie C + system · kolor · rozmiar+kierunek obok modelu, **wydań z Excela NIE ruszamy** (release_date = dla STA/Titan przekazanie z Marklowickiej na Bukową, dla Bukowej znacznik bez daty = czyjś ptaszek — zostaje jak jest). Makieta: https://claude.ai/artifact/QrsYxJCRMSzY4o2U711TgJ
+
+- [x] Baza:  +  („wyjechało na trasę”, osobne od wydania), rpc  (kierownik) — 
+- [x]  + testy: dzień produkcji ↔ trasa (+2 dni robocze), „na magazynie” (STA: wydanie z Excela; reszta: wszystkie etapy; Techniczne bez etapów = nieznane), brak RO tylko dla zleceń z konfiguratora, ostrzeżenia (szyba, komplet, niedobór, pilne, problem), przypięcie do trasy  (7 dni), lista do druku bez cen
+- [x]  w Wysyłce jako tryb „Biurko logistyki” (przełącznik obok „Lista zleceń”, pamiętany na komputerze): dzień produkcji/trasa, szukaj, KPI, firma po firmie, checkbox do fakturowania (= FAKTURA), „Oznacz wszystkie”, „Schowaj oznaczone”, „Dodaj do trasy nr” (pyta przy kilku trafieniach), „Lista do fakturowania (N)” z drukiem, „Trasa wyjechała” (oznacza wszystkie widoczne; „cofnij” w szczegółach), „Szczegóły” rozwijane
+- [ ] **Sprawdź:** Wysyłka → Biurko logistyki: poniedziałek → trasa ŚRODA; firmy z trasy; STA po wydaniu z Excela = „NA MAGAZYNIE”, Disting z kompletem etapów = „NA MAGAZYNIE”, reszta „niespakowane”; „BRAK RO” tylko przy zleceniach z konfiguratora; checkbox do fakturowania zapisuje to samo co kolumna FAKTURA w „Lista zleceń”
+- [ ] **Sprawdź:** „Dodaj do trasy” z numerem powtarzającym się między kategoriami → wybór; plakietka „DODANE DO TRASY”; w szczegółach „Odepnij”
+- [ ] **Sprawdź:** „Lista do fakturowania” → tabela per firma bez cen → „Drukuj / zapisz PDF” drukuje tylko listę
+- [ ] **Sprawdź:** „Trasa wyjechała” → potwierdzenie z liczbą → wiersze dostają „WYJECHAŁO hh:mm”, jutro znikają z biurka; „Cofnij wyjazd” w szczegółach; wydanie z Excela bez zmian
+- [ ] Do decyzji: czy Archiwum i „Czas realizacji” mają przejść na  (dziś liczą po release_date); czy Techniczne dostają etap pakowania
+- [ ] Do decyzji (odłożone 17.11): znacznik bez daty w arkuszach Bukowej zamyka zlecenia datą importu (Bastion 777, ST 242, Disting 118 od października) — zostaje, ale to szum
 ## 🧪 DO SPRAWDZENIA — Magazyn → Stany: ostrzeżenia o brakach 9.11 (Claude, na `clean`, migracje WGRANE, bez nowej bety)
 - [ ] **Stany → Wszystkie:** WINCHESTER 100T na samej górze, czerwony, „⚠ Krytyczny”, DO ZAMÓWIENIA 18; DĄB TURNER 90E GŁADKIE żółty „Pokryty dostawą (21.12.2026)”; liczniki: Krytyczne 140 / Pokryte 8 / Niskie 1 (stan na 9.11) — klik w licznik filtruje, drugi klik zdejmuje filtr; „Alfabetycznie” wraca do zwykłej listy, wybór pamiętany na komputerze.
 - [ ] **Minimum półki:** MARKLOWICKA → klik w MINIMUM w wierszu → wpisz 10 przy dostępnych 8 → wiersz pomarańczowy „Niski”, DO ZAMÓWIENIA 2; puste = nie pilnujemy. Zaznacz kilka półek checkboxem → pasek „Ustaw minimum” → jedno wpisanie dla wszystkich. W „Wszystkie” klik w MINIMUM rozwija edytor per magazyn. Minimum półki ma pierwszeństwo przed Smart ROP (🤖) i minimum komponentu („komp.”).
