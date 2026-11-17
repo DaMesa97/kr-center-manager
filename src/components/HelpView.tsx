@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Samozamykacz w zleceniach STA i Disting, także jako kryterium receptur (beta.129)</h4>
+        <ul>
+          <li><b>Zlecenia STA / Disting:</b> nowe pole <b>Samozamykacz</b> w formularzu (obok Osłonek), w szczegółach zlecenia, na stanowisku (dane skrzydła i pakowanie), w historii zmian, w archiwum i jako pole etykiety <code>{'{{samozamykacz}}'}</code>. Wartości w <b>Konfiguracja → STA / Disting → Samozamykacz</b> (na start BRAK i TAK; konkretne modele dopisuje biuro). Przy zleceniach Disting Plus pole przenosi się między STA a Distingiem jak reszta wspólnych danych.</li>
+          <li><b>Magazyn → Receptury:</b> nowe kryterium „Samozamykacz” — receptura z tym kryterium dobiera komponent tylko do zleceń, które mają samozamykacz; zmiana pola w zleceniu przerezerwowuje komponenty.</li>
+          <li><b>Excel:</b> automat czyta kolumnę „Samozamykacz” z arkusza i formularza. Dopóki arkusze STA i Disting jej nie mają, zlecenia z Excela mają pole puste i receptura z tym kryterium ich nie obejmie (zgłoszenie #157, Dawid).</li>
+        </ul>
         <h4>Biurko logistyki: odbiór osobisty, montaż własny i firmy bez trasy (beta.128)</h4>
         <ul>
           <li>Lista „Trasa” ma poza dniami tygodnia także <b>Odbiór osobisty</b>, <b>Montaż własny</b> (aluminium) i <b>Bez trasy</b> (firma bez ustawionego dnia trasy w Kontrahentach), z liczbą zleceń przy każdej pozycji. Oznaczanie do fakturowania, lista do druku i „Dodaj do trasy” działają tam tak samo.</li>

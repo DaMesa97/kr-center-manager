@@ -956,6 +956,7 @@ export function useOrders({
         handle: order.handle,
         electric_strike: order.electric_strike,
         oslonki: order.oslonki,
+        samozamykacz: order.samozamykacz,
         quantity: order.quantity,
         notes: order.notes,
         client_order_number: order.client_order_number,
@@ -1264,6 +1265,7 @@ export function useOrders({
         client_order_number: staFormData.client_order_number,
         category: staFormData.category || activeTab,
         oslonki: staFormData.oslonki,
+        samozamykacz: staFormData.samozamykacz,
         // #57: jedno pole "Zaczep" w UI zapisuje OBA (electric_strike = źródło
         // dla tabeli/receptur/DoP; zaczep = legacy, trzymane w sync)
         zaczep: staFormData.zaczep,
@@ -1708,6 +1710,7 @@ export function useOrders({
           extension: '',
           electric_strike: '',
           oslonki: '',
+          samozamykacz: '',
           zaczep: '',
           linked_order_id: stId,
           st_sheet: stNr,

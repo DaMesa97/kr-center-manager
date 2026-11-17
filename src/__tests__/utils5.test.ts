@@ -90,6 +90,7 @@ describe('mapConfigTypeToFormField — słownik Konfiguracji → pole formularza
     expect(mapConfigTypeToFormField('kolor')).toBe('wing_color')
     expect(mapConfigTypeToFormField('kolor_progu')).toBe('threshold_color')
     expect(mapConfigTypeToFormField('wysokosc')).toBe('height')
+    expect(mapConfigTypeToFormField('samozamykacz')).toBe('samozamykacz')
   })
 })
 

@@ -824,6 +824,13 @@ function OrderFormModal(props: OrderFormModalProps) {
                     placeholder="— wybierz —"
                   />
                   <SearchableConfigSelect
+                    label="Samozamykacz"
+                    value={staFormData.samozamykacz}
+                    onChange={(v) => handleStaFormChange('samozamykacz', v)}
+                    options={orderModalOptionsByType.samozamykacz ?? []}
+                    placeholder="— wybierz —"
+                  />
+                  <SearchableConfigSelect
                     label="Zaczep"
                     value={staFormData.zaczep}
                     onChange={(v) => handleStaFormChange('zaczep', v)}

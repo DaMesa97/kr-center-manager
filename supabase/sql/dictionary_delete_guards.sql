@@ -42,6 +42,7 @@ begin
     when 'okucia'            then array['hardware']
     when 'pochwyt'           then array['handle']
     when 'oslonki'           then array['oslonki']
+    when 'samozamykacz'      then array['samozamykacz']
     when 'zaczep'            then array['zaczep']
     when 'panel'             then array['decorative_panel']
     when 'oscieznica'        then array['bastion_frame_type']

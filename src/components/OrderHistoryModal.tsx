@@ -23,6 +23,7 @@ const FIELD_LABELS: Record<string, string> = {
   handle: 'Pochwyt',
   peephole: 'Wizjer',
   electric_strike: 'Elektrozaczep',
+  samozamykacz: 'Samozamykacz',
   threshold_color: 'Kolor progu',
   quantity: 'Ilość',
   notes: 'Uwagi',

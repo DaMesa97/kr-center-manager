@@ -74,6 +74,7 @@ export const LABEL_FIELDS: { key: string; label: string; value: (o: Order) => st
   { key: 'panel_gorny',     label: 'Panel górny',            value: (o) => str((o as Record<string, unknown>).bastion_top_panel) },
   { key: 'poszerzenie',     label: 'Poszerzenie',            value: (o) => str(o.extension) },
   { key: 'oslonki',         label: 'Osłonki',                value: (o) => str((o as Record<string, unknown>).oslonki) },
+  { key: 'samozamykacz',    label: 'Samozamykacz',           value: (o) => str((o as Record<string, unknown>).samozamykacz) },
   { key: 'podwalina',       label: 'Podwalina',              value: (o) => str(extraField(o, 'podwalina')) },
   { key: 'intarsja',        label: 'Intarsja',               value: (o) => str(o.intarsja) },
   { key: 'ilosc',           label: 'Ilość',                  value: (o) => str(o.quantity) },

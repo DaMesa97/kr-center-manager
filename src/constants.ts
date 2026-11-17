@@ -255,6 +255,7 @@ export const RECIPE_CRITERIA_FIELD_DEFS: Array<{
   { key: 'electric_strike', label: 'Zaczep', dict: 'zaczep' },
   { key: 'intarsja', label: 'Intarsja (Titan)', options: ['JEDNOSTRONNA', 'DWUSTRONNA'] },
   { key: 'oslonki', label: 'Osłonki', dict: 'oslonki' },
+  { key: 'samozamykacz', label: 'Samozamykacz', dict: 'samozamykacz' },
   { key: 'prog', label: 'Próg (rodzaj)', dict: 'prog' },
   { key: 'bastion_frame_type', label: 'Ościeżnica (Bastion)', dict: 'oscieznica' },
 ]
@@ -325,6 +326,7 @@ export const CONFIG_DICTIONARIES: ConfigDictionaryDef[] = [
   { key: 'sta-okucia', label: 'Okucia', category: 'STA', type: 'okucia' },
   { key: 'sta-pochwyt', label: 'Pochwyty', category: 'STA', type: 'pochwyt' },
   { key: 'sta-oslonki', label: 'Osłonki', category: 'STA', type: 'oslonki' },
+  { key: 'sta-samozamykacz', label: 'Samozamykacz', category: 'STA', type: 'samozamykacz' },
   { key: 'sta-zaczep', label: 'Zaczepy', category: 'STA', type: 'zaczep' },
 
   { key: 'disting-system', label: 'Systemy', category: 'Disting', type: 'system' },
@@ -345,6 +347,7 @@ export const CONFIG_DICTIONARIES: ConfigDictionaryDef[] = [
   { key: 'disting-okucia', label: 'Okucia', category: 'Disting', type: 'okucia' },
   { key: 'disting-pochwyt', label: 'Pochwyty', category: 'Disting', type: 'pochwyt' },
   { key: 'disting-oslonki', label: 'Osłonki', category: 'Disting', type: 'oslonki' },
+  { key: 'disting-samozamykacz', label: 'Samozamykacz', category: 'Disting', type: 'samozamykacz' },
   { key: 'disting-zaczep', label: 'Zaczepy', category: 'Disting', type: 'zaczep' },
 
   { key: 'st-system', label: 'Systemy', category: 'ST', type: 'system' },
@@ -568,6 +571,7 @@ export const INITIAL_STA_ORDER_FORM: StaOrderFormData = {
   hardware: '',
   handle: '',
   oslonki: '',
+  samozamykacz: '',
   zaczep: '',
   intarsja: '',
   stage1: '',

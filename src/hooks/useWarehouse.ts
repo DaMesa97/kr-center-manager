@@ -934,6 +934,7 @@ export function useWarehouse({
         'electric_strike',
         'zaczep',
         'oslonki',
+        'samozamykacz',
         'prog',
         'intarsja',
         'wentylacja',

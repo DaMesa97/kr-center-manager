@@ -391,6 +391,7 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     { label: 'Wizjer', value: str(order.peephole) },
     { label: 'Panel dekoracyjny', value: str(order.decorative_panel) },
     { label: 'Intarsja', value: str(order.intarsja) },
+    { label: 'Samozamykacz', value: str(order.samozamykacz) },
     { label: 'Elektrozaczep', value: str(order.electric_strike) },
   ]
   const FULL: DetailField[] = [
@@ -407,6 +408,7 @@ export function fieldsForStage(order: Order, category: string, actualKey: string
     { label: 'Dostawka boczna', value: str(order.side_panel_a || order.side_panel) },
     { label: 'Dostawka B', value: str(order.side_panel_b) },
     { label: 'Osłonki', value: str(order.oslonki) },
+    { label: 'Samozamykacz', value: str(order.samozamykacz) },
     { label: 'Podwalina', value: str((o.extra_fields as Record<string, unknown> | null)?.podwalina) },
   ]
   const ef = (o.extra_fields as Record<string, unknown> | null) ?? {}

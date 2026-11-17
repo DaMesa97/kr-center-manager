@@ -75,10 +75,11 @@ describe('fieldsForStage — dobór szczegółów pod etap', () => {
   })
 
   it('pakowanie (E5) widzi naświetle, dostawki i osłonki', () => {
-    const l = labels({ ...staOrder(), oslonki: 'CZARNE' } as Order, 'STA', 'e5')
+    const l = labels({ ...staOrder(), oslonki: 'CZARNE', samozamykacz: 'TAK' } as Order, 'STA', 'e5')
     expect(l).toContain('Naświetle górne')
     expect(l).toContain('Dostawka boczna')
     expect(l).toContain('Osłonki')
+    expect(l).toContain('Samozamykacz')
   })
 
   it('ST: CNC frezuje skrzydło → dane skrzydła', () => {

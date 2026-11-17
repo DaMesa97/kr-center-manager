@@ -53,6 +53,7 @@ function detailSections(order: Order): { title: string; fields: Field[] }[] {
         { label: 'Pochwyt', value: str(order.handle) },
         { label: 'Wizjer', value: str(order.peephole) },
         { label: 'Elektrozaczep', value: str(order.electric_strike) },
+        { label: 'Samozamykacz', value: str(order.samozamykacz) },
         { label: 'Poszerzenie', value: str(order.extension) },
       ],
     },

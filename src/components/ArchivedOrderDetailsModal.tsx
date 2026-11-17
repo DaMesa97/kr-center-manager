@@ -37,6 +37,7 @@ const CONFIG_FIELDS: FieldDef[] = [
   { key: 'decorative_panel', label: 'Panel dekoracyjny' },
   { key: 'hardware', label: 'Okucia' },
   { key: 'handle', label: 'Pochwyt' },
+  { key: 'samozamykacz', label: 'Samozamykacz' },
 ]
 
 const EXTRA_FIELDS: FieldDef[] = [

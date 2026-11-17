@@ -76,6 +76,7 @@ export type Order = {
   linked_order_id?: number | null
   sta_sheet?: string
   oslonki?: string
+  samozamykacz?: string
   zaczep?: string
   // Rodzaj intarsji — tylko systemy Titan (JEDNOSTRONNA/DWUSTRONNA), reszta pusta
   intarsja?: string
@@ -478,6 +479,7 @@ export type StaOrderFormData = {
   hardware: string
   handle: string
   oslonki: string
+  samozamykacz: string
   zaczep: string
   intarsja: string
   stage1: string

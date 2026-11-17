@@ -756,6 +756,7 @@ export function mapConfigTypeToFormField(type: string): string | null {
   if (type === 'okucia') return 'hardware'
   if (type === 'pochwyt') return 'handle'
   if (type === 'oslonki') return 'oslonki'
+  if (type === 'samozamykacz') return 'samozamykacz'
   if (type === 'zaczep') return 'zaczep'
   if (type === 'panel') return 'decorative_panel'
   if (type === 'oscieznica') return 'frame_type'
@@ -1336,6 +1337,7 @@ export function orderToStaForm(order: Order): StaOrderFormData {
     hardware: order.hardware ?? '',
     handle: order.handle ?? '',
     oslonki: order.oslonki ?? '',
+    samozamykacz: order.samozamykacz ?? '',
     // scalenie zaczep/elektrozaczep (#57): jedno pole UI, źródłem electric_strike
     // (fallback na stare zamówienia pisane tylko do zaczep)
     zaczep: order.electric_strike || order.zaczep || '',

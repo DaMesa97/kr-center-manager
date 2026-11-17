@@ -234,6 +234,7 @@ export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknow
     zaczep: zaczepValue,
     peephole: get('Wizjer'),
     oslonki: get('Oslonki'),
+    samozamykacz: get('Samozamykacz'),
     wentylacja: get('Wentylacja'),
     top_light: combineDim(get('Szerokość naświetla'), get('Wysokość naświetla')),
     top_light_glazing: get('Szklenie naświetla'),
