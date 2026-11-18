@@ -455,6 +455,15 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
     return `✖ Przegrany${p ? `: ${p}` : ''}${typeof dane?.notatka === 'string' && dane.notatka ? ` — ${dane.notatka}` : ''}`
   }
   if (typ === 'wygrany') return '✔ Zamówił'
+  // przywrócenie: ręcznie albo samo (klient zadzwonił / napisał / wysłano ofertę), z poprzednim powodem
+  if (typ === 'przywrocony') {
+    const skad = typeof dane?.zrodlo === 'string' && dane.zrodlo ? dane.zrodlo : null
+    const pop = typeof dane?.poprzedni_powod === 'string' && dane.poprzedni_powod ? CRM_WYNIK_POWOD[dane.poprzedni_powod] ?? dane.poprzedni_powod : null
+    return `↺ Przywrócono do gry${skad ? ` (${skad})` : ''}${pop ? ` · wcześniej: ${pop}` : ''}`
+  }
+  if (typ === 'przegrany_automatycznie' && typeof dane?.powod === 'string') {
+    return `✖ Przegrany automatycznie: ${CRM_WYNIK_POWOD[dane.powod] ?? dane.powod} (30 dni bez kontaktu)`
+  }
   return CRM_ZDARZENIE_LABEL[typ] ?? typ
 }
 

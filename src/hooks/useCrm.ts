@@ -238,13 +238,13 @@ export async function oznaczWynik(
     p_notatka: opts.notatka?.trim() || null,
     p_oferta_id: opts.ofertaId ?? null,
   })
-  // funkcji jeszcze nie ma w bazie (migracja po stronie serwera CRM) — nic nie zapisujemy bokiem
-  if (error && (error.code === 'PGRST202' || /oznacz_wynik/i.test(error.message ?? ''))) {
-    if (error.code === 'PGRST202' || /could not find|does not exist/i.test(error.message ?? '')) {
-      return { kind: 'other', message: 'Oznaczanie wyniku czeka jeszcze na aktualizację bazy CRM — spróbuj za chwilę.' }
-    }
+  // funkcji nie ma w bazie (np. stara baza testowa) — nic nie zapisujemy bokiem
+  if (error && error.code === 'PGRST202') {
+    return { kind: 'other', message: 'Oznaczanie wyniku czeka jeszcze na aktualizację bazy CRM — spróbuj za chwilę.' }
   }
-  return crmErrorFrom(error)
+  // pozostałe błędy serwer zwraca jako wyjątki po polsku (brak powodu, notatka przy „inne”, oferta innego klienta) — pokazujemy wprost
+  if (error) return { kind: 'other', message: error.message || 'Nie udało się zapisać wyniku' }
+  return null
 }
 
 export async function zamknijZadanie(leadId: string, z: CrmZamknijZadanie): Promise<CrmError | null> {

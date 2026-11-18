@@ -248,11 +248,20 @@ function WynikPrzegranyForm({ busy, hint, onConfirm, onCancel }: { busy: boolean
       </label>
       <p className="crm-muted">{hint ?? 'Zamkniemy otwarte zadanie, a wysłane oferty dostaną status „Odrzucona”. Klient zniknie z „Do zrobienia”; wróci po kliknięciu „Przywróć do gry”.'}</p>
       <div className="crm-mail-actions">
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => { if (!powod) { setBrak(true); return } onConfirm(powod, notatka) }}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy}
+          onClick={() => {
+            // serwer (brief pkt 31): powód obowiązkowy, przy „inne” także notatka
+            if (!powod || (powod === 'inne' && !notatka.trim())) { setBrak(true); return }
+            onConfirm(powod, notatka)
+          }}
+        >
           {busy ? <Spinner inline size={14} /> : null} Oznacz jako przegrany
         </button>
         <button type="button" className="btn btn-secondary" disabled={busy} onClick={onCancel}>Anuluj</button>
-        {brak && <span className="crm-text-bad">Wybierz powód.</span>}
+        {brak && <span className="crm-text-bad">{!powod ? 'Wybierz powód.' : 'Przy „inne” wpisz krótko, co się stało.'}</span>}
       </div>
     </section>
   )
@@ -2005,8 +2014,14 @@ function LeadScreen({
               </button>
             </>
           ) : (
-            <button type="button" className="btn btn-secondary" disabled={wynikBusy} onClick={() => void handleWynik('w_grze')} title="Klient wraca do gry z nowym zadaniem „Zapytaj o decyzję”">
-              {wynikBusy ? <Spinner inline size={14} /> : <RefreshCw size={14} />} Przywróć do gry
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={wynikBusy}
+              onClick={() => void handleWynik('w_grze')}
+              title={lead.status === 'wygrany' ? 'Cofa pomyłkowe „Zamówił”: klient wraca do gry z nowym zadaniem (oferta zostaje zaakceptowana)' : 'Klient wraca do gry z nowym zadaniem „Zapytaj o decyzję”'}
+            >
+              {wynikBusy ? <Spinner inline size={14} /> : <RefreshCw size={14} />} {lead.status === 'wygrany' ? 'Cofnij „Zamówił”' : 'Przywróć do gry'}
             </button>
           )}
           <div className="crm-menu">
