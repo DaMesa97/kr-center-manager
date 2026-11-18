@@ -184,7 +184,7 @@ const SECTIONS: Section[] = [
         </ul>
         <h4>Numer z arkusza Excel obok numeru zlecenia (beta.100)</h4>
         <ul>
-          <li><b>Szara plakietka „ark. N" za numerem zlecenia</b> (tabele zleceń, Moje stanowisko) pokazuje numer, pod którym to zlecenie figuruje w arkuszu Excel, gdy różni się od numeru w aplikacji. Podpowiedź mówi, skąd numer i kiedy go odczytano. <b>Wiążący dla hali jest numer z aplikacji</b> (decyzja Tymka 13.11) — plakietka jest informacją, żeby biuro i hala mówiły o tym samym zleceniu.</li>
+          <li><b>Szara plakietka „ark. N" za numerem zlecenia</b> (tabele zleceń, Moje stanowisko) pokazuje numer, pod którym to zlecenie figuruje w arkuszu Excel, gdy różni się od numeru w aplikacji. Podpowiedź mówi, skąd numer i kiedy go odczytano. <b>Wiążący dla hali jest numer z aplikacji</b> (ustalenia 13.11) — plakietka jest informacją, żeby biuro i hala mówiły o tym samym zleceniu.</li>
           <li><b>Codzienna synchronizacja z Excela (20:00) odświeża ten numer</b> dla każdego dopasowanego otwartego zlecenia, więc po przesunięciu wierszy w arkuszu plakietka nadąża. Kreskowana ramka = numer z chwili importu, jeszcze niepotwierdzony synchronizacją.</li>
           <li>Na etykietach pole „Nr z arkusza" bierze ten sam numer.</li>
         </ul>
