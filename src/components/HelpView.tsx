@@ -25,7 +25,7 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
-        <h4>CRM: kilka konfiguracji w jednej ofercie, mail oferty w stylu handlowca (beta.132)</h4>
+        <h4>CRM: nowy wygląd, wynik klienta (Zamówił / Przegrany), kilka konfiguracji w ofercie, mail w stylu handlowca (beta.132)</h4>
         <ul>
           <li><b>CRM → Oferta z montażem (PDF):</b> kilka konfiguracji w jednej ofercie (np. drzwi wejściowe i do garażu) — pole plików przyjmuje wiele plików naraz, zrzut ekranu konfiguratora wkleisz <b>Ctrl+V</b> (dodaje się jako obrazek z miniaturą), a tekst konfiguracji liczy się razem z plikami. Na ofercie i w dokumentach klienta widać wszystkie pliki konfiguracji; do umowy idą wszystkie PDF-y (zgłoszenie #160).</li>
           <li><b>CRM → wynik klienta:</b> na karcie klienta przyciski <b>„Zamówił”</b> i <b>„Przegrany…”</b> (przegrany wymaga powodu: cena, termin realizacji, wybrał konkurencję, brak kontaktu, rezygnacja, inne + notatka), a po zamknięciu <b>„Przywróć do gry”</b>. Przy wysłanej ofercie (na karcie klienta i na ekranie oferty) <b>„Klient przyjął” / „Klient odmówił”</b>. Wynik zamyka zadanie i ustawia status oferty; powód widać w nagłówku, w Kontaktach i w historii.</li>
