@@ -3,7 +3,7 @@
 // Szukanie (nazwa, telefon, e-mail, miejscowość), filtry (status, kanał, etykieta,
 // „bez zadania”), sort domyślnie po ostatniej aktywności. Klik = karta klienta.
 // =====================================================================
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Merge, RefreshCw, Search } from 'lucide-react'
 import type { ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_KANAL, CRM_LEAD_STATUS, CRM_OFERTA_RODZAJ, CRM_OFERTA_STATUS, type CrmDuplikat } from '../../types/crm'
@@ -58,8 +58,52 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
     }
   })
   // przeciąganie w lejku (Tymek 18.11): karta → kolumna = wynik klienta; „Przegrany” pyta o powód
+  // Przeciąganie wskaźnikiem (nie HTML5 drag&drop — ten nie startował na kartach-przyciskach w Electronie):
+  // wciśnięcie na karcie → ruch > 6 px = przeciąganie (duszek przy kursorze, podświetlona kolumna pod kursorem),
+  // puszczenie nad kolumną = ruch w lejku; bez ruchu zwykły klik otwiera kartę klienta.
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<LejekStatus | null>(null)
+  const [duszek, setDuszek] = useState<{ x: number; y: number; nazwa: string } | null>(null)
+  const pomijajKlik = useRef(false)
+  const kolumnaPod = (x: number, y: number): LejekStatus | null => {
+    const el = document.elementFromPoint(x, y)?.closest('[data-kol]') as HTMLElement | null
+    return (el?.dataset.kol as LejekStatus | undefined) ?? null
+  }
+  const startDrag = (e: ReactPointerEvent<HTMLElement>, r: CrmKontaktRow) => {
+    if (e.button !== 0 || wynikBusy) return
+    const x0 = e.clientX
+    const y0 = e.clientY
+    let ruszono = false
+    let nad: LejekStatus | null = null
+    const move = (ev: PointerEvent) => {
+      if (!ruszono && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return
+      if (!ruszono) {
+        ruszono = true
+        setDragId(r.id)
+        document.body.classList.add('crm-dragging')
+      }
+      ev.preventDefault()
+      nad = kolumnaPod(ev.clientX, ev.clientY)
+      setDragOver(nad)
+      setDuszek({ x: ev.clientX, y: ev.clientY, nazwa: leadName(r) })
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+      document.body.classList.remove('crm-dragging')
+      setDuszek(null)
+      setDragOver(null)
+      setDragId(null)
+      if (!ruszono) return
+      pomijajKlik.current = true // klik, który przyjdzie po puszczeniu, nie otwiera karty
+      window.setTimeout(() => { pomijajKlik.current = false }, 0)
+      if (nad) void onDropKol(r, nad)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+  }
   const [przegranyDla, setPrzegranyDla] = useState<CrmKontaktRow | null>(null)
   const [wynikBusy, setWynikBusy] = useState(false)
   const zapiszWynik = async (r: CrmKontaktRow, wynik: 'wygrany' | 'przegrany' | 'w_grze', opts: { powod?: string; notatka?: string } = {}) => {
@@ -74,11 +118,7 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
     pushToast(wynik === 'wygrany' ? `${leadName(r)}: zamówił` : wynik === 'przegrany' ? `${leadName(r)}: przegrany` : `${leadName(r)} wraca do gry`, 'success')
     await load(true)
   }
-  const onDropKol = async (kol: LejekStatus) => {
-    const r = rows.find((x) => x.id === dragId)
-    setDragId(null)
-    setDragOver(null)
-    if (!r) return
+  const onDropKol = async (r: CrmKontaktRow, kol: LejekStatus) => {
     const ruch = ruchWLejku(r.status, kol)
     if (ruch === 'nic') return
     if (ruch === 'systemowy') {
@@ -323,6 +363,11 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                 />
               </div>
             )}
+            {duszek && (
+              <div className="crm-lejek-duszek" style={{ left: duszek.x + 12, top: duszek.y + 8 }} aria-hidden="true">
+                {duszek.nazwa}{dragOver ? ` → ${LEJEK_KOLUMNY.find((k) => k.key === dragOver)?.label ?? ''}` : ''}
+              </div>
+            )}
             <p className="crm-muted crm-lejek-hint">Przeciągnij kartę do „Zamówił” albo „Przegrany”, a przegranego lub zamówionego z powrotem do „Nowy” / „Ma ofertę”, żeby przywrócić go do gry.</p>
             <div className="crm-lejek">
               {LEJEK_KOLUMNY.map((kol) => {
@@ -332,21 +377,9 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                 return (
                   <section
                     key={kol.key}
+                    data-kol={kol.key}
                     className={`crm-lejek-kol crm-lejek-kol--${kol.key}${dragOver === kol.key ? ' crm-lejek-kol--over' : ''}`}
                     aria-label={kol.label}
-                    onDragOver={(e) => {
-                      if (!dragId) return
-                      e.preventDefault()
-                      e.dataTransfer.dropEffect = 'move'
-                      if (dragOver !== kol.key) setDragOver(kol.key)
-                    }}
-                    onDragLeave={(e) => {
-                      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver((v) => (v === kol.key ? null : v))
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      void onDropKol(kol.key)
-                    }}
                   >
                     <div className="crm-lejek-head">
                       <span><b>{kol.label}</b> <span className="crm-muted">{lista.length}</span></span>
@@ -366,18 +399,12 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                           key={r.id}
                           type="button"
                           className={`crm-lejek-karta${dragId === r.id ? ' crm-lejek-karta--drag' : ''}`}
-                          onClick={() => onOpenLead(r.id)}
+                          onClick={() => {
+                            if (pomijajKlik.current) return
+                            onOpenLead(r.id)
+                          }}
                           title="Karta klienta — albo przeciągnij do innej kolumny"
-                          draggable={!wynikBusy}
-                          onDragStart={(e) => {
-                            e.dataTransfer.effectAllowed = 'move'
-                            e.dataTransfer.setData('text/plain', r.id)
-                            setDragId(r.id)
-                          }}
-                          onDragEnd={() => {
-                            setDragId(null)
-                            setDragOver(null)
-                          }}
+                          onPointerDown={(e) => startDrag(e, r)}
                         >
                           <span className="crm-lejek-top">
                             <b>{leadName(r)}</b>
