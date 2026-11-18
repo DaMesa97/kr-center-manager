@@ -25,7 +25,7 @@ import type {
 } from '../types/crm'
 import { CRM_AKCJA } from '../types/crm'
 import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_EDGE_SZKIC, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES, CRM_PROBKI_STYLU_ILE } from '../types/crm'
-import type { CrmDokument, CrmDokumentOdp, CrmDuplikat, CrmDuplikatLeada, CrmDzienWolny, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
+import type { CrmDokument, CrmDokumentOdp, CrmDuplikat, CrmDuplikatLeada, CrmDzienWolny, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmMailOfertyOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
 
@@ -49,7 +49,7 @@ export function crmErrorFrom(e: { code?: string; message?: string } | null | und
 
 const LEAD_EMBED = 'lead:leady(id, nazwa, miejscowosc, telefon, email, kategoria, status, nastepna_akcja, nastepny_krok, akcja_opis)'
 const OFERTA_LIST_COLS =
-  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at, rodzaj, numer, brutto, netto, vat_stawka, plik_pdf, konfiguracja_plik, z_montazem, streszczenie'
+  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at, rodzaj, numer, brutto, netto, vat_stawka, plik_pdf, konfiguracja_plik, konfiguracja_pliki, z_montazem, streszczenie'
 
 type Result<T> = { data: T; error: CrmError | null }
 
@@ -342,8 +342,20 @@ export async function updateLeadDane(id: string, d: { nazwa: string; telefon: st
 
 // ---- Oferta oficjalna z montażem, PDF (brief pkt 21) ----
 
+/** brief pkt 29: rpc przyjmuje maks. 10 plików, crm-oferta-pdf czyta razem do 20 MB */
+export const KONFIGURACJA_MAX_PLIKOW = 10
+export const KONFIGURACJA_MAX_MB_RAZEM = 20
+
+/** Wszystkie pliki konfiguracji oferty (pkt 29); starsze wiersze mają tylko konfiguracja_plik. */
+export function konfiguracjaPliki(o: Pick<CrmOferta, 'konfiguracja_plik' | 'konfiguracja_pliki'>): string[] {
+  const lista = Array.isArray(o.konfiguracja_pliki) ? o.konfiguracja_pliki.filter(Boolean) : []
+  if (lista.length) return lista
+  return o.konfiguracja_plik ? [o.konfiguracja_plik] : []
+}
+
 export type OfertaOficjalnaForm = {
-  konfiguracja_plik: File | null
+  /** brief pkt 29 (#160): kilka plików naraz (w tym zrzuty wklejone Ctrl+V); razem z tekstem */
+  konfiguracja_pliki: File[]
   konfiguracja_tekst: string
   producent: string
   uslugi: CrmUsluga[]
@@ -354,22 +366,33 @@ export type OfertaOficjalnaForm = {
   powierzchnia_m2: string
 }
 
-/** Upload pliku z konfiguratora (PDF/JPG/PNG) do crm-dokumenty + rpc zlec_oferte_oficjalna → id oferty (po ~20–40 s do_sprawdzenia). */
+/**
+ * Upload plików z konfiguratora (PDF/JPG/PNG/WEBP/GIF) do crm-dokumenty + rpc zlec_oferte_oficjalna
+ * → id oferty (po ~20–40 s do_sprawdzenia). Pkt 29: wiele plików + tekst razem; p_konfiguracja_plik
+ * = pierwszy (zgodność), p_konfiguracja_pliki = wszystkie.
+ */
 export async function zlecOferteOficjalna(leadId: string, f: OfertaOficjalnaForm): Promise<Result<string | null>> {
-  let sciezka: string | null = null
-  if (f.konfiguracja_plik) {
-    const file = f.konfiguracja_plik
+  const pliki = f.konfiguracja_pliki.slice(0, KONFIGURACJA_MAX_PLIKOW)
+  const sciezki: string[] = []
+  const stamp = Date.now()
+  for (let i = 0; i < pliki.length; i++) {
+    const file = pliki[i]
     const ext = (file.name.split('.').pop() || 'pdf').toLowerCase().replace(/[^a-z0-9]/g, '') || 'pdf'
-    sciezka = `${leadId}/konfiguracja-${Date.now()}.${ext}`
+    const sciezka = `${leadId}/konfiguracja-${stamp}-${i}.${ext}`
     const up = await supabase.storage.from(CRM_DOKUMENTY_BUCKET).upload(sciezka, file, { contentType: file.type || undefined, upsert: false })
-    if (up.error) return { data: null, error: { kind: 'other', message: `Nie udało się wgrać pliku konfiguracji: ${up.error.message}` } }
+    if (up.error) {
+      // nie zostawiamy osieroconych plików z tej próby
+      if (sciezki.length) await supabase.storage.from(CRM_DOKUMENTY_BUCKET).remove(sciezki)
+      return { data: null, error: { kind: 'other', message: `Nie udało się wgrać pliku „${file.name}”: ${up.error.message}` } }
+    }
+    sciezki.push(sciezka)
   }
   const tekst = f.konfiguracja_tekst.trim() || null
-  if (!sciezka && !tekst) return { data: null, error: { kind: 'other', message: 'Dodaj plik z konfiguratora albo wklej treść konfiguracji.' } }
+  if (!sciezki.length && !tekst) return { data: null, error: { kind: 'other', message: 'Dodaj plik z konfiguratora albo wklej treść konfiguracji.' } }
   const m2 = f.powierzchnia_m2.trim() ? Number(f.powierzchnia_m2.replace(',', '.')) : null
   const { data, error } = await crm().rpc('zlec_oferte_oficjalna', {
     p_lead_id: leadId,
-    p_konfiguracja_plik: sciezka,
+    p_konfiguracja_plik: sciezki[0] ?? null,
     p_konfiguracja_tekst: tekst,
     p_uslugi: f.uslugi.filter((u) => u.nazwa.trim()).map((u) => ({ nazwa: u.nazwa.trim(), netto: Number(u.netto) || 0 })),
     p_zakres: f.zakres.trim() || null,
@@ -378,6 +401,7 @@ export async function zlecOferteOficjalna(leadId: string, f: OfertaOficjalnaForm
     p_rodzaj_lokalu: f.rodzaj_lokalu || null,
     p_powierzchnia_m2: m2 != null && Number.isFinite(m2) ? m2 : null,
     p_producent: f.producent.trim() || null,
+    p_konfiguracja_pliki: sciezki,
   })
   return { data: (data as string | null) ?? null, error: crmErrorFrom(error) }
 }
@@ -600,6 +624,24 @@ export async function generujSzkic(leadId: string, opts: { rodzaj?: string; uwag
     return { data: data.szkic, error: null }
   } catch (e) {
     return { data: null, error: { kind: 'other', message: e instanceof Error ? e.message : 'Błąd generowania szkicu' } }
+  }
+}
+
+/**
+ * Mail oferty w stylu handlowca (brief pkt 30, #159): crm-szkic akcja mail_oferty, 10–40 s.
+ * Handlowiec = zalogowany (JWT). Zapis do oferty tylko w statusie do_sprawdzenia; inaczej
+ * zapisano=false i tekst tylko do skopiowania.
+ */
+export async function napiszMailOferty(ofertaId: string, uwagi?: string): Promise<Result<CrmMailOfertyOdp | null>> {
+  try {
+    const body: Record<string, unknown> = { akcja: 'mail_oferty', oferta_id: ofertaId }
+    if (uwagi?.trim()) body.uwagi = uwagi.trim()
+    const { data, error } = await supabase.functions.invoke<CrmMailOfertyOdp>(CRM_EDGE_SZKIC, { body })
+    if (error) return { data: null, error: { kind: 'other', message: await fnErrorMessage(error, 'Funkcja crm-szkic nie odpowiada') } }
+    if (!data?.ok || !data.mail) return { data: null, error: { kind: 'other', message: data?.error || 'Funkcja crm-szkic nie zwróciła maila' } }
+    return { data, error: null }
+  } catch (e) {
+    return { data: null, error: { kind: 'other', message: e instanceof Error ? e.message : 'Błąd pisania maila' } }
   }
 }
 

@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { FileText, Plus, Trash2, X } from 'lucide-react'
 import type { ToastVariant } from '../../types'
 import { CRM_DOKUMENT_RODZAJ, CRM_KARTA_OTWORY_MAX, CRM_OTWOR_RODZAJ, type CrmDokument, type CrmDokumentOdp, type CrmLead, type CrmOferta } from '../../types/crm'
-import { generujDokument, type GenerujDokument } from '../../hooks/useCrm'
+import { generujDokument, type GenerujDokument, konfiguracjaPliki } from '../../hooks/useCrm'
 import Spinner from '../Spinner'
 
 export type DokumentRodzaj = GenerujDokument['rodzaj']
@@ -226,7 +226,7 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
                   {ofertyDoUmowy.map((o) => <option key={o.id} value={o.id}>nr {o.numer ?? '…'} v{o.wersja} · {fmtPln(o.brutto)} brutto{o.streszczenie ? ` · ${o.streszczenie}` : ''}</option>)}
                 </select>
               )}
-              {oferta && <span className="crm-pf-hint">Załącznik nr 1 = PDF tej oferty{oferta.konfiguracja_plik?.toLowerCase().endsWith('.pdf') ? ' + konfiguracja producenta' : ''}. VAT {oferta.vat_stawka != null ? `${oferta.vat_stawka}%` : 'z oferty'}{Number(oferta.vat_stawka) === 8 ? ' → §3a (oświadczenie o budynku mieszkalnym) wstawi się sam' : ''}.</span>}
+              {oferta && <span className="crm-pf-hint">Załącznik nr 1 = PDF tej oferty{(() => { const n = konfiguracjaPliki(oferta).filter((p) => p.toLowerCase().endsWith('.pdf')).length; return n === 0 ? '' : n === 1 ? ' + konfiguracja producenta' : ` + ${n} konfiguracje producenta` })()}. VAT {oferta.vat_stawka != null ? `${oferta.vat_stawka}%` : 'z oferty'}{Number(oferta.vat_stawka) === 8 ? ' → §3a (oświadczenie o budynku mieszkalnym) wstawi się sam' : ''}.</span>}
             </label>
             <label className="crm-pf-field crm-pf-field--wide">
               <span className="crm-pf-label">Adres klienta * <span className="crm-muted">(karta klienta nie ma ulicy)</span></span>

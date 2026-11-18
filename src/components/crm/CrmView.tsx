@@ -35,7 +35,7 @@ import {
   type CrmOfertaPozycja,
   type CrmRozbiciePozycja,
   type CrmRozmowa,
-  type CrmSzkic,
+  type CrmSzkic, type CrmMailOfertyOdp,
   type CrmUsluga,
   type CrmZamknijZadanie,
   type CrmZdarzenie,
@@ -71,6 +71,8 @@ import {
   generujSzkic,
   type CrmError,
   type CrmZadanieRow,
+  konfiguracjaPliki,
+  napiszMailOferty,
 } from '../../hooks/useCrm'
 import { supabase } from '../../supabaseClient'
 import { appConfirm } from '../../lib/appDialogs'
@@ -1088,6 +1090,7 @@ function OfertaScreen({
           <CopyRow label="Adres" value={oferta.mail_do} onCopied={onCopied} />
           <CopyRow label="Temat" value={oferta.mail_temat} onCopied={onCopied} />
           <CopyRow label="Treść" value={oferta.mail_tresc} multiline onCopied={onCopied} />
+          <MailOfertyStyl oferta={oferta} pushToast={pushToast} onCopied={onCopied} onSaved={silentReload} />
           <div className="crm-mail-actions">
             <button type="button" className="btn btn-primary" disabled={!canSend || saving} onClick={() => void handleWyslane()} title={canSend ? 'Mail poszedł z Twojej poczty — potwierdź, oferta zniknie z listy do zrobienia' : 'Dostępne tylko dla oferty do sprawdzenia'}>
               Wysłane
@@ -1265,6 +1268,88 @@ function OfertaScreen({
 
 // ---- OFERTA OFICJALNA (brief pkt 21): sekcja z pozycjami, usługami, VAT i dokumentami ----
 
+/** podpis „w stylu X, N próbek” (szkic odpowiedzi i mail oferty, brief pkt 23/30) */
+function stylLabel(s: { handlowiec?: string | null; probki?: number | null; probki_zrodlo?: string | null } | null | undefined): string {
+  if (!s) return ''
+  if (s.probki_zrodlo === 'wspolna') return `styl wspólnej skrzynki${s.probki ? `, ${s.probki} ${s.probki === 1 ? 'próbka' : s.probki < 5 ? 'próbki' : 'próbek'}` : ''}`
+  if (s.probki) return `w stylu ${s.handlowiec || 'handlowca'}, ${s.probki} ${s.probki === 1 ? 'próbka' : s.probki < 5 ? 'próbki' : 'próbek'}`
+  return 'bez próbek stylu — dodaj skrzynkę handlowca w CRM → Poczta'
+}
+
+/**
+ * Brief pkt 30 (#159): mail oferty (sklep i oficjalna) w stylu handlowca. Podpis z oferty.mail_styl
+ * i przycisk „Napisz w moim stylu” (opcjonalnie „co zmienić”) → crm-szkic mail_oferty. Gdy oferta
+ * jest już wysłana (zapisano=false), pokazujemy tekst do skopiowania zamiast nadpisywać ofertę.
+ */
+function MailOfertyStyl({ oferta, pushToast, onCopied, onSaved }: { oferta: CrmOferta; pushToast: Props['pushToast']; onCopied: (ok: boolean, label: string) => void; onSaved: () => void }) {
+  const [form, setForm] = useState(false)
+  const [uwagi, setUwagi] = useState('')
+  const [gen, setGen] = useState(false)
+  const [niezapisany, setNiezapisany] = useState<CrmMailOfertyOdp['mail'] | null>(null)
+  const styl = oferta.mail_styl ?? null
+
+  const run = async () => {
+    setGen(true)
+    const r = await napiszMailOferty(oferta.id, uwagi)
+    setGen(false)
+    if (r.error || !r.data?.mail) {
+      pushToast(`Nie udało się napisać maila: ${r.error?.message ?? 'brak odpowiedzi'}`, 'error')
+      return
+    }
+    const m = r.data.mail
+    setForm(false)
+    setUwagi('')
+    if (!r.data.zapisano) {
+      setNiezapisany(m)
+      pushToast('Oferta jest już po sprawdzeniu — nowy mail pokazany poniżej do skopiowania, oferta bez zmian', 'success')
+      return
+    }
+    setNiezapisany(null)
+    pushToast(m.probki ? `Mail gotowy — ${stylLabel(m)}` : 'Mail gotowy — bez próbek stylu', 'success')
+    onSaved()
+  }
+
+  return (
+    <div className="crm-mail-styl">
+      <div className="crm-mail-actions">
+        {styl && (
+          <span className="crm-muted crm-szkic-meta">
+            {stylLabel(styl)}{styl.auto === false ? ' · przepisany przyciskiem' : styl.auto ? ' · przy liczeniu oferty' : ''}{styl.utworzono ? ` · ${fmtDateTime(styl.utworzono)}` : ''}
+          </span>
+        )}
+        {!form && (
+          <button type="button" className="btn btn-sm btn-secondary" disabled={gen} onClick={() => setForm(true)} title="Przepisz mail tej oferty Twoim stylem — fakty (pozycje, kwota, link, dostawa) zostają z oferty">
+            <Pencil size={14} /> Napisz w moim stylu
+          </button>
+        )}
+      </div>
+      {form && (
+        <div className="crm-szkic-form">
+          <label className="crm-pf-field crm-szkic-uwagi">
+            <span className="crm-pf-label">Co zmienić (opcjonalnie)</span>
+            <textarea value={uwagi} onChange={(e) => setUwagi(e.target.value)} rows={2} disabled={gen} placeholder="np. „krócej”, „dopisz, że montaż możliwy w przyszłym tygodniu”" />
+          </label>
+          <div className="crm-mail-actions">
+            <button type="button" className="btn btn-primary" disabled={gen} onClick={() => void run()}>
+              {gen ? <Spinner inline size={14} /> : <RefreshCw size={14} />} Napisz w moim stylu
+            </button>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={gen} onClick={() => setForm(false)}>Anuluj</button>
+            {gen && <span className="crm-muted">System pisze Twoim stylem — zwykle 10–40 s…</span>}
+          </div>
+        </div>
+      )}
+      {niezapisany && (
+        <div className="crm-mail-niezapisany">
+          <p className="crm-muted">Oferta jest już po sprawdzeniu, więc nowej treści nie zapisaliśmy — skopiuj ją stąd ({stylLabel(niezapisany)}).</p>
+          <CopyRow label="Temat" value={niezapisany.temat} onCopied={onCopied} />
+          <CopyRow label="Treść" value={niezapisany.tresc} multiline onCopied={onCopied} />
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setNiezapisany(null)}>Zamknij</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function OfertaOficjalnaSekcja({ oferta, onOpenDokument }: { oferta: CrmOferta; onOpenDokument: (sciezka: string) => Promise<void> }) {
   const pozycje = (Array.isArray(oferta.pozycje) ? oferta.pozycje : []) as CrmOfertaPozycja[]
   const uslugi = (Array.isArray(oferta.uslugi) ? oferta.uslugi : []) as CrmUsluga[]
@@ -1285,9 +1370,12 @@ function OfertaOficjalnaSekcja({ oferta, onOpenDokument }: { oferta: CrmOferta; 
           {oferta.plik_pdf && (
             <button type="button" className="btn btn-sm btn-primary" onClick={() => void onOpenDokument(oferta.plik_pdf as string)}><FileText size={14} /> Pobierz PDF</button>
           )}
-          {oferta.konfiguracja_plik && (
-            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onOpenDokument(oferta.konfiguracja_plik as string)} title="Plik z konfiguratora producenta">Plik konfiguracji</button>
-          )}
+          {/* pkt 29: wszystkie pliki konfiguracji (kilka drzwi / zrzuty), nie tylko pierwszy */}
+          {konfiguracjaPliki(oferta).map((sc, i, all) => (
+            <button key={sc} type="button" className="btn btn-sm btn-secondary" onClick={() => void onOpenDokument(sc)} title="Plik z konfiguratora producenta">
+              {all.length > 1 ? `Konfiguracja ${i + 1}` : 'Plik konfiguracji'}
+            </button>
+          ))}
         </div>
       </div>
       <table className="crm-pozycje">
@@ -2194,13 +2282,18 @@ function LeadScreen({
       </section>
 
       {/* pliki z ofert oficjalnych (brief pkt 20/21): plik konfiguracji + PDF, pobieranie przez signed URL */}
-      {oferty.some((o) => o.plik_pdf || o.konfiguracja_plik) && (
+      {oferty.some((o) => o.plik_pdf || konfiguracjaPliki(o).length > 0) && (
         <section>
           <h4>Pliki ofert</h4>
           <ul className="crm-dokumenty">
             {[...oferty].reverse().flatMap((o) => [
               ...(o.plik_pdf ? [{ key: `${o.id}-pdf`, label: `Oferta nr ${o.numer ?? '…'} v${o.wersja} (PDF)`, sciezka: o.plik_pdf, at: o.updated_at }] : []),
-              ...(o.konfiguracja_plik ? [{ key: `${o.id}-konf`, label: `Konfiguracja producenta do oferty nr ${o.numer ?? '…'} v${o.wersja}`, sciezka: o.konfiguracja_plik, at: o.created_at }] : []),
+              ...konfiguracjaPliki(o).map((sc, i, all) => ({
+                key: `${o.id}-konf-${i}`,
+                label: `Konfiguracja producenta${all.length > 1 ? ` ${i + 1}/${all.length}` : ''} do oferty nr ${o.numer ?? '…'} v${o.wersja}`,
+                sciezka: sc,
+                at: o.created_at,
+              })),
             ]).map((d) => (
               <li key={d.key}>
                 <button type="button" className="crm-link" onClick={() => void handleOpenDokument(d.sciezka)}><FileText size={13} /> {d.label}</button>

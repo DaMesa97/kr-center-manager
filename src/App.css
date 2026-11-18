@@ -9868,3 +9868,16 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
   body.ldesk-print .ldesk-print-area { position: absolute; left: 0; top: 0; width: 100%; border: 0; padding: 0; }
   body.ldesk-print .ldesk-noprint { display: none !important; }
 }
+
+/* CRM brief pkt 29 (#160): kilka plików konfiguracji + zrzuty Ctrl+V */
+.crm-konf-dodaj { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.crm-konf-pliki { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.crm-konf-plik { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); min-width: 0; }
+.crm-konf-thumb { width: 56px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid var(--color-border); flex: 0 0 auto; }
+.crm-konf-ikona { width: 56px; height: 40px; display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-muted); flex: 0 0 auto; }
+.crm-konf-nazwa { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* CRM brief pkt 30 (#159): mail oferty w stylu handlowca */
+.crm-mail-styl { margin: 6px 0 4px; display: flex; flex-direction: column; gap: 8px; }
+.crm-mail-styl .crm-szkic-meta { margin: 0; }
+.crm-mail-niezapisany { border: 1px dashed var(--color-border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.crm-mail-niezapisany p { margin: 0; }

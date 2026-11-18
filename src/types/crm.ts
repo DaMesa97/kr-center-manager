@@ -121,6 +121,24 @@ export const CRM_SZKIC_RODZAJ: Record<string, string> = {
   odpowiedz: 'odpowiedź do klienta',
 }
 export type CrmSzkicOdp = { ok: boolean; lead_id: string; szkic: CrmSzkic | null; error?: string }
+/** brief pkt 30: crm.oferty.mail_styl */
+export type CrmMailStyl = {
+  handlowiec_id: string | null
+  handlowiec: string | null
+  probki: number | null
+  probki_zrodlo: 'wlasna' | 'wspolna' | null
+  /** true = przy liczeniu oferty, false = z przycisku „Napisz w moim stylu” */
+  auto: boolean | null
+  utworzono: string | null
+}
+/** brief pkt 30: crm-szkic akcja mail_oferty — zapisano=false, gdy oferta nie jest już do_sprawdzenia (tekst tylko do skopiowania) */
+export type CrmMailOfertyOdp = {
+  ok: boolean
+  oferta_id: string
+  zapisano: boolean
+  mail: { temat: string | null; tresc: string | null; handlowiec: string | null; handlowiec_id: string | null; probki: number | null; probki_zrodlo: 'wlasna' | 'wspolna' | null; koszt_usd?: number | null } | null
+  error?: string
+}
 export const CRM_EDGE_SZKIC = 'crm-szkic'
 /** crm-mail-sent akcja historia_wyslanych: import ostatnich N wysłanych maili sprzed punktu startu jako próbek stylu */
 export type CrmHistoriaWyslanych = { ok: boolean; zapisano?: number; duplikaty?: number; pominieto?: number; bledy?: number; blad?: string; error?: string }
@@ -251,8 +269,12 @@ export type CrmOferta = {
   /** jedno zdanie z odczytu konfiguracji (crm-oferta-pdf od v8): „Dotyczy” w PDF i §1 umowy; starsze oferty null */
   streszczenie?: string | null
   producent?: string | null
-  /** ścieżka pliku z konfiguratora w buckecie crm-dokumenty */
+  /** ścieżka pliku z konfiguratora w buckecie crm-dokumenty (= pierwszy z konfiguracja_pliki) */
   konfiguracja_plik?: string | null
+  /** brief pkt 29 (#160): wszystkie pliki konfiguracji tej oferty (maks. 10); stare oferty uzupełnione z konfiguracja_plik */
+  konfiguracja_pliki?: string[] | null
+  /** brief pkt 30 (#159): czyim stylem napisano mail oferty; null przy starych ofertach */
+  mail_styl?: CrmMailStyl | null
   konfiguracja_tekst?: string | null
   pozycje?: CrmOfertaPozycja[] | null
   uslugi?: CrmUsluga[] | null

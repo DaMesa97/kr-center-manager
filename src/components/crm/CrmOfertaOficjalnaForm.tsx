@@ -1,15 +1,22 @@
 // =====================================================================
 // „Oferta z montażem” (brief pkt 21): formularz na karcie klienta. Ceny NIE są liczone
-// przez nas — AI przepisuje je z konfiguracji producenta (plik z konfiguratora albo
+// przez nas — AI przepisuje je z konfiguracji producenta (pliki z konfiguratora i/lub
 // wklejony tekst); usługi własne bez stałych stawek; VAT 8%/23% liczy backend wg
-// obiektu mieszkalnego i powierzchni. Zapis: upload pliku do crm-dokumenty + rpc
+// obiektu mieszkalnego i powierzchni. Zapis: upload plików do crm-dokumenty + rpc
 // zlec_oferte_oficjalna (zlecOferteOficjalna) → po ~20–40 s oferta do_sprawdzenia.
+// Brief pkt 29 (#160): kilka konfiguracji naraz (pliki + tekst razem), zrzut ekranu
+// wklejany Ctrl+V jako PNG — wszystko trafia do jednej oferty.
 // =====================================================================
-import { useState } from 'react'
-import { FileText, Plus, Trash2, X } from 'lucide-react'
+import { useEffect, useRef, useState, type ClipboardEvent } from 'react'
+import { FileText, Image as ImageIcon, Plus, Trash2, X } from 'lucide-react'
 import type { ToastVariant } from '../../types'
 import { CRM_PRODUCENCI, CRM_RODZAJ_LOKALU, CRM_USLUGI_PODPOWIEDZI, CRM_ZAKRES_PODPOWIEDZI } from '../../types/crm'
-import { zlecOferteOficjalna, type OfertaOficjalnaForm } from '../../hooks/useCrm'
+import {
+  zlecOferteOficjalna,
+  KONFIGURACJA_MAX_PLIKOW,
+  KONFIGURACJA_MAX_MB_RAZEM,
+  type OfertaOficjalnaForm,
+} from '../../hooks/useCrm'
 import Spinner from '../Spinner'
 
 type Props = {
@@ -21,11 +28,12 @@ type Props = {
   onCancel: () => void
 }
 
-const ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png'
-const MAX_MB = 25
+// crm-oferta-pdf v9 czyta PDF, PNG, JPG, WEBP, GIF
+const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.gif,application/pdf,image/jpeg,image/png,image/webp,image/gif'
+const ACCEPT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
 const empty = (): OfertaOficjalnaForm => ({
-  konfiguracja_plik: null,
+  konfiguracja_pliki: [],
   konfiguracja_tekst: '',
   producent: '',
   uslugi: [{ nazwa: 'Montaż', netto: 0 }],
@@ -36,25 +44,97 @@ const empty = (): OfertaOficjalnaForm => ({
   powierzchnia_m2: '',
 })
 
+const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1)
+
 export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCreated, onCancel }: Props) {
   const [f, setF] = useState<OfertaOficjalnaForm>(empty)
   const [busy, setBusy] = useState(false)
+  // miniatury obrazków (object URL per plik); zwalniane przy usuwaniu i odmontowaniu
+  const [thumbs, setThumbs] = useState<Map<File, string>>(new Map())
+  const thumbsRef = useRef(thumbs)
+  thumbsRef.current = thumbs
+  const zrzutNr = useRef(0)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const set = <K extends keyof OfertaOficjalnaForm>(k: K, v: OfertaOficjalnaForm[K]) => setF((s) => ({ ...s, [k]: v }))
 
-  const onFile = (file: File | null) => {
-    if (file && file.size > MAX_MB * 1024 * 1024) {
-      pushToast(`Plik jest za duży (limit ${MAX_MB} MB)`, 'error')
-      return
+  useEffect(() => () => {
+    thumbsRef.current.forEach((url) => URL.revokeObjectURL(url))
+  }, [])
+
+  const addFiles = (files: File[]) => {
+    if (files.length === 0) return
+    const ok: File[] = []
+    for (const file of files) {
+      const typeOk = ACCEPT_TYPES.includes(file.type) || /\.(pdf|jpe?g|png|webp|gif)$/i.test(file.name)
+      if (!typeOk) {
+        pushToast(`„${file.name}” — ten rodzaj pliku nie jest obsługiwany (PDF, JPG, PNG, WEBP, GIF)`, 'error')
+        continue
+      }
+      ok.push(file)
     }
-    set('konfiguracja_plik', file)
+    setF((s) => {
+      const next = [...s.konfiguracja_pliki]
+      for (const file of ok) {
+        if (next.length >= KONFIGURACJA_MAX_PLIKOW) {
+          pushToast(`Maksymalnie ${KONFIGURACJA_MAX_PLIKOW} plików w jednej ofercie`, 'error')
+          break
+        }
+        const razem = next.reduce((a, x) => a + x.size, 0) + file.size
+        if (razem > KONFIGURACJA_MAX_MB_RAZEM * 1024 * 1024) {
+          pushToast(`Pliki razem przekroczyłyby ${KONFIGURACJA_MAX_MB_RAZEM} MB — „${file.name}” pominięty`, 'error')
+          continue
+        }
+        next.push(file)
+      }
+      return { ...s, konfiguracja_pliki: next }
+    })
+    const obrazki = ok.filter((file) => file.type.startsWith('image/'))
+    if (obrazki.length) {
+      setThumbs((m) => {
+        const n = new Map(m)
+        for (const file of obrazki) n.set(file, URL.createObjectURL(file))
+        return n
+      })
+    }
+  }
+
+  const removeFile = (file: File) => {
+    setF((s) => ({ ...s, konfiguracja_pliki: s.konfiguracja_pliki.filter((x) => x !== file) }))
+    setThumbs((m) => {
+      const url = m.get(file)
+      if (!url) return m
+      URL.revokeObjectURL(url)
+      const n = new Map(m)
+      n.delete(file)
+      return n
+    })
+  }
+
+  // Ctrl+V: obrazek ze schowka (zrzut konfiguratora producenta) → plik zrzut-N.png.
+  // Tekst wklejony do pola tekstowego zostaje tekstem (nie przechwytujemy go).
+  const onPaste = (e: ClipboardEvent<HTMLElement>) => {
+    if (busy) return
+    const items = Array.from(e.clipboardData?.items ?? [])
+    const images = items.filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+    if (images.length === 0) return
+    e.preventDefault()
+    const files: File[] = []
+    for (const it of images) {
+      const blob = it.getAsFile()
+      if (!blob) continue
+      zrzutNr.current += 1
+      files.push(new File([blob], `zrzut-${zrzutNr.current}.png`, { type: blob.type || 'image/png' }))
+    }
+    addFiles(files)
+    if (files.length) pushToast(files.length === 1 ? 'Dodano zrzut ekranu' : `Dodano ${files.length} zrzuty ekranu`, 'success')
   }
 
   const setUsluga = (i: number, patch: Partial<{ nazwa: string; netto: number }>) =>
     setF((s) => ({ ...s, uslugi: s.uslugi.map((u, j) => (j === i ? { ...u, ...patch } : u)) }))
 
   const onSave = async () => {
-    if (!f.konfiguracja_plik && !f.konfiguracja_tekst.trim()) {
-      pushToast('Dodaj plik z konfiguratora albo wklej treść konfiguracji', 'error')
+    if (f.konfiguracja_pliki.length === 0 && !f.konfiguracja_tekst.trim()) {
+      pushToast('Dodaj plik lub zrzut z konfiguratora albo wklej treść konfiguracji', 'error')
       return
     }
     // stawka VAT jest źródłem prawdy z konfiguracji producenta (crm-oferta-pdf v3); obiekt/rodzaj/m² tylko do kontroli
@@ -70,9 +150,10 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
   }
 
   const sumaUslug = f.uslugi.reduce((a, u) => a + (Number(u.netto) || 0), 0)
+  const rozmiarRazem = f.konfiguracja_pliki.reduce((a, x) => a + x.size, 0)
 
   return (
-    <section className="crm-box crm-pf crm-ofic-form">
+    <section className="crm-box crm-pf crm-ofic-form" onPaste={onPaste}>
       <div className="crm-screen-head">
         <div className="crm-screen-title">
           <h4><FileText size={16} /> Oferta z montażem (PDF) · {klient}</h4>
@@ -82,19 +163,50 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
 
       <h5>1. Konfiguracja producenta</h5>
       <div className="crm-pf-grid">
-        <label className="crm-pf-field">
-          <span className="crm-pf-label">Plik z konfiguratora (PDF / JPG / PNG)</span>
-          <input type="file" accept={ACCEPT} disabled={busy} onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
-          {f.konfiguracja_plik && <span className="crm-pf-hint">{f.konfiguracja_plik.name} · {(f.konfiguracja_plik.size / 1024 / 1024).toFixed(1)} MB</span>}
-        </label>
+        <div className="crm-pf-field crm-pf-field--wide">
+          <span className="crm-pf-label">Pliki z konfiguratora (PDF / JPG / PNG) — można kilka</span>
+          <div className="crm-konf-dodaj">
+            <input
+              ref={inputRef}
+              type="file"
+              accept={ACCEPT}
+              multiple
+              disabled={busy}
+              onChange={(e) => {
+                addFiles(Array.from(e.target.files ?? []))
+                e.target.value = '' // ten sam plik można wybrać ponownie po usunięciu
+              }}
+            />
+            <span className="crm-muted">albo zrób zrzut ekranu konfiguratora i wklej go tutaj: <b>Ctrl+V</b></span>
+          </div>
+          {f.konfiguracja_pliki.length > 0 && (
+            <ul className="crm-konf-pliki">
+              {f.konfiguracja_pliki.map((file, i) => {
+                const thumb = thumbs.get(file)
+                return (
+                  <li key={`${file.name}-${i}-${file.size}`} className="crm-konf-plik">
+                    {thumb ? <img src={thumb} alt="" className="crm-konf-thumb" /> : <span className="crm-konf-ikona" aria-hidden="true">{file.type.startsWith('image/') ? <ImageIcon size={18} /> : <FileText size={18} />}</span>}
+                    <span className="crm-konf-nazwa" title={file.name}>{file.name}</span>
+                    <span className="crm-muted">{mb(file.size)} MB</span>
+                    <button type="button" className="crm-link" disabled={busy} onClick={() => removeFile(file)} title="Usuń plik" aria-label={`Usuń ${file.name}`}><Trash2 size={14} /></button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <span className="crm-pf-hint">
+            Możesz dodać kilka konfiguracji (np. drzwi wejściowe i do garażu) — trafią do jednej oferty.
+            {f.konfiguracja_pliki.length > 0 ? ` Plików: ${f.konfiguracja_pliki.length}/${KONFIGURACJA_MAX_PLIKOW}, razem ${mb(rozmiarRazem)} z ${KONFIGURACJA_MAX_MB_RAZEM} MB.` : ''}
+          </span>
+        </div>
         <label className="crm-pf-field">
           <span className="crm-pf-label">Producent (opcjonalnie)</span>
           <input type="text" list="crm-producenci" value={f.producent} onChange={(e) => set('producent', e.target.value)} placeholder="rozpozna system" disabled={busy} autoComplete="off" />
           <datalist id="crm-producenci">{CRM_PRODUCENCI.map((p) => <option key={p} value={p} />)}</datalist>
         </label>
         <label className="crm-pf-field crm-pf-field--wide">
-          <span className="crm-pf-label">…albo wklej treść konfiguracji</span>
-          <textarea className="crm-fix-textarea" rows={5} value={f.konfiguracja_tekst} onChange={(e) => set('konfiguracja_tekst', e.target.value)} placeholder="Skopiuj z wydruku konfiguratora: pozycje, ilości, ceny" disabled={busy} />
+          <span className="crm-pf-label">Treść konfiguracji (opcjonalnie, razem z plikami)</span>
+          <textarea className="crm-fix-textarea" rows={5} value={f.konfiguracja_tekst} onChange={(e) => set('konfiguracja_tekst', e.target.value)} placeholder="Skopiuj z wydruku konfiguratora: pozycje, ilości, ceny. Tekst i pliki liczą się razem — tę samą konfigurację w dwóch postaciach system policzy raz." disabled={busy} />
         </label>
       </div>
 
@@ -147,6 +259,7 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
           {busy ? <Spinner inline size={14} /> : <FileText size={14} />} Zleć ofertę PDF
         </button>
         <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel} disabled={busy}><X size={14} /> Anuluj</button>
+        {busy && f.konfiguracja_pliki.length > 1 && <span className="crm-muted">Wgrywam {f.konfiguracja_pliki.length} pliki…</span>}
       </div>
     </section>
   )

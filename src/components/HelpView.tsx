@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: kilka konfiguracji w jednej ofercie, mail oferty w stylu handlowca (beta.132)</h4>
+        <ul>
+          <li><b>CRM → Oferta z montażem (PDF):</b> kilka konfiguracji w jednej ofercie (np. drzwi wejściowe i do garażu) — pole plików przyjmuje wiele plików naraz, zrzut ekranu konfiguratora wkleisz <b>Ctrl+V</b> (dodaje się jako obrazek z miniaturą), a tekst konfiguracji liczy się razem z plikami. Na ofercie i w dokumentach klienta widać wszystkie pliki konfiguracji; do umowy idą wszystkie PDF-y (zgłoszenie #160).</li>
+          <li><b>CRM → mail oferty w stylu handlowca:</b> mail nowej oferty (sklep i z montażem) pisze się stylem osoby, która zleciła ofertę albo prowadzi klienta. Pod mailem podpis, czyim stylem i z ilu próbek; przycisk <b>„Napisz w moim stylu”</b> (opcjonalnie „co zmienić”) przepisuje go Twoim stylem — przy ofercie już wysłanej pokazuje tekst tylko do skopiowania (zgłoszenie #159).</li>
+        </ul>
         <h4>Biurko logistyki: w uwagach tylko realne braki (beta.130–131)</h4>
         <ul>
           <li>W wierszu zlecenia nie pokazujemy już „brak receptury" ani „częściowa receptura" — to sprawa magazynu i receptur, nie logistyki. Zostają: niedobór magazynowy, szyba jeszcze nie przyszła, niekompletny komplet, PILNE, zgłoszony problem oraz uwagi wpisane ręcznie w zleceniu.</li>
