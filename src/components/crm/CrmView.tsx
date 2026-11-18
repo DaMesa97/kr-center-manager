@@ -71,6 +71,8 @@ import {
   generujSzkic,
   type CrmError,
   type CrmZadanieRow,
+  type CrmWynik,
+  oznaczWynik,
   konfiguracjaPliki,
   napiszMailOferty,
 } from '../../hooks/useCrm'
@@ -89,7 +91,8 @@ import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
 import CrmPolaczPanel from './CrmPolaczPanel'
 import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
-import { EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
+import { EtykietaBadge, EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
+import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, ZADANIE_GRUPY, kwotaOferty, opisWyniku, ostatniaOferta, zadanieGrupa } from '../../lib/crmWynik'
 import CrmNowyKlient from './CrmNowyKlient'
 import { useEtykiety } from '../../hooks/useEtykiety'
 
@@ -221,6 +224,37 @@ function ExtLink({ href, children, title }: { href: string; children: ReactNode;
     >
       {children}
     </a>
+  )
+}
+
+/** Brief pkt 31: „Dlaczego przegraliśmy?” — powód obowiązkowy (bez niego nie ma statystyk), notatka opcjonalna. */
+function WynikPrzegranyForm({ busy, hint, onConfirm, onCancel }: { busy: boolean; hint?: string; onConfirm: (powod: string, notatka: string) => void; onCancel: () => void }) {
+  const [powod, setPowod] = useState('')
+  const [notatka, setNotatka] = useState('')
+  const [brak, setBrak] = useState(false)
+  return (
+    <section className="crm-box crm-wynik-form" aria-label="Oznacz jako przegrany">
+      <h4>Dlaczego przegraliśmy?</h4>
+      <div className="crm-chipy" role="radiogroup" aria-label="Powód przegranej">
+        {Object.entries(CRM_WYNIK_POWOD).map(([k, v]) => (
+          <button key={k} type="button" role="radio" aria-checked={powod === k} className={`crm-chip${powod === k ? ' crm-chip--on' : ''}`} disabled={busy} onClick={() => { setPowod(k); setBrak(false) }}>
+            {v}
+          </button>
+        ))}
+      </div>
+      <label className="crm-pf-field crm-wynik-notatka">
+        <span className="crm-pf-label">Notatka (opcjonalnie)</span>
+        <input type="text" value={notatka} onChange={(e) => setNotatka(e.target.value)} disabled={busy} placeholder="np. „wzięła drzwi z marketu, 2 tys. taniej”" />
+      </label>
+      <p className="crm-muted">{hint ?? 'Zamkniemy otwarte zadanie, a wysłane oferty dostaną status „Odrzucona”. Klient zniknie z „Do zrobienia”; wróci po kliknięciu „Przywróć do gry”.'}</p>
+      <div className="crm-mail-actions">
+        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => { if (!powod) { setBrak(true); return } onConfirm(powod, notatka) }}>
+          {busy ? <Spinner inline size={14} /> : null} Oznacz jako przegrany
+        </button>
+        <button type="button" className="btn btn-secondary" disabled={busy} onClick={onCancel}>Anuluj</button>
+        {brak && <span className="crm-text-bad">Wybierz powód.</span>}
+      </div>
+    </section>
   )
 }
 
@@ -375,6 +409,7 @@ function ZadaniaScreen({
   // etykiety (brief pkt 12): słownik wspólny z kartą leada, filtr po jednej etykiecie (po stronie klienta — lista ≤ 300)
   const etyk = useEtykiety()
   const [etykietaFilter, setEtykietaFilter] = useState('')
+  const [akcjaFilter, setAkcjaFilter] = useState('')
   // walk-in (brief pkt 13.1): formularz „Dodaj klienta” nad listą
   const [nowyKlient, setNowyKlient] = useState(false)
 
@@ -424,122 +459,58 @@ function ZadaniaScreen({
   const overdue = rows.filter((r) => terminState(r.nastepny_krok) === 'overdue').length
   const today = rows.filter((r) => terminState(r.nastepny_krok) === 'today').length
 
-  const columns = useMemo<DataTableColumn<CrmZadanieRow>[]>(
-    () => [
-      {
-        key: 'akcja',
-        label: 'Co zrobić',
-        sortValue: (r) => r.nastepna_akcja ?? '',
-        render: (r) => <AkcjaChip akcja={r.nastepna_akcja} termin={r.nastepny_krok} />,
-      },
-      {
-        key: 'klient',
-        label: 'Klient',
-        sortValue: (r) => leadName(r),
-        render: (r) => (
-          <button type="button" className="crm-link" onClick={() => onOpenLead(r.id)} title="Otwórz klienta (kontakt, rozmowy, oferty)">
-            {leadName(r)}
-          </button>
-        ),
-      },
-      { key: 'miejscowosc', label: 'Miejscowość', sortValue: (r) => r.miejscowosc ?? '', render: (r) => r.miejscowosc || '—' },
-      // KANAŁ (skąd przyszedł kontakt) — nie mylić ze „sprawą” z analizy AI (brief pkt 13)
-      { key: 'kanal', label: 'Kanał', sortValue: (r) => r.zrodlo ?? '', render: (r) => <KanalBadge zrodlo={r.zrodlo} /> },
-      {
-        key: 'etykiety',
-        label: 'Etykiety',
-        sortValue: (r) => (r.etykiety ?? []).join(','),
-        stopRowClick: true,
-        render: (r) => (
-          <EtykietyRow
-            leadId={r.id}
-            slugi={r.etykiety}
-            slownik={etyk.mapa}
-            compact
-            pushToast={pushToast}
-            onChanged={(slugi) => setRows((rs) => rs.map((x) => (x.id === r.id ? { ...x, etykiety: slugi } : x)))}
-          />
-        ),
-      },
-      {
-        key: 'opis',
-        label: 'Szczegóły',
-        render: (r) => (
-          <span className="crm-zadanie-opis" title={r.akcja_opis ?? undefined}>
-            {r.akcja_opis || CRM_AKCJA[r.nastepna_akcja ?? '']?.hint || '—'}
+  // przycisk w wierszu: oferta → liczy się / Sprawdź ustalenia / Otwórz ofertę; oddzwoń → zapasowo „ręcznie”; reszta → Zrobione
+  const renderAkcje = (r: CrmZadanieRow): ReactNode => {
+    if (r.nastepna_akcja === 'przygotuj_oferte') {
+      if (r.oferta?.status === 'przelicz') {
+        return (
+          <span className="crm-muted" title={r.oferta.liczenie_od ? `liczy się od ${fmtTime(r.oferta.liczenie_od)}` : 'czeka na przeliczenie'}>
+            <Spinner inline size={14} /> system liczy ofertę…
           </span>
-        ),
-      },
-      {
-        key: 'termin',
-        label: 'Termin',
-        sortValue: (r) => r.nastepny_krok ?? '9999',
-        render: (r) => {
-          const st = terminState(r.nastepny_krok)
-          return (
-            <span className={`crm-termin${st === 'overdue' ? ' crm-termin--overdue' : st === 'today' ? ' crm-termin--today' : ''}`}>
-              {st === 'today' ? 'dziś' : fmtDate(r.nastepny_krok)}
-              {st === 'overdue' ? ' (zaległe)' : ''}
-            </span>
-          )
-        },
-      },
-      { key: 'rozmowa', label: 'Ostatnia rozmowa', sortValue: (r) => r.ostatnia_rozmowa_at ?? '', render: (r) => fmtDateTime(r.ostatnia_rozmowa_at) },
-      {
-        key: 'akcje',
-        label: '',
-        render: (r) => {
-          if (r.nastepna_akcja === 'przygotuj_oferte') {
-            if (r.oferta?.status === 'przelicz') {
-              return (
-                <span className="crm-muted" title={r.oferta.liczenie_od ? `liczy się od ${fmtTime(r.oferta.liczenie_od)}` : 'czeka na przeliczenie'}>
-                  <Spinner inline size={14} /> system liczy ofertę…
-                </span>
-              )
-            }
-            if (r.oferta?.status === 'wstrzymana') {
-              return (
-                <button type="button" className="btn btn-sm btn-primary" onClick={() => onOpenOferta(r.oferta!.id)} title="Ustalenia z rozmowy / maila czekają na Twoją akceptację — dopiero wtedy system policzy ofertę">
-                  Sprawdź ustalenia
-                </button>
-              )
-            }
-            if (r.oferta) {
-              return (
-                <button type="button" className="btn btn-sm btn-primary" onClick={() => onOpenOferta(r.oferta!.id)}>
-                  Otwórz ofertę{r.oferta.cena_razem != null ? ` · ${fmtPln(r.oferta.cena_razem)}` : ''}
-                </button>
-              )
-            }
-            return (
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenLead(r.id)} title="Brak aktywnej oferty — zobacz leada">
-                Zobacz klienta
-              </button>
-            )
-          }
-          if (r.nastepna_akcja === 'oddzwon') {
-            // ingest zamyka to zadanie sam po odebranej rozmowie wychodzącej z Ringostatu;
-            // „Zrobione” tylko zapasowo (np. telefon z innego numeru)
-            return (
-              <span className="crm-oddzwon-hint">
-                <span className="crm-muted">zamknie się samo po oddzwonieniu z Ringostatu</span>
-                <button type="button" className="btn btn-sm btn-secondary" disabled={busy === r.id} onClick={() => handleZrobione(r)} title="Użyj tylko, gdy dzwoniłeś z innego telefonu niż Ringostat">
-                  Zrobione ręcznie
-                </button>
-              </span>
-            )
-          }
-          return (
-            <button type="button" className="btn btn-sm btn-primary" disabled={busy === r.id} onClick={() => handleZrobione(r)}>
-              <Check size={14} /> Zrobione
-            </button>
-          )
-        },
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [onOpenLead, onOpenOferta, busy, currentUser, etyk.mapa],
-  )
+        )
+      }
+      if (r.oferta?.status === 'wstrzymana') {
+        return (
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => onOpenOferta(r.oferta!.id)} title="Ustalenia z rozmowy / maila czekają na Twoją akceptację — dopiero wtedy system policzy ofertę">
+            Sprawdź ustalenia
+          </button>
+        )
+      }
+      if (r.oferta) {
+        return (
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => onOpenOferta(r.oferta!.id)}>
+            Otwórz ofertę{r.oferta.cena_razem != null ? ` · ${fmtPln(r.oferta.cena_razem)}` : ''}
+          </button>
+        )
+      }
+      return (
+        <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenLead(r.id)} title="Brak aktywnej oferty — zobacz klienta">
+          Zobacz klienta
+        </button>
+      )
+    }
+    if (r.nastepna_akcja === 'oddzwon') {
+      // ingest zamyka to zadanie sam po odebranej rozmowie wychodzącej z Ringostatu; „Zrobione” tylko zapasowo
+      return (
+        <button type="button" className="btn btn-sm btn-secondary" disabled={busy === r.id} onClick={() => handleZrobione(r)} title="Zamknie się samo po oddzwonieniu z Ringostatu. Użyj tylko, gdy dzwoniłeś z innego telefonu.">
+          Zrobione ręcznie
+        </button>
+      )
+    }
+    return (
+      <button type="button" className="btn btn-sm btn-primary" disabled={busy === r.id} onClick={() => handleZrobione(r)}>
+        <Check size={14} /> Zrobione
+      </button>
+    )
+  }
+
+  // makieta 18.11: filtr po rodzaju zadania (chipy z licznikiem) + grupy Zaległe / Dziś / Później
+  const poEtykiecie = etykietaFilter ? rows.filter((r) => (r.etykiety ?? []).includes(etykietaFilter)) : rows
+  const licznikAkcji = new Map<string, number>()
+  for (const r of poEtykiecie) if (r.nastepna_akcja) licznikAkcji.set(r.nastepna_akcja, (licznikAkcji.get(r.nastepna_akcja) ?? 0) + 1)
+  const widoczne = akcjaFilter ? poEtykiecie.filter((r) => r.nastepna_akcja === akcjaFilter) : poEtykiecie
+  const dzisIso = todayIso()
+  const grupy = ZADANIE_GRUPY.map((g) => ({ ...g, rows: widoczne.filter((r) => zadanieGrupa(r.nastepny_krok, dzisIso) === g.key) }))
 
   return (
     <>
@@ -586,16 +557,57 @@ function ZadaniaScreen({
       {loading ? (
         <Spinner center label="Ładowanie zadań…" />
       ) : (
-        <DataTable
-          rows={etykietaFilter ? rows.filter((r) => (r.etykiety ?? []).includes(etykietaFilter)) : rows}
-          rowKey={(r) => r.id}
-          columns={columns}
-          // #150: klik w wiersz = karta klienta (tam szczegóły zadania, „Zmień zadanie”, „Usuń zadanie”)
-          onRowClick={(r) => onOpenLead(r.id)}
-          rowClassName={() => 'crm-row--clickable'}
-          className="crm-table"
-          emptyText={etykietaFilter ? 'Brak zadań z tą etykietą.' : 'Nic do zrobienia — wszystkie zadania załatwione.'}
-        />
+        <div className="crm-zad">
+          {licznikAkcji.size > 1 && (
+            <div className="crm-chipy" role="group" aria-label="Rodzaj zadania">
+              <button type="button" className={`crm-chip${!akcjaFilter ? ' crm-chip--on' : ''}`} onClick={() => setAkcjaFilter('')} aria-pressed={!akcjaFilter}>
+                Wszystkie <span className="crm-chip-n">{poEtykiecie.length}</span>
+              </button>
+              {[...licznikAkcji.entries()].map(([k, n]) => (
+                <button key={k} type="button" className={`crm-chip${akcjaFilter === k ? ' crm-chip--on' : ''}`} onClick={() => setAkcjaFilter(akcjaFilter === k ? '' : k)} aria-pressed={akcjaFilter === k}>
+                  {CRM_AKCJA[k]?.label ?? k} <span className="crm-chip-n">{n}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {widoczne.length === 0 && (
+            <p className="crm-muted crm-zad-pusto">{etykietaFilter || akcjaFilter ? 'Brak zadań dla tych filtrów.' : 'Nic do zrobienia — wszystkie zadania załatwione.'}</p>
+          )}
+          {grupy.filter((g) => g.rows.length > 0).map((g) => (
+            <section key={g.key} className={`crm-zad-grupa crm-zad-grupa--${g.key}`} aria-label={g.label}>
+              <h4>{g.label} <span className="crm-muted">{g.rows.length}</span></h4>
+              {g.rows.map((r) => {
+                const tagi = r.etykiety ?? []
+                const st = terminState(r.nastepny_krok)
+                return (
+                  <div key={r.id} className="crm-zad-karta">
+                    <div className="crm-zad-akcja"><AkcjaChip akcja={r.nastepna_akcja} termin={r.nastepny_krok} /></div>
+                    <div className="crm-zad-klient">
+                      <button type="button" className="crm-zad-nazwa" onClick={() => onOpenLead(r.id)} title="Otwórz klienta (kontakt, rozmowy, oferty, zadanie)">{leadName(r)}</button>
+                      <span className="crm-muted crm-zad-gdzie">{r.miejscowosc || 'miejscowość nieznana'} · <KanalBadge zrodlo={r.zrodlo} compact /></span>
+                    </div>
+                    <div className="crm-zad-opis">
+                      <span className="crm-zad-opis-tekst" title={r.akcja_opis ?? undefined}>{r.akcja_opis || CRM_AKCJA[r.nastepna_akcja ?? '']?.hint || '—'}</span>
+                      {tagi.length > 0 && (
+                        <span className="crm-zad-tagi">
+                          {tagi.slice(0, 2).map((s) => <EtykietaBadge key={s} slug={s} e={etyk.mapa.get(s)} />)}
+                          {tagi.length > 2 && <span className="crm-muted" title={tagi.slice(2).map((s) => etyk.mapa.get(s)?.nazwa ?? s).join(', ')}>+{tagi.length - 2}</span>}
+                        </span>
+                      )}
+                    </div>
+                    <div className="crm-zad-termin">
+                      <span className={`crm-termin${st === 'overdue' ? ' crm-termin--overdue' : st === 'today' ? ' crm-termin--today' : ''}`}>
+                        {st === 'today' ? 'dziś' : r.nastepny_krok ? fmtDate(r.nastepny_krok) : 'bez terminu'}
+                      </span>
+                      <span className="crm-muted">ost. kontakt {fmtDate(r.ostatnia_rozmowa_at ?? r.updated_at)}</span>
+                    </div>
+                    <div className="crm-zad-btn">{renderAkcje(r)}</div>
+                  </div>
+                )
+              })}
+            </section>
+          ))}
+        </div>
       )}
       {mode === 'pelny' && <EtykietySlownikEditor lista={etyk.lista} pushToast={pushToast} onChanged={etyk.reload} />}
       {mode === 'pelny' && bledy.length > 0 && (
@@ -786,6 +798,9 @@ function OfertaScreen({
   const [error, setError] = useState<CrmError | null>(null)
   const [poprawka, setPoprawka] = useState('')
   const [saving, setSaving] = useState(false)
+  // brief pkt 31: „Klient odmówił” → powód przegranej
+  const [odmowa, setOdmowa] = useState(false)
+  const [wynikBusy, setWynikBusy] = useState(false)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -919,6 +934,20 @@ function OfertaScreen({
   const pozycjeSklep = (Array.isArray(oferta.pozycje) ? oferta.pozycje : []) as CrmOfertaPozycja[]
   const sysErr = isSystemError(sprawdz)
   const canSend = oferta.status === 'do_sprawdzenia' && !sysErr
+  const leadZamkniety = oferta.lead?.status === 'wygrany' || oferta.lead?.status === 'przegrany'
+  const handleWynikOferty = async (wynik: 'wygrany' | 'przegrany', opts: { powod?: string; notatka?: string } = {}) => {
+    if (!oferta.lead_id) return
+    setWynikBusy(true)
+    const err = await oznaczWynik(oferta.lead_id, wynik, { ...opts, ofertaId: oferta.id })
+    setWynikBusy(false)
+    if (err) {
+      pushToast(`Nie udało się zapisać wyniku: ${err.message}`, 'error')
+      return
+    }
+    setOdmowa(false)
+    pushToast(wynik === 'wygrany' ? 'Zapisano: klient przyjął ofertę' : 'Zapisano: klient odmówił', 'success')
+    void load(true)
+  }
   const isRecalc = oferta.status === 'przelicz'
   // 16.11: automat ofert wyłączony — oferta czeka, aż handlowiec przeczyta ustalenia i kliknie „policz”
   const wstrzymana = oferta.status === 'wstrzymana'
@@ -1097,7 +1126,23 @@ function OfertaScreen({
             </button>
             {canSend && <span className="crm-muted">Kliknij po wysłaniu maila — system zapamięta kto i kiedy i za 3 dni przypomni o follow-upie.</span>}
             {!canSend && !sysErr && <span className="crm-muted">Ta wersja ma status „{CRM_OFERTA_STATUS[oferta.status]?.label ?? oferta.status}”.</span>}
+            {oferta.status === 'wyslana' && oferta.lead_id && !leadZamkniety && (
+              <>
+                <button type="button" className="btn btn-success" disabled={wynikBusy} onClick={() => void handleWynikOferty('wygrany')} title="Oferta zaakceptowana, klient „Zamówił”, zadanie się zamknie">
+                  <Check size={15} /> Klient przyjął
+                </button>
+                <button type="button" className="btn btn-secondary" disabled={wynikBusy} onClick={() => setOdmowa(true)} aria-expanded={odmowa}>Klient odmówił…</button>
+              </>
+            )}
           </div>
+          {odmowa && (
+            <WynikPrzegranyForm
+              busy={wynikBusy}
+              hint="Ta oferta dostanie status „Odrzucona”, a klient „Przegrany”; otwarte zadanie się zamknie."
+              onCancel={() => setOdmowa(false)}
+              onConfirm={(powod, notatka) => void handleWynikOferty('przegrany', { powod, notatka })}
+            />
+          )}
         </section>
       )}
 
@@ -1715,6 +1760,10 @@ function LeadScreen({
   // #142: po „Usuń klienta” realtime (DELETE na leady/oferty/zdarzenia) odpalał przeładowanie,
   // fetchLead zwracał null i karta pokazywała „Nie znaleziono klienta” zamiast zniknąć
   const goneRef = useRef(false)
+  // brief pkt 31: wynik klienta (Zamówił / Przegrany z powodem / Przywróć do gry), menu „…” z usuwaniem
+  const [wynikForm, setWynikForm] = useState<{ ofertaId: string | null } | null>(null)
+  const [wynikBusy, setWynikBusy] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [rozmowy, setRozmowy] = useState<CrmRozmowa[]>([])
   const [maile, setMaile] = useState<CrmMail[]>([])
   const etyk = useEtykiety()
@@ -1894,42 +1943,92 @@ function LeadScreen({
     </div>
   )
   const activeOferta = oferty.find((o) => o.status === 'do_sprawdzenia' || o.status === 'przelicz' || o.status === 'wstrzymana')
+  const ostatnia = ostatniaOferta(oferty)
+  const zamkniety = lead.status === 'wygrany' || lead.status === 'przegrany'
+  const handleWynik = async (wynik: CrmWynik, opts: { powod?: string; notatka?: string; ofertaId?: string | null } = {}) => {
+    setWynikBusy(true)
+    const err = await oznaczWynik(lead.id, wynik, opts)
+    setWynikBusy(false)
+    if (err) {
+      pushToast(`Nie udało się zapisać wyniku: ${err.message}`, 'error')
+      return
+    }
+    setWynikForm(null)
+    pushToast(wynik === 'wygrany' ? 'Zapisano: klient zamówił' : wynik === 'przegrany' ? 'Zapisano: klient przegrany' : 'Klient wrócił do gry — ma nowe zadanie', 'success')
+    await load(true)
+  }
+  const handleDelete = async () => {
+    const ok = await appConfirm(
+      `Usunąć klienta „${leadName(lead)}”? Razem z nim znikną: ${oferty.length} ofert, ${dokumenty.length} dokumentów, ${rozmowy.length} rozmów i cała historia. Maile zostaną, ale bez powiązania. Tego nie da się cofnąć.`,
+    )
+    if (!ok) return
+    setSaving(true)
+    const err = await deleteLead(lead.id)
+    setSaving(false)
+    if (err) { pushToast(`Nie udało się usunąć klienta: ${err.message}`, 'error'); return }
+    goneRef.current = true
+    pushToast('Klient usunięty', 'success')
+    onDeleted()
+  }
 
   return (
     <div className="crm-screen">
-      <div className="crm-screen-head">
+      <header className="crm-lead-head">
         <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}><ArrowLeft size={14} /> Wróć</button>
-        <div className="crm-screen-title">
-          <h3>{leadName(lead)}</h3>
+        <div className="crm-lead-head-main">
+          <div className="crm-lead-head-title">
+            <h3>{leadName(lead)}</h3>
+            <span className={`crm-status crm-lead-status ${LEAD_STATUS_CLS[lead.status ?? ''] ?? 'crm-status--muted'}`}>{CRM_LEAD_STATUS[lead.status ?? ''] ?? lead.status ?? '—'}</span>
+          </div>
           <div className="crm-screen-sub">
-            {CRM_LEAD_STATUS[lead.status ?? ''] ?? lead.status ?? '—'}
-            {lead.kategoria ? ` · ${lead.kategoria}` : ''}
+            {lead.kategoria ? lead.kategoria : 'kategoria nieznana'}
             {lead.zrodlo ? <> · <KanalBadge zrodlo={lead.zrodlo} /></> : null}
             {lead.kampania ? ` · kampania: ${lead.kampania}` : ''}
           </div>
+          {zamkniety && <div className={`crm-lead-wynik crm-lead-wynik--${lead.status}`}>{opisWyniku(lead)}</div>}
         </div>
-        <button
-          type="button"
-          className="btn btn-sm btn-danger"
-          disabled={saving}
-          title="Usuń klienta ze wszystkim, co ma w CRM (nieodwracalne)"
-          onClick={async () => {
-            const ok = await appConfirm(
-              `Usunąć klienta „${leadName(lead)}”? Razem z nim znikną: ${oferty.length} ofert, ${dokumenty.length} dokumentów, ${rozmowy.length} rozmów i cała historia. Maile zostaną, ale bez powiązania. Tego nie da się cofnąć.`,
-            )
-            if (!ok) return
-            setSaving(true)
-            const err = await deleteLead(lead.id)
-            setSaving(false)
-            if (err) { pushToast(`Nie udało się usunąć klienta: ${err.message}`, 'error'); return }
-            goneRef.current = true
-            pushToast('Klient usunięty', 'success')
-            onDeleted()
-          }}
-        >
-          <Trash2 size={14} /> Usuń klienta
-        </button>
-      </div>
+        {ostatnia && (
+          <div className="crm-lead-head-kwota" title="Ostatnia oferta klienta (bez starych wersji)">
+            <span className="crm-pf-label">Ostatnia oferta</span>
+            <b>{fmtPln(kwotaOferty(ostatnia))}</b>
+            <span className="crm-muted">{ostatnia.rodzaj === 'oficjalna' ? 'brutto · ' : ''}{(CRM_OFERTA_STATUS[ostatnia.status]?.label ?? ostatnia.status).toLowerCase()} · {fmtDate(ostatnia.created_at)}</span>
+          </div>
+        )}
+        <div className="crm-lead-head-akcje">
+          {!zamkniety ? (
+            <>
+              <button type="button" className="btn btn-success" disabled={wynikBusy} onClick={() => void handleWynik('wygrany')} title="Klient zamówił: zadanie się zamknie, najnowsza wysłana oferta dostanie status „Zaakceptowana”">
+                <Check size={15} /> Zamówił
+              </button>
+              <button type="button" className="btn btn-secondary" disabled={wynikBusy} onClick={() => setWynikForm({ ofertaId: null })} aria-expanded={wynikForm != null}>
+                Przegrany…
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-secondary" disabled={wynikBusy} onClick={() => void handleWynik('w_grze')} title="Klient wraca do gry z nowym zadaniem „Zapytaj o decyzję”">
+              {wynikBusy ? <Spinner inline size={14} /> : <RefreshCw size={14} />} Przywróć do gry
+            </button>
+          )}
+          <div className="crm-menu">
+            <button type="button" className="btn btn-secondary crm-menu-btn" aria-label="Więcej akcji" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>…</button>
+            {menuOpen && (
+              <div className="crm-menu-lista" role="menu">
+                <button type="button" role="menuitem" className="crm-menu-item crm-menu-item--danger" disabled={saving} onClick={() => { setMenuOpen(false); void handleDelete() }} title="Usuń klienta ze wszystkim, co ma w CRM (nieodwracalne)">
+                  <Trash2 size={14} /> Usuń klienta…
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+      {wynikForm && (
+        <WynikPrzegranyForm
+          busy={wynikBusy}
+          hint={wynikForm.ofertaId ? 'Ta oferta dostanie status „Odrzucona”, otwarte zadanie się zamknie, klient zniknie z „Do zrobienia”.' : undefined}
+          onCancel={() => setWynikForm(null)}
+          onConfirm={(powod, notatka) => void handleWynik('przegrany', { powod, notatka, ofertaId: wynikForm.ofertaId })}
+        />
+      )}
 
       {/* etykiety (brief pkt 12): klik w badge zdejmuje, „+” otwiera wybór ze słownika */}
       <div className="crm-lead-tags">
@@ -2194,13 +2293,26 @@ function LeadScreen({
         {oferty.length === 0 ? (
           <p className="crm-muted">Brak ofert dla tego klienta.</p>
         ) : (
-          <div className="crm-versions">
+          <div className="crm-lead-oferty" role="table" aria-label="Oferty klienta">
             {[...oferty].reverse().map((o) => (
-              <button key={o.id} type="button" className="crm-version" onClick={() => onOpenOferta(o.id)} title={CRM_OFERTA_RODZAJ[o.rodzaj ?? 'sklep']?.title}>
-                {o.rodzaj === 'oficjalna' ? <span className="crm-rodzaj crm-rodzaj--oficjalna">PDF{o.numer ? ` ${o.numer}` : ''}</span> : null}
-                {o.rodzaj === 'oficjalna' ? ' · ' : ''}v{o.wersja}{o.produkt ? ` · ${o.produkt}` : ''}
-                {o.rodzaj === 'oficjalna' ? (o.brutto != null ? ` · ${fmtPln(o.brutto)} brutto` : '') : o.cena_razem != null ? ` · ${fmtPln(o.cena_razem)}` : ''} · <StatusBadge status={o.status} /> · {fmtDate(o.created_at)}
-              </button>
+              <div key={o.id} role="row" className={`crm-lead-oferta${o.status === 'zaakceptowana' ? ' crm-lead-oferta--won' : o.status === 'robocza' ? ' crm-lead-oferta--old' : ''}`}>
+                <button type="button" role="cell" className="crm-link crm-lead-oferta-nr" onClick={() => onOpenOferta(o.id)} title={CRM_OFERTA_RODZAJ[o.rodzaj ?? 'sklep']?.title}>
+                  {o.rodzaj === 'oficjalna' ? <span className="crm-rodzaj crm-rodzaj--oficjalna">PDF{o.numer ? ` ${o.numer}` : ''}</span> : 'Sklep'} · v{o.wersja}
+                </button>
+                <span role="cell" className="crm-lead-oferta-co" title={o.produkt ?? o.streszczenie ?? undefined}>{o.produkt || o.streszczenie || '—'}</span>
+                <span role="cell" className="crm-lead-oferta-kwota">{fmtPln(kwotaOferty(o))}{o.rodzaj === 'oficjalna' && o.brutto != null ? ' brutto' : ''}</span>
+                <span role="cell"><StatusBadge status={o.status} /></span>
+                <span role="cell" className="crm-muted">{fmtDate(o.created_at)}</span>
+                <span role="cell" className="crm-lead-oferta-akcje">
+                  {o.status === 'wyslana' && !zamkniety && (
+                    <>
+                      <button type="button" className="btn btn-sm btn-secondary crm-btn-przyjal" disabled={wynikBusy} onClick={() => void handleWynik('wygrany', { ofertaId: o.id })} title="Oferta zaakceptowana, klient „Zamówił”, zadanie się zamknie">Klient przyjął</button>
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={wynikBusy} onClick={() => { setWynikForm({ ofertaId: o.id }); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Klient odmówił</button>
+                    </>
+                  )}
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenOferta(o.id)}>Otwórz</button>
+                </span>
+              </div>
             ))}
           </div>
         )}

@@ -12,6 +12,7 @@ import { useEtykiety } from '../../hooks/useEtykiety'
 import { EtykietyRow, KanalBadge } from './CrmEtykiety'
 import CrmPolaczPanel from './CrmPolaczPanel'
 import DataTable, { type DataTableColumn } from '../DataTable'
+import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, kwotaOferty, lejekPodsumowanie, opisWyniku } from '../../lib/crmWynik'
 import Spinner from '../Spinner'
 
 type Props = {
@@ -46,6 +47,22 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
   const [kanal, setKanal] = useState('')
   const [etykieta, setEtykieta] = useState('')
   const [bezZadania, setBezZadania] = useState(false)
+  // makieta 18.11: widok Lista / Lejek (pamiętany na komputerze)
+  const [widok, setWidok] = useState<'lista' | 'lejek'>(() => {
+    try {
+      return localStorage.getItem('crm.kontakty.widok') === 'lista' ? 'lista' : 'lejek'
+    } catch {
+      return 'lejek'
+    }
+  })
+  const zmienWidok = (w: 'lista' | 'lejek') => {
+    setWidok(w)
+    try {
+      localStorage.setItem('crm.kontakty.widok', w)
+    } catch {
+      /* prywatne okno — bez pamiętania */
+    }
+  }
   // brief pkt 26: pary możliwych duplikatów (widok crm.duplikaty) + otwarty panel łączenia
   const [duplikaty, setDuplikaty] = useState<CrmDuplikat[]>([])
   const [pokazDuplikaty, setPokazDuplikaty] = useState(false)
@@ -68,7 +85,7 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
     const digits = q.replace(/\D/g, '')
     return rows
       .filter((l) => {
-        if (status && (l.status ?? '') !== status) return false
+        if (status === 'w_grze' ? !(l.status === 'nowy' || l.status === 'oferta' || !l.status) : status && (l.status ?? '') !== status) return false
         if (kanal && (l.zrodlo ?? '') !== kanal) return false
         if (etykieta && !(l.etykiety ?? []).includes(etykieta)) return false
         if (bezZadania && l.nastepna_akcja) return false
@@ -98,7 +115,17 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
       },
       { key: 'miejscowosc', label: 'Miejscowość', sortValue: (r) => r.miejscowosc ?? '', render: (r) => r.miejscowosc || '—' },
       { key: 'kanal', label: 'Kanał', sortValue: (r) => r.zrodlo ?? '', render: (r) => <KanalBadge zrodlo={r.zrodlo} /> },
-      { key: 'status', label: 'Status', sortValue: (r) => r.status ?? '', render: (r) => CRM_LEAD_STATUS[r.status ?? ''] ?? r.status ?? '—' },
+      {
+        key: 'status',
+        label: 'Status',
+        sortValue: (r) => r.status ?? '',
+        render: (r) => (
+          <span className={`crm-status ${LEAD_STATUS_CLS[r.status ?? ''] ?? 'crm-status--muted'}`} title={opisWyniku(r) || undefined}>
+            {CRM_LEAD_STATUS[r.status ?? ''] ?? r.status ?? '—'}
+            {r.status === 'przegrany' && r.wynik_powod ? ` · ${CRM_WYNIK_POWOD[r.wynik_powod] ?? r.wynik_powod}` : ''}
+          </span>
+        ),
+      },
       {
         key: 'etykiety',
         label: 'Etykiety',
@@ -156,6 +183,7 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
         </label>
         <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status klienta">
           <option value="">każdy status</option>
+          <option value="w_grze">w grze (nowy + ma ofertę)</option>
           {Object.entries(CRM_LEAD_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <select value={kanal} onChange={(e) => setKanal(e.target.value)} aria-label="Kanał">
@@ -172,6 +200,10 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
         <label className={`crm-check-inline${duplikaty.length ? ' crm-check-inline--warn' : ''}`} title="Pary klientów z tym samym telefonem, e-mailem, nazwą albo domeną firmową — do połączenia">
           <input type="checkbox" checked={pokazDuplikaty} onChange={(e) => setPokazDuplikaty(e.target.checked)} /> <Merge size={13} /> duplikaty{duplikaty.length ? ` (${duplikaty.length})` : ''}
         </label>
+        <div className="crm-widok" role="group" aria-label="Widok">
+          <button type="button" className={`crm-widok-btn${widok === 'lista' ? ' crm-widok-btn--on' : ''}`} aria-pressed={widok === 'lista'} onClick={() => zmienWidok('lista')}>Lista</button>
+          <button type="button" className={`crm-widok-btn${widok === 'lejek' ? ' crm-widok-btn--on' : ''}`} aria-pressed={widok === 'lejek'} onClick={() => zmienWidok('lejek')}>Lejek</button>
+        </div>
         <span className="crm-toolbar-hint">{filtered.length} z {rows.length}</span>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież"><RefreshCw size={14} /> Odśwież</button>
       </div>
@@ -220,7 +252,71 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
           </ul>
         </section>
       ) : (
-        <DataTable rows={filtered} rowKey={(r) => r.id} columns={columns} className="crm-table" emptyText={rows.length === 0 ? 'Nie ma jeszcze żadnego klienta.' : 'Nikt nie pasuje do filtrów.'} />
+        <>
+          {(() => {
+            const s = lejekPodsumowanie(filtered)
+            return (
+              <div className="crm-kpi-row">
+                <div className="crm-kpi"><span className="crm-kpi-label">W grze</span><b>{s.wGrze}</b></div>
+                <div className="crm-kpi"><span className="crm-kpi-label">Wartość ofert w grze</span><b>{fmtPln(s.wartoscWGrze)}</b></div>
+                <div className="crm-kpi crm-kpi--won"><span className="crm-kpi-label">Zamówili</span><b>{s.wygrane.n} · {fmtPln(s.wygrane.suma)}</b></div>
+                <div className="crm-kpi">
+                  <span className="crm-kpi-label">Przegrani{s.przegrane.topPowod ? ' · najczęściej' : ''}</span>
+                  <b>{s.przegrane.n}{s.przegrane.topPowod ? ` · ${CRM_WYNIK_POWOD[s.przegrane.topPowod] ?? s.przegrane.topPowod}` : ''}</b>
+                </div>
+                <div className="crm-kpi"><span className="crm-kpi-label">Wygranych z zamkniętych</span><b>{s.procentWygranych == null ? '—' : `${s.procentWygranych}%`}</b></div>
+              </div>
+            )
+          })()}
+          {widok === 'lista' ? (
+            <DataTable rows={filtered} rowKey={(r) => r.id} columns={columns} className="crm-table" emptyText={rows.length === 0 ? 'Nie ma jeszcze żadnego klienta.' : 'Nikt nie pasuje do filtrów.'} />
+          ) : (
+            <div className="crm-lejek">
+              {LEJEK_KOLUMNY.map((kol) => {
+                const lista = filtered.filter((r) => (r.status ?? 'nowy') === kol.key || (kol.key === 'nowy' && !r.status))
+                const suma = lista.reduce((a, r) => a + (kwotaOferty(r.ostatnia_oferta) ?? 0), 0)
+                const MAX = 60
+                return (
+                  <section key={kol.key} className={`crm-lejek-kol crm-lejek-kol--${kol.key}`} aria-label={kol.label}>
+                    <div className="crm-lejek-head">
+                      <span><b>{kol.label}</b> <span className="crm-muted">{lista.length}</span></span>
+                      {kol.key !== 'nowy' && <span className="crm-lejek-suma">{fmtPln(suma)}</span>}
+                    </div>
+                    {lista.slice(0, MAX).map((r) => {
+                      const info =
+                        r.status === 'przegrany'
+                          ? `Powód: ${r.wynik_powod ? CRM_WYNIK_POWOD[r.wynik_powod] ?? r.wynik_powod : 'nie podano'}`
+                          : r.status === 'wygrany'
+                            ? opisWyniku(r)
+                            : r.nastepna_akcja
+                              ? `${CRM_AKCJA[r.nastepna_akcja]?.label ?? r.nastepna_akcja}${r.nastepny_krok ? ` · ${fmtDate(r.nastepny_krok)}` : ''}`
+                              : 'bez zadania'
+                      return (
+                        <button key={r.id} type="button" className="crm-lejek-karta" onClick={() => onOpenLead(r.id)} title="Karta klienta">
+                          <span className="crm-lejek-top">
+                            <b>{leadName(r)}</b>
+                            <span>{fmtPln(kwotaOferty(r.ostatnia_oferta))}</span>
+                          </span>
+                          <span className="crm-muted crm-lejek-gdzie">{r.miejscowosc || 'miejscowość nieznana'}{r.kategoria ? ` · ${r.kategoria}` : ''}</span>
+                          <span className="crm-lejek-dol">
+                            <span className={`crm-lejek-info crm-lejek-info--${kol.key}`}>{info}</span>
+                            <span className="crm-muted">{fmtDate(aktywnosc(r))}</span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                    {lista.length > MAX && (
+                      <button type="button" className="crm-link crm-lejek-wiecej" onClick={() => { zmienWidok('lista'); setStatus(kol.key) }}>
+                        + {lista.length - MAX} więcej — pokaż na liście
+                      </button>
+                    )}
+                    {lista.length === 0 && <span className="crm-muted crm-lejek-pusto">Brak klientów.</span>}
+                  </section>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

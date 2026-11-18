@@ -9881,3 +9881,94 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-mail-styl .crm-szkic-meta { margin: 0; }
 .crm-mail-niezapisany { border: 1px dashed var(--color-border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
 .crm-mail-niezapisany p { margin: 0; }
+
+/* CRM — nowy wygląd i wynik klienta (makieta 18.11, brief pkt 31) */
+.crm-chipy { display: flex; flex-wrap: wrap; gap: 6px; }
+.crm-chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--color-border); background: #fff; color: var(--color-text); font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.crm-chip:hover:not(:disabled) { border-color: #9ca3af; }
+.crm-chip--on { background: #111827; border-color: #111827; color: #fff; }
+.crm-chip-n { opacity: .7; font-weight: 500; margin-left: 2px; }
+.crm-zad { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.crm-zad-pusto { padding: 16px; border: 1px dashed var(--color-border); border-radius: 12px; background: #fff; margin: 0; }
+.crm-zad-grupa { display: flex; flex-direction: column; gap: 8px; }
+.crm-zad-grupa h4 { margin: 0; font-size: 0.95rem; }
+.crm-zad-grupa--zalegle h4 { color: #b91c1c; }
+.crm-zad-grupa--pozniej h4 { color: #4b5563; }
+.crm-zad-karta { display: grid; grid-template-columns: 190px minmax(180px, 1.1fr) minmax(220px, 2fr) 130px minmax(150px, auto); gap: 14px; align-items: center; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 10px 14px; }
+.crm-zad-karta:hover { border-color: #cbd5e1; }
+.crm-zad-akcja .crm-akcja { white-space: nowrap; }
+.crm-zad-klient { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.crm-zad-nazwa { all: unset; cursor: pointer; font-weight: 700; font-size: 0.95rem; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-zad-nazwa:hover, .crm-zad-nazwa:focus-visible { text-decoration: underline; }
+.crm-zad-gdzie { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-zad-opis { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.crm-zad-opis-tekst { font-size: 0.85rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.crm-zad-tagi { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; overflow: hidden; font-size: 0.75rem; }
+.crm-zad-termin { display: flex; flex-direction: column; gap: 2px; font-size: 0.78rem; }
+.crm-zad-termin .crm-termin { font-weight: 700; font-size: 0.85rem; }
+.crm-zad-btn { display: flex; justify-content: flex-end; }
+@media (max-width: 1100px) {
+  .crm-zad-karta { grid-template-columns: 1fr 1fr; }
+  .crm-zad-opis { grid-column: 1 / -1; }
+  .crm-zad-btn { justify-content: flex-start; }
+}
+.crm-lead-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; background: #fff; border: 1px solid var(--color-border); border-radius: 14px; padding: 14px 18px; margin-bottom: 12px; }
+.crm-lead-head-main { display: flex; flex-direction: column; gap: 4px; flex: 1 1 320px; min-width: 0; }
+.crm-lead-head-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.crm-lead-head-title h3 { margin: 0; font-size: 1.35rem; }
+.crm-lead-status { font-size: 0.82rem; padding: 3px 12px; }
+.crm-lead-wynik { font-size: 0.85rem; font-weight: 600; }
+.crm-lead-wynik--przegrany { color: #991b1b; }
+.crm-lead-wynik--wygrany { color: #065f46; }
+.crm-lead-head-kwota { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.crm-lead-head-kwota b { font-size: 1.3rem; }
+.crm-lead-head-kwota .crm-muted { font-size: 0.78rem; }
+.crm-lead-head-akcje { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.crm-menu { position: relative; }
+.crm-menu-btn { font-weight: 800; letter-spacing: 1px; padding-left: 12px; padding-right: 12px; }
+.crm-menu-lista { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 210px; background: #fff; border: 1px solid var(--color-border); border-radius: 10px; box-shadow: 0 10px 28px rgba(15, 23, 42, .14); padding: 6px; display: flex; flex-direction: column; }
+.crm-menu-item { all: unset; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 8px; font-size: 0.85rem; color: var(--color-text); }
+.crm-menu-item:hover, .crm-menu-item:focus-visible { background: #f3f4f6; }
+.crm-menu-item--danger { color: #b91c1c; }
+.crm-wynik-form { display: flex; flex-direction: column; gap: 10px; border: 2px solid #111827; margin-bottom: 12px; }
+.crm-wynik-form h4 { margin: 0; }
+.crm-wynik-form p { margin: 0; font-size: 0.82rem; }
+.crm-wynik-notatka { max-width: 640px; }
+.crm-lead-oferty { display: flex; flex-direction: column; border: 1px solid var(--color-border); border-radius: 12px; overflow-x: auto; background: #fff; }
+.crm-lead-oferta { display: grid; grid-template-columns: 200px minmax(200px, 1fr) 130px 130px 70px minmax(250px, auto); gap: 12px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; min-width: 1000px; }
+.crm-lead-oferta:last-child { border-bottom: 0; }
+.crm-lead-oferta--won { background: #ecfdf5; }
+.crm-lead-oferta--old { color: #6b7280; }
+.crm-lead-oferta-nr { white-space: nowrap; font-weight: 600; text-align: left; }
+.crm-lead-oferta-co { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-lead-oferta-kwota { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.crm-lead-oferta-akcje { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.crm-btn-przyjal { border-color: #047857; color: #065f46; }
+.crm-widok { display: inline-flex; border: 1px solid var(--color-border); border-radius: 9px; overflow: hidden; }
+.crm-widok-btn { all: unset; cursor: pointer; padding: 6px 12px; font-size: 0.82rem; font-weight: 600; background: #fff; color: var(--color-text); }
+.crm-widok-btn--on { background: #111827; color: #fff; }
+.crm-widok-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+.crm-kpi-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 10px 0; }
+.crm-kpi { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.crm-kpi b { font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-kpi-label { font-size: 0.75rem; color: var(--color-text-muted); }
+.crm-kpi--won { background: #ecfdf5; border-color: #a7f3d0; }
+@media (max-width: 1100px) { .crm-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.crm-lejek { display: grid; grid-template-columns: repeat(4, minmax(250px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 6px; }
+.crm-lejek-kol { background: #eef1f5; border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 8px; align-self: start; min-width: 0; }
+.crm-lejek-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 4px 4px; font-size: 0.85rem; }
+.crm-lejek-kol--wygrany .crm-lejek-head b { color: #047857; }
+.crm-lejek-kol--przegrany .crm-lejek-head b { color: #991b1b; }
+.crm-lejek-suma { font-weight: 600; font-size: 0.8rem; }
+.crm-lejek-karta { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 5px; background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 9px 11px; }
+.crm-lejek-karta:hover, .crm-lejek-karta:focus-visible { border-color: #94a3b8; box-shadow: 0 2px 8px rgba(15, 23, 42, .08); }
+.crm-lejek-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-size: 0.88rem; }
+.crm-lejek-top b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-lejek-top span { white-space: nowrap; font-weight: 600; }
+.crm-lejek-gdzie { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-lejek-dol { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 0.72rem; }
+.crm-lejek-info { font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #f3f4f6; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-lejek-info--wygrany { background: #d1fae5; color: #065f46; }
+.crm-lejek-info--przegrany { background: #fee2e2; color: #991b1b; }
+.crm-lejek-wiecej { font-size: 0.8rem; padding: 4px; text-align: left; }
+.crm-lejek-pusto { font-size: 0.8rem; padding: 6px 4px; }

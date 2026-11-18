@@ -219,6 +219,34 @@ export async function markZadanieZrobione(lead: CrmLead, userId: string): Promis
  * ustawia następne zadanie (nastepna_akcja + termin za N dni + opis) i przy wyslano_oferte status klienta 'oferta'.
  * Z nastepna_akcja=null zamyka bez kolejnego kroku; na kliencie bez zadania po prostu ustawia nowe („Dodaj zadanie”).
  */
+/** Wynik klienta (brief pkt 31): 'w_grze' = „Przywróć do gry”. */
+export type CrmWynik = 'wygrany' | 'przegrany' | 'w_grze'
+
+/**
+ * rpc crm.oznacz_wynik: status leada + powód/notatka/kto/kiedy, zamyka zadanie, oferta → zaakceptowana
+ * (wygrany) albo wysłane → odrzucona (przegrany), zdarzenie do historii. Przywrócenie stawia nowe zadanie.
+ */
+export async function oznaczWynik(
+  leadId: string,
+  wynik: CrmWynik,
+  opts: { powod?: string | null; notatka?: string | null; ofertaId?: string | null } = {},
+): Promise<CrmError | null> {
+  const { error } = await crm().rpc('oznacz_wynik', {
+    p_lead_id: leadId,
+    p_wynik: wynik,
+    p_powod: opts.powod ?? null,
+    p_notatka: opts.notatka?.trim() || null,
+    p_oferta_id: opts.ofertaId ?? null,
+  })
+  // funkcji jeszcze nie ma w bazie (migracja po stronie serwera CRM) — nic nie zapisujemy bokiem
+  if (error && (error.code === 'PGRST202' || /oznacz_wynik/i.test(error.message ?? ''))) {
+    if (error.code === 'PGRST202' || /could not find|does not exist/i.test(error.message ?? '')) {
+      return { kind: 'other', message: 'Oznaczanie wyniku czeka jeszcze na aktualizację bazy CRM — spróbuj za chwilę.' }
+    }
+  }
+  return crmErrorFrom(error)
+}
+
 export async function zamknijZadanie(leadId: string, z: CrmZamknijZadanie): Promise<CrmError | null> {
   const { error } = await crm().rpc('zamknij_zadanie', {
     p_lead_id: leadId,

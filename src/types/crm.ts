@@ -1,3 +1,4 @@
+import { CRM_WYNIK_POWOD } from '../lib/crmWynik'
 // =====================================================================
 // Typy modułu „CRM Po Drzwi” — odbicie tabel schematu `crm` (migracje
 // crm_podrzwi_init 13.11.2026 i 20261114_crm_superadmin_i_oferty).
@@ -40,6 +41,14 @@ export type CrmLead = {
   szkic?: CrmSzkic | null
   /** brief pkt 26: dane kontaktowe klientów połączonych w tego (rpc polacz_leady) */
   inne_kontakty?: CrmInnyKontakt[] | null
+  // ---- wynik klienta (brief pkt 31, rpc oznacz_wynik) ----
+  /** powód przegranej: klucz z CRM_WYNIK_POWOD (lib/crmWynik); null przy wygranym i otwartym */
+  wynik_powod?: string | null
+  wynik_notatka?: string | null
+  /** kiedy oznaczono wynik (Zamówił / Przegrany) */
+  wynik_at?: string | null
+  /** kto oznaczył (auth.uid); null = automat */
+  wynik_kto?: string | null
 }
 
 /** Wpis w leady.inne_kontakty po połączeniu duplikatów (brief pkt 26) */
@@ -399,6 +408,9 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   mail_wyslany: 'Mail wysłany do klienta',
   klient_odpisal: 'Klient odpisał na ofertę',
   przegrany_automatycznie: 'Lead przegrany (30 dni bez aktywności)',
+  wygrany: 'Zamówił',
+  przegrany: 'Przegrany',
+  przywrocony: 'Przywrócono do gry',
   brak_kandydatow: 'Brak pasującego produktu w cenniku',
   poprawka: 'Poprawka handlowca',
   przeliczono: 'Przeliczono',
@@ -437,6 +449,12 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
     const rodzaj = typeof dane?.rodzaj === 'string' ? CRM_SZKIC_RODZAJ[dane.rodzaj] : null
     return `✍️ Szkic odpowiedzi${rodzaj ? `: ${rodzaj}` : ''}${dane?.auto === true ? ' (automatycznie)' : ''}`
   }
+  // brief pkt 31: wynik klienta z powodem przegranej
+  if (typ === 'przegrany') {
+    const p = typeof dane?.powod === 'string' ? CRM_WYNIK_POWOD[dane.powod] ?? dane.powod : null
+    return `✖ Przegrany${p ? `: ${p}` : ''}${typeof dane?.notatka === 'string' && dane.notatka ? ` — ${dane.notatka}` : ''}`
+  }
+  if (typ === 'wygrany') return '✔ Zamówił'
   return CRM_ZDARZENIE_LABEL[typ] ?? typ
 }
 
