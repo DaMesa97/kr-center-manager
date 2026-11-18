@@ -7,12 +7,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Merge, RefreshCw, Search } from 'lucide-react'
 import type { ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_KANAL, CRM_LEAD_STATUS, CRM_OFERTA_RODZAJ, CRM_OFERTA_STATUS, type CrmDuplikat } from '../../types/crm'
-import { fetchDuplikaty, fetchKontakty, type CrmError, type CrmKontaktRow } from '../../hooks/useCrm'
+import { fetchDuplikaty, fetchKontakty, oznaczWynik, type CrmError, type CrmKontaktRow } from '../../hooks/useCrm'
+import { appConfirm } from '../../lib/appDialogs'
+import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
 import { useEtykiety } from '../../hooks/useEtykiety'
 import { EtykietyRow, KanalBadge } from './CrmEtykiety'
 import CrmPolaczPanel from './CrmPolaczPanel'
 import DataTable, { type DataTableColumn } from '../DataTable'
-import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, kwotaOferty, lejekPodsumowanie, opisWyniku } from '../../lib/crmWynik'
+import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, kwotaOferty, lejekPodsumowanie, opisWyniku, ruchWLejku, type LejekStatus } from '../../lib/crmWynik'
 import Spinner from '../Spinner'
 
 type Props = {
@@ -55,6 +57,45 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
       return 'lejek'
     }
   })
+  // przeciąganie w lejku (Tymek 18.11): karta → kolumna = wynik klienta; „Przegrany” pyta o powód
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState<LejekStatus | null>(null)
+  const [przegranyDla, setPrzegranyDla] = useState<CrmKontaktRow | null>(null)
+  const [wynikBusy, setWynikBusy] = useState(false)
+  const zapiszWynik = async (r: CrmKontaktRow, wynik: 'wygrany' | 'przegrany' | 'w_grze', opts: { powod?: string; notatka?: string } = {}) => {
+    setWynikBusy(true)
+    const err = await oznaczWynik(r.id, wynik, opts)
+    setWynikBusy(false)
+    if (err) {
+      pushToast(`Nie udało się zapisać wyniku: ${err.message}`, 'error')
+      return
+    }
+    setPrzegranyDla(null)
+    pushToast(wynik === 'wygrany' ? `${leadName(r)}: zamówił` : wynik === 'przegrany' ? `${leadName(r)}: przegrany` : `${leadName(r)} wraca do gry`, 'success')
+    await load(true)
+  }
+  const onDropKol = async (kol: LejekStatus) => {
+    const r = rows.find((x) => x.id === dragId)
+    setDragId(null)
+    setDragOver(null)
+    if (!r) return
+    const ruch = ruchWLejku(r.status, kol)
+    if (ruch === 'nic') return
+    if (ruch === 'systemowy') {
+      pushToast('„Nowy” i „Ma ofertę” ustawia system: klient przechodzi do „Ma ofertę”, gdy dostanie ofertę', 'error')
+      return
+    }
+    if (ruch === 'przegrany') {
+      setPrzegranyDla(r)
+      return
+    }
+    if (ruch === 'wygrany') {
+      const ok = await appConfirm(`Oznaczyć „${leadName(r)}” jako Zamówił? Zadanie się zamknie, a najnowsza wysłana oferta dostanie status „Zaakceptowana”.`)
+      if (!ok) return
+    }
+    await zapiszWynik(r, ruch)
+  }
+
   const zmienWidok = (w: 'lista' | 'lejek') => {
     setWidok(w)
     try {
@@ -271,13 +312,42 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
           {widok === 'lista' ? (
             <DataTable rows={filtered} rowKey={(r) => r.id} columns={columns} className="crm-table" emptyText={rows.length === 0 ? 'Nie ma jeszcze żadnego klienta.' : 'Nikt nie pasuje do filtrów.'} />
           ) : (
+            <>
+            {przegranyDla && (
+              <div className="crm-lejek-wynik">
+                <p><b>{leadName(przegranyDla)}</b> → Przegrany</p>
+                <WynikPrzegranyForm
+                  busy={wynikBusy}
+                  onCancel={() => setPrzegranyDla(null)}
+                  onConfirm={(powod, notatka) => void zapiszWynik(przegranyDla, 'przegrany', { powod, notatka })}
+                />
+              </div>
+            )}
+            <p className="crm-muted crm-lejek-hint">Przeciągnij kartę do „Zamówił” albo „Przegrany”, a przegranego lub zamówionego z powrotem do „Nowy” / „Ma ofertę”, żeby przywrócić go do gry.</p>
             <div className="crm-lejek">
               {LEJEK_KOLUMNY.map((kol) => {
                 const lista = filtered.filter((r) => (r.status ?? 'nowy') === kol.key || (kol.key === 'nowy' && !r.status))
                 const suma = lista.reduce((a, r) => a + (kwotaOferty(r.ostatnia_oferta) ?? 0), 0)
                 const MAX = 60
                 return (
-                  <section key={kol.key} className={`crm-lejek-kol crm-lejek-kol--${kol.key}`} aria-label={kol.label}>
+                  <section
+                    key={kol.key}
+                    className={`crm-lejek-kol crm-lejek-kol--${kol.key}${dragOver === kol.key ? ' crm-lejek-kol--over' : ''}`}
+                    aria-label={kol.label}
+                    onDragOver={(e) => {
+                      if (!dragId) return
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      if (dragOver !== kol.key) setDragOver(kol.key)
+                    }}
+                    onDragLeave={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver((v) => (v === kol.key ? null : v))
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      void onDropKol(kol.key)
+                    }}
+                  >
                     <div className="crm-lejek-head">
                       <span><b>{kol.label}</b> <span className="crm-muted">{lista.length}</span></span>
                       {kol.key !== 'nowy' && <span className="crm-lejek-suma">{fmtPln(suma)}</span>}
@@ -292,7 +362,23 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                               ? `${CRM_AKCJA[r.nastepna_akcja]?.label ?? r.nastepna_akcja}${r.nastepny_krok ? ` · ${fmtDate(r.nastepny_krok)}` : ''}`
                               : 'bez zadania'
                       return (
-                        <button key={r.id} type="button" className="crm-lejek-karta" onClick={() => onOpenLead(r.id)} title="Karta klienta">
+                        <button
+                          key={r.id}
+                          type="button"
+                          className={`crm-lejek-karta${dragId === r.id ? ' crm-lejek-karta--drag' : ''}`}
+                          onClick={() => onOpenLead(r.id)}
+                          title="Karta klienta — albo przeciągnij do innej kolumny"
+                          draggable={!wynikBusy}
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'move'
+                            e.dataTransfer.setData('text/plain', r.id)
+                            setDragId(r.id)
+                          }}
+                          onDragEnd={() => {
+                            setDragId(null)
+                            setDragOver(null)
+                          }}
+                        >
                           <span className="crm-lejek-top">
                             <b>{leadName(r)}</b>
                             <span>{fmtPln(kwotaOferty(r.ostatnia_oferta))}</span>
@@ -310,11 +396,12 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                         + {lista.length - MAX} więcej — pokaż na liście
                       </button>
                     )}
-                    {lista.length === 0 && <span className="crm-muted crm-lejek-pusto">Brak klientów.</span>}
+                    {lista.length === 0 && <span className="crm-muted crm-lejek-pusto">{dragId ? 'Upuść tutaj' : 'Brak klientów.'}</span>}
                   </section>
                 )
               })}
             </div>
+            </>
           )}
         </>
       )}

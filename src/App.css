@@ -9972,3 +9972,11 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-lejek-info--przegrany { background: #fee2e2; color: #991b1b; }
 .crm-lejek-wiecej { font-size: 0.8rem; padding: 4px; text-align: left; }
 .crm-lejek-pusto { font-size: 0.8rem; padding: 6px 4px; }
+
+/* Kontakty → Lejek: przeciąganie kart (18.11) */
+.crm-lejek-karta[draggable="true"] { cursor: grab; }
+.crm-lejek-karta--drag { opacity: .45; }
+.crm-lejek-kol--over { outline: 2px dashed #2563eb; outline-offset: -2px; background: #e0ecff; }
+.crm-lejek-hint { font-size: 0.78rem; margin: 0 0 8px; }
+.crm-lejek-wynik { margin-bottom: 10px; }
+.crm-lejek-wynik > p { margin: 0 0 6px; font-size: 0.9rem; }

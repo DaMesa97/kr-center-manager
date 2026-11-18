@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: przeciąganie klientów w lejku (beta.133)</h4>
+        <ul>
+          <li><b>CRM → Kontakty → Lejek:</b> kartę klienta przeciągasz między kolumnami. Do <b>„Zamówił”</b> — po potwierdzeniu klient zamawia, a najnowsza wysłana oferta dostaje status „Zaakceptowana”. Do <b>„Przegrany”</b> — otwiera się wybór powodu (jak na karcie klienta). Zamówionego albo przegranego z powrotem do „Nowy” / „Ma ofertę” — wraca do gry z nowym zadaniem. „Nowy” i „Ma ofertę” ustawia system (po wysłaniu oferty), więc między nimi karty się nie przenosi.</li>
+        </ul>
         <h4>CRM: nowy wygląd, wynik klienta (Zamówił / Przegrany), kilka konfiguracji w ofercie, mail w stylu handlowca (beta.132)</h4>
         <ul>
           <li><b>CRM → Oferta z montażem (PDF):</b> kilka konfiguracji w jednej ofercie (np. drzwi wejściowe i do garażu) — pole plików przyjmuje wiele plików naraz, zrzut ekranu konfiguratora wkleisz <b>Ctrl+V</b> (dodaje się jako obrazek z miniaturą), a tekst konfiguracji liczy się razem z plikami. Na ofercie i w dokumentach klienta widać wszystkie pliki konfiguracji; do umowy idą wszystkie PDF-y (zgłoszenie #160).</li>

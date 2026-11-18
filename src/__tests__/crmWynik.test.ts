@@ -67,3 +67,18 @@ describe('crmWynik — opis wyniku', () => {
     expect(opisWyniku({ status: 'oferta' })).toBe('')
   })
 })
+
+describe('crmWynik — przeciąganie w lejku', () => {
+  it('mapuje ruchy kart na akcje wyniku', async () => {
+    const { ruchWLejku } = await import('../lib/crmWynik')
+    expect(ruchWLejku('oferta', 'oferta')).toBe('nic')
+    expect(ruchWLejku(null, 'nowy')).toBe('nic')
+    expect(ruchWLejku('oferta', 'wygrany')).toBe('wygrany')
+    expect(ruchWLejku('nowy', 'przegrany')).toBe('przegrany')
+    expect(ruchWLejku('wygrany', 'przegrany')).toBe('przegrany')
+    expect(ruchWLejku('przegrany', 'oferta')).toBe('w_grze')
+    expect(ruchWLejku('wygrany', 'nowy')).toBe('w_grze')
+    expect(ruchWLejku('nowy', 'oferta')).toBe('systemowy')
+    expect(ruchWLejku('oferta', 'nowy')).toBe('systemowy')
+  })
+})
