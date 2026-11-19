@@ -216,6 +216,24 @@ Pulpicie (czas ostatniego przebiegu, ostrzeżenie > 26 h), licznik w menu.
 Odświeżanie co 5 min + ręcznie. Trigger `trg_zz_flag_possible_duplicate`
 (BEFORE INSERT) flaguje duble przy imporcie — dziś 0 otwartych.
 
+### 4c. Reklamacje z Excela — jedna strona Excel → aplikacja (od 19.11.2026)
+Ten sam nocny przebieg: `excel-sync` czyta z każdego skoroszytu arkusz „Reklamacje"
+(układ kolumn różni się między plikami, stąd aliasy nagłówków w funkcji: ST/Disting/STA
+mają NR. REKLAMACJI / DATA REKLAMACJI / PA-CA-WZ / CO REKLAMOWANE / POWÓD REKLAMACJI /
+WYDANIE + kolumny etapów naprawy, Bastion ma NUMER REKLAMACJI / DATA / NR KR CENTER /
+UWAGI / UWAGI 2 / ZREALIZOWANE) i woła RPC `sync_complaints_from_excel(p_rows, p_category,
+p_source, p_dry_run)` (`migrate/excel_sync_reklamacje.sql`). Klucz wiersza:
+`extra_fields.excel_nr = '<kategoria>/<nr z arkusza>'`, numer w aplikacji `XL/<kategoria>/<nr>`
+(reklamacje wpisane w aplikacji mają dalej `RK/rok/nnn`). Zlecenie dopinane po numerze
+(pierwszy człon przed „-"), kategorii, wykonawcy (PA/PD → Profil, CA/CD → Center, WZ) i
+pierwszym słowie firmy; brak dopasowania = reklamacja bez zlecenia (stare numery).
+Etapy naprawy → `production_stages` z kluczami ST (cnc/osc/skr/mon/mag), WYDANIE/ZREALIZOWANE
+→ `release_date` (data albo dzień przebiegu, gdy tylko znacznik). Excel wygrywa przy
+kolejnych przebiegach (data, powód, etapy, wydanie gdy w aplikacji puste); parametr
+`?reklamacje=0` pomija blok. Błąd reklamacji trafia do `excel_sync_runs`
+(`summary.blad`) i NIE przerywa łańcucha wydań w Make (odpowiedź 200). Otwarte reklamacje
+(bez wydania) widać w zakładce Reklamacje i jako zadania naprawy na mobilnym.
+
 ## 5. Rekordy łączone (Disting Plus, Titan)
 
 Rekordy łączone to **osobne wiersze** w `orders` spięte `linked_order_id`
