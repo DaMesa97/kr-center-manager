@@ -216,6 +216,16 @@ Pulpicie (czas ostatniego przebiegu, ostrzeżenie > 26 h), licznik w menu.
 Odświeżanie co 5 min + ręcznie. Trigger `trg_zz_flag_possible_duplicate`
 (BEFORE INSERT) flaguje duble przy imporcie — dziś 0 otwartych.
 
+Dopasowanie wiersz ↔ zlecenie (od 20.11.2026, `migrate/excel_sync_dopasowanie_duplikaty.sql`):
+numer arkusza + model + firma w arkuszu wykonawcy → to samo bez wykonawcy (zlecenie bez
+`wykonawca`/`typ`, tylko gdy jednoznacznie) → Airtable ID → zgadywanie po nr klienta + model,
+ale tylko w wierszach niezajętych przez pewne dopasowanie (wcześniej zgadnięte zlecenie robiło
+z pewnego wiersza „duplikat” i blokowało oba). Źródło funkcji: `supabase/functions/excel-sync`
+(od 20.11 w repo; wdrożenie `supabase functions deploy excel-sync --no-verify-jwt --use-api`
+z folderu bez `supabase/config.toml` albo przez MCP). Titan w ST.xlsm: zapasowa kolumna
+„ETAP 4 (montaż, pakowanie i kontrola jakości)” (arkusz WZ TITAN jej nie ma — opcjonalna);
+wydanie roli ST zamyka też rolę Bastion z tej samej `titan_group`.
+
 ### 4c. Reklamacje z Excela — jedna strona Excel → aplikacja (od 19.11.2026)
 Ten sam nocny przebieg: `excel-sync` czyta z każdego skoroszytu arkusz „Reklamacje"
 (układ kolumn różni się między plikami, stąd aliasy nagłówków w funkcji: ST/Disting/STA
