@@ -119,3 +119,14 @@ describe('crmWynik — wartość klienta (#162)', () => {
     expect(s.wygrane.suma).toBe(6000)
   })
 })
+
+describe('crmWynik — okno zamkniętych w lejku', () => {
+  it('pokazuje wyniki z ostatnich 30 dni; bez daty — pokazuje', async () => {
+    const { swiezoZamkniety } = await import('../lib/crmWynik')
+    const now = new Date('2026-11-20T12:00:00Z')
+    expect(swiezoZamkniety({ wynik_at: '2026-11-01T10:00:00Z' }, now)).toBe(true)
+    expect(swiezoZamkniety({ wynik_at: '2026-10-15T10:00:00Z' }, now)).toBe(false)
+    expect(swiezoZamkniety({ wynik_at: null, updated_at: '2026-09-01T10:00:00Z' }, now)).toBe(false)
+    expect(swiezoZamkniety({}, now)).toBe(true)
+  })
+})

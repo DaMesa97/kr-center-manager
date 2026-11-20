@@ -82,6 +82,18 @@ type LejekLead = {
   ostatnia_oferta?: OfertaKwota | null
 }
 
+/** Kolumny „Zamówił” / „Przegrany” w lejku pokazują tylko świeże wyniki (20.11: inaczej po kilku miesiącach tysiące kart). */
+export const LEJEK_ZAMKNIETE_DNI = 30
+
+/** Czy zamknięty klient (wygrany/przegrany) mieści się w oknie lejka; data wyniku, a gdy jej brak — ostatnia zmiana. */
+export function swiezoZamkniety(r: { wynik_at?: string | null; updated_at?: string | null }, now: Date = new Date(), dni = LEJEK_ZAMKNIETE_DNI): boolean {
+  const kiedy = r.wynik_at ?? r.updated_at
+  if (!kiedy) return true
+  const t = new Date(kiedy).getTime()
+  if (Number.isNaN(t)) return true
+  return now.getTime() - t <= dni * 86_400_000
+}
+
 export type LejekPodsumowanie = {
   kolumny: Record<LejekStatus, { n: number; suma: number }>
   wGrze: number

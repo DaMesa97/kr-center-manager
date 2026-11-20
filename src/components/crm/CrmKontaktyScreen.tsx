@@ -14,7 +14,7 @@ import { useEtykiety } from '../../hooks/useEtykiety'
 import { EtykietyRow, KanalBadge } from './CrmEtykiety'
 import CrmPolaczPanel from './CrmPolaczPanel'
 import DataTable, { type DataTableColumn } from '../DataTable'
-import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, lejekPodsumowanie, opisWyniku, ruchWLejku, wartoscKlienta, type LejekStatus } from '../../lib/crmWynik'
+import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, LEJEK_ZAMKNIETE_DNI, lejekPodsumowanie, opisWyniku, ruchWLejku, swiezoZamkniety, wartoscKlienta, type LejekStatus } from '../../lib/crmWynik'
 import Spinner from '../Spinner'
 
 type Props = {
@@ -371,7 +371,13 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
             <p className="crm-muted crm-lejek-hint">Przeciągnij kartę do „Zamówił” albo „Przegrany”, a przegranego lub zamówionego z powrotem do „Nowy” / „Ma ofertę”, żeby przywrócić go do gry.</p>
             <div className="crm-lejek">
               {LEJEK_KOLUMNY.map((kol) => {
-                const lista = filtered.filter((r) => (r.status ?? 'nowy') === kol.key || (kol.key === 'nowy' && !r.status))
+                const wszystkie = filtered.filter((r) => (r.status ?? 'nowy') === kol.key || (kol.key === 'nowy' && !r.status))
+                // „Zamówił” / „Przegrany”: tylko ostatnie 30 dni, najświeższe na górze; starsze w widoku Lista
+                const zamknieta = kol.key === 'wygrany' || kol.key === 'przegrany'
+                const lista = zamknieta
+                  ? wszystkie.filter((r) => swiezoZamkniety(r)).sort((a, b) => (b.wynik_at ?? b.updated_at ?? '').localeCompare(a.wynik_at ?? a.updated_at ?? ''))
+                  : wszystkie
+                const starsze = wszystkie.length - lista.length
                 const suma = lista.reduce((a, r) => a + (wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta).kwota ?? 0), 0)
                 const MAX = 60
                 return (
@@ -382,7 +388,7 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                     aria-label={kol.label}
                   >
                     <div className="crm-lejek-head">
-                      <span><b>{kol.label}</b> <span className="crm-muted">{lista.length}</span></span>
+                      <span><b>{kol.label}</b> <span className="crm-muted">{lista.length}{zamknieta ? ` · ${LEJEK_ZAMKNIETE_DNI} dni` : ''}</span></span>
                       {(kol.key !== 'nowy' || suma > 0) && <span className="crm-lejek-suma">{fmtPln(suma)}</span>}
                     </div>
                     {lista.slice(0, MAX).map((r) => {
@@ -421,6 +427,11 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                         </button>
                       )
                     })}
+                    {starsze > 0 && (
+                      <button type="button" className="crm-link crm-lejek-wiecej" onClick={() => { zmienWidok('lista'); setStatus(kol.key) }} title={`W lejku są tylko wyniki z ostatnich ${LEJEK_ZAMKNIETE_DNI} dni`}>
+                        + {starsze} starszych niż {LEJEK_ZAMKNIETE_DNI} dni — pokaż na liście
+                      </button>
+                    )}
                     {lista.length > MAX && (
                       <button type="button" className="crm-link crm-lejek-wiecej" onClick={() => { zmienWidok('lista'); setStatus(kol.key) }}>
                         + {lista.length - MAX} więcej — pokaż na liście

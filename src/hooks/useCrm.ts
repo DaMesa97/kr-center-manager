@@ -713,8 +713,12 @@ export async function fetchMail(id: string): Promise<Result<CrmMail | null>> {
   return { data: (data ?? null) as unknown as CrmMail | null, error: crmErrorFrom(error) }
 }
 
-export async function fetchMaileLeada(leadId: string): Promise<Result<CrmMail[]>> {
-  const { data, error } = await crm().from('maile').select(MAIL_LIST_COLS).eq('lead_id', leadId).order('data', { ascending: false, nullsFirst: false })
+export async function fetchMaileLeada(leadId: string, opts: { zTrescia?: boolean } = {}): Promise<Result<CrmMail[]>> {
+  // karta klienta v2: korespondencja jako wątek potrzebuje treści (ostatnie 60 maili klienta)
+  const cols = opts.zTrescia ? `${MAIL_LIST_COLS}, tresc, tresc_ucieta, kanal` : MAIL_LIST_COLS
+  let q = crm().from('maile').select(cols).eq('lead_id', leadId).order('data', { ascending: false, nullsFirst: false })
+  if (opts.zTrescia) q = q.limit(60)
+  const { data, error } = await q
   return { data: (data ?? []) as unknown as CrmMail[], error: crmErrorFrom(error) }
 }
 

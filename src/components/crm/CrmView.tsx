@@ -87,12 +87,13 @@ import CrmPomocScreen from './CrmPomocScreen'
 import CrmUstawieniaScreen from './CrmUstawieniaScreen'
 import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import CrmKontaktyScreen from './CrmKontaktyScreen'
+import CrmKorespondencja from './CrmKorespondencja'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
 import CrmPolaczPanel from './CrmPolaczPanel'
 import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
-import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
+import CrmMaileScreen, { CrmMailScreen } from './CrmMaileScreen'
 import { EtykietaBadge, EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
 import { LEAD_STATUS_CLS, ZADANIE_GRUPY, kwotaOferty, opisWyniku, ostatniaOferta, parseKwota, wartoscKlienta, zadanieGrupa } from '../../lib/crmWynik'
 import CrmNowyKlient from './CrmNowyKlient'
@@ -1705,6 +1706,8 @@ function SzkicOdpowiedzi({ lead, disabled, pushToast, onChanged }: { lead: CrmLe
   )
 }
 
+type Zakladka = 'korespondencja' | 'rozmowy' | 'wszystko'
+
 function LeadScreen({
   id,
   mode,
@@ -1735,6 +1738,9 @@ function LeadScreen({
   const [wynikForm, setWynikForm] = useState<{ ofertaId: string | null } | null>(null)
   const [wynikBusy, setWynikBusy] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  // karta v2: lewa kolumna — korespondencja / rozmowy / wszystko (null = domyślna wg tego, co klient ma)
+  const [zakladka, setZakladka] = useState<Zakladka | null>(null)
+  useEffect(() => setZakladka(null), [id])
   const [rozmowy, setRozmowy] = useState<CrmRozmowa[]>([])
   const [maile, setMaile] = useState<CrmMail[]>([])
   const etyk = useEtykiety()
@@ -1772,7 +1778,7 @@ function LeadScreen({
       return dirty
     })
     if (l) {
-      const [r, o, z, m, dk, dp] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id }), fetchMaileLeada(l.id), fetchDokumenty(l.id), fetchDuplikatyLeada(l.id)])
+      const [r, o, z, m, dk, dp] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id }), fetchMaileLeada(l.id, { zTrescia: true }), fetchDokumenty(l.id), fetchDuplikatyLeada(l.id)])
       setRozmowy(r.data)
       setOferty(o.data)
       setZdarzenia(z.data)
@@ -1959,8 +1965,49 @@ function LeadScreen({
     onDeleted()
   }
 
+  // karta klienta v2 (makieta „CRM — makieta” v2, 20.11): następny krok na górze, rozmowa z klientem po lewej, fakty po prawej
+  const domyslnaZakladka: Zakladka = maile.length > 0 ? 'korespondencja' : rozmowy.length > 0 ? 'rozmowy' : 'wszystko'
+  const tab = zakladka ?? domyslnaZakladka
+  const krokStan = lead.nastepny_krok ? terminState(lead.nastepny_krok) : null
+  const ofertyOdNajnowszej = [...oferty].sort((a, b) => b.created_at.localeCompare(a.created_at))
+  const ofertyBiezace = ofertyOdNajnowszej.filter((o) => o.status !== 'robocza')
+  const ofertyStare = ofertyOdNajnowszej.filter((o) => o.status === 'robocza')
+  const plikiOfert = [...oferty].reverse().flatMap((o) => [
+    ...(o.plik_pdf ? [{ key: `${o.id}-pdf`, label: `Oferta nr ${o.numer ?? '…'} v${o.wersja} (PDF)`, sciezka: o.plik_pdf, at: o.updated_at }] : []),
+    ...konfiguracjaPliki(o).map((sc, i, all) => ({
+      key: `${o.id}-konf-${i}`,
+      label: `Konfiguracja producenta${all.length > 1 ? ` ${i + 1}/${all.length}` : ''} do oferty nr ${o.numer ?? '…'} v${o.wersja}`,
+      sciezka: sc,
+      at: o.created_at,
+    })),
+  ])
+  const OfertaWiersz = ({ o }: { o: CrmOferta }) => (
+    <li className={`crm-k2-oferta${o.status === 'zaakceptowana' ? ' crm-k2-oferta--won' : o.status === 'robocza' ? ' crm-k2-oferta--old' : ''}`}>
+      <div className="crm-k2-oferta-top">
+        <button type="button" className="crm-link crm-lead-oferta-nr" onClick={() => onOpenOferta(o.id)} title={CRM_OFERTA_RODZAJ[o.rodzaj ?? 'sklep']?.title}>
+          {o.rodzaj === 'oficjalna' ? <span className="crm-rodzaj crm-rodzaj--oficjalna">PDF{o.numer ? ` ${o.numer}` : ''}</span> : 'Sklep'} · v{o.wersja}
+        </button>
+        <StatusBadge status={o.status} />
+        <span className="crm-muted">{fmtDate(o.created_at)}</span>
+      </div>
+      <div className="crm-k2-oferta-kwota">
+        <b>{fmtPln(kwotaOferty(o))}</b>{o.rodzaj === 'oficjalna' && o.brutto != null ? <span className="crm-muted"> brutto</span> : null}
+      </div>
+      {(o.produkt || o.streszczenie) && <div className="crm-k2-oferta-co" title={o.produkt ?? o.streszczenie ?? undefined}>{o.produkt || o.streszczenie}</div>}
+      <div className="crm-k2-oferta-akcje">
+        <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenOferta(o.id)}>Otwórz</button>
+        {o.status === 'wyslana' && !zamkniety && (
+          <>
+            <button type="button" className="btn btn-sm btn-secondary crm-btn-przyjal" disabled={wynikBusy} onClick={() => void handleWynik('wygrany', { ofertaId: o.id })} title="Oferta zaakceptowana, klient „Zamówił”, zadanie się zamknie">Klient przyjął</button>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={wynikBusy} onClick={() => { setWynikForm({ ofertaId: o.id }); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Odmówił…</button>
+          </>
+        )}
+      </div>
+    </li>
+  )
+
   return (
-    <div className="crm-screen">
+    <div className="crm-screen crm-k2">
       <header className="crm-lead-head">
         <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}><ArrowLeft size={14} /> Wróć</button>
         <div className="crm-lead-head-main">
@@ -1972,6 +2019,27 @@ function LeadScreen({
             {lead.kategoria ? lead.kategoria : 'kategoria nieznana'}
             {lead.zrodlo ? <> · <KanalBadge zrodlo={lead.zrodlo} /></> : null}
             {lead.kampania ? ` · kampania: ${lead.kampania}` : ''}
+          </div>
+          {/* kontakt od razu w nagłówku (v2); tel:/mailto: nie przechodzą przez shell:open-external — tekst do zaznaczenia */}
+          <div className="crm-k2-kontakt">
+            {lead.telefon ? <span className="crm-ext crm-copy-value"><Phone size={13} /> {lead.telefon}</span> : <span className="crm-muted">brak telefonu</span>}
+            {lead.email ? <span className="crm-ext crm-copy-value"><Mail size={13} /> {lead.email}</span> : <span className="crm-muted">brak e-maila</span>}
+            {lead.miejscowosc && <span>{lead.miejscowosc}</span>}
+            {!dane && (
+              <button type="button" className="crm-link" disabled={saving} onClick={() => setDane({ nazwa: lead.nazwa ?? '', telefon: lead.telefon ?? '', email: lead.email ?? '', miejscowosc: lead.miejscowosc ?? '' })} title="Popraw nazwę, telefon, e-mail, miejscowość">
+                <Pencil size={13} /> edytuj
+              </button>
+            )}
+          </div>
+          {/* etykiety (brief pkt 12): klik w badge zdejmuje, „+” otwiera wybór ze słownika */}
+          <div className="crm-lead-tags crm-k2-tagi">
+            <EtykietyRow
+              leadId={lead.id}
+              slugi={lead.etykiety}
+              slownik={etyk.mapa}
+              pushToast={pushToast}
+              onChanged={(slugi) => setLead((l) => (l ? { ...l, etykiety: slugi } : l))}
+            />
           </div>
           {zamkniety && <div className={`crm-lead-wynik crm-lead-wynik--${lead.status}`}>{opisWyniku(lead)}</div>}
         </div>
@@ -2068,18 +2136,20 @@ function LeadScreen({
           onConfirm={(powod, notatka) => void handleWynik('przegrany', { powod, notatka, ofertaId: wynikForm.ofertaId })}
         />
       )}
-
-      {/* etykiety (brief pkt 12): klik w badge zdejmuje, „+” otwiera wybór ze słownika */}
-      <div className="crm-lead-tags">
-        <EtykietyRow
-          leadId={lead.id}
-          slugi={lead.etykiety}
-          slownik={etyk.mapa}
-          pushToast={pushToast}
-          onChanged={(slugi) => setLead((l) => (l ? { ...l, etykiety: slugi } : l))}
-        />
-      </div>
-
+      {dane && (
+        <section className="crm-box crm-pf crm-dane-edit" aria-label="Edycja danych kontaktowych">
+          <div className="crm-pf-grid">
+            <label className="crm-pf-field"><span className="crm-pf-label">Imię i nazwisko / firma</span><input type="text" value={dane.nazwa} onChange={(e) => setDane({ ...dane, nazwa: e.target.value })} disabled={saving} autoComplete="off" /></label>
+            <label className="crm-pf-field"><span className="crm-pf-label">Telefon</span><input type="tel" value={dane.telefon} onChange={(e) => setDane({ ...dane, telefon: e.target.value })} disabled={saving} autoComplete="off" /></label>
+            <label className="crm-pf-field"><span className="crm-pf-label">E-mail</span><input type="email" value={dane.email} onChange={(e) => setDane({ ...dane, email: e.target.value })} disabled={saving} autoComplete="off" /></label>
+            <label className="crm-pf-field"><span className="crm-pf-label">Miejscowość</span><input type="text" value={dane.miejscowosc} onChange={(e) => setDane({ ...dane, miejscowosc: e.target.value })} disabled={saving} autoComplete="off" /></label>
+          </div>
+          <div className="crm-poczta-actions">
+            <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={() => void saveDane()}>{saving ? <Spinner inline size={14} /> : <Check size={14} />} Zapisz</button>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => setDane(null)}>Anuluj</button>
+          </div>
+        </section>
+      )}
       {/* brief pkt 26: możliwe duplikaty — baner z linkiem do drugiej karty i „Połącz” (panel w miejscu, nieodwracalne) */}
       {duplikaty.length > 0 && (
         <section className="crm-dup-baner">
@@ -2120,16 +2190,19 @@ function LeadScreen({
           )}
         </section>
       )}
-
-      {/* zadanie na leadzie */}
-      {lead.nastepna_akcja && (
-        <section className={`crm-check ${terminState(lead.nastepny_krok) === 'overdue' ? 'crm-check--bad' : ''}`}>
-          <h4>Do zrobienia</h4>
-          <p className="crm-pending-text">
-            <AkcjaChip akcja={lead.nastepna_akcja} termin={lead.nastepny_krok} />{' '}
-            {lead.akcja_opis || CRM_AKCJA[lead.nastepna_akcja]?.hint}
-            {lead.nastepny_krok ? <span className="crm-muted"> · termin {terminState(lead.nastepny_krok) === 'today' ? 'dziś' : fmtDate(lead.nastepny_krok)}</span> : null}
-          </p>
+      {/* NASTĘPNY KROK (v2): jedyny kolorowy pasek — co, kiedy, czym to zamknąć */}
+      {lead.nastepna_akcja ? (
+        <section className={`crm-k2-krok${krokStan === 'overdue' ? ' crm-k2-krok--late' : krokStan === 'today' ? ' crm-k2-krok--dzis' : ''}`} aria-label="Następny krok">
+          <div className="crm-k2-krok-tekst">
+            <span className="crm-k2-krok-label">{krokStan === 'overdue' ? 'Zaległe' : 'Następny krok'}</span>
+            <span className="crm-k2-krok-tytul">
+              {CRM_AKCJA[lead.nastepna_akcja]?.label ?? lead.nastepna_akcja}
+              {lead.nastepny_krok ? <span className="crm-k2-krok-termin"> · {krokStan === 'today' ? 'dziś' : fmtDate(lead.nastepny_krok)}</span> : null}
+            </span>
+            {(lead.akcja_opis || CRM_AKCJA[lead.nastepna_akcja]?.hint) && (
+              <span className="crm-k2-krok-opis" title={lead.akcja_opis || undefined}>{lead.akcja_opis || CRM_AKCJA[lead.nastepna_akcja]?.hint}</span>
+            )}
+          </div>
           <div className="crm-mail-actions">
             {lead.nastepna_akcja === 'przygotuj_oferte' && activeOferta ? (
               activeOferta.status === 'wstrzymana' ? (
@@ -2149,6 +2222,11 @@ function LeadScreen({
             )}
             {lead.nastepna_akcja === 'przygotuj_oferte' && activeOferta && activeOferta.status !== 'przelicz' && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={saving || zadanieDialog} onClick={handleZrobione} title="Zamknij zadanie i ustaw następny krok">Zrobione</button>
+            )}
+            {lead.email && (
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setZakladka('korespondencja')} title="Korespondencja z klientem i szkic odpowiedzi w moim stylu">
+                <Mail size={14} /> Napisz mail
+              </button>
             )}
             <button
               type="button"
@@ -2178,12 +2256,18 @@ function LeadScreen({
             </button>
           </div>
         </section>
-      )}
-      {!lead.nastepna_akcja && !zadanieDialog && (
-        <div className="crm-mail-actions">
-          <span className="crm-muted">Klient nie ma zadania — nie pojawia się na liście „Do zrobienia”.</span>
-          <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => setZadanieDialog(true)}>Dodaj zadanie</button>
-        </div>
+      ) : (
+        !zadanieDialog && (
+          <section className="crm-k2-krok crm-k2-krok--brak" aria-label="Następny krok">
+            <div className="crm-k2-krok-tekst">
+              <span className="crm-k2-krok-label">Następny krok</span>
+              <span className="crm-k2-krok-tytul">Brak — klient nie pojawia się w „Do zrobienia”</span>
+            </div>
+            <div className="crm-mail-actions">
+              <button type="button" className="btn btn-primary" disabled={saving} onClick={() => setZadanieDialog(true)}>Dodaj zadanie</button>
+            </div>
+          </section>
+        )
       )}
       {zadanieDialog && (
         <CrmZadanieDialog
@@ -2200,68 +2284,106 @@ function LeadScreen({
           } : undefined}
         />
       )}
-
-      {/* brief pkt 23: szkic odpowiedzi mailowej pod zadaniem — zawsze, gdy klient ma e-mail */}
-      <SzkicOdpowiedzi
-        lead={lead}
-        disabled={saving}
-        pushToast={pushToast}
-        onChanged={(szkic) => {
-          // null = szkic nie zapisany (wyścig) — nie wstawiamy do stanu, tylko przeładowujemy leada
-          if (szkic) setLead((l) => (l ? { ...l, szkic } : l))
-          void load(true)
-        }}
-      />
-
-      <section className="crm-lead-grid">
-        <div>
-          <h4>
-            Kontakt{' '}
-            {!dane && (
-              <button type="button" className="crm-link" disabled={saving} onClick={() => setDane({ nazwa: lead.nazwa ?? '', telefon: lead.telefon ?? '', email: lead.email ?? '', miejscowosc: lead.miejscowosc ?? '' })} title="Popraw nazwę, telefon, e-mail, miejscowość">
-                <Pencil size={13} /> edytuj
+      {oficForm && (
+        <CrmOfertaOficjalnaForm
+          leadId={lead.id}
+          klient={leadName(lead)}
+          pushToast={pushToast}
+          onCreated={() => {
+            setOficForm(false)
+            setZleconoAt(Date.now())
+            void load(true)
+          }}
+          onCancel={() => setOficForm(false)}
+        />
+      )}
+      <div className="crm-k2-cols">
+        <section className="crm-k2-main" aria-label="Kontakt z klientem">
+          <div className="crm-k2-tabs" role="tablist" aria-label="Widok">
+            {([
+              ['korespondencja', `Korespondencja ${maile.length}`],
+              ['rozmowy', `Rozmowy ${rozmowy.length}`],
+              ['wszystko', 'Wszystko'],
+            ] as Array<[Zakladka, string]>).map(([k, label]) => (
+              <button key={k} type="button" role="tab" aria-selected={tab === k} className={`crm-k2-tab${tab === k ? ' crm-k2-tab--on' : ''}`} onClick={() => setZakladka(k)}>
+                {label}
               </button>
-            )}
-          </h4>
-          {dane ? (
-            <div className="crm-pf crm-dane-edit">
-              <div className="crm-pf-grid">
-                <label className="crm-pf-field"><span className="crm-pf-label">Imię i nazwisko / firma</span><input type="text" value={dane.nazwa} onChange={(e) => setDane({ ...dane, nazwa: e.target.value })} disabled={saving} autoComplete="off" /></label>
-                <label className="crm-pf-field"><span className="crm-pf-label">Telefon</span><input type="tel" value={dane.telefon} onChange={(e) => setDane({ ...dane, telefon: e.target.value })} disabled={saving} autoComplete="off" /></label>
-                <label className="crm-pf-field"><span className="crm-pf-label">E-mail</span><input type="email" value={dane.email} onChange={(e) => setDane({ ...dane, email: e.target.value })} disabled={saving} autoComplete="off" /></label>
-                <label className="crm-pf-field"><span className="crm-pf-label">Miejscowość</span><input type="text" value={dane.miejscowosc} onChange={(e) => setDane({ ...dane, miejscowosc: e.target.value })} disabled={saving} autoComplete="off" /></label>
-              </div>
-              <div className="crm-poczta-actions">
-                <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={() => void saveDane()}>{saving ? <Spinner inline size={14} /> : <Check size={14} />} Zapisz</button>
-                <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => setDane(null)}>Anuluj</button>
-              </div>
-            </div>
-          ) : (
+            ))}
+          </div>
+
+          {tab === 'korespondencja' && (
             <>
-              {/* tel:/mailto: nie przechodzą przez shell:open-external (tylko https) — tekst do zaznaczenia/skopiowania */}
-              <Field label="Telefon">{lead.telefon ? <span className="crm-ext crm-copy-value"><Phone size={13} /> {lead.telefon}</span> : '—'}</Field>
-              <Field label="E-mail">{lead.email ? <span className="crm-ext crm-copy-value"><Mail size={13} /> {lead.email}</span> : '—'}</Field>
-              <Field label="Miejscowość">{lead.miejscowosc || '—'}</Field>
+              <CrmKorespondencja maile={maile} onOpenMail={onOpenMail} />
+              {/* brief pkt 23: szkic odpowiedzi mailowej — pod wątkiem, jak pole odpowiedzi */}
+              <SzkicOdpowiedzi
+                lead={lead}
+                disabled={saving}
+                pushToast={pushToast}
+                onChanged={(szkic) => {
+                  // null = szkic nie zapisany (wyścig) — nie wstawiamy do stanu, tylko przeładowujemy leada
+                  if (szkic) setLead((l) => (l ? { ...l, szkic } : l))
+                  void load(true)
+                }}
+              />
             </>
           )}
-          {/* brief pkt 26: dane klientów połączonych w tego */}
-          {(lead.inne_kontakty?.length ?? 0) > 0 && (
-            <Field label="Inne dane kontaktowe">
-              <ul className="crm-inne-kontakty">
-                {(lead.inne_kontakty ?? []).map((k, i) => (
-                  <li key={i} title={k.polaczono ? `połączono ${fmtDateTime(k.polaczono)}` : undefined}>
-                    {[k.nazwa, k.telefon, k.email, k.miejscowosc].filter((x) => (x ?? '').trim()).join(' · ') || '—'}
-                    {k.zrodlo && CRM_KANAL[k.zrodlo] ? <span className="crm-muted"> · {CRM_KANAL[k.zrodlo].label}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            </Field>
+
+          {tab === 'rozmowy' && (
+            <div className="crm-k2-rozmowy">
+        {rozmowy.length === 0 ? (
+          <p className="crm-muted">Brak rozmów zapisanych z Ringostatu.</p>
+        ) : (
+          <ul className="crm-calls">
+            {rozmowy.map((r) => {
+              const st = r.status_przetwarzania ? CRM_ROZMOWA_STATUS[r.status_przetwarzania] ?? { label: r.status_przetwarzania, cls: 'crm-status--muted' } : null
+              return (
+                <li key={r.id} className={`crm-call${r.status_przetwarzania === 'blad' ? ' crm-call--blad' : ''}`}>
+                  <div className="crm-call-head">
+                    <span className="crm-call-when">{fmtDateTime(r.data_rozmowy ?? r.created_at)}</span>
+                    <span className={`crm-call-dir crm-call-dir--${r.kierunek ?? 'x'}`}>{r.kierunek === 'przychodzaca' ? '↙ przychodząca' : r.kierunek === 'wychodzaca' ? '↗ wychodząca' : r.kierunek ?? '—'}</span>
+                    <span className="crm-call-meta">{r.odebrana === false ? 'nieodebrana' : fmtDuration(r.czas_s)}</span>
+                    {/* SPRAWA (wynik AI) — tylko tryb pełny; kanał rozmowy = zawsze telefon */}
+                    {mode === 'pelny' && r.typ && <span className="crm-call-typ" title="Sprawa (z analizy)">{CRM_SPRAWA[r.typ] ?? r.typ}</span>}
+                    {r.kategoria && <span className="crm-call-typ">{r.kategoria}</span>}
+                    {r.nastepna_akcja && <AkcjaChip akcja={r.nastepna_akcja} />}
+                    {r.ivr && <span className="crm-muted">IVR {r.ivr}</span>}
+                    {mode === 'pelny' && st && <span className={`crm-status ${st.cls}`}>{st.label}</span>}
+                    {r.link_nagrania && (
+                      <ExtLink href={r.link_nagrania} title="Nagranie w Ringostacie (otwiera przeglądarkę)"><ExternalLink size={13} /> nagranie</ExtLink>
+                    )}
+                  </div>
+                  {r.status_przetwarzania === 'blad' && r.blad && <p className="crm-text-bad">{r.blad}</p>}
+                  {r.podsumowanie && <p className="crm-call-summary">{r.podsumowanie}</p>}
+                  {r.transkrypcja && (
+                    <details className="crm-details crm-details--inline">
+                      <summary>Transkrypcja</summary>
+                      <pre className="crm-pre">{r.transkrypcja}</pre>
+                    </details>
+                  )}
+                  {mode === 'pelny' && r.analiza && (
+                    <details className="crm-details crm-details--inline">
+                      <summary>Analiza AI{r.koszt_ai_usd != null ? ` · ${Number(r.koszt_ai_usd).toFixed(3)} USD` : ''}</summary>
+                      <div className="crm-details-body"><KeyValueTable data={r.analiza} /></div>
+                    </details>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+            </div>
           )}
-          <Field label="Ostatnia rozmowa">{fmtDateTime(lead.ostatnia_rozmowa_at)}</Field>
-          <Field label="Pierwszy kontakt">{fmtDateTime(lead.created_at)}</Field>
-        </div>
-        <div>
-          <h4>Czego chce</h4>
+
+          {tab === 'wszystko' && (
+            <div className="crm-history">
+              <HistoriaKlienta zdarzenia={zdarzenia} rozmowy={rozmowy} maile={maile} names={names} mode={mode} onOpenMail={onOpenMail} onOpenOferta={onOpenOferta} onOpenPlik={(s) => void handleOpenDokument(s)} />
+            </div>
+          )}
+        </section>
+
+        <aside className="crm-k2-side" aria-label="O kliencie">
+          <section className="crm-k2-card">
+            <h4>Czego chce</h4>
           {/* brief pkt 15: notatka handlowca (klient z salonu) → „Zleć ofertę” liczy ofertę z jej treści.
               Przy rozmowach/mailach podsumowanie pisze system, więc pole pokazujemy tylko przy wizycie albo gdy już jest notatka. */}
           {lead.zrodlo === 'wizyta' || lead.podsumowanie || lead.nastepna_akcja === 'przygotuj_oferte' ? (
@@ -2309,56 +2431,30 @@ function LeadScreen({
               <p>{lead.brakuje}</p>
             </>
           )}
-        </div>
-      </section>
+          </section>
 
-      {oficForm && (
-        <CrmOfertaOficjalnaForm
-          leadId={lead.id}
-          klient={leadName(lead)}
-          pushToast={pushToast}
-          onCreated={() => {
-            setOficForm(false)
-            setZleconoAt(Date.now())
-            void load(true)
-          }}
-          onCancel={() => setOficForm(false)}
-        />
-      )}
+          <section className="crm-k2-card">
+            <h4>Oferty{oferty.length ? ` (${oferty.length})` : ''}</h4>
+            {oferty.length === 0 ? (
+              <p className="crm-muted">Brak ofert dla tego klienta.</p>
+            ) : (
+              <>
+                <ul className="crm-k2-oferty">
+                  {(ofertyBiezace.length ? ofertyBiezace : ofertyStare.slice(0, 1)).map((o) => <OfertaWiersz key={o.id} o={o} />)}
+                </ul>
+                {ofertyBiezace.length > 0 && ofertyStare.length > 0 && (
+                  <details className="crm-details crm-details--inline">
+                    <summary>Starsze wersje ({ofertyStare.length})</summary>
+                    <ul className="crm-k2-oferty">{ofertyStare.map((o) => <OfertaWiersz key={o.id} o={o} />)}</ul>
+                  </details>
+                )}
+              </>
+            )}
+          </section>
 
-      <section>
-        <h4>Oferty ({oferty.length})</h4>
-        {oferty.length === 0 ? (
-          <p className="crm-muted">Brak ofert dla tego klienta.</p>
-        ) : (
-          <div className="crm-lead-oferty" role="table" aria-label="Oferty klienta">
-            {[...oferty].reverse().map((o) => (
-              <div key={o.id} role="row" className={`crm-lead-oferta${o.status === 'zaakceptowana' ? ' crm-lead-oferta--won' : o.status === 'robocza' ? ' crm-lead-oferta--old' : ''}`}>
-                <button type="button" role="cell" className="crm-link crm-lead-oferta-nr" onClick={() => onOpenOferta(o.id)} title={CRM_OFERTA_RODZAJ[o.rodzaj ?? 'sklep']?.title}>
-                  {o.rodzaj === 'oficjalna' ? <span className="crm-rodzaj crm-rodzaj--oficjalna">PDF{o.numer ? ` ${o.numer}` : ''}</span> : 'Sklep'} · v{o.wersja}
-                </button>
-                <span role="cell" className="crm-lead-oferta-co" title={o.produkt ?? o.streszczenie ?? undefined}>{o.produkt || o.streszczenie || '—'}</span>
-                <span role="cell" className="crm-lead-oferta-kwota">{fmtPln(kwotaOferty(o))}{o.rodzaj === 'oficjalna' && o.brutto != null ? ' brutto' : ''}</span>
-                <span role="cell"><StatusBadge status={o.status} /></span>
-                <span role="cell" className="crm-muted">{fmtDate(o.created_at)}</span>
-                <span role="cell" className="crm-lead-oferta-akcje">
-                  {o.status === 'wyslana' && !zamkniety && (
-                    <>
-                      <button type="button" className="btn btn-sm btn-secondary crm-btn-przyjal" disabled={wynikBusy} onClick={() => void handleWynik('wygrany', { ofertaId: o.id })} title="Oferta zaakceptowana, klient „Zamówił”, zadanie się zamknie">Klient przyjął</button>
-                      <button type="button" className="btn btn-sm btn-secondary" disabled={wynikBusy} onClick={() => { setWynikForm({ ofertaId: o.id }); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Klient odmówił</button>
-                    </>
-                  )}
-                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenOferta(o.id)}>Otwórz</button>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* dokumenty klienta (brief pkt 22): karta pomiarowa / umowa / protokół z crm.dokumenty + pliki ofert oficjalnych (pkt 21) */}
-      <section className="crm-dok">
-        <h4>Dokumenty</h4>
+          {/* dokumenty klienta (brief pkt 22): karta pomiarowa / umowa / protokół + pliki ofert oficjalnych (pkt 21) */}
+          <section className="crm-k2-card crm-dok">
+            <h4>Dokumenty</h4>
         {dokWynik && !dokForm && (
           <div className={`crm-box crm-dok-wynik${dokWynik.rodzaj === 'umowa' ? ' crm-dok-wynik--umowa' : ''}`}>
             <b>{CRM_DOKUMENT_RODZAJ[dokWynik.rodzaj]?.label ?? dokWynik.rodzaj}{dokWynik.numer ? ` nr ${dokWynik.numer}` : ''} gotowa.</b>{' '}
@@ -2429,89 +2525,43 @@ function LeadScreen({
             })}
           </ul>
         )}
-      </section>
+            {plikiOfert.length > 0 && (
+              <details className="crm-details crm-details--inline">
+                <summary>Pliki ofert ({plikiOfert.length})</summary>
+                <ul className="crm-dokumenty">
+                  {plikiOfert.map((d) => (
+                    <li key={d.key}>
+                      <button type="button" className="crm-link" onClick={() => void handleOpenDokument(d.sciezka)}><FileText size={13} /> {d.label}</button>
+                      <span className="crm-muted"> · {fmtDate(d.at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </section>
 
-      {/* pliki z ofert oficjalnych (brief pkt 20/21): plik konfiguracji + PDF, pobieranie przez signed URL */}
-      {oferty.some((o) => o.plik_pdf || konfiguracjaPliki(o).length > 0) && (
-        <section>
-          <h4>Pliki ofert</h4>
-          <ul className="crm-dokumenty">
-            {[...oferty].reverse().flatMap((o) => [
-              ...(o.plik_pdf ? [{ key: `${o.id}-pdf`, label: `Oferta nr ${o.numer ?? '…'} v${o.wersja} (PDF)`, sciezka: o.plik_pdf, at: o.updated_at }] : []),
-              ...konfiguracjaPliki(o).map((sc, i, all) => ({
-                key: `${o.id}-konf-${i}`,
-                label: `Konfiguracja producenta${all.length > 1 ? ` ${i + 1}/${all.length}` : ''} do oferty nr ${o.numer ?? '…'} v${o.wersja}`,
-                sciezka: sc,
-                at: o.created_at,
-              })),
-            ]).map((d) => (
-              <li key={d.key}>
-                <button type="button" className="crm-link" onClick={() => void handleOpenDokument(d.sciezka)}><FileText size={13} /> {d.label}</button>
-                <span className="crm-muted"> · {fmtDate(d.at)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* maile (brief pkt 11): przychodzące analizowane jak rozmowy, wychodzące dopasowane do ofert */}
-      {(maile.length > 0 || lead.zrodlo === 'mail') && (
-        <section>
-          <h4>Maile ({maile.length})</h4>
-          <MailList maile={maile} mode={mode} onOpenMail={onOpenMail} />
-        </section>
-      )}
-
-      <section>
-        <h4>Rozmowy ({rozmowy.length})</h4>
-        {rozmowy.length === 0 ? (
-          <p className="crm-muted">Brak rozmów zapisanych z Ringostatu.</p>
-        ) : (
-          <ul className="crm-calls">
-            {rozmowy.map((r) => {
-              const st = r.status_przetwarzania ? CRM_ROZMOWA_STATUS[r.status_przetwarzania] ?? { label: r.status_przetwarzania, cls: 'crm-status--muted' } : null
-              return (
-                <li key={r.id} className={`crm-call${r.status_przetwarzania === 'blad' ? ' crm-call--blad' : ''}`}>
-                  <div className="crm-call-head">
-                    <span className="crm-call-when">{fmtDateTime(r.data_rozmowy ?? r.created_at)}</span>
-                    <span className={`crm-call-dir crm-call-dir--${r.kierunek ?? 'x'}`}>{r.kierunek === 'przychodzaca' ? '↙ przychodząca' : r.kierunek === 'wychodzaca' ? '↗ wychodząca' : r.kierunek ?? '—'}</span>
-                    <span className="crm-call-meta">{r.odebrana === false ? 'nieodebrana' : fmtDuration(r.czas_s)}</span>
-                    {/* SPRAWA (wynik AI) — tylko tryb pełny; kanał rozmowy = zawsze telefon */}
-                    {mode === 'pelny' && r.typ && <span className="crm-call-typ" title="Sprawa (z analizy)">{CRM_SPRAWA[r.typ] ?? r.typ}</span>}
-                    {r.kategoria && <span className="crm-call-typ">{r.kategoria}</span>}
-                    {r.nastepna_akcja && <AkcjaChip akcja={r.nastepna_akcja} />}
-                    {r.ivr && <span className="crm-muted">IVR {r.ivr}</span>}
-                    {mode === 'pelny' && st && <span className={`crm-status ${st.cls}`}>{st.label}</span>}
-                    {r.link_nagrania && (
-                      <ExtLink href={r.link_nagrania} title="Nagranie w Ringostacie (otwiera przeglądarkę)"><ExternalLink size={13} /> nagranie</ExtLink>
-                    )}
-                  </div>
-                  {r.status_przetwarzania === 'blad' && r.blad && <p className="crm-text-bad">{r.blad}</p>}
-                  {r.podsumowanie && <p className="crm-call-summary">{r.podsumowanie}</p>}
-                  {r.transkrypcja && (
-                    <details className="crm-details crm-details--inline">
-                      <summary>Transkrypcja</summary>
-                      <pre className="crm-pre">{r.transkrypcja}</pre>
-                    </details>
-                  )}
-                  {mode === 'pelny' && r.analiza && (
-                    <details className="crm-details crm-details--inline">
-                      <summary>Analiza AI{r.koszt_ai_usd != null ? ` · ${Number(r.koszt_ai_usd).toFixed(3)} USD` : ''}</summary>
-                      <div className="crm-details-body"><KeyValueTable data={r.analiza} /></div>
-                    </details>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
-
-      {/* brief pkt 20: jedna oś czasu — zdarzenia + rozmowy + maile; handlowiec bez wpisów diagnostycznych */}
-      <section className="crm-history">
-        <h4>Historia</h4>
-        <HistoriaKlienta zdarzenia={zdarzenia} rozmowy={rozmowy} maile={maile} names={names} mode={mode} onOpenMail={onOpenMail} onOpenOferta={onOpenOferta} onOpenPlik={(s) => void handleOpenDokument(s)} />
-      </section>
+          <section className="crm-k2-card">
+            <details className="crm-details crm-details--inline">
+              <summary>Szczegóły kontaktu</summary>
+              {/* brief pkt 26: dane klientów połączonych w tego */}
+              {(lead.inne_kontakty?.length ?? 0) > 0 && (
+                <Field label="Inne dane kontaktowe">
+                  <ul className="crm-inne-kontakty">
+                    {(lead.inne_kontakty ?? []).map((k, i) => (
+                      <li key={i} title={k.polaczono ? `połączono ${fmtDateTime(k.polaczono)}` : undefined}>
+                        {[k.nazwa, k.telefon, k.email, k.miejscowosc].filter((x) => (x ?? '').trim()).join(' · ') || '—'}
+                        {k.zrodlo && CRM_KANAL[k.zrodlo] ? <span className="crm-muted"> · {CRM_KANAL[k.zrodlo].label}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </Field>
+              )}
+              <Field label="Ostatnia rozmowa">{fmtDateTime(lead.ostatnia_rozmowa_at)}</Field>
+              <Field label="Pierwszy kontakt">{fmtDateTime(lead.created_at)}</Field>
+            </details>
+          </section>
+        </aside>
+      </div>
     </div>
   )
 }
