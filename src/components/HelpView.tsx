@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: Statystyki, schowani zamknięci w lejku (beta.138)</h4>
+        <ul>
+          <li><b>CRM → Statystyki (nowa zakładka):</b> historia wszystkich klientów, także zamkniętych. Okres: ostatnie 12 miesięcy / ten rok / ten miesiąc / od początku. Nowi klienci, wysłane oferty, zamówienia i ich wartość, przegrani, skuteczność, średnie zamówienie i czas do zamówienia; wykresy i tabela miesiąc po miesiącu; skąd przychodzą klienci i jaki rodzaj drzwi (ilu z nich kupiło); dlaczego przegrywamy; kto zamyka sprzedaż.</li>
+          <li><b>Klienci → Lejek:</b> „Zamówił” i „Przegrany” są domyślnie zwinięte do liczby i sumy — karty po „Pokaż karty”. Przeciąganie i „Przenieś…” do zwiniętej kolumny działają jak wcześniej.</li>
+        </ul>
         <h4>Aktualizacje wymagane naprawdę (beta.137)</h4>
         <ul>
           <li><b>Wymagana aktualizacja:</b> gdy kierownik ustawi minimalną wersję, program sprawdza ją co kwadrans i po powrocie do okna — także na stanowiskach, które chodzą od rana. Ekran „Wymagana aktualizacja” od razu proponuje „Pobierz i zainstaluj”; przy kłopocie z pobieraniem jest „Pobierz instalator ręcznie”.</li>
