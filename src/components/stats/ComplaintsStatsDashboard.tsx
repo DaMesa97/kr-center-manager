@@ -43,9 +43,11 @@ const CATEGORY_COLORS: Record<string, string> = {
 type Props = {
   complaints: Complaint[]
   loading: boolean
+  /** nazwa firmy → nazwa grupy (warianty pisowni razem), z StatsView */
+  canon?: (name: unknown) => string
 }
 
-export default function ComplaintsStatsDashboard({ complaints: complaintsAll, loading }: Props) {
+export default function ComplaintsStatsDashboard({ complaints: complaintsAll, loading, canon }: Props) {
   const [rangeMonths, setRangeMonths] = useState(12)
   // anulowane reklamacje (np. testowe) nie liczą się do statystyk — jak anulowane zlecenia
   const complaints = useMemo(() => complaintsAll.filter((c) => !isCancelledComplaint(c)), [complaintsAll])
@@ -80,14 +82,14 @@ export default function ComplaintsStatsDashboard({ complaints: complaintsAll, lo
   const topCompaniesComplaints = useMemo(() => {
     const map = new Map<string, number>()
     for (const c of complaints) {
-      const company = c.company?.trim() || '(brak)'
+      const company = (canon ? canon(c.company) : c.company?.trim()) || '(brak)'
       map.set(company, (map.get(company) ?? 0) + 1)
     }
     return Array.from(map.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10)
-  }, [complaints])
+  }, [complaints, canon])
 
   const byWhatComplained = useMemo(() => {
     const map = new Map<string, number>()

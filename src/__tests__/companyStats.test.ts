@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { Complaint, Order } from '../types'
 import {
+  buildCompanyAliases,
+  companyCanonizer,
+  companyKey,
   companyNames,
   computeCompanyStats,
+  isLinkedSecondary,
   periodStartIso,
+  resolveCompanyGroups,
   resolveCompanyQuery,
+  suspectedCompanyClusters,
 } from '../lib/companyStats'
 
 const NOW = new Date(2026, 10, 17) // 17.11.2026
@@ -34,7 +40,7 @@ describe('companyStats — nazwy i dopasowanie firmy', () => {
       order({ company: 'ANULOWANA', order_date: '2026-11-02', extra_fields: { cancelled: true } }),
       order({ company: '  ', order_date: '2026-11-02' }),
     ])
-    expect(names).toEqual([
+    expect(names.map(({ name, count }) => ({ name, count }))).toEqual([
       { name: 'PO DRZWI', count: 2 },
       { name: 'MAXDOOR', count: 1 },
     ])
@@ -52,6 +58,125 @@ describe('companyStats — nazwy i dopasowanie firmy', () => {
     expect(periodStartIso(12, NOW)).toBe('2025-12-01')
     expect(periodStartIso(3, NOW)).toBe('2026-09-01')
     expect(periodStartIso(0, NOW)).toBeNull()
+  })
+})
+
+describe('companyStats — porządek nazw firm (Tymek 20.11)', () => {
+  it('companyKey: wielkość liter, ogonki, „#”, interpunkcja i powtórzone słowo nie robią różnicy', () => {
+    expect(companyKey('PO DRZWI Żory')).toBe('PO DRZWI ZORY')
+    expect(companyKey('ROJAR # TUCHÓW')).toBe('ROJAR TUCHOW')
+    expect(companyKey('BEL-POL WAŁBRZYCH WAŁBRZYCH')).toBe('BEL POL WALBRZYCH')
+    expect(companyKey('  Bel-Pol   Wałbrzych ')).toBe('BEL POL WALBRZYCH')
+    expect(companyKey('MAJSTERPLUS  ŻAGAŃ')).toBe('MAJSTERPLUS ZAGAN')
+    expect(companyKey('')).toBe('')
+  })
+
+  it('buildCompanyAliases: wiersze company_aliases (alias_name małymi) → mapa po companyKey', () => {
+    const aliases = buildCompanyAliases([
+      { alias_name: 'po drzwi żory', company_name: 'PO DRZWI' },
+      { alias_name: 'rojar # tuchów', company_name: 'ROJAR Tuchów' },
+      { alias_name: '', company_name: 'X' },
+    ])
+    expect(aliases.get('PO DRZWI ZORY')).toBe('PO DRZWI')
+    expect(aliases.get('ROJAR TUCHOW')).toBe('ROJAR Tuchów')
+    expect(aliases.size).toBe(2)
+  })
+
+  it('companyNames: pisownie sklejone automatycznie, nazwa = najczęstsza; alias scala resztę', () => {
+    const orders = [
+      order({ company: 'KARMON Żory', order_date: '2026-11-01' }),
+      order({ company: 'KARMON ŻORY', order_date: '2026-11-02' }),
+      order({ company: 'KARMON ŻORY', order_date: '2026-11-03' }),
+      order({ company: 'PO DRZWI', order_date: '2026-11-01' }),
+      order({ company: 'PO DRZWI ŻORY', order_date: '2026-11-02' }),
+    ]
+    const auto = companyNames(orders)
+    expect(auto.map((g) => [g.name, g.count])).toEqual([
+      ['KARMON ŻORY', 3],
+      ['PO DRZWI', 1],
+      ['PO DRZWI ŻORY', 1],
+    ])
+    expect(auto[0].variants).toEqual([
+      { name: 'KARMON ŻORY', count: 2 },
+      { name: 'KARMON Żory', count: 1 },
+    ])
+    const aliases = new Map([['PO DRZWI ZORY', 'PO DRZWI']])
+    const merged = companyNames(orders, aliases)
+    expect(merged.map((g) => [g.name, g.count])).toEqual([
+      ['KARMON ŻORY', 3],
+      ['PO DRZWI', 2],
+    ])
+    expect(resolveCompanyGroups('po drzwi żory', merged).map((g) => g.name)).toEqual(['PO DRZWI'])
+    expect(resolveCompanyGroups('karmon', merged).map((g) => g.name)).toEqual(['KARMON ŻORY'])
+    const canon = companyCanonizer(orders, aliases)
+    expect(canon('PO DRZWI Żory')).toBe('PO DRZWI')
+    expect(canon('KARMON Żory')).toBe('KARMON ŻORY')
+    expect(canon('NIEZNANA')).toBe('NIEZNANA')
+  })
+
+  it('computeCompanyStats z aliasem liczy warianty razem', () => {
+    const orders = [
+      order({ company: 'PO DRZWI', order_date: '2026-11-01', quantity: 2 }),
+      order({ company: 'PO DRZWI ŻORY', order_date: '2026-11-02', quantity: 3 }),
+      order({ company: 'PO DRZWI Żory', order_date: '2026-11-03', quantity: 1 }),
+    ]
+    const aliases = new Map([['PO DRZWI ZORY', 'PO DRZWI']])
+    expect(computeCompanyStats(orders, [], ['PO DRZWI'], 12, NOW).pieces).toBe(2)
+    expect(computeCompanyStats(orders, [], ['PO DRZWI'], 12, NOW, aliases).pieces).toBe(6)
+    expect(
+      computeCompanyStats([], [complaint({ company: 'PO DRZWI ŻORY', complaint_date: '2026-11-10' })], ['PO DRZWI'], 12, NOW, aliases).complaints,
+    ).toBe(1)
+  })
+
+  it('suspectedCompanyClusters: wspólne dwa pierwsze słowa, tylko grupy ≥ 2', () => {
+    const groups = companyNames([
+      order({ company: 'PO DRZWI', order_date: '2026-11-01' }),
+      order({ company: 'PO DRZWI ŻORY', order_date: '2026-11-02' }),
+      order({ company: 'MAXDOOR', order_date: '2026-11-02' }),
+      order({ company: 'BEL-POL Opole', order_date: '2026-11-02' }),
+      order({ company: 'BEL-POL Lubin', order_date: '2026-11-02' }),
+      order({ company: 'BEL-POL Lubin', order_date: '2026-11-03' }),
+    ])
+    const clusters = suspectedCompanyClusters(groups)
+    expect(clusters.map((c) => [c.stem, c.total, c.groups.map((g) => g.name)])).toEqual([
+      ['BEL POL', 3, ['BEL-POL Lubin', 'BEL-POL Opole']],
+      ['PO DRZWI', 2, ['PO DRZWI', 'PO DRZWI ŻORY']],
+    ])
+  })
+
+  it('rekordy łączone liczone raz: trójka Titan przez Bastion, para Disting Plus przez Disting', () => {
+    const titan = (category: string, id: number, linked: number | null) =>
+      order({
+        id,
+        company: 'VRATA',
+        order_date: '2026-11-05',
+        category,
+        system: 'GUARD RC3',
+        model: 'G-01',
+        linked_order_id: linked,
+        extra_fields: { titan_group: 100 },
+      })
+    const plus = (category: string, id: number) =>
+      order({ id, company: 'VRATA', order_date: '2026-11-06', category, system: 'DISTING PLUS', model: 'TORINO 13B', linked_order_id: 7 })
+    const orders = [
+      titan('Bastion', 100, null),
+      titan('ST', 101, 100),
+      titan('STA', 102, 101),
+      plus('Disting', 200),
+      plus('STA', 201),
+      order({ id: 300, company: 'VRATA', order_date: '2026-11-07', category: 'STA', system: 'NORMAL', model: 'ASTRE 35B' }),
+    ]
+    expect(orders.map(isLinkedSecondary)).toEqual([false, true, true, false, true, false])
+    const s = computeCompanyStats(orders, [], ['VRATA'], 12, NOW)
+    expect(s.orders).toBe(3)
+    expect(s.pieces).toBe(3)
+    expect(s.topModels).toEqual([
+      { name: 'G-01', value: 1 },
+      { name: 'TORINO 13B', value: 1 },
+      { name: 'ASTRE 35B', value: 1 },
+    ])
+    expect(s.byCategory.map((c) => c.name).sort()).toEqual(['Bastion', 'Disting', 'STA'])
+    expect(companyNames(orders)[0].count).toBe(3)
   })
 })
 

@@ -3533,6 +3533,8 @@ function App() {
             internalDoorItemsLoading={statsInternalDoorItemsLoading}
             activeSubTab={activeStatsSubTab}
             onSubTabChange={setActiveStatsSubTab}
+            isManager={isManager}
+            currentUserId={currentUser?.id ?? null}
             monthlyConsumption={{
               data: monthlyConsumption,
               months: monthlyConsumptionMonths,

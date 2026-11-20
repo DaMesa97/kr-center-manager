@@ -9,7 +9,9 @@ import ProductivityView from './stats/ProductivityView'
 import LeadTimeStatsView from './stats/LeadTimeStatsView'
 import ConfiguratorShareView from './stats/ConfiguratorShareView'
 import MonthlyConsumptionView from './warehouse/MonthlyConsumptionView'
-import type { ComponentProps } from 'react'
+import { useMemo, type ComponentProps } from 'react'
+import { useCompanyAliases } from '../hooks/useCompanyAliases'
+import { companyCanonizer } from '../lib/companyStats'
 
 type StatsViewProps = {
   orders: Order[]
@@ -19,6 +21,9 @@ type StatsViewProps = {
   internalDoorItemsLoading: boolean
   activeSubTab: StatsSubTab
   onSubTabChange: (tab: StatsSubTab) => void
+  /** kierownik może scalać pisownie firm (Statystyki → Firmy → Porządek nazw) */
+  isManager?: boolean
+  currentUserId?: string | null
   /** „Zużycie magazynu" — raport miesięczny, przeniesiony tu z Magazynu (porządki menu, beta.86) */
   monthlyConsumption: ComponentProps<typeof MonthlyConsumptionView>
 }
@@ -32,7 +37,12 @@ function StatsView({
   activeSubTab,
   onSubTabChange,
   monthlyConsumption,
+  isManager = false,
+  currentUserId = null,
 }: StatsViewProps) {
+  // Warianty pisowni firm liczone razem (companyKey + company_aliases) — we wszystkich sekcjach z „top firm”
+  const { rows: aliasRows, aliases, merge, remove } = useCompanyAliases()
+  const canonCompany = useMemo(() => companyCanonizer(orders, aliases), [orders, aliases])
   return (
     <div
       className="warehouse-view warehouse-view--readonly"
@@ -53,13 +63,22 @@ function StatsView({
         ))}
       </div>
       {['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'].includes(activeSubTab) && (
-        <CategoryStatsDashboard category={activeSubTab} orders={orders} loading={loading} />
+        <CategoryStatsDashboard category={activeSubTab} orders={orders} loading={loading} canon={canonCompany} />
       )}
       {activeSubTab === 'Reklamacje' && (
-        <ComplaintsStatsDashboard complaints={complaints} loading={loading} />
+        <ComplaintsStatsDashboard complaints={complaints} loading={loading} canon={canonCompany} />
       )}
       {activeSubTab === 'Firmy' && (
-        <CompanyStatsView orders={orders} complaints={complaints} loading={loading} />
+        <CompanyStatsView
+          orders={orders}
+          complaints={complaints}
+          loading={loading}
+          aliases={aliases}
+          aliasRows={aliasRows}
+          isManager={isManager}
+          onMerge={(variants, canonical) => merge(variants, canonical, currentUserId)}
+          onRemoveAlias={remove}
+        />
       )}
       {activeSubTab === 'DrzwiWewnetrzne' && (
         <InternalDoorStatsDashboard

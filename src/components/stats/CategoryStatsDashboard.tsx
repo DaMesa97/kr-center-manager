@@ -25,6 +25,8 @@ type Props = {
   category: string
   orders: Order[]
   loading: boolean
+  /** nazwa firmy → nazwa grupy (warianty pisowni razem), z StatsView */
+  canon?: (name: unknown) => string
 }
 
 function isCancelled(o: Order): boolean {
@@ -32,7 +34,7 @@ function isCancelled(o: Order): boolean {
   return extra?.cancelled === true
 }
 
-export default function CategoryStatsDashboard({ category, orders, loading }: Props) {
+export default function CategoryStatsDashboard({ category, orders, loading, canon }: Props) {
   const filteredOrdersNonCancelled = useMemo(() => {
     return orders.filter((o) => {
       if (o.category !== category) return false
@@ -111,14 +113,14 @@ export default function CategoryStatsDashboard({ category, orders, loading }: Pr
   const topCompaniesData = useMemo(() => {
     const map = new Map<string, number>()
     for (const o of filteredOrdersNonCancelled) {
-      const company = (o.company || '').trim() || '(brak)'
+      const company = (canon ? canon(o.company) : (o.company || '').trim()) || '(brak)'
       map.set(company, (map.get(company) ?? 0) + (Number(o.quantity) || 0))
     }
     return Array.from(map.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10)
-  }, [filteredOrdersNonCancelled])
+  }, [filteredOrdersNonCancelled, canon])
 
   const realizationTimes = useMemo(() => {
     const times: Array<{ order: Order; days: number; releaseMonth: string }> = []

@@ -1,14 +1,64 @@
 // Statystyki per firma (#118, Tymek 6.11): czysta logika dla zakładki
 // Statystyki → Firmy. Liczy na zleceniach i reklamacjach trzymanych w pamięci
 // (Statystyki ładują wszystkie wiersze), bez zapytań do bazy.
+//
+// Porządek nazw (Tymek 20.11): jedna firma bywa zapisana na kilka sposobów.
+//  * companyKey skleja automatycznie różnice wielkości liter, ogonków, „#”, interpunkcji
+//    i powtórzonego słowa („BEL-POL WAŁBRZYCH WAŁBRZYCH” = „Bel-Pol Wałbrzych”);
+//  * resztę („PO DRZWI” = „PO DRZWI ŻORY”) scala kierownik → tabela company_aliases
+//    (ta sama, z której trigger podmienia nazwę przy zleceniu z bota): alias_name → company_name.
+//    Tu: CompanyAliases = Map(companyKey(alias_name) → company_name). Zleceń nie przepisujemy.
+// Rekordy łączone (trójka Titan, para Disting Plus) liczymy raz — isLinkedSecondary.
 import type { Complaint, Order } from '../types'
 import { isReleaseDateEmpty } from '../utils'
 
 /** 0 = cały okres */
 export type CompanyPeriodMonths = 0 | 3 | 6 | 12 | 24
 
+/** companyKey(wariantu) → nazwa, pod którą liczymy */
+export type CompanyAliases = Map<string, string>
+
 export function normCompany(value: unknown): string {
   return String(value ?? '').trim().toUpperCase().replace(/\s+/g, ' ')
+}
+
+/**
+ * Klucz porównawczy nazwy firmy: wielkie litery bez ogonków, bez „#” i interpunkcji,
+ * pojedyncze spacje, bez powtórzonego pod rząd słowa.
+ * „PO DRZWI Żory” → „PO DRZWI ZORY”, „ROJAR # TUCHÓW” → „ROJAR TUCHOW”.
+ */
+export function companyKey(value: unknown): string {
+  const s = String(value ?? '')
+    .replace(/ł/g, 'l')
+    .replace(/Ł/g, 'L')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim()
+  const out: string[] = []
+  for (const t of s.split(' ')) {
+    if (t && out[out.length - 1] !== t) out.push(t)
+  }
+  return out.join(' ')
+}
+
+/** Map z wierszy company_aliases (alias_name → company_name) kluczowana companyKey. */
+export function buildCompanyAliases(rows: Array<{ alias_name: string; company_name: string }>): CompanyAliases {
+  const m: CompanyAliases = new Map()
+  for (const r of rows) {
+    const k = companyKey(r.alias_name)
+    const canon = String(r.company_name ?? '').trim()
+    if (k && canon) m.set(k, canon)
+  }
+  return m
+}
+
+/** Klucz grupy: alias (jeśli kierownik scalił) albo companyKey. */
+export function companyGroupKey(name: unknown, aliases?: CompanyAliases): string {
+  const k = companyKey(name)
+  const canon = aliases?.get(k)
+  return canon ? companyKey(canon) : k
 }
 
 export function isCancelledOrder(o: Order): boolean {
@@ -22,30 +72,107 @@ export function isCancelledComplaint(c: Complaint): boolean {
 }
 
 /**
- * Nazwy firm z zleceń (bez anulowanych), od najczęstszej. Jedna firma bywa
- * zapisana różnie („PO DRZWI” / „PO DRZWI ŻORY”), dlatego lista jest po
- * dokładnej pisowni, a dopasowanie zapytania „zawiera” łapie warianty.
+ * Rekord łączony liczony przez partnera, nie sam: nogi STA i ST trójki Titan (liczy się
+ * rekord Bastion) oraz skrzydło STA pary Disting Plus (liczy się rekord Disting).
+ * Bez tego firma, która zamówiła 1 Titan, miała w statystykach 3 sztuki.
  */
-export function companyNames(orders: Order[]): Array<{ name: string; count: number }> {
-  const map = new Map<string, number>()
+export function isLinkedSecondary(o: Order): boolean {
+  const ef = o.extra_fields as Record<string, unknown> | null | undefined
+  if (ef?.titan_group != null && o.category !== 'Bastion') return true
+  if (o.linked_order_id != null && o.category === 'STA' && /DISTING\s*PLUS/i.test(String(o.system ?? ''))) return true
+  return false
+}
+
+export type CompanyVariant = { name: string; count: number }
+export type CompanyGroup = {
+  /** nazwa wyświetlana: alias kierownika albo najczęstsza pisownia */
+  name: string
+  count: number
+  key: string
+  variants: CompanyVariant[]
+}
+
+/**
+ * Firmy z zleceń (bez anulowanych i bez nóg rekordów łączonych), od najczęstszej,
+ * sklejone po companyKey + aliasach. Każda grupa pamięta swoje pisownie.
+ */
+export function companyNames(orders: Order[], aliases?: CompanyAliases): CompanyGroup[] {
+  const groups = new Map<string, Map<string, number>>()
   for (const o of orders) {
-    if (isCancelledOrder(o)) continue
+    if (isCancelledOrder(o) || isLinkedSecondary(o)) continue
     const name = String(o.company ?? '').trim()
     if (!name) continue
-    map.set(name, (map.get(name) ?? 0) + 1)
+    const gk = companyGroupKey(name, aliases)
+    let m = groups.get(gk)
+    if (!m) {
+      m = new Map()
+      groups.set(gk, m)
+    }
+    m.set(name, (m.get(name) ?? 0) + 1)
   }
-  return Array.from(map.entries())
-    .map(([name, count]) => ({ name, count }))
+  const canonByGroup = new Map<string, string>()
+  if (aliases) for (const canon of aliases.values()) canonByGroup.set(companyKey(canon), canon)
+  return Array.from(groups.entries())
+    .map(([key, m]) => {
+      const variants = Array.from(m.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'pl'))
+      const count = variants.reduce((s, v) => s + v.count, 0)
+      return { key, name: canonByGroup.get(key) ?? variants[0].name, count, variants }
+    })
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'pl'))
 }
 
-/** Dokładne trafienie (bez wielkości liter) wygrywa; inaczej wszystkie nazwy zawierające zapytanie. */
+/** Dokładne trafienie (po companyKey, także w wariant pisowni) wygrywa; inaczej wszystkie grupy zawierające zapytanie. */
+export function resolveCompanyGroups(query: string, groups: CompanyGroup[]): CompanyGroup[] {
+  const q = companyKey(query)
+  if (!q) return []
+  const exact = groups.filter((g) => g.key === q || g.variants.some((v) => companyKey(v.name) === q))
+  if (exact.length > 0) return exact
+  return groups.filter((g) => g.key.includes(q) || g.variants.some((v) => companyKey(v.name).includes(q)))
+}
+
+/** Wersja na samych nazwach (bez grup) — dokładne trafienie bez wielkości liter wygrywa, inaczej „zawiera”. */
 export function resolveCompanyQuery(query: string, names: string[]): string[] {
   const q = normCompany(query)
   if (!q) return []
   const exact = names.filter((n) => normCompany(n) === q)
   if (exact.length > 0) return exact
   return names.filter((n) => normCompany(n).includes(q))
+}
+
+export type SuspectedCluster = { stem: string; groups: CompanyGroup[]; total: number }
+
+/**
+ * Podejrzane warianty do ręcznego scalenia: grupy o wspólnych dwóch pierwszych słowach
+ * (jedno, gdy nazwa jednosłowna), których companyKey ani aliasy jeszcze nie skleiły.
+ * To tylko podpowiedź — „BEL-POL Opole” i „BEL-POL Lubin” to różne sklepy.
+ */
+export function suspectedCompanyClusters(groups: CompanyGroup[]): SuspectedCluster[] {
+  const byStem = new Map<string, CompanyGroup[]>()
+  for (const g of groups) {
+    const stem = g.key.split(' ').slice(0, 2).join(' ')
+    if (!stem) continue
+    const list = byStem.get(stem)
+    if (list) list.push(g)
+    else byStem.set(stem, [g])
+  }
+  return Array.from(byStem.entries())
+    .filter(([, list]) => list.length > 1)
+    .map(([stem, list]) => ({ stem, groups: list, total: list.reduce((s, g) => s + g.count, 0) }))
+    .sort((a, b) => b.total - a.total || a.stem.localeCompare(b.stem, 'pl'))
+}
+
+/** Funkcja nazwa → nazwa wyświetlana grupy (do „top firm” w innych statystykach). */
+export function companyCanonizer(orders: Order[], aliases?: CompanyAliases): (name: unknown) => string {
+  const display = new Map<string, string>()
+  for (const g of companyNames(orders, aliases)) display.set(g.key, g.name)
+  return (name: unknown) => {
+    const raw = String(name ?? '').trim()
+    if (!raw) return ''
+    const gk = companyGroupKey(raw, aliases)
+    return display.get(gk) ?? aliases?.get(companyKey(raw)) ?? raw
+  }
 }
 
 function monthKey(d: Date): string {
@@ -108,18 +235,19 @@ export function computeCompanyStats(
   companies: string[],
   months: CompanyPeriodMonths,
   now: Date = new Date(),
+  aliases?: CompanyAliases,
 ): CompanyStats {
-  const wanted = new Set(companies.map(normCompany))
+  const wanted = new Set(companies.map((c) => companyGroupKey(c, aliases)))
   const from = periodStartIso(months, now)
 
   const orders = allOrders.filter((o) => {
-    if (!wanted.has(normCompany(o.company))) return false
-    if (isCancelledOrder(o)) return false
+    if (!wanted.has(companyGroupKey(o.company, aliases))) return false
+    if (isCancelledOrder(o) || isLinkedSecondary(o)) return false
     const d = String(o.order_date || (o as { created_at?: string }).created_at || '').slice(0, 10)
     return !from || d >= from
   })
   const complaints = allComplaints.filter((c) => {
-    if (!wanted.has(normCompany(c.company))) return false
+    if (!wanted.has(companyGroupKey(c.company, aliases))) return false
     if (isCancelledComplaint(c)) return false
     const d = complaintDate(c)
     return !from || d >= from
@@ -137,7 +265,6 @@ export function computeCompanyStats(
   const byModel = new Map<string, number>()
   const byColor = new Map<string, number>()
   const byMonth = new Map<string, CompanyMonthRow>()
-
   if (from) {
     for (let i = months - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
