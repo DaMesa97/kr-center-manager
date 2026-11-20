@@ -1163,18 +1163,36 @@ function App() {
   // starszy niż app_config.min_app_version dostaje blokadę zamiast pracować
   // na nieaktualnym formacie danych. Brak wiersza w configu = brak bramki.
   const [minVersionRequired, setMinVersionRequired] = useState<string | null>(null)
+  // 20.11: sprawdzane nie tylko przy starcie — stanowiska chodzą dniami bez restartu, więc bramka
+  // ustawiona w trakcie dnia nie działała. Teraz: start, co 15 min i po powrocie do okna (max raz na minutę).
   useEffect(() => {
     if (!authSession) return
-    void (async () => {
+    let ostatnio = 0
+    let aktywne = true
+    const sprawdz = async () => {
+      if (Date.now() - ostatnio < 60_000) return
+      ostatnio = Date.now()
       const { data, error } = await supabase
         .from('app_config')
         .select('value')
         .eq('key', 'min_app_version')
         .maybeSingle()
-      if (error || !data) return
-      const min = String((data as { value?: string }).value ?? '').trim()
-      if (min && isAppVersionOlder(__APP_VERSION__, min)) setMinVersionRequired(min)
-    })()
+      if (!aktywne || error) return
+      const min = String((data as { value?: string } | null)?.value ?? '').trim()
+      setMinVersionRequired(min && isAppVersionOlder(__APP_VERSION__, min) ? min : null)
+    }
+    void sprawdz()
+    const t = window.setInterval(() => void sprawdz(), 15 * 60_000)
+    const onFocus = () => void sprawdz()
+    const onVis = () => { if (document.visibilityState === 'visible') void sprawdz() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      aktywne = false
+      window.clearInterval(t)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [authUserId])
 
   useEffect(() => {
@@ -2605,7 +2623,7 @@ function App() {
   if (minVersionRequired && !isAdminRole(currentUser.role)) {
     return (
       <>
-        <UpdateBlocker />
+        <UpdateBlocker required />
         <UpdateBanner />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
         <div className="app-crash">

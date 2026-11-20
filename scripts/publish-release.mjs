@@ -4,7 +4,9 @@
 // Ten skrypt sprawdza, czy wszystkie assets są wgrane, ustawia opis z pliku
 // i dopiero wtedy zdejmuje draft. Bez niego release zostaje NIEWIDOCZNY.
 //
-// Użycie: node scripts/publish-release.mjs [ścieżka-do-release-notes.md]
+// Użycie: node scripts/publish-release.mjs [ścieżka-do-release-notes.md] [--wymus]
+//   --wymus  po publikacji ustawia app_config.min_app_version = ta wersja → wszyscy (poza adminami)
+//            dostają w ciągu ~15 min pełnoekranową blokadę „Wymagana aktualizacja” (20.11)
 import { config } from 'dotenv'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -65,7 +67,9 @@ if (!setupOk || !ymlOk) {
 }
 if (!blockmapOk) console.log('⚠️ brak blockmap — update zadziała, ale bez delty (pełne pobranie)')
 
-const notesPath = process.argv[2]
+const args = process.argv.slice(2)
+const wymus = args.includes('--wymus')
+const notesPath = args.find((a) => !a.startsWith('--'))
 const body = notesPath ? readFileSync(notesPath, 'utf8') : (release.body || '')
 
 if (!release.draft) {
@@ -93,6 +97,7 @@ for (let i = 1; i <= 6; i++) {
       console.error(`❌ latest.yml wskazuje inną wersję niż ${version}!`)
       process.exit(1)
     }
+    if (wymus) await ustawMinWersje()
     process.exit(0)
   }
   console.log(`⏳ latest.yml jeszcze ${res.status}, próba ${i}/6...`)
@@ -100,3 +105,24 @@ for (let i = 1; i <= 6; i++) {
 }
 console.error('❌ latest.yml wciąż niedostępny publicznie — sprawdź release na GitHubie')
 process.exit(1)
+
+// --wymus: minimalna wersja klienta w bazie (dopiero PO potwierdzeniu, że latest.yml jest publiczny —
+// inaczej blokada wyskoczyłaby, zanim updater zobaczy nową wersję)
+async function ustawMinWersje() {
+  const url = process.env.SUPABASE_URL || 'https://vwlabgmilckfhtuerzio.supabase.co'
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!key) {
+    console.error('❌ --wymus: brak SUPABASE_SERVICE_ROLE_KEY w .env — min_app_version NIE ustawione')
+    process.exit(1)
+  }
+  const res = await fetch(`${url}/rest/v1/app_config?on_conflict=key`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key: 'min_app_version', value: version, updated_at: new Date().toISOString() }),
+  })
+  if (!res.ok) {
+    console.error(`❌ --wymus: zapis min_app_version ${res.status}: ${await res.text()}`)
+    process.exit(1)
+  }
+  console.log(`✅ min_app_version = ${version} — starsze wersje dostaną blokadę w ciągu ~15 min (admini tylko pasek)`)
+}

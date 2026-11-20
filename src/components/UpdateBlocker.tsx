@@ -38,6 +38,8 @@ function formatSpeed(bps: number): string {
 // Component
 // ---------------------------------------------------------------------------
 
+const RELEASES_URL = 'https://github.com/DaMesa97/kr-center-manager/releases/latest'
+
 // Pobieranie bez postępu tyle czasu = „stoi” (zerwana sieć potrafi nie dać błędu)
 const STALL_MS = 60_000
 
@@ -57,7 +59,7 @@ function friendlyUpdateError(message: string): string {
  * Renderuj go jako PIERWSZE dziecko w App.tsx, przed wszelkimi early-return'ami.
  * Zwraca null gdy nie ma wymaganej aktualizacji (żadnego wpływu na UI).
  */
-export default function UpdateBlocker() {
+export default function UpdateBlocker({ required = false }: { required?: boolean } = {}) {
   const [state, setState] = useState<BlockerState>({ status: 'clear' })
 
   // Pobierz status wykryty już w main (startup check odpala się przed logowaniem)
@@ -68,15 +70,25 @@ export default function UpdateBlocker() {
     if (!ipc) return
 
     // Zapytaj o update wykryty przy starcie
-    void ipc.invoke('updater:get-status').then((pending) => {
+    void ipc.invoke('updater:get-status').then(async (pending) => {
       const v = (pending as { version?: string } | null)?.version
-      if (typeof v === 'string' && v !== dismissedVersion) setState({ status: 'available', version: v })
+      if (typeof v === 'string' && (required || v !== dismissedVersion)) {
+        setState({ status: 'available', version: v })
+        return
+      }
+      // 20.11: wymagana wersja (min_app_version), a main jeszcze nic nie wykrył — program chodzi od rana,
+      // check startowy był dawno. Sprawdzamy teraz i od razu proponujemy pobranie.
+      if (required) {
+        const r = (await ipc.invoke('updater:check')) as { status?: string; version?: string } | undefined
+        if (r?.status === 'available' && r.version) setState({ status: 'available', version: r.version })
+        else if (r?.status === 'error') setState({ status: 'error', version: '', message: (r as { message?: string }).message ?? 'Nie udało się sprawdzić aktualizacji' })
+      }
     })
 
     // Nasłuchuj na wypadek gdyby check jeszcze trwał (race condition)
     const onAvailable: IpcListener = (...args) => {
       const info = args[1] as { version: string }
-      if (info.version !== dismissedVersion) setState({ status: 'available', version: info.version })
+      if (required || info.version !== dismissedVersion) setState({ status: 'available', version: info.version })
     }
 
     const onProgress: IpcListener = (...args) => {
@@ -107,17 +119,20 @@ export default function UpdateBlocker() {
     }
 
     ipc.on('update:available', onAvailable)
+    // w trybie „wymagana” bierzemy też wykrycia z cyklicznego sprawdzania (kanał banera)
+    if (required) ipc.on('update:available:background', onAvailable)
     ipc.on('update:progress', onProgress)
     ipc.on('update:downloaded', onDownloaded)
     ipc.on('update:error', onError)
 
     return () => {
       ipc.off('update:available', onAvailable)
+      ipc.off('update:available:background', onAvailable)
       ipc.off('update:progress', onProgress)
       ipc.off('update:downloaded', onDownloaded)
       ipc.off('update:error', onError)
     }
-  }, [])
+  }, [required])
 
   // Watchdog: pobieranie bez postępu przez STALL_MS → błąd z wyjściem
   const stallKey = state.status === 'downloading' ? state.lastAt : null
@@ -146,6 +161,8 @@ export default function UpdateBlocker() {
       })
   }
   const handleInstall  = () => void getIpc()?.invoke('updater:install')
+  // awaryjnie przy wymaganej wersji: strona z instalatorem najnowszego wydania (shell:open-external przyjmuje https)
+  const handleManual = () => void getIpc()?.invoke('shell:open-external', RELEASES_URL)
   // Wyjście awaryjne — tylko po błędzie. Wymuszenie wersji robi min_app_version
   // w Konfiguracji (osobny ekran w App), więc praca na starej wersji jest bezpieczna.
   const handleSkip = () => {
@@ -171,17 +188,24 @@ export default function UpdateBlocker() {
             <p className="update-blocker-desc">
               {friendlyUpdateError(state.message)}
               <br />
-              Możesz spróbować jeszcze raz albo pracować dalej na obecnej wersji — aktualizacja zaproponuje się przy
-              następnym uruchomieniu.
+              {required
+                ? 'Ta wersja jest już wymagana — spróbuj jeszcze raz albo pobierz instalator ręcznie i uruchom go.'
+                : 'Możesz spróbować jeszcze raz albo pracować dalej na obecnej wersji — aktualizacja zaproponuje się przy następnym uruchomieniu.'}
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
               <button type="button" className="btn btn-primary update-blocker-btn" onClick={handleDownload}>
                 <RefreshCw size={16} />
                 Spróbuj ponownie
               </button>
-              <button type="button" className="btn btn-secondary update-blocker-btn" onClick={handleSkip}>
-                Pracuj na obecnej wersji
-              </button>
+              {required ? (
+                <button type="button" className="btn btn-secondary update-blocker-btn" onClick={handleManual} title="Otwiera stronę z instalatorem najnowszej wersji">
+                  Pobierz instalator ręcznie
+                </button>
+              ) : (
+                <button type="button" className="btn btn-secondary update-blocker-btn" onClick={handleSkip}>
+                  Pracuj na obecnej wersji
+                </button>
+              )}
             </div>
           </>
         )}
