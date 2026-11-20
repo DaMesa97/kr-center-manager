@@ -105,6 +105,22 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
     window.addEventListener('pointercancel', up)
   }
   const [przegranyDla, setPrzegranyDla] = useState<CrmKontaktRow | null>(null)
+  // 21.11: zamknięci (Zamówił / Przegrany) domyślnie zwinięci do licznika i sumy — karty po „Pokaż karty”
+  // (zapamiętane w localStorage); zwinięta kolumna dalej przyjmuje upuszczenie i „Przenieś…”
+  const [rozwiniete, setRozwiniete] = useState<{ wygrany: boolean; przegrany: boolean }>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem('crm.lejek.zamkniete') ?? '{}') as { wygrany?: boolean; przegrany?: boolean }
+      return { wygrany: v.wygrany === true, przegrany: v.przegrany === true }
+    } catch {
+      return { wygrany: false, przegrany: false }
+    }
+  })
+  const przelaczZamkniete = (k: 'wygrany' | 'przegrany') =>
+    setRozwiniete((r) => {
+      const n = { ...r, [k]: !r[k] }
+      try { localStorage.setItem('crm.lejek.zamkniete', JSON.stringify(n)) } catch { /* bez pamięci — trudno */ }
+      return n
+    })
   // v2: „Przenieś…” na karcie — to samo co przeciągnięcie, dla tych, którzy nie lubią przeciągać
   const [przenies, setPrzenies] = useState<string | null>(null)
   const [wynikBusy, setWynikBusy] = useState(false)
@@ -367,7 +383,14 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
               </div>
             )}
             <p className="crm-muted crm-lejek-hint">Złap kartę i upuść w innej kolumnie albo kliknij „Przenieś…” na karcie. Z „Zamówił” / „Przegrany” z powrotem do „Nowy” / „Ma ofertę” = klient wraca do gry.</p>
-            <div className="crm-lejek">
+            <div
+              className="crm-lejek"
+              style={{
+                gridTemplateColumns: LEJEK_KOLUMNY.map((k) =>
+                  (k.key === 'wygrany' || k.key === 'przegrany') && !rozwiniete[k.key] ? 'minmax(170px, 0.55fr)' : 'minmax(250px, 1fr)',
+                ).join(' '),
+              }}
+            >
               {LEJEK_KOLUMNY.map((kol) => {
                 const wszystkie = filtered.filter((r) => (r.status ?? 'nowy') === kol.key || (kol.key === 'nowy' && !r.status))
                 // „Zamówił” / „Przegrany”: tylko ostatnie 30 dni, najświeższe na górze; starsze w widoku Lista
@@ -376,6 +399,7 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                   ? wszystkie.filter((r) => swiezoZamkniety(r)).sort((a, b) => (b.wynik_at ?? b.updated_at ?? '').localeCompare(a.wynik_at ?? a.updated_at ?? ''))
                   : wszystkie
                 const starsze = wszystkie.length - lista.length
+                const zwinieta = zamknieta && !rozwiniete[kol.key as 'wygrany' | 'przegrany']
                 const suma = lista.reduce((a, r) => a + (wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta).kwota ?? 0), 0)
                 const MAX = 60
                 return (
@@ -389,7 +413,18 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                       <span><b>{kol.label}</b> <span className="crm-muted">{lista.length}{zamknieta ? ` · ${LEJEK_ZAMKNIETE_DNI} dni` : ''}</span></span>
                       {(kol.key !== 'nowy' || suma > 0) && <span className="crm-lejek-suma">{fmtPln(suma)}</span>}
                     </div>
-                    {lista.slice(0, MAX).map((r) => {
+                    {zwinieta && (
+                      <div className="crm-lejek-zwinieta">
+                        <span className="crm-muted">{dragId ? 'Upuść tutaj' : lista.length ? 'Karty schowane' : 'Brak klientów z ostatnich 30 dni.'}</span>
+                        {lista.length > 0 && !dragId && (
+                          <button type="button" className="crm-link" onClick={() => przelaczZamkniete(kol.key as 'wygrany' | 'przegrany')}>Pokaż karty ({lista.length})</button>
+                        )}
+                      </div>
+                    )}
+                    {zamknieta && !zwinieta && (
+                      <button type="button" className="crm-link crm-lejek-zwin" onClick={() => przelaczZamkniete(kol.key as 'wygrany' | 'przegrany')}>Schowaj karty</button>
+                    )}
+                    {!zwinieta && lista.slice(0, MAX).map((r) => {
                       const info =
                         r.status === 'przegrany'
                           ? `Powód: ${r.wynik_powod ? CRM_WYNIK_POWOD[r.wynik_powod] ?? r.wynik_powod : 'nie podano'}`
@@ -447,12 +482,12 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                         + {starsze} starszych niż {LEJEK_ZAMKNIETE_DNI} dni — pokaż na liście
                       </button>
                     )}
-                    {lista.length > MAX && (
+                    {!zwinieta && lista.length > MAX && (
                       <button type="button" className="crm-link crm-lejek-wiecej" onClick={() => { zmienWidok('lista'); setStatus(kol.key) }}>
                         + {lista.length - MAX} więcej — pokaż na liście
                       </button>
                     )}
-                    {lista.length === 0 && <span className="crm-muted crm-lejek-pusto">{dragId ? 'Upuść tutaj' : 'Brak klientów.'}</span>}
+                    {!zwinieta && lista.length === 0 && <span className="crm-muted crm-lejek-pusto">{dragId ? 'Upuść tutaj' : 'Brak klientów.'}</span>}
                   </section>
                 )
               })}

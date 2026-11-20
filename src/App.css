@@ -10075,3 +10075,7 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 .crm-lejek-przenies { flex: 0 0 auto; border: 1px solid #e5e7eb; background: #fff; color: #374151; border-radius: 7px; padding: 3px 8px; font-size: 0.72rem; cursor: pointer; }
 .crm-lejek-przenies:hover { background: #f3f4f6; }
 .crm-lejek-przenies-menu { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid #f3f4f6; padding-top: 7px; }
+
+/* lejek 21.11: zwinięte „Zamówił” / „Przegrany” */
+.crm-lejek-zwinieta { display: flex; flex-direction: column; gap: 6px; padding: 10px 6px; border: 1px dashed #cbd5e1; border-radius: 10px; font-size: 0.82rem; text-align: center; align-items: center; }
+.crm-lejek-zwin { align-self: flex-end; font-size: 0.78rem; }
