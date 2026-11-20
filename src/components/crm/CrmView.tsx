@@ -9,7 +9,7 @@
 // co 10 s, póki coś jest w przeliczaniu.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText, Pencil, Trash2, Merge } from 'lucide-react'
+import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText, Pencil, Trash2, Merge, Ruler } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_AKCJA,
@@ -88,13 +88,14 @@ import CrmUstawieniaScreen from './CrmUstawieniaScreen'
 import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import CrmKontaktyScreen from './CrmKontaktyScreen'
 import CrmKorespondencja from './CrmKorespondencja'
+import { ZADANIE_RODZAJE, zadaniePoCo, zadanieRodzaj, zadanieTytul, type ZadanieRodzaj } from '../../lib/crmZadania'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
 import CrmPolaczPanel from './CrmPolaczPanel'
 import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
 import CrmMaileScreen, { CrmMailScreen } from './CrmMaileScreen'
-import { EtykietaBadge, EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
+import { EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
 import { LEAD_STATUS_CLS, ZADANIE_GRUPY, kwotaOferty, opisWyniku, ostatniaOferta, parseKwota, wartoscKlienta, zadanieGrupa } from '../../lib/crmWynik'
 import CrmNowyKlient from './CrmNowyKlient'
 import { useEtykiety } from '../../hooks/useEtykiety'
@@ -381,7 +382,8 @@ function ZadaniaScreen({
   // etykiety (brief pkt 12): słownik wspólny z kartą leada, filtr po jednej etykiecie (po stronie klienta — lista ≤ 300)
   const etyk = useEtykiety()
   const [etykietaFilter, setEtykietaFilter] = useState('')
-  const [akcjaFilter, setAkcjaFilter] = useState('')
+  // v2 (20.11): filtr po rodzaju zadania — telefony / oferty / pomiary i montaże
+  const [rodzajFilter, setRodzajFilter] = useState<ZadanieRodzaj | ''>('')
   // walk-in (brief pkt 13.1): formularz „Dodaj klienta” nad listą
   const [nowyKlient, setNowyKlient] = useState(false)
 
@@ -476,11 +478,14 @@ function ZadaniaScreen({
     )
   }
 
-  // makieta 18.11: filtr po rodzaju zadania (chipy z licznikiem) + grupy Zaległe / Dziś / Później
+  // v2 (20.11): filtr po rodzaju (chipy z licznikiem) + grupy Zaległe / Dziś / Później
   const poEtykiecie = etykietaFilter ? rows.filter((r) => (r.etykiety ?? []).includes(etykietaFilter)) : rows
-  const licznikAkcji = new Map<string, number>()
-  for (const r of poEtykiecie) if (r.nastepna_akcja) licznikAkcji.set(r.nastepna_akcja, (licznikAkcji.get(r.nastepna_akcja) ?? 0) + 1)
-  const widoczne = akcjaFilter ? poEtykiecie.filter((r) => r.nastepna_akcja === akcjaFilter) : poEtykiecie
+  const licznikRodzaju = new Map<ZadanieRodzaj, number>()
+  for (const r of poEtykiecie) {
+    const k = zadanieRodzaj(r.nastepna_akcja)
+    licznikRodzaju.set(k, (licznikRodzaju.get(k) ?? 0) + 1)
+  }
+  const widoczne = rodzajFilter ? poEtykiecie.filter((r) => zadanieRodzaj(r.nastepna_akcja) === rodzajFilter) : poEtykiecie
   const dzisIso = todayIso()
   const grupy = ZADANIE_GRUPY.map((g) => ({ ...g, rows: widoczne.filter((r) => zadanieGrupa(r.nastepny_krok, dzisIso) === g.key) }))
 
@@ -496,7 +501,7 @@ function ZadaniaScreen({
         <span className="crm-toolbar-hint">
           {rows.length === 0
             ? 'Nic do zrobienia.'
-            : `${rows.length} ${rows.length === 1 ? 'zadanie' : rows.length < 5 ? 'zadania' : 'zadań'}${overdue ? ` · ${overdue} zaległe` : ''}${today ? ` · ${today} na dziś` : ''}. „Oddzwoń” i „Dopytaj” zamykasz przyciskiem Zrobione; ofertę — przyciskiem Wysłane w karcie oferty.`}
+            : `${rows.length} ${rows.length === 1 ? 'zadanie' : rows.length < 5 ? 'zadania' : 'zadań'}${overdue ? ` · ${overdue} zaległe` : ''}${today ? ` · ${today} na dziś` : ''}`}
         </span>
         <button type="button" className="btn btn-sm btn-primary" onClick={() => setNowyKlient((v) => !v)} title="Klient z wizyty w salonie (walk-in)" aria-expanded={nowyKlient}>
           <UserPlus size={14} /> Dodaj klienta
@@ -530,51 +535,45 @@ function ZadaniaScreen({
         <Spinner center label="Ładowanie zadań…" />
       ) : (
         <div className="crm-zad">
-          {licznikAkcji.size > 1 && (
+          {licznikRodzaju.size > 1 && (
             <div className="crm-chipy" role="group" aria-label="Rodzaj zadania">
-              <button type="button" className={`crm-chip${!akcjaFilter ? ' crm-chip--on' : ''}`} onClick={() => setAkcjaFilter('')} aria-pressed={!akcjaFilter}>
-                Wszystkie <span className="crm-chip-n">{poEtykiecie.length}</span>
+              <button type="button" className={`crm-chip${!rodzajFilter ? ' crm-chip--on' : ''}`} onClick={() => setRodzajFilter('')} aria-pressed={!rodzajFilter}>
+                Wszystko <span className="crm-chip-n">{poEtykiecie.length}</span>
               </button>
-              {[...licznikAkcji.entries()].map(([k, n]) => (
-                <button key={k} type="button" className={`crm-chip${akcjaFilter === k ? ' crm-chip--on' : ''}`} onClick={() => setAkcjaFilter(akcjaFilter === k ? '' : k)} aria-pressed={akcjaFilter === k}>
-                  {CRM_AKCJA[k]?.label ?? k} <span className="crm-chip-n">{n}</span>
+              {ZADANIE_RODZAJE.filter((k) => licznikRodzaju.get(k.key)).map((k) => (
+                <button key={k.key} type="button" className={`crm-chip${rodzajFilter === k.key ? ' crm-chip--on' : ''}`} onClick={() => setRodzajFilter(rodzajFilter === k.key ? '' : k.key)} aria-pressed={rodzajFilter === k.key}>
+                  {k.label} <span className="crm-chip-n">{licznikRodzaju.get(k.key)}</span>
                 </button>
               ))}
             </div>
           )}
           {widoczne.length === 0 && (
-            <p className="crm-muted crm-zad-pusto">{etykietaFilter || akcjaFilter ? 'Brak zadań dla tych filtrów.' : 'Nic do zrobienia — wszystkie zadania załatwione.'}</p>
+            <p className="crm-muted crm-zad-pusto">{etykietaFilter || rodzajFilter ? 'Brak zadań dla tych filtrów.' : 'Nic do zrobienia — wszystkie zadania załatwione.'}</p>
           )}
           {grupy.filter((g) => g.rows.length > 0).map((g) => (
             <section key={g.key} className={`crm-zad-grupa crm-zad-grupa--${g.key}`} aria-label={g.label}>
               <h4>{g.label} <span className="crm-muted">{g.rows.length}</span></h4>
               {g.rows.map((r) => {
-                const tagi = r.etykiety ?? []
+                // v2: „Akcja: Klient”, jedno zdanie po co, termin, jeden przycisk; etykiety, kanał i miejscowość są na karcie klienta
                 const st = terminState(r.nastepny_krok)
+                const rodzaj = zadanieRodzaj(r.nastepna_akcja)
+                const pelnyOpis = r.akcja_opis || CRM_AKCJA[r.nastepna_akcja ?? '']?.hint || ''
                 return (
-                  <div key={r.id} className="crm-zad-karta">
-                    <div className="crm-zad-akcja"><AkcjaChip akcja={r.nastepna_akcja} termin={r.nastepny_krok} /></div>
-                    <div className="crm-zad-klient">
-                      <button type="button" className="crm-zad-nazwa" onClick={() => onOpenLead(r.id)} title="Otwórz klienta (kontakt, rozmowy, oferty, zadanie)">{leadName(r)}</button>
-                      <span className="crm-muted crm-zad-gdzie">{r.miejscowosc || 'miejscowość nieznana'} · <KanalBadge zrodlo={r.zrodlo} compact /></span>
+                  <article key={r.id} className={`crm-z2${st === 'overdue' ? ' crm-z2--late' : ''}`}>
+                    <span className={`crm-z2-ikona crm-z2-ikona--${rodzaj}`} aria-hidden="true">
+                      {rodzaj === 'oferta' ? <FileText size={19} /> : rodzaj === 'wizyta' ? <Ruler size={19} /> : <Phone size={19} />}
+                    </span>
+                    <div className="crm-z2-tekst">
+                      <button type="button" className="crm-z2-tytul" onClick={() => onOpenLead(r.id)} title="Otwórz kartę klienta">
+                        {zadanieTytul(r.nastepna_akcja, leadName(r), CRM_AKCJA[r.nastepna_akcja ?? '']?.label)}
+                      </button>
+                      <span className="crm-z2-poco" title={pelnyOpis || undefined}>{zadaniePoCo(r.akcja_opis, CRM_AKCJA[r.nastepna_akcja ?? '']?.hint) || '—'}</span>
                     </div>
-                    <div className="crm-zad-opis">
-                      <span className="crm-zad-opis-tekst" title={r.akcja_opis ?? undefined}>{r.akcja_opis || CRM_AKCJA[r.nastepna_akcja ?? '']?.hint || '—'}</span>
-                      {tagi.length > 0 && (
-                        <span className="crm-zad-tagi">
-                          {tagi.slice(0, 2).map((s) => <EtykietaBadge key={s} slug={s} e={etyk.mapa.get(s)} />)}
-                          {tagi.length > 2 && <span className="crm-muted" title={tagi.slice(2).map((s) => etyk.mapa.get(s)?.nazwa ?? s).join(', ')}>+{tagi.length - 2}</span>}
-                        </span>
-                      )}
-                    </div>
-                    <div className="crm-zad-termin">
-                      <span className={`crm-termin${st === 'overdue' ? ' crm-termin--overdue' : st === 'today' ? ' crm-termin--today' : ''}`}>
-                        {st === 'today' ? 'dziś' : r.nastepny_krok ? fmtDate(r.nastepny_krok) : 'bez terminu'}
-                      </span>
-                      <span className="crm-muted">ost. kontakt {fmtDate(r.ostatnia_rozmowa_at ?? r.updated_at)}</span>
-                    </div>
-                    <div className="crm-zad-btn">{renderAkcje(r)}</div>
-                  </div>
+                    <span className={`crm-z2-termin${st === 'overdue' ? ' crm-z2-termin--late' : st === 'today' ? ' crm-z2-termin--dzis' : ''}`}>
+                      {st === 'today' ? 'dziś' : r.nastepny_krok ? fmtDate(r.nastepny_krok) : 'bez terminu'}
+                    </span>
+                    <div className="crm-z2-akcje">{renderAkcje(r)}</div>
+                  </article>
                 )
               })}
             </section>
