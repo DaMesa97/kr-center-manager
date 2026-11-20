@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Aktualizacje wymagane naprawdę (beta.137)</h4>
+        <ul>
+          <li><b>Wymagana aktualizacja:</b> gdy kierownik ustawi minimalną wersję, program sprawdza ją co kwadrans i po powrocie do okna — także na stanowiskach, które chodzą od rana. Ekran „Wymagana aktualizacja” od razu proponuje „Pobierz i zainstaluj”; przy kłopocie z pobieraniem jest „Pobierz instalator ręcznie”.</li>
+        </ul>
         <h4>CRM: nowa lista „Do zrobienia”, lejek po nowemu, zakładka „Klienci” (beta.136)</h4>
         <ul>
           <li><b>Do zrobienia:</b> każdy wiersz mówi, co i z kim („Oddzwoń: Anna Kowalczyk”, „Wyślij ofertę: MBT”), pod spodem jedno zdanie po co, obok termin (czerwony = zaległe, żółty = dziś) i jeden przycisk. Klik w tytuł otwiera kartę klienta. Filtr: Wszystko / Telefony / Oferty / Pomiary i montaże.</li>
