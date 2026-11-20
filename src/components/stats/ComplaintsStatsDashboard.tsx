@@ -63,7 +63,8 @@ export default function ComplaintsStatsDashboard({ complaints: complaintsAll, lo
     const cutoff = new Date(now.getFullYear(), now.getMonth() - rangeMonths + 1, 1)
 
     for (const c of complaints) {
-      const dateStr = c.created_at ?? c.complaint_date
+      // data reklamacji, nie data wpisu: reklamacje z Excela mają created_at = dzień importu
+      const dateStr = c.complaint_date || c.created_at
       if (!dateStr) continue
       const d = new Date(dateStr)
       if (d < cutoff) continue
