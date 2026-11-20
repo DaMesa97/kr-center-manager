@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: przeciąganie naprawione, ręczna wartość klienta; wydania Bastionu z Excela (beta.134)</h4>
+        <ul>
+          <li><b>CRM → Kontakty → Lejek:</b> przeciąganie kart działa myszą — złap kartę, przesuń do innej kolumny i puść. Przy kursorze widać nazwę klienta i kolumnę docelową, kolumna pod kursorem się podświetla. Zwykłe kliknięcie nadal otwiera kartę klienta.</li>
+          <li><b>CRM → karta klienta:</b> wartość klienta zmienisz ołówkiem przy kwocie w nagłówku (np. rabat, mniejsze zamówienie albo szacunek dla klienta bez oferty). Wpisana ręcznie ma dopisek „wpisane ręcznie” z osobą i datą, a „Wróć do kwoty z oferty” ją cofa. W lejku liczy się zamiast kwoty z oferty (na karcie z gwiazdką *), kafelek nazywa się teraz „Wartość w grze”.</li>
+          <li><b>CRM → szkic odpowiedzi:</b> to, co wpiszesz w „Co zmienić”, jest teraz najważniejsze — np. „krótko, bez pytań, nie pisz o ofercie” daje krótki mail bez formułki o ofercie i pomiarze.</li>
+          <li><b>Wydania z Excela (nocna synchronizacja):</b> zlecenia Bastion, które od kilku dni stały jako „duplikat” (jeden wiersz arkusza pasował do dwóch zleceń), zamykają się już same po pewnym dopasowaniu. Titany w arkuszu ST zamykają się po zaznaczeniu „ETAP 4” (montaż, pakowanie i kontrola jakości) — razem z częścią Bastion.</li>
+        </ul>
         <h4>CRM: przeciąganie klientów w lejku (beta.133)</h4>
         <ul>
           <li><b>CRM → Kontakty → Lejek:</b> kartę klienta przeciągasz między kolumnami. Do <b>„Zamówił”</b> — po potwierdzeniu klient zamawia, a najnowsza wysłana oferta dostaje status „Zaakceptowana”. Do <b>„Przegrany”</b> — otwiera się wybór powodu (jak na karcie klienta). Zamówionego albo przegranego z powrotem do „Nowy” / „Ma ofertę” — wraca do gry z nowym zadaniem. „Nowy” i „Ma ofertę” ustawia system (po wysłaniu oferty), więc między nimi karty się nie przenosi.</li>
