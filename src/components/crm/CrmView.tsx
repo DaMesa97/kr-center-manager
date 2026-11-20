@@ -75,6 +75,7 @@ import {
   oznaczWynik,
   konfiguracjaPliki,
   napiszMailOferty,
+  ustawWartoscKlienta,
 } from '../../hooks/useCrm'
 import { supabase } from '../../supabaseClient'
 import { appConfirm } from '../../lib/appDialogs'
@@ -93,7 +94,7 @@ import CrmPolaczPanel from './CrmPolaczPanel'
 import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
 import CrmMaileScreen, { CrmMailScreen, MailList } from './CrmMaileScreen'
 import { EtykietaBadge, EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
-import { LEAD_STATUS_CLS, ZADANIE_GRUPY, kwotaOferty, opisWyniku, ostatniaOferta, zadanieGrupa } from '../../lib/crmWynik'
+import { LEAD_STATUS_CLS, ZADANIE_GRUPY, kwotaOferty, opisWyniku, ostatniaOferta, parseKwota, wartoscKlienta, zadanieGrupa } from '../../lib/crmWynik'
 import CrmNowyKlient from './CrmNowyKlient'
 import { useEtykiety } from '../../hooks/useEtykiety'
 
@@ -1750,6 +1751,9 @@ function LeadScreen({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
   const [saving, setSaving] = useState(false)
+  // #162: ręczna wartość klienta — null = nie edytujemy, string = treść pola
+  const [wartoscEdit, setWartoscEdit] = useState<string | null>(null)
+  const [wartoscBusy, setWartoscBusy] = useState(false)
   // notatka handlowca (brief pkt 15): edytowalna kopia leady.podsumowanie; „Zleć ofertę” wysyła ją do rpc
   const [notatka, setNotatka] = useState('')
   const [notatkaDirty, setNotatkaDirty] = useState(false)
@@ -1915,6 +1919,20 @@ function LeadScreen({
   const activeOferta = oferty.find((o) => o.status === 'do_sprawdzenia' || o.status === 'przelicz' || o.status === 'wstrzymana')
   const ostatnia = ostatniaOferta(oferty)
   const zamkniety = lead.status === 'wygrany' || lead.status === 'przegrany'
+  const wartosc = wartoscKlienta(lead.wartosc_szac, ostatnia)
+  const wartoscZmiana = wartosc.reczna ? [...zdarzenia].filter((z) => z.typ === 'wartosc_zmieniona').sort((a, b) => b.created_at.localeCompare(a.created_at))[0] : undefined
+  const zapiszWartosc = async (kwota: number | null) => {
+    setWartoscBusy(true)
+    const err = await ustawWartoscKlienta(lead, kwota, currentUser?.id ?? '')
+    setWartoscBusy(false)
+    if (err) {
+      pushToast(`Nie udało się zapisać wartości: ${err.message}`, 'error')
+      return
+    }
+    setWartoscEdit(null)
+    pushToast(kwota == null ? 'Wartość wraca do kwoty z oferty' : 'Wartość klienta zapisana', 'success')
+    await load(true)
+  }
   const handleWynik = async (wynik: CrmWynik, opts: { powod?: string; notatka?: string; ofertaId?: string | null } = {}) => {
     setWynikBusy(true)
     const err = await oznaczWynik(lead.id, wynik, opts)
@@ -1957,13 +1975,58 @@ function LeadScreen({
           </div>
           {zamkniety && <div className={`crm-lead-wynik crm-lead-wynik--${lead.status}`}>{opisWyniku(lead)}</div>}
         </div>
-        {ostatnia && (
-          <div className="crm-lead-head-kwota" title="Ostatnia oferta klienta (bez starych wersji)">
-            <span className="crm-pf-label">Ostatnia oferta</span>
-            <b>{fmtPln(kwotaOferty(ostatnia))}</b>
-            <span className="crm-muted">{ostatnia.rodzaj === 'oficjalna' ? 'brutto · ' : ''}{(CRM_OFERTA_STATUS[ostatnia.status]?.label ?? ostatnia.status).toLowerCase()} · {fmtDate(ostatnia.created_at)}</span>
-          </div>
-        )}
+        <div className="crm-lead-head-kwota" title={wartosc.reczna ? 'Wartość wpisana ręcznie — liczy się w lejku zamiast kwoty z oferty' : 'Ostatnia oferta klienta (bez starych wersji)'}>
+          <span className="crm-pf-label">{wartosc.reczna ? 'Wartość (wpisana ręcznie)' : ostatnia ? 'Ostatnia oferta' : 'Wartość'}</span>
+          {wartoscEdit != null ? (
+            <form
+              className="crm-wartosc-form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const n = parseKwota(wartoscEdit)
+                if (n == null) {
+                  pushToast('Wpisz kwotę brutto, np. 12 500', 'error')
+                  return
+                }
+                void zapiszWartosc(n)
+              }}
+            >
+              <label className="crm-wartosc-pole">
+                <input type="text" inputMode="decimal" aria-label="Wartość brutto w zł" autoFocus value={wartoscEdit} onChange={(e) => setWartoscEdit(e.target.value)} placeholder="np. 12 500" disabled={wartoscBusy} /> zł
+              </label>
+              <span className="crm-wartosc-akcje">
+                <button type="submit" className="btn btn-sm btn-primary" disabled={wartoscBusy}>{wartoscBusy ? <Spinner inline size={14} /> : <Check size={14} />} Zapisz</button>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={wartoscBusy} onClick={() => setWartoscEdit(null)}>Anuluj</button>
+              </span>
+              <span className="crm-muted">Np. rabat albo mniejsze zamówienie. Liczy się w lejku zamiast kwoty z oferty.</span>
+            </form>
+          ) : (
+            <>
+              <span className="crm-wartosc-kwota">
+                {wartosc.kwota != null ? <b>{fmtPln(wartosc.kwota)}</b> : <span className="crm-muted">brak</span>}
+                <button type="button" className="crm-wartosc-edytuj" aria-label="Zmień wartość klienta" title="Zmień wartość klienta" onClick={() => setWartoscEdit(wartosc.kwota != null ? String(wartosc.kwota).replace('.', ',') : '')}>
+                  <Pencil size={14} />
+                </button>
+              </span>
+              {wartosc.reczna ? (
+                <>
+                  <span className="crm-muted crm-wartosc-reczna">wpisane ręcznie{wartoscZmiana ? ` · ${(wartoscZmiana.kto && names.get(wartoscZmiana.kto)) || 'ktoś z zespołu'}, ${fmtDate(wartoscZmiana.created_at)}` : ''}</span>
+                  {ostatnia && (
+                    <button type="button" className="crm-link" disabled={wartoscBusy} onClick={() => void zapiszWartosc(null)}>
+                      Wróć do kwoty z oferty ({fmtPln(kwotaOferty(ostatnia))})
+                    </button>
+                  )}
+                  {!ostatnia && (
+                    <button type="button" className="crm-link" disabled={wartoscBusy} onClick={() => void zapiszWartosc(null)}>Usuń wartość</button>
+                  )}
+                </>
+              ) : ostatnia ? (
+                <span className="crm-muted">{ostatnia.rodzaj === 'oficjalna' ? 'brutto · ' : ''}{(CRM_OFERTA_STATUS[ostatnia.status]?.label ?? ostatnia.status).toLowerCase()} · {fmtDate(ostatnia.created_at)}</span>
+              ) : (
+                <span className="crm-muted">bez oferty — możesz wpisać szacunek</span>
+              )}
+            </>
+          )}
+        </div>
         <div className="crm-lead-head-akcje">
           {!zamkniety ? (
             <>
@@ -2194,7 +2257,6 @@ function LeadScreen({
               </ul>
             </Field>
           )}
-          <Field label="Wartość szac.">{fmtPln(lead.wartosc_szac)}</Field>
           <Field label="Ostatnia rozmowa">{fmtDateTime(lead.ostatnia_rozmowa_at)}</Field>
           <Field label="Pierwszy kontakt">{fmtDateTime(lead.created_at)}</Field>
         </div>

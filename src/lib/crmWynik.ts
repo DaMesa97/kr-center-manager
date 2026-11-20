@@ -38,6 +38,26 @@ export function kwotaOferty(o: OfertaKwota | null | undefined): number | null {
   return v == null ? null : Number(v)
 }
 
+/** Wartość klienta (#162): wpisana ręcznie (crm.leady.wartosc_szac) wygrywa z kwotą ostatniej oferty. */
+export function wartoscKlienta(
+  wartoscSzac: number | string | null | undefined,
+  oferta: OfertaKwota | null | undefined,
+): { kwota: number | null; reczna: boolean } {
+  if (wartoscSzac != null && String(wartoscSzac) !== '' && Number.isFinite(Number(wartoscSzac))) return { kwota: Number(wartoscSzac), reczna: true }
+  return { kwota: kwotaOferty(oferta), reczna: false }
+}
+
+/** Kwota wpisana przez handlowca: „12 500”, „12500,50”, „12.500 zł” → liczba; puste / bzdura / ≤ 0 → null. */
+export function parseKwota(text: string): number | null {
+  let t = text.replace(/zł|pln/gi, '').replace(/[\s\u00a0]/g, '')
+  if (!t) return null
+  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(t)) t = t.replace(/\./g, '')
+  t = t.replace(',', '.')
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return null
+  const n = Number(t)
+  return n > 0 && n < 10_000_000 ? Math.round(n * 100) / 100 : null
+}
+
 type OfertaLeada = OfertaKwota & { status: string; created_at: string }
 
 /** Ostatnia „prawdziwa” oferta klienta (bez starych wersji); gdy są tylko stare — najnowsza z nich. */
@@ -58,6 +78,7 @@ export const LEJEK_KOLUMNY: Array<{ key: LejekStatus; label: string }> = [
 type LejekLead = {
   status: string | null
   wynik_powod?: string | null
+  wartosc_szac?: number | string | null
   ostatnia_oferta?: OfertaKwota | null
 }
 
@@ -83,7 +104,7 @@ export function lejekPodsumowanie(rows: LejekLead[]): LejekPodsumowanie {
     const st = (r.status ?? 'nowy') as LejekStatus
     const kol = kolumny[st] ?? kolumny.nowy
     kol.n += 1
-    kol.suma += kwotaOferty(r.ostatnia_oferta) ?? 0
+    kol.suma += wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta).kwota ?? 0
     if (st === 'przegrany' && r.wynik_powod) powody.set(r.wynik_powod, (powody.get(r.wynik_powod) ?? 0) + 1)
   }
   let topPowod: string | null = null
@@ -98,7 +119,8 @@ export function lejekPodsumowanie(rows: LejekLead[]): LejekPodsumowanie {
   return {
     kolumny,
     wGrze: kolumny.nowy.n + kolumny.oferta.n,
-    wartoscWGrze: kolumny.oferta.suma,
+    // „Nowy” liczy się, gdy ma wartość wpisaną ręcznie (bez oferty kwota = 0)
+    wartoscWGrze: kolumny.nowy.suma + kolumny.oferta.suma,
     wygrane: { n: kolumny.wygrany.n, suma: kolumny.wygrany.suma },
     przegrane: { n: kolumny.przegrany.n, topPowod },
     procentWygranych: zamkniete ? Math.round((kolumny.wygrany.n / zamkniete) * 100) : null,

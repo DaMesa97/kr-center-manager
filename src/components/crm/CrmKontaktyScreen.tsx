@@ -14,7 +14,7 @@ import { useEtykiety } from '../../hooks/useEtykiety'
 import { EtykietyRow, KanalBadge } from './CrmEtykiety'
 import CrmPolaczPanel from './CrmPolaczPanel'
 import DataTable, { type DataTableColumn } from '../DataTable'
-import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, kwotaOferty, lejekPodsumowanie, opisWyniku, ruchWLejku, type LejekStatus } from '../../lib/crmWynik'
+import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, lejekPodsumowanie, opisWyniku, ruchWLejku, wartoscKlienta, type LejekStatus } from '../../lib/crmWynik'
 import Spinner from '../Spinner'
 
 type Props = {
@@ -339,7 +339,7 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
             return (
               <div className="crm-kpi-row">
                 <div className="crm-kpi"><span className="crm-kpi-label">W grze</span><b>{s.wGrze}</b></div>
-                <div className="crm-kpi"><span className="crm-kpi-label">Wartość ofert w grze</span><b>{fmtPln(s.wartoscWGrze)}</b></div>
+                <div className="crm-kpi"><span className="crm-kpi-label" title="Kwoty ostatnich ofert albo wartości wpisane ręcznie (*)">Wartość w grze</span><b>{fmtPln(s.wartoscWGrze)}</b></div>
                 <div className="crm-kpi crm-kpi--won"><span className="crm-kpi-label">Zamówili</span><b>{s.wygrane.n} · {fmtPln(s.wygrane.suma)}</b></div>
                 <div className="crm-kpi">
                   <span className="crm-kpi-label">Przegrani{s.przegrane.topPowod ? ' · najczęściej' : ''}</span>
@@ -372,7 +372,7 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
             <div className="crm-lejek">
               {LEJEK_KOLUMNY.map((kol) => {
                 const lista = filtered.filter((r) => (r.status ?? 'nowy') === kol.key || (kol.key === 'nowy' && !r.status))
-                const suma = lista.reduce((a, r) => a + (kwotaOferty(r.ostatnia_oferta) ?? 0), 0)
+                const suma = lista.reduce((a, r) => a + (wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta).kwota ?? 0), 0)
                 const MAX = 60
                 return (
                   <section
@@ -383,7 +383,7 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                   >
                     <div className="crm-lejek-head">
                       <span><b>{kol.label}</b> <span className="crm-muted">{lista.length}</span></span>
-                      {kol.key !== 'nowy' && <span className="crm-lejek-suma">{fmtPln(suma)}</span>}
+                      {(kol.key !== 'nowy' || suma > 0) && <span className="crm-lejek-suma">{fmtPln(suma)}</span>}
                     </div>
                     {lista.slice(0, MAX).map((r) => {
                       const info =
@@ -408,7 +408,10 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                         >
                           <span className="crm-lejek-top">
                             <b>{leadName(r)}</b>
-                            <span>{fmtPln(kwotaOferty(r.ostatnia_oferta))}</span>
+                            {(() => {
+                              const w = wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta)
+                              return <span title={w.reczna ? 'Wartość wpisana ręcznie' : undefined}>{fmtPln(w.kwota)}{w.reczna ? '*' : ''}</span>
+                            })()}
                           </span>
                           <span className="crm-muted crm-lejek-gdzie">{r.miejscowosc || 'miejscowość nieznana'}{r.kategoria ? ` · ${r.kategoria}` : ''}</span>
                           <span className="crm-lejek-dol">

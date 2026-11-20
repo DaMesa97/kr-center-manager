@@ -9986,3 +9986,14 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-lejek-karta:active { cursor: grabbing; }
 body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-select: none !important; }
 .crm-lejek-duszek { position: fixed; z-index: 1000; pointer-events: none; background: #111827; color: #fff; font-size: 0.8rem; font-weight: 600; padding: 6px 10px; border-radius: 8px; box-shadow: 0 6px 18px rgba(15, 23, 42, .25); white-space: nowrap; }
+
+/* #162: ręczna wartość klienta w nagłówku karty klienta */
+.crm-wartosc-kwota { display: inline-flex; align-items: center; gap: 6px; }
+.crm-wartosc-edytuj { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; color: #374151; cursor: pointer; }
+.crm-wartosc-edytuj:hover { background: #f3f4f6; }
+.crm-wartosc-reczna { color: #92400e !important; }
+.crm-wartosc-form { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 300px; }
+.crm-wartosc-form .crm-muted { text-align: right; }
+.crm-wartosc-pole { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.crm-wartosc-pole input { width: 130px; padding: 6px 8px; border: 1px solid #2563eb; border-radius: 8px; font-size: 1.05rem; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.crm-wartosc-akcje { display: inline-flex; gap: 6px; }

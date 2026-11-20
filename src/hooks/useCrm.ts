@@ -315,6 +315,22 @@ export async function edytujZadanie(lead: CrmLead, z: CrmZamknijZadanie, userId:
   return null
 }
 
+/** #162: ręczna wartość klienta (null = wróć do kwoty z oferty); ślad w historii: wartosc_zmieniona (kto i kiedy). */
+export async function ustawWartoscKlienta(lead: CrmLead, kwota: number | null, userId: string): Promise<CrmError | null> {
+  const { error } = await crm().from('leady').update({ wartosc_szac: kwota }).eq('id', lead.id)
+  if (error) return crmErrorFrom(error)
+  const fmt = (v: number | null) =>
+    v == null ? '—' : `${Number(v).toLocaleString('pl-PL', Number.isInteger(Number(v)) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`
+  await crm().from('zdarzenia').insert({
+    lead_id: lead.id,
+    typ: 'wartosc_zmieniona',
+    opis: kwota == null ? `Usunięto wartość wpisaną ręcznie (${fmt(lead.wartosc_szac)}) — liczy się kwota z oferty` : `Wartość klienta wpisana ręcznie: ${fmt(kwota)}${lead.wartosc_szac != null ? ` (było ${fmt(lead.wartosc_szac)})` : ''}`,
+    kto: userId,
+    dane: { zrodlo: 'klik', z: lead.wartosc_szac, na: kwota },
+  })
+  return null
+}
+
 /** Zdejmuje zadanie z klienta bez oznaczania „zrobione” (ślad w historii: zadanie_usuniete). */
 export async function usunZadanie(lead: CrmLead, userId: string): Promise<CrmError | null> {
   const { error } = await crm().from('leady').update({ nastepna_akcja: null, nastepny_krok: null, akcja_opis: null, akcja_od: null }).eq('id', lead.id)

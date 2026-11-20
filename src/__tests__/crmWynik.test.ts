@@ -82,3 +82,40 @@ describe('crmWynik — przeciąganie w lejku', () => {
     expect(ruchWLejku('oferta', 'nowy')).toBe('systemowy')
   })
 })
+
+describe('crmWynik — wartość klienta (#162)', () => {
+  it('ręczna wartość wygrywa z ofertą, bez ręcznej = kwota oferty', async () => {
+    const { wartoscKlienta } = await import('../lib/crmWynik')
+    expect(wartoscKlienta(12500, { rodzaj: 'oficjalna', brutto: 13073 })).toEqual({ kwota: 12500, reczna: true })
+    expect(wartoscKlienta('9800.50', null)).toEqual({ kwota: 9800.5, reczna: true })
+    expect(wartoscKlienta(null, { rodzaj: 'sklep', cena_razem: 8220 })).toEqual({ kwota: 8220, reczna: false })
+    expect(wartoscKlienta(undefined, null)).toEqual({ kwota: null, reczna: false })
+  })
+
+  it('parsuje kwoty wpisane przez handlowca', async () => {
+    const { parseKwota } = await import('../lib/crmWynik')
+    expect(parseKwota('12 500')).toBe(12500)
+    expect(parseKwota('12\u00a0500 zł')).toBe(12500)
+    expect(parseKwota('12500,50')).toBe(12500.5)
+    expect(parseKwota('12.500')).toBe(12500)
+    expect(parseKwota('1.250.000,99')).toBe(1250000.99)
+    expect(parseKwota('99.5')).toBe(99.5)
+    expect(parseKwota('')).toBeNull()
+    expect(parseKwota('abc')).toBeNull()
+    expect(parseKwota('0')).toBeNull()
+    expect(parseKwota('-5')).toBeNull()
+  })
+
+  it('lejek liczy ręczną wartość, także klientowi bez oferty', async () => {
+    const { lejekPodsumowanie } = await import('../lib/crmWynik')
+    const s = lejekPodsumowanie([
+      { status: 'nowy', wartosc_szac: 4000 },
+      { status: 'oferta', wartosc_szac: 10000, ostatnia_oferta: { rodzaj: 'oficjalna', brutto: 13000 } },
+      { status: 'wygrany', ostatnia_oferta: { rodzaj: 'sklep', cena_razem: 6000 } },
+    ])
+    expect(s.kolumny.nowy.suma).toBe(4000)
+    expect(s.kolumny.oferta.suma).toBe(10000)
+    expect(s.wartoscWGrze).toBe(14000)
+    expect(s.wygrane.suma).toBe(6000)
+  })
+})

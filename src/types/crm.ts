@@ -411,6 +411,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   wygrany: 'Zamówił',
   przegrany: 'Przegrany',
   przywrocony: 'Przywrócono do gry',
+  wartosc_zmieniona: 'Zmieniono wartość klienta',
   brak_kandydatow: 'Brak pasującego produktu w cenniku',
   poprawka: 'Poprawka handlowca',
   przeliczono: 'Przeliczono',
