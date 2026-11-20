@@ -4,9 +4,10 @@
 // Ten skrypt sprawdza, czy wszystkie assets są wgrane, ustawia opis z pliku
 // i dopiero wtedy zdejmuje draft. Bez niego release zostaje NIEWIDOCZNY.
 //
-// Użycie: node scripts/publish-release.mjs [ścieżka-do-release-notes.md] [--wymus]
-//   --wymus  po publikacji ustawia app_config.min_app_version = ta wersja → wszyscy (poza adminami)
-//            dostają w ciągu ~15 min pełnoekranową blokadę „Wymagana aktualizacja” (20.11)
+// Użycie: node scripts/publish-release.mjs [ścieżka-do-release-notes.md] [--bez-wymuszania]
+//   Domyślnie (ustalenia 20.11: „zawsze wymuszamy”) po publikacji ustawia app_config.min_app_version = ta wersja
+//   → wszyscy (poza adminami) dostają pełnoekranową blokadę „Wymagana aktualizacja” (od beta.137 w ciągu ~15 min).
+//   --bez-wymuszania  tylko publikuje (wyjątkowo, np. wydanie testowe)
 import { config } from 'dotenv'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -68,7 +69,7 @@ if (!setupOk || !ymlOk) {
 if (!blockmapOk) console.log('⚠️ brak blockmap — update zadziała, ale bez delty (pełne pobranie)')
 
 const args = process.argv.slice(2)
-const wymus = args.includes('--wymus')
+const wymus = !args.includes('--bez-wymuszania') // --wymus zostaje jako no-op dla starych notatek
 const notesPath = args.find((a) => !a.startsWith('--'))
 const body = notesPath ? readFileSync(notesPath, 'utf8') : (release.body || '')
 
