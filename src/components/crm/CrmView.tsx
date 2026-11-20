@@ -2613,8 +2613,8 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
             Oferty
           </button>
           {/* brief pkt 20: wszyscy klienci, także bez zadania */}
-          <button type="button" className={`crm-nav-btn${topKind === 'kontakty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('kontakty')} title="Wszyscy klienci: szukanie, filtry, historia">
-            Kontakty
+          <button type="button" className={`crm-nav-btn${topKind === 'kontakty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('kontakty')} title="Wszyscy klienci: lejek, lista, szukanie, filtry">
+            Klienci
           </button>
           <button type="button" className={`crm-nav-btn${topKind === 'maile' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('maile')} title="Maile przychodzące i wychodzące ze skrzynek">
             Maile

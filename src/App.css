@@ -10064,3 +10064,14 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 .crm-z2-termin--dzis { color: #92400e; }
 .crm-z2-akcje { flex: 0 0 auto; display: flex; gap: 8px; align-items: center; }
 .crm-zad-grupa { display: flex; flex-direction: column; gap: 8px; }
+
+/* ── CRM: lejek v2 (20.11): karta = nazwa + wartość + następny krok + „Przenieś…”; liczby w jednym wierszu ── */
+.crm-kpi-linia { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 10px 0; font-size: 0.92rem; color: #374151; }
+.crm-kpi-linia b { color: #111827; }
+.crm-kpi-linia .crm-kpi-won { color: #047857; }
+.crm-lejek-otworz { all: unset; cursor: inherit; display: block; min-width: 0; }
+.crm-lejek-otworz:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 6px; }
+.crm-lejek-otworz:hover b { color: #1d4ed8; text-decoration: underline; }
+.crm-lejek-przenies { flex: 0 0 auto; border: 1px solid #e5e7eb; background: #fff; color: #374151; border-radius: 7px; padding: 3px 8px; font-size: 0.72rem; cursor: pointer; }
+.crm-lejek-przenies:hover { background: #f3f4f6; }
+.crm-lejek-przenies-menu { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid #f3f4f6; padding-top: 7px; }

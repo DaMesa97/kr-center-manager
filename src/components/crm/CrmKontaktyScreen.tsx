@@ -105,6 +105,8 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
     window.addEventListener('pointercancel', up)
   }
   const [przegranyDla, setPrzegranyDla] = useState<CrmKontaktRow | null>(null)
+  // v2: „Przenieś…” na karcie — to samo co przeciągnięcie, dla tych, którzy nie lubią przeciągać
+  const [przenies, setPrzenies] = useState<string | null>(null)
   const [wynikBusy, setWynikBusy] = useState(false)
   const zapiszWynik = async (r: CrmKontaktRow, wynik: 'wygrany' | 'przegrany' | 'w_grze', opts: { powod?: string; notatka?: string } = {}) => {
     setWynikBusy(true)
@@ -337,15 +339,11 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
           {(() => {
             const s = lejekPodsumowanie(filtered)
             return (
-              <div className="crm-kpi-row">
-                <div className="crm-kpi"><span className="crm-kpi-label">W grze</span><b>{s.wGrze}</b></div>
-                <div className="crm-kpi"><span className="crm-kpi-label" title="Kwoty ostatnich ofert albo wartości wpisane ręcznie (*)">Wartość w grze</span><b>{fmtPln(s.wartoscWGrze)}</b></div>
-                <div className="crm-kpi crm-kpi--won"><span className="crm-kpi-label">Zamówili</span><b>{s.wygrane.n} · {fmtPln(s.wygrane.suma)}</b></div>
-                <div className="crm-kpi">
-                  <span className="crm-kpi-label">Przegrani{s.przegrane.topPowod ? ' · najczęściej' : ''}</span>
-                  <b>{s.przegrane.n}{s.przegrane.topPowod ? ` · ${CRM_WYNIK_POWOD[s.przegrane.topPowod] ?? s.przegrane.topPowod}` : ''}</b>
-                </div>
-                <div className="crm-kpi"><span className="crm-kpi-label">Wygranych z zamkniętych</span><b>{s.procentWygranych == null ? '—' : `${s.procentWygranych}%`}</b></div>
+              <div className="crm-kpi-linia" aria-label="Podsumowanie">
+                <span title="Klienci Nowy + Ma ofertę; wartość = ostatnie oferty albo wartości wpisane ręcznie (*)">W grze <b>{s.wGrze} · {fmtPln(s.wartoscWGrze)}</b></span>
+                <span>Zamówili <b className="crm-kpi-won">{s.wygrane.n} · {fmtPln(s.wygrane.suma)}</b></span>
+                <span>Przegrani <b>{s.przegrane.n}{s.przegrane.topPowod ? ` · najczęściej ${CRM_WYNIK_POWOD[s.przegrane.topPowod] ?? s.przegrane.topPowod}` : ''}</b></span>
+                <span title="Zamówili / (zamówili + przegrani)">Skuteczność <b>{s.procentWygranych == null ? '—' : `${s.procentWygranych}%`}</b></span>
               </div>
             )
           })()}
@@ -368,7 +366,7 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                 {duszek.nazwa}{dragOver ? ` → ${LEJEK_KOLUMNY.find((k) => k.key === dragOver)?.label ?? ''}` : ''}
               </div>
             )}
-            <p className="crm-muted crm-lejek-hint">Przeciągnij kartę do „Zamówił” albo „Przegrany”, a przegranego lub zamówionego z powrotem do „Nowy” / „Ma ofertę”, żeby przywrócić go do gry.</p>
+            <p className="crm-muted crm-lejek-hint">Złap kartę i upuść w innej kolumnie albo kliknij „Przenieś…” na karcie. Z „Zamówił” / „Przegrany” z powrotem do „Nowy” / „Ma ofertę” = klient wraca do gry.</p>
             <div className="crm-lejek">
               {LEJEK_KOLUMNY.map((kol) => {
                 const wszystkie = filtered.filter((r) => (r.status ?? 'nowy') === kol.key || (kol.key === 'nowy' && !r.status))
@@ -401,30 +399,47 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                               ? `${CRM_AKCJA[r.nastepna_akcja]?.label ?? r.nastepna_akcja}${r.nastepny_krok ? ` · ${fmtDate(r.nastepny_krok)}` : ''}`
                               : 'bez zadania'
                       return (
-                        <button
+                        <article
                           key={r.id}
-                          type="button"
                           className={`crm-lejek-karta${dragId === r.id ? ' crm-lejek-karta--drag' : ''}`}
-                          onClick={() => {
-                            if (pomijajKlik.current) return
-                            onOpenLead(r.id)
+                          onPointerDown={(e) => {
+                            if ((e.target as HTMLElement).closest('.crm-lejek-przenies, .crm-lejek-przenies-menu')) return
+                            startDrag(e, r)
                           }}
-                          title="Karta klienta — albo przeciągnij do innej kolumny"
-                          onPointerDown={(e) => startDrag(e, r)}
                         >
-                          <span className="crm-lejek-top">
-                            <b>{leadName(r)}</b>
-                            {(() => {
-                              const w = wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta)
-                              return <span title={w.reczna ? 'Wartość wpisana ręcznie' : undefined}>{fmtPln(w.kwota)}{w.reczna ? '*' : ''}</span>
-                            })()}
-                          </span>
-                          <span className="crm-muted crm-lejek-gdzie">{r.miejscowosc || 'miejscowość nieznana'}{r.kategoria ? ` · ${r.kategoria}` : ''}</span>
+                          <button
+                            type="button"
+                            className="crm-lejek-otworz"
+                            onClick={() => {
+                              if (pomijajKlik.current) return
+                              onOpenLead(r.id)
+                            }}
+                            title={`${leadName(r)}${r.miejscowosc ? ` · ${r.miejscowosc}` : ''} — kliknij, żeby otworzyć kartę klienta, albo przeciągnij do innej kolumny`}
+                          >
+                            <span className="crm-lejek-top">
+                              <b>{leadName(r)}</b>
+                              {(() => {
+                                const w = wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta)
+                                return <span title={w.reczna ? 'Wartość wpisana ręcznie' : undefined}>{fmtPln(w.kwota)}{w.reczna ? '*' : ''}</span>
+                              })()}
+                            </span>
+                          </button>
                           <span className="crm-lejek-dol">
-                            <span className={`crm-lejek-info crm-lejek-info--${kol.key}`}>{info}</span>
-                            <span className="crm-muted">{fmtDate(aktywnosc(r))}</span>
+                            <span className={`crm-lejek-info crm-lejek-info--${kol.key}`} title={`ostatnia aktywność ${fmtDate(aktywnosc(r))}`}>{info}</span>
+                            <button type="button" className="crm-lejek-przenies" aria-expanded={przenies === r.id} disabled={wynikBusy} onClick={() => setPrzenies((p) => (p === r.id ? null : r.id))}>
+                              Przenieś…
+                            </button>
                           </span>
-                        </button>
+                          {przenies === r.id && (
+                            <span className="crm-lejek-przenies-menu" role="group" aria-label={`Przenieś ${leadName(r)} do`}>
+                              {LEJEK_KOLUMNY.filter((k) => k.key !== kol.key).map((k) => (
+                                <button key={k.key} type="button" className="btn btn-sm btn-secondary" disabled={wynikBusy} onClick={() => { setPrzenies(null); void onDropKol(r, k.key) }}>
+                                  {k.label}
+                                </button>
+                              ))}
+                            </span>
+                          )}
+                        </article>
                       )
                     })}
                     {starsze > 0 && (
