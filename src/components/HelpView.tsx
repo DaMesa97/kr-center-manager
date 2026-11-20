@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: nowa karta klienta — następny krok, korespondencja, oferty z boku (beta.135)</h4>
+        <ul>
+          <li><b>Nagłówek:</b> telefon, e-mail i miejscowość od razu pod nazwą klienta (z „edytuj”), etykiety pod spodem.</li>
+          <li><b>Pasek „Następny krok”:</b> co zrobić i do kiedy, te same przyciski co wcześniej i nowy „Napisz mail”. Kolor mówi o terminie: niebieski, żółty na dziś, czerwony „Zaległe”. Klient bez zadania ma „Dodaj zadanie”.</li>
+          <li><b>Lewa kolumna — Korespondencja / Rozmowy / Wszystko:</b> maile z klientem jako wątek (od najstarszego, nasze z prawej, ostatni rozwinięty, bez cytowanej historii), nad nim „Klient czeka na odpowiedź od …”, pod nim szkic odpowiedzi. „Wszystko” to dawna historia.</li>
+          <li><b>Prawa kolumna:</b> „Czego chce” (notatka, zlecanie oferty, nagranie, oferta z montażem), oferty jako karty z „Klient przyjął” / „Odmówił…” (starsze wersje zwinięte), dokumenty i zwinięte szczegóły kontaktu.</li>
+          <li><b>Lejek:</b> „Zamówił” i „Przegrany” pokazują tylko ostatnie 30 dni (najświeższe na górze); starsze — „pokaż na liście”.</li>
+        </ul>
         <h4>CRM: przeciąganie naprawione, ręczna wartość klienta; wydania Bastionu z Excela (beta.134)</h4>
         <ul>
           <li><b>CRM → Kontakty → Lejek:</b> przeciąganie kart działa myszą — złap kartę, przesuń do innej kolumny i puść. Przy kursorze widać nazwę klienta i kolumnę docelową, kolumna pod kursorem się podświetla. Zwykłe kliknięcie nadal otwiera kartę klienta.</li>
