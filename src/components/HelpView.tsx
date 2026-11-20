@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: nowa lista „Do zrobienia”, lejek po nowemu, zakładka „Klienci” (beta.136)</h4>
+        <ul>
+          <li><b>Do zrobienia:</b> każdy wiersz mówi, co i z kim („Oddzwoń: Anna Kowalczyk”, „Wyślij ofertę: MBT”), pod spodem jedno zdanie po co, obok termin (czerwony = zaległe, żółty = dziś) i jeden przycisk. Klik w tytuł otwiera kartę klienta. Filtr: Wszystko / Telefony / Oferty / Pomiary i montaże.</li>
+          <li><b>Klienci (dawniej „Kontakty”) → Lejek:</b> karta pokazuje tylko nazwę, wartość i następny krok. Przenosisz ją przeciągnięciem albo przyciskiem „Przenieś…” na karcie. Liczby (w grze, zamówili, przegrani, skuteczność) są w jednym wierszu nad lejkiem.</li>
+        </ul>
         <h4>CRM: nowa karta klienta — następny krok, korespondencja, oferty z boku (beta.135)</h4>
         <ul>
           <li><b>Nagłówek:</b> telefon, e-mail i miejscowość od razu pod nazwą klienta (z „edytuj”), etykiety pod spodem.</li>
