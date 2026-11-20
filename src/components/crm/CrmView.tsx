@@ -87,6 +87,7 @@ import CrmPomocScreen from './CrmPomocScreen'
 import CrmUstawieniaScreen from './CrmUstawieniaScreen'
 import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import CrmKontaktyScreen from './CrmKontaktyScreen'
+import CrmStatystykiScreen from './CrmStatystykiScreen'
 import CrmKorespondencja from './CrmKorespondencja'
 import { ZADANIE_RODZAJE, zadaniePoCo, zadanieRodzaj, zadanieTytul, type ZadanieRodzaj } from '../../lib/crmZadania'
 import CrmZadanieDialog from './CrmZadanieDialog'
@@ -121,6 +122,7 @@ type Screen =
   | { kind: 'pomoc' }
   | { kind: 'ustawienia' }
   | { kind: 'kontakty' }
+  | { kind: 'statystyki' }
   | { kind: 'oferta'; id: string }
   | { kind: 'lead'; id: string }
   | { kind: 'mail'; id: string }
@@ -2589,12 +2591,12 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
   const openOferta = useCallback((id: string) => go({ kind: 'oferta', id }), [go])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
   const openMail = useCallback((id: string) => go({ kind: 'mail', id }), [go])
-  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia' | 'kontakty') => {
+  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia' | 'kontakty' | 'statystyki') => {
     setStack([])
     setScreen({ kind })
   }
   const topKind =
-    screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' || screen.kind === 'ustawienia' || screen.kind === 'kontakty'
+    screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' || screen.kind === 'ustawienia' || screen.kind === 'kontakty' || screen.kind === 'statystyki'
       ? screen.kind
       : screen.kind === 'mail'
         ? 'maile'
@@ -2615,6 +2617,10 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
           {/* brief pkt 20: wszyscy klienci, także bez zadania */}
           <button type="button" className={`crm-nav-btn${topKind === 'kontakty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('kontakty')} title="Wszyscy klienci: lejek, lista, szukanie, filtry">
             Klienci
+          </button>
+          {/* 21.11: historia zamkniętych — per miesiąc, pochodzenie, powody, kto zamyka */}
+          <button type="button" className={`crm-nav-btn${topKind === 'statystyki' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('statystyki')} title="Ile wygraliśmy per miesiąc, skąd przychodzą klienci, dlaczego przegrywamy">
+            Statystyki
           </button>
           <button type="button" className={`crm-nav-btn${topKind === 'maile' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('maile')} title="Maile przychodzące i wychodzące ze skrzynek">
             Maile
@@ -2638,6 +2644,7 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       </div>
       {screen.kind === 'zadania' && <ZadaniaScreen mode={mode} currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'oferty' && <OfertyList mode={mode} onOpenOferta={openOferta} onOpenLead={openLead} />}
+      {screen.kind === 'statystyki' && <CrmStatystykiScreen />}
       {screen.kind === 'kontakty' && <CrmKontaktyScreen pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'maile' && <CrmMaileScreen mode={mode} onOpenMail={openMail} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'mail' && <CrmMailScreen id={screen.id} mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />}

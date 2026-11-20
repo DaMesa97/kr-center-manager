@@ -349,6 +349,12 @@ export type CrmKontaktRow = CrmLead & {
   ostatnia_oferta?: Pick<CrmOferta, 'id' | 'status' | 'wersja' | 'cena_razem' | 'rodzaj' | 'numer' | 'brutto' | 'created_at'> | null
 }
 
+/** Statystyki CRM (21.11): wysłane oferty z kwotą i datą wysłania (do 5000). */
+export async function fetchOfertyWyslane(): Promise<Result<Array<{ lead_id: string | null; wyslano_at: string | null; rodzaj: string | null; brutto: number | null; cena_razem: number | null }>>> {
+  const { data, error } = await crm().from('oferty').select('lead_id, wyslano_at, rodzaj, brutto, cena_razem').not('wyslano_at', 'is', null).order('wyslano_at', { ascending: false }).limit(5000)
+  return { data: (data ?? []) as Array<{ lead_id: string | null; wyslano_at: string | null; rodzaj: string | null; brutto: number | null; cena_razem: number | null }>, error: crmErrorFrom(error) }
+}
+
 export async function fetchKontakty(): Promise<Result<CrmKontaktRow[]>> {
   const { data, error } = await crm().from('leady').select('*').order('updated_at', { ascending: false }).limit(2000)
   if (error) return { data: [], error: crmErrorFrom(error) }
