@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: bezpieczniej i jaśniej — poprawki po teście, tytuł oferty (beta.139)</h4>
+        <ul>
+          <li><b>„Zamówił” pyta „za ile?”:</b> na karcie klienta po kliknięciu „Zamówił” wpisujesz kwotę (podpowiada się z ostatniej oferty) i dopiero „Zapisz: zamówił” zapisuje wynik. Potem pasek podpowiada „umów pomiar albo montaż”.</li>
+          <li><b>Mail niepoliczonej oferty:</b> „Otwórz w poczcie” jest wyszarzony, dopóki oferta nie jest policzona — nie da się wysłać pustego maila.</li>
+          <li><b>Nowy klient ma zadanie:</b> domyślnie „Zapytaj o decyzję” za 3 dni, żeby nie zginął z „Do zrobienia”. „Dodaj klienta” jest też w zakładce „Klienci”.</li>
+          <li><b>Tytuł oferty:</b> ołówek przy tytule oferty — np. „Budynek W1 — drzwi do mieszkań”, gdy inwestor ma kilka ofert naraz. Tytuł widać na karcie klienta, w „Oferty” i w zadaniach.</li>
+          <li><b>Drobne:</b> tytuł zadania zgadza się z przyciskiem („Sprawdź ustalenia: …”), zadanie mówi konkretnie, o co chodzi, długi opis ma „więcej”, „Napisz mail” przewija do korespondencji, szukanie w lejku pokazuje też zamówionych i przegranych.</li>
+        </ul>
         <h4>CRM: Statystyki, schowani zamknięci w lejku (beta.138)</h4>
         <ul>
           <li><b>CRM → Statystyki (nowa zakładka):</b> historia wszystkich klientów, także zamkniętych. Okres: ostatnie 12 miesięcy / ten rok / ten miesiąc / od początku. Nowi klienci, wysłane oferty, zamówienia i ich wartość, przegrani, skuteczność, średnie zamówienie i czas do zamówienia; wykresy i tabela miesiąc po miesiącu; skąd przychodzą klienci i jaki rodzaj drzwi (ilu z nich kupiło); dlaczego przegrywamy; kto zamyka sprzedaż.</li>
