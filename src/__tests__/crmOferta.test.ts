@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { etykietaUstalenia, krokOferty, ustaleniaLista } from '../lib/crmOferta'
+import { etykietaUstalenia, krokOferty, ustaleniaLista, wersjeOferty } from '../lib/crmOferta'
 
 describe('crmOferta — krok oferty', () => {
   it('status → krok i podświetlony etap', () => {
@@ -38,5 +38,25 @@ describe('crmOferta — ustalenia po polsku', () => {
     expect(l.find((u) => u.klucz === 'montaz')?.wartosc).toBe('tak')
     expect(l.find((u) => u.klucz === 'termin')?.wartosc).toBe('06.2027, 12.2027')
     expect(ustaleniaLista(null)).toEqual([])
+  })
+})
+
+describe('wersjeOferty', () => {
+  const x1 = { id: 'x1', poprzednia_id: null }
+  const x2 = { id: 'x2', poprzednia_id: 'x1' }
+  const x3 = { id: 'x3', poprzednia_id: 'x2' }
+  const y1 = { id: 'y1', poprzednia_id: null }
+  const wszystkie = [x1, x2, y1, x3]
+  it('zostawia tylko wersje tej samej oferty', () => {
+    expect(wersjeOferty(wszystkie, x1).map((w) => w.id)).toEqual(['x1', 'x2', 'x3'])
+    expect(wersjeOferty(wszystkie, x3).map((w) => w.id)).toEqual(['x1', 'x2', 'x3'])
+    expect(wersjeOferty(wszystkie, y1).map((w) => w.id)).toEqual(['y1'])
+  })
+  it('nie wiesza się na pętli i brakującym poprzedniku', () => {
+    const a = { id: 'a', poprzednia_id: 'b' }
+    const b = { id: 'b', poprzednia_id: 'a' }
+    const c = { id: 'c', poprzednia_id: 'zniknal' }
+    expect(wersjeOferty([a, b, c], c).map((w) => w.id)).toEqual(['c'])
+    expect(wersjeOferty([a, b, c], a).length).toBeGreaterThan(0)
   })
 })

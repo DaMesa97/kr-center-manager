@@ -92,7 +92,8 @@ import CrmKontaktyScreen from './CrmKontaktyScreen'
 import CrmStatystykiScreen from './CrmStatystykiScreen'
 import CrmKorespondencja from './CrmKorespondencja'
 import { ZADANIE_RODZAJE, zadaniePoCo, zadanieRodzaj, zadanieTytul, type ZadanieRodzaj } from '../../lib/crmZadania'
-import { KROKI_OFERTY, krokOferty, ustaleniaLista } from '../../lib/crmOferta'
+import { ileOdm } from '../../utils/odmiana'
+import { KROKI_OFERTY, krokOferty, ustaleniaLista, wersjeOferty } from '../../lib/crmOferta'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
@@ -508,7 +509,7 @@ function ZadaniaScreen({
             ? ''
             : rows.length === 0
             ? 'Nic do zrobienia.'
-            : `${rows.length} ${rows.length === 1 ? 'zadanie' : rows.length < 5 ? 'zadania' : 'zadań'}${overdue ? ` · ${overdue} zaległe` : ''}${today ? ` · ${today} na dziś` : ''}`}
+            : `${ileOdm(rows.length, 'zadanie', 'zadania', 'zadań')}${overdue ? ` · ${overdue} zaległe` : ''}${today ? ` · ${today} na dziś` : ''}`}
         </span>
         <button type="button" className="btn btn-sm btn-primary" onClick={() => setNowyKlient((v) => !v)} title="Klient z wizyty w salonie (walk-in)" aria-expanded={nowyKlient}>
           <UserPlus size={14} /> Dodaj klienta
@@ -518,7 +519,7 @@ function ZadaniaScreen({
         </button>
       </div>
       {zrobioneDla && (
-        <CrmZadanieDialog klient={leadName(zrobioneDla)} biezaceZadanie={zrobioneDla.nastepna_akcja} busy={busy === zrobioneDla.id} onConfirm={confirmZrobione} onCancel={() => setZrobioneDla(null)} />
+        <CrmZadanieDialog key={zrobioneDla.id} klient={leadName(zrobioneDla)} biezaceZadanie={zrobioneDla.nastepna_akcja} busy={busy === zrobioneDla.id} onConfirm={confirmZrobione} onCancel={() => setZrobioneDla(null)} />
       )}
       {nowyKlient && (
         <CrmNowyKlient
@@ -767,6 +768,7 @@ function OfertaScreen({
   onBack,
   onOpenLead,
   onOpenOferta,
+  onZastapOferte,
 }: {
   id: string
   mode: CrmMode
@@ -775,8 +777,13 @@ function OfertaScreen({
   onBack: () => void
   onOpenLead: (id: string) => void
   onOpenOferta: (id: string) => void
+  /** przejście na nową wersję BEZ dokładania ekranu do historii („Wróć” nie wraca do starej) */
+  onZastapOferte: (id: string) => void
 }) {
   const [oferta, setOferta] = useState<CrmOferta | null>(null)
+  // zwiad 21.11: na nową wersję przechodzimy tylko, gdy NA TYM ekranie oferta była w przeliczaniu —
+  // inaczej starej wersji nie dało się obejrzeć, a „Wróć” krążył między v1 i v2
+  const bylPrzelicz = useRef(false)
   const [wersje, setWersje] = useState<CrmOferta[]>([])
   const [zdarzenia, setZdarzenia] = useState<CrmZdarzenie[]>([])
   const [names, setNames] = useState<Map<string, string>>(new Map())
@@ -827,10 +834,11 @@ function OfertaScreen({
     if (table !== 'leady') debouncedReload()
   }, rtFilters)
   useEffect(() => {
-    if (!oferta || oferta.status !== 'robocza' || !oferta.poprawka) return
+    if (oferta?.status === 'przelicz') bylPrzelicz.current = true
+    if (!oferta || !bylPrzelicz.current || oferta.status !== 'robocza' || !oferta.poprawka) return
     const next = wersje.find((w) => w.poprzednia_id === oferta.id)
-    if (next) onOpenOferta(next.id)
-  }, [oferta, wersje, onOpenOferta])
+    if (next) onZastapOferte(next.id)
+  }, [oferta, wersje, onZastapOferte])
 
   const onCopied = (ok: boolean, label: string) =>
     pushToast(ok ? `Skopiowano: ${label.toLowerCase()}` : 'Nie udało się skopiować — zaznacz tekst i skopiuj ręcznie', ok ? 'success' : 'error')
@@ -960,7 +968,8 @@ function OfertaScreen({
   const { krok, idx: krokIdx } = krokOferty(oferta.status, { sysErr, pending })
   const ustalenia = ustaleniaLista(analiza.dane && typeof analiza.dane === 'object' ? (analiza.dane as Record<string, unknown>) : null)
   const brakuje = Array.isArray(analiza.brakuje) ? (analiza.brakuje as unknown[]).map(String).filter(Boolean) : []
-  const najnowsza = [...wersje].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+  const lancuch = wersjeOferty(wersje, oferta)
+  const najnowsza = [...lancuch].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
   const kwotaTeraz = oficjalna ? oferta.brutto : oferta.cena_razem
   const otworzPoprawke = () => {
     setPoprawOpen(true)
@@ -1396,9 +1405,9 @@ function OfertaScreen({
       {mode === 'pelny' && (
         <section className="crm-history">
           <h4>Historia</h4>
-          {wersje.length > 1 && (
+          {lancuch.length > 1 && (
             <div className="crm-versions">
-              {wersje.map((w) => (
+              {lancuch.map((w) => (
                 <button
                   key={w.id}
                   type="button"
@@ -1441,11 +1450,11 @@ function OfertaScreen({
             ))}
           </section>
         )}
-        {wersje.length > 1 && (
+        {lancuch.length > 1 && (
           <section className="crm-k2-card">
-            <h4>Wersje ({wersje.length})</h4>
+            <h4>Wersje ({lancuch.length})</h4>
             <ul className="crm-o2-wersje">
-              {[...wersje].reverse().map((w) => (
+              {[...lancuch].reverse().map((w) => (
                 <li key={w.id}>
                   <button type="button" className={`crm-link${w.id === oferta.id ? ' crm-o2-wersja--ta' : ''}`} disabled={w.id === oferta.id} onClick={() => onOpenOferta(w.id)}>v{w.wersja}</button>
                   <StatusBadge status={w.status} />
@@ -1466,8 +1475,8 @@ function OfertaScreen({
 /** podpis „w stylu X, N próbek” (szkic odpowiedzi i mail oferty, brief pkt 23/30) */
 function stylLabel(s: { handlowiec?: string | null; probki?: number | null; probki_zrodlo?: string | null } | null | undefined): string {
   if (!s) return ''
-  if (s.probki_zrodlo === 'wspolna') return `styl wspólnej skrzynki${s.probki ? `, ${s.probki} ${s.probki === 1 ? 'próbka' : s.probki < 5 ? 'próbki' : 'próbek'}` : ''}`
-  if (s.probki) return `w stylu ${s.handlowiec || 'handlowca'}, ${s.probki} ${s.probki === 1 ? 'próbka' : s.probki < 5 ? 'próbki' : 'próbek'}`
+  if (s.probki_zrodlo === 'wspolna') return `styl wspólnej skrzynki${s.probki ? `, ${ileOdm(s.probki, 'próbka', 'próbki', 'próbek')}` : ''}`
+  if (s.probki) return `w stylu ${s.handlowiec || 'handlowca'}, ${ileOdm(s.probki, 'próbka', 'próbki', 'próbek')}`
   return 'bez próbek stylu — dodaj skrzynkę handlowca w CRM → Poczta'
 }
 
@@ -1791,7 +1800,7 @@ function SzkicOdpowiedzi({ lead, disabled, pushToast, onChanged }: { lead: CrmLe
       onChanged(null)
       return
     }
-    pushToast(r.data.probki ? `Szkic gotowy — w stylu ${r.data.handlowiec || 'handlowca'} (${r.data.probki} próbek)` : 'Szkic gotowy — bez próbek stylu', 'success')
+    pushToast(r.data.probki ? `Szkic gotowy — w stylu ${r.data.handlowiec || 'handlowca'} (${ileOdm(r.data.probki, 'próbka', 'próbki', 'próbek')})` : 'Szkic gotowy — bez próbek stylu', 'success')
     setForm(false)
     setUwagi('')
     onChanged(r.data)
@@ -1811,7 +1820,7 @@ function SzkicOdpowiedzi({ lead, disabled, pushToast, onChanged }: { lead: CrmLe
   if (!email) return null
   const stylInfo = szkic
     ? szkic.probki
-      ? `w stylu ${szkic.handlowiec || 'handlowca'}, ${szkic.probki} ${szkic.probki === 1 ? 'próbka' : szkic.probki < 5 ? 'próbki' : 'próbek'}${szkic.probki_zrodlo === 'wspolna' ? ' ze wspólnej skrzynki' : ''}`
+      ? `w stylu ${szkic.handlowiec || 'handlowca'}, ${ileOdm(szkic.probki, 'próbka', 'próbki', 'próbek')}${szkic.probki_zrodlo === 'wspolna' ? ' ze wspólnej skrzynki' : ''}`
       : 'bez próbek stylu — dodaj skrzynkę osobistą handlowca w CRM → Poczta'
     : ''
   const genForm = (
@@ -2135,7 +2144,7 @@ function LeadScreen({
   }
   const handleDelete = async () => {
     const ok = await appConfirm(
-      `Usunąć klienta „${leadName(lead)}”? Razem z nim znikną: ${oferty.length} ofert, ${dokumenty.length} dokumentów, ${rozmowy.length} rozmów i cała historia. Maile zostaną, ale bez powiązania. Tego nie da się cofnąć.`,
+      `Usunąć klienta „${leadName(lead)}”? Razem z nim znikną: ${ileOdm(oferty.length, 'oferta', 'oferty', 'ofert')}, ${ileOdm(dokumenty.length, 'dokument', 'dokumenty', 'dokumentów')}, ${ileOdm(rozmowy.length, 'rozmowa', 'rozmowy', 'rozmów')} i cała historia. Maile zostaną, ale bez powiązania. Tego nie da się cofnąć.`,
     )
     if (!ok) return
     setSaving(true)
@@ -2322,10 +2331,14 @@ function LeadScreen({
               pushToast('Wpisz kwotę brutto, np. 12 500 — albo zostaw puste', 'error')
               return
             }
+            // zwiad 21.11: blokada od pierwszego kliknięcia (podwójny Enter zapisywał kwotę i wynik dwa razy)
+            if (wynikBusy) return
+            setWynikBusy(true)
             void (async () => {
               if (n != null && n !== wartosc.kwota) {
                 const err = await ustawWartoscKlienta(lead, n, currentUser?.id ?? '')
                 if (err) {
+                  setWynikBusy(false)
                   pushToast(`Nie udało się zapisać kwoty: ${err.message}`, 'error')
                   return
                 }
@@ -2814,6 +2827,7 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
   }, [])
 
   const openOferta = useCallback((id: string) => go({ kind: 'oferta', id }), [go])
+  const zastapOferte = useCallback((id: string) => setScreen({ kind: 'oferta', id }), [])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
   const openMail = useCallback((id: string) => go({ kind: 'mail', id }), [go])
   const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia' | 'kontakty' | 'statystyki') => {
@@ -2877,9 +2891,9 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       {screen.kind === 'pomoc' && <CrmPomocScreen currentUser={currentUser} canEdit={mode === 'pelny'} pushToast={pushToast} />}
       {screen.kind === 'ustawienia' && mode === 'pelny' && <CrmUstawieniaScreen currentUser={currentUser} pushToast={pushToast} onOpenOferta={openOferta} onOpenLead={openLead} />}
       {screen.kind === 'oferta' && (
-        <OfertaScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
+        <OfertaScreen key={screen.id} id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} onZastapOferte={zastapOferte} />
       )}
-      {screen.kind === 'lead' && <LeadScreen id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onDeleted={() => goTop('kontakty')} onOpenOferta={openOferta} onOpenMail={openMail} onOpenLead={openLead} />}
+      {screen.kind === 'lead' && <LeadScreen key={screen.id} id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onDeleted={() => goTop('kontakty')} onOpenOferta={openOferta} onOpenMail={openMail} onOpenLead={openLead} />}
     </div>
   )
 }

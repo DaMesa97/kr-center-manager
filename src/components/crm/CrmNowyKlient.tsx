@@ -9,7 +9,7 @@ import { Save, X } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, type CrmEtykieta } from '../../types/crm'
 import { createLeadWizyta, zlecOferteZNagrania, type NowyKlient } from '../../hooks/useCrm'
-import { terminHintForIso } from '../../utils/crmTermin'
+import { isoLocal, terminHintForIso } from '../../utils/crmTermin'
 import { useDniWolne } from '../../hooks/useDniWolne'
 import { EtykietaBadge } from './CrmEtykiety'
 import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
@@ -28,7 +28,7 @@ const AKCJE_WIZYTA = ['follow_up', 'przygotuj_oferte', 'dopytaj', 'oddzwon', 'po
 
 
 // 21.11 (test UX): domyślnie „Zapytaj o decyzję” za 3 dni — „bez zadania” jako domyślne gubiło klientów (nie trafiali do „Do zrobienia”)
-const za3dni = () => { const d = new Date(); d.setDate(d.getDate() + 3); return d.toISOString().slice(0, 10) }
+const za3dni = () => { const d = new Date(); d.setDate(d.getDate() + 3); return isoLocal(d) }
 const empty = (): NowyKlient => ({ nazwa: '', telefon: '', email: '', miejscowosc: '', notatka: '', nastepna_akcja: 'follow_up', nastepny_krok: za3dni(), etykiety: [] })
 
 export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreated, onOpenExisting, onCancel }: Props) {

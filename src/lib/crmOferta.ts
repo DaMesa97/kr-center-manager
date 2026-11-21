@@ -63,3 +63,22 @@ export function ustaleniaLista(dane: Record<string, unknown> | null | undefined)
       return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)
     })
 }
+
+/**
+ * Wersje JEDNEJ oferty (łańcuch poprzednia_id), nie wszystkie oferty klienta — od 21.11 klient może mieć
+ * kilka ofert równolegle (tytuł), a „Otwórz najnowszą” i lista „Wersje” miały skakać tylko po swojej.
+ */
+export function wersjeOferty<T extends { id: string; poprzednia_id?: string | null }>(wszystkie: T[], biezaca: { id: string; poprzednia_id?: string | null }): T[] {
+  const po = new Map(wszystkie.map((w) => [w.id, w]))
+  const korzen = (w: { id: string; poprzednia_id?: string | null }): string => {
+    let cur = w
+    const byly = new Set<string>()
+    while (cur.poprzednia_id && po.has(cur.poprzednia_id) && !byly.has(cur.id)) {
+      byly.add(cur.id)
+      cur = po.get(cur.poprzednia_id)!
+    }
+    return cur.id
+  }
+  const moj = korzen(biezaca)
+  return wszystkie.filter((w) => korzen(w) === moj)
+}

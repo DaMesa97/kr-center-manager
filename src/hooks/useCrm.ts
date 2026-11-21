@@ -28,6 +28,7 @@ import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_EDGE_SZKIC, CRM_FOLLOW_UP
 import type { CrmDokument, CrmDokumentOdp, CrmDuplikat, CrmDuplikatLeada, CrmDzienWolny, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmMailOfertyOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
+import { isoLocal } from '../utils/crmTermin'
 
 const crm = () => supabase.schema('crm')
 
@@ -105,7 +106,7 @@ export async function fetchRozmowy(leadId: string): Promise<Result<CrmRozmowa[]>
 const isoDatePlusDays = (days: number): string => {
   const d = new Date()
   d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
+  return isoLocal(d) // lokalna data (toISOString = UTC, po północy dawał wczoraj)
 }
 
 /**
