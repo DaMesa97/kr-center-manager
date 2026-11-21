@@ -394,7 +394,7 @@ export const CRM_LEAD_STATUS: Record<string, string> = {
 
 export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   rozmowa: 'Rozmowa',
-  lead_utworzony: 'Lead utworzony',
+  lead_utworzony: 'Nowy klient',
   nieodebrana: 'Nieodebrana',
   rozmowa_pominieta: 'Rozmowa pominięta',
   analiza: 'Analiza rozmowy',

@@ -10096,3 +10096,9 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 .crm-stat-pasek { height: 10px; background: #f3f4f6; border-radius: 999px; overflow: hidden; }
 .crm-stat-pasek span { display: block; height: 100%; background: #dc2626; border-radius: 999px; }
 @media (max-width: 900px) { .crm-stat-wykresy { grid-template-columns: 1fr; } }
+
+/* test UX 21.11 */
+.crm-zamowil-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; border-color: #6ee7b7; background: #ecfdf5; margin-bottom: 12px; }
+.crm-zamowil-form .crm-muted { flex: 1 1 100%; }
+.crm-k2-krok-opis--pelny { -webkit-line-clamp: unset; display: block; }
+.crm-lejek-head { flex-wrap: wrap; row-gap: 2px; }

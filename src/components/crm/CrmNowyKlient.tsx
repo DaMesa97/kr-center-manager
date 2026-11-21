@@ -24,11 +24,12 @@ type Props = {
   onCancel: () => void
 }
 
-const AKCJE_WIZYTA = ['przygotuj_oferte', 'dopytaj', 'oddzwon', 'pomiar', 'montaz'] as const
+const AKCJE_WIZYTA = ['follow_up', 'przygotuj_oferte', 'dopytaj', 'oddzwon', 'pomiar', 'montaz'] as const
 
-const todayIso = () => new Date().toISOString().slice(0, 10)
 
-const empty = (): NowyKlient => ({ nazwa: '', telefon: '', email: '', miejscowosc: '', notatka: '', nastepna_akcja: null, nastepny_krok: todayIso(), etykiety: [] })
+// 21.11 (test UX): domyślnie „Zapytaj o decyzję” za 3 dni — „bez zadania” jako domyślne gubiło klientów (nie trafiali do „Do zrobienia”)
+const za3dni = () => { const d = new Date(); d.setDate(d.getDate() + 3); return d.toISOString().slice(0, 10) }
+const empty = (): NowyKlient => ({ nazwa: '', telefon: '', email: '', miejscowosc: '', notatka: '', nastepna_akcja: 'follow_up', nastepny_krok: za3dni(), etykiety: [] })
 
 export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreated, onOpenExisting, onCancel }: Props) {
   const [k, setK] = useState<NowyKlient>(empty)
@@ -93,7 +94,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
           <input type="text" value={k.nazwa} onChange={(e) => set('nazwa', e.target.value)} placeholder="np. Jan Kowalski" autoComplete="off" autoFocus />
         </label>
         <label className="crm-pf-field">
-          <span className="crm-pf-label">Telefon</span>
+          <span className="crm-pf-label">Telefon <span className="crm-muted">(telefon albo e-mail — jedno wymagane)</span></span>
           <input type="tel" value={k.telefon} onChange={(e) => set('telefon', e.target.value)} placeholder="601 234 567" autoComplete="off" />
           <span className="crm-pf-hint">Zapisze się jako +48… (tak samo jak z Ringostatu).</span>
         </label>
@@ -138,12 +139,12 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
         <label className="crm-pf-field">
           <span className="crm-pf-label">Zadanie po wizycie</span>
           <select value={k.nastepna_akcja ?? ''} onChange={(e) => set('nastepna_akcja', e.target.value || null)}>
-            <option value="">bez zadania</option>
             {AKCJE_WIZYTA.map((a) => (
               <option key={a} value={a}>
                 {CRM_AKCJA[a].icon} {CRM_AKCJA[a].label}
               </option>
             ))}
+            <option value="">bez zadania (klient nie pojawi się w „Do zrobienia”)</option>
           </select>
         </label>
         {k.nastepna_akcja && (

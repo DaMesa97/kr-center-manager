@@ -501,7 +501,9 @@ function ZadaniaScreen({
           ))}
         </select>
         <span className="crm-toolbar-hint">
-          {rows.length === 0
+          {loading
+            ? ''
+            : rows.length === 0
             ? 'Nic do zrobienia.'
             : `${rows.length} ${rows.length === 1 ? 'zadanie' : rows.length < 5 ? 'zadania' : 'zadań'}${overdue ? ` · ${overdue} zaległe` : ''}${today ? ` · ${today} na dziś` : ''}`}
         </span>
@@ -567,7 +569,11 @@ function ZadaniaScreen({
                     </span>
                     <div className="crm-z2-tekst">
                       <button type="button" className="crm-z2-tytul" onClick={() => onOpenLead(r.id)} title="Otwórz kartę klienta">
-                        {zadanieTytul(r.nastepna_akcja, leadName(r), CRM_AKCJA[r.nastepna_akcja ?? '']?.label)}
+                        {r.nastepna_akcja === 'przygotuj_oferte' && r.oferta?.status === 'wstrzymana'
+                          ? `Sprawdź ustalenia: ${leadName(r)}`
+                          : r.nastepna_akcja === 'przygotuj_oferte' && r.oferta?.status === 'przelicz'
+                            ? `Oferta się liczy: ${leadName(r)}`
+                            : zadanieTytul(r.nastepna_akcja, leadName(r), CRM_AKCJA[r.nastepna_akcja ?? '']?.label)}
                       </button>
                       <span className="crm-z2-poco" title={pelnyOpis || undefined}>{zadaniePoCo(r.akcja_opis, CRM_AKCJA[r.nastepna_akcja ?? '']?.hint) || '—'}</span>
                     </div>
@@ -1075,7 +1081,7 @@ function OfertaScreen({
         <section className="crm-mail">
           <h4>Mail do klienta</h4>
           <div className="crm-mail-actions crm-mail-actions--top">
-            <button type="button" className="btn btn-primary" disabled={!oferta.mail_do || sysErr} onClick={handleOpenInMail} title="Otwiera w Twoim programie pocztowym gotową wiadomość: adresat, temat i treść. Sprawdź i kliknij Wyślij.">
+            <button type="button" className="btn btn-primary" disabled={!oferta.mail_do || sysErr || !oferta.mail_tresc?.trim()} onClick={handleOpenInMail} title={oferta.mail_tresc?.trim() ? 'Otwiera w Twoim programie pocztowym gotową wiadomość: adresat, temat i treść. Sprawdź i kliknij Wyślij.' : 'Mail będzie gotowy, gdy oferta zostanie policzona'}>
               <Mail size={15} /> Otwórz w poczcie
             </button>
             {oficjalna && oferta.plik_pdf && (
@@ -1084,7 +1090,9 @@ function OfertaScreen({
               </button>
             )}
             <span className="crm-muted">
-              {oficjalna
+              {!oferta.mail_tresc?.trim()
+                ? 'Mail do klienta będzie gotowy, gdy oferta zostanie policzona — najpierw sprawdź ustalenia wyżej i kliknij „Ustalenia OK — policz ofertę”.'
+                : oficjalna
                 ? 'Mail otworzy się bez załącznika — pobierz PDF i dołącz go do wiadomości przed wysłaniem.'
                 : 'Wiadomość otworzy się w programie pocztowym gotowa do wysłania. Poniżej te same pola do skopiowania.'}
             </span>
@@ -1682,7 +1690,7 @@ function SzkicOdpowiedzi({ lead, disabled, pushToast, onChanged }: { lead: CrmLe
                 <RefreshCw size={14} /> Wygeneruj ponownie
               </button>
             )}
-            <span className="crm-muted">Nic nie wysyłamy — po wysłaniu z czytanej skrzynki CRM sam zamknie zadanie.</span>
+            <span className="crm-muted">Program nie wysyła sam: kliknij „Otwórz w poczcie”, sprawdź i wyślij. Gdy mail wyjdzie z firmowej skrzynki, zadanie zamknie się samo.</span>
           </div>
           {form && genForm}
           <CopyRow label="Adres" value={szkic.mail_do || email} onCopied={onCopied} />
@@ -1761,6 +1769,10 @@ function LeadScreen({
   // #162: ręczna wartość klienta — null = nie edytujemy, string = treść pola
   const [wartoscEdit, setWartoscEdit] = useState<string | null>(null)
   const [wartoscBusy, setWartoscBusy] = useState(false)
+  // 21.11 (test UX): „Zamówił” na karcie pyta o kwotę zamiast zapisywać od razu (pomyłka jednym kliknięciem, 0 zł w statystykach)
+  const [zamowilForm, setZamowilForm] = useState<string | null>(null)
+  // 21.11: opis zadania w pasku „Następny krok” — pełny po „więcej”
+  const [opisPelny, setOpisPelny] = useState(false)
   // notatka handlowca (brief pkt 15): edytowalna kopia leady.podsumowanie; „Zleć ofertę” wysyła ją do rpc
   const [notatka, setNotatka] = useState('')
   const [notatkaDirty, setNotatkaDirty] = useState(false)
@@ -2099,7 +2111,7 @@ function LeadScreen({
         <div className="crm-lead-head-akcje">
           {!zamkniety ? (
             <>
-              <button type="button" className="btn btn-success" disabled={wynikBusy} onClick={() => void handleWynik('wygrany')} title="Klient zamówił: zadanie się zamknie, najnowsza wysłana oferta dostanie status „Zaakceptowana”">
+              <button type="button" className="btn btn-success" disabled={wynikBusy} aria-expanded={zamowilForm != null} onClick={() => setZamowilForm(wartosc.kwota != null ? String(wartosc.kwota).replace('.', ',') : '')} title="Klient zamówił: zapytam o kwotę, potem zadanie się zamknie, a najnowsza wysłana oferta dostanie status „Zaakceptowana”">
                 <Check size={15} /> Zamówił
               </button>
               <button type="button" className="btn btn-secondary" disabled={wynikBusy} onClick={() => setWynikForm({ ofertaId: null })} aria-expanded={wynikForm != null}>
@@ -2129,6 +2141,41 @@ function LeadScreen({
           </div>
         </div>
       </header>
+      {zamowilForm != null && (
+        <form
+          className="crm-box crm-zamowil-form"
+          aria-label="Klient zamówił"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const n = zamowilForm.trim() ? parseKwota(zamowilForm) : null
+            if (zamowilForm.trim() && n == null) {
+              pushToast('Wpisz kwotę brutto, np. 12 500 — albo zostaw puste', 'error')
+              return
+            }
+            void (async () => {
+              if (n != null && n !== wartosc.kwota) {
+                const err = await ustawWartoscKlienta(lead, n, currentUser?.id ?? '')
+                if (err) {
+                  pushToast(`Nie udało się zapisać kwoty: ${err.message}`, 'error')
+                  return
+                }
+              }
+              setZamowilForm(null)
+              await handleWynik('wygrany')
+            })()
+          }}
+        >
+          <b>{leadName(lead)} zamówił — za ile?</b>
+          <label className="crm-wartosc-pole">
+            <input type="text" inputMode="decimal" aria-label="Wartość zamówienia brutto w zł" autoFocus value={zamowilForm} onChange={(e) => setZamowilForm(e.target.value)} placeholder="np. 12 500" disabled={wynikBusy} /> zł brutto
+          </label>
+          <span className="crm-muted">{ostatnia ? 'Podpowiadam kwotę z ostatniej oferty — popraw, jeśli klient zamówił inaczej.' : 'Klient nie ma oferty — wpisz, za ile zamówił, żeby liczyło się w statystykach.'} Zadanie się zamknie; potem umów pomiar albo montaż.</span>
+          <span className="crm-wartosc-akcje">
+            <button type="submit" className="btn btn-success" disabled={wynikBusy}>{wynikBusy ? <Spinner inline size={14} /> : <Check size={14} />} Zapisz: zamówił</button>
+            <button type="button" className="btn btn-secondary" disabled={wynikBusy} onClick={() => setZamowilForm(null)}>Anuluj</button>
+          </span>
+        </form>
+      )}
       {wynikForm && (
         <WynikPrzegranyForm
           busy={wynikBusy}
@@ -2201,7 +2248,15 @@ function LeadScreen({
               {lead.nastepny_krok ? <span className="crm-k2-krok-termin"> · {krokStan === 'today' ? 'dziś' : fmtDate(lead.nastepny_krok)}</span> : null}
             </span>
             {(lead.akcja_opis || CRM_AKCJA[lead.nastepna_akcja]?.hint) && (
-              <span className="crm-k2-krok-opis" title={lead.akcja_opis || undefined}>{lead.akcja_opis || CRM_AKCJA[lead.nastepna_akcja]?.hint}</span>
+              <span className={`crm-k2-krok-opis${opisPelny ? ' crm-k2-krok-opis--pelny' : ''}`}>
+                {lead.akcja_opis || CRM_AKCJA[lead.nastepna_akcja]?.hint}
+                {(lead.akcja_opis?.length ?? 0) > 150 && (
+                  <>
+                    {' '}
+                    <button type="button" className="crm-link" onClick={() => setOpisPelny((v) => !v)}>{opisPelny ? 'mniej' : 'więcej'}</button>
+                  </>
+                )}
+              </span>
             )}
           </div>
           <div className="crm-mail-actions">
@@ -2225,7 +2280,7 @@ function LeadScreen({
               <button type="button" className="btn btn-sm btn-secondary" disabled={saving || zadanieDialog} onClick={handleZrobione} title="Zamknij zadanie i ustaw następny krok">Zrobione</button>
             )}
             {lead.email && (
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setZakladka('korespondencja')} title="Korespondencja z klientem i szkic odpowiedzi w moim stylu">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => { setZakladka('korespondencja'); window.setTimeout(() => document.querySelector('.crm-k2-main')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }} title="Korespondencja z klientem i szkic odpowiedzi w moim stylu">
                 <Mail size={14} /> Napisz mail
               </button>
             )}
@@ -2262,7 +2317,7 @@ function LeadScreen({
           <section className="crm-k2-krok crm-k2-krok--brak" aria-label="Następny krok">
             <div className="crm-k2-krok-tekst">
               <span className="crm-k2-krok-label">Następny krok</span>
-              <span className="crm-k2-krok-tytul">Brak — klient nie pojawia się w „Do zrobienia”</span>
+              <span className="crm-k2-krok-tytul">{lead.status === 'wygrany' ? 'Klient zamówił — umów pomiar albo montaż' : lead.status === 'przegrany' ? 'Brak — sprawa zamknięta' : 'Brak — klient nie pojawia się w „Do zrobienia”'}</span>
             </div>
             <div className="crm-mail-actions">
               <button type="button" className="btn btn-primary" disabled={saving} onClick={() => setZadanieDialog(true)}>Dodaj zadanie</button>
@@ -2645,7 +2700,7 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       {screen.kind === 'zadania' && <ZadaniaScreen mode={mode} currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'oferty' && <OfertyList mode={mode} onOpenOferta={openOferta} onOpenLead={openLead} />}
       {screen.kind === 'statystyki' && <CrmStatystykiScreen />}
-      {screen.kind === 'kontakty' && <CrmKontaktyScreen pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
+      {screen.kind === 'kontakty' && <CrmKontaktyScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'maile' && <CrmMaileScreen mode={mode} onOpenMail={openMail} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'mail' && <CrmMailScreen id={screen.id} mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'poczta' && <CrmPocztaScreen currentUser={currentUser} isSuperadmin={mode === 'pelny'} pushToast={pushToast} />}

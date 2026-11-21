@@ -48,7 +48,8 @@ export function zadaniePoCo(opis: string | null | undefined, hint?: string | nul
   let m: RegExpExecArray | null
   while ((m = re.exec(t))) {
     const slowo = t.slice(0, m.index).split(/\s/).pop() ?? ''
-    if (m.index > 20 && !/^(ok|szt|np|nr|ul|tj|tzn|godz|ok|m\.in|im|św|dr|inż|mgr|p)$/i.test(slowo)) {
+    // tekst do tej kropki krótszy niż ~50 znaków to zwykle ogólnik („Dopytaj o brakujące dane.”) — bierzemy też następne zdanie
+    if (m.index > 50 && !/^(ok|szt|np|nr|ul|tj|tzn|godz|m\.in|im|św|dr|inż|mgr|p)$/i.test(slowo)) {
       t = t.slice(0, m.index + 1)
       break
     }

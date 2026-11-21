@@ -4,8 +4,9 @@
 // „bez zadania”), sort domyślnie po ostatniej aktywności. Klik = karta klienta.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Merge, RefreshCw, Search } from 'lucide-react'
-import type { ToastVariant } from '../../types'
+import { Merge, RefreshCw, Search, UserPlus } from 'lucide-react'
+import type { CurrentUser, ToastVariant } from '../../types'
+import CrmNowyKlient from './CrmNowyKlient'
 import { CRM_AKCJA, CRM_KANAL, CRM_LEAD_STATUS, CRM_OFERTA_RODZAJ, CRM_OFERTA_STATUS, type CrmDuplikat } from '../../types/crm'
 import { fetchDuplikaty, fetchKontakty, oznaczWynik, type CrmError, type CrmKontaktRow } from '../../hooks/useCrm'
 import { appConfirm } from '../../lib/appDialogs'
@@ -18,6 +19,7 @@ import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, LEJEK_ZAMKNIETE_DNI, l
 import Spinner from '../Spinner'
 
 type Props = {
+  currentUser: CurrentUser | null
   pushToast: (message: string, variant: ToastVariant) => void
   onOpenLead: (id: string) => void
   onOpenOferta: (id: string) => void
@@ -39,7 +41,9 @@ const leadName = (l: CrmKontaktRow) => (l.nazwa || l.telefon || l.email || 'Klie
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 const aktywnosc = (l: CrmKontaktRow) => (l.ostatnia_rozmowa_at && l.ostatnia_rozmowa_at > l.updated_at ? l.ostatnia_rozmowa_at : l.updated_at) || l.created_at
 
-export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta }: Props) {
+export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, onOpenOferta }: Props) {
+  // 21.11 (test UX): „Dodaj klienta” także tutaj — w „Klientach” go szukano, a był tylko w „Do zrobienia”
+  const [nowyKlient, setNowyKlient] = useState(false)
   const [rows, setRows] = useState<CrmKontaktRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
@@ -304,8 +308,19 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
           <button type="button" className={`crm-widok-btn${widok === 'lejek' ? ' crm-widok-btn--on' : ''}`} aria-pressed={widok === 'lejek'} onClick={() => zmienWidok('lejek')}>Lejek</button>
         </div>
         <span className="crm-toolbar-hint">{filtered.length} z {rows.length}</span>
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => setNowyKlient((v) => !v)} aria-expanded={nowyKlient} title="Nowy klient (np. z wizyty w salonie albo telefonu)"><UserPlus size={14} /> Dodaj klienta</button>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież"><RefreshCw size={14} /> Odśwież</button>
       </div>
+      {nowyKlient && (
+        <CrmNowyKlient
+          currentUser={currentUser}
+          slownik={etyk.mapa}
+          pushToast={pushToast}
+          onCancel={() => setNowyKlient(false)}
+          onCreated={(id) => { setNowyKlient(false); void load(); onOpenLead(id) }}
+          onOpenExisting={(id) => { setNowyKlient(false); onOpenLead(id) }}
+        />
+      )}
       {error && <div className="crm-box crm-box--bad">{error.message}</div>}
       {loading ? (
         <Spinner center label="Ładowanie kontaktów…" />
@@ -399,7 +414,8 @@ export default function CrmKontaktyScreen({ pushToast, onOpenLead, onOpenOferta 
                   ? wszystkie.filter((r) => swiezoZamkniety(r)).sort((a, b) => (b.wynik_at ?? b.updated_at ?? '').localeCompare(a.wynik_at ?? a.updated_at ?? ''))
                   : wszystkie
                 const starsze = wszystkie.length - lista.length
-                const zwinieta = zamknieta && !rozwiniete[kol.key as 'wygrany' | 'przegrany']
+                // przy wyszukiwaniu zamknięci są widoczni — inaczej znaleziony klient „znikał” w zwiniętej kolumnie
+                const zwinieta = zamknieta && !rozwiniete[kol.key as 'wygrany' | 'przegrany'] && !q.trim()
                 const suma = lista.reduce((a, r) => a + (wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta).kwota ?? 0), 0)
                 const MAX = 60
                 return (

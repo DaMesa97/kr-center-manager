@@ -31,3 +31,11 @@ describe('crmZadania — lista Do zrobienia v2', () => {
     expect(zadaniePoCo('', '')).toBe('')
   })
 })
+
+describe('crmZadania — ogólnik na początku opisu', () => {
+  it('krótkie pierwsze zdanie dokleja następne', async () => {
+    const { zadaniePoCo } = await import('../lib/crmZadania')
+    expect(zadaniePoCo('Dopytaj o brakujące dane. Mail od klienta. Agnieszka pyta, czy montujemy w Warszawie.', null, 200))
+      .toBe('Dopytaj o brakujące dane. Mail od klienta. Agnieszka pyta, czy montujemy w Warszawie.')
+  })
+})

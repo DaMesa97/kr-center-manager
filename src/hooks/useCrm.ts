@@ -765,7 +765,8 @@ export async function createLeadWizyta(k: NowyKlient, userId: string): Promise<{
       podsumowanie: notatka,
       nastepna_akcja: k.nastepna_akcja,
       nastepny_krok: k.nastepna_akcja ? k.nastepny_krok : null,
-      akcja_opis: k.nastepna_akcja ? notatka?.slice(0, 200) ?? null : null,
+      // 21.11: bez notatki „Zapytaj o decyzję” pokazywał podpowiedź „Oferta wysłana…”, a klient z salonu oferty nie dostał
+      akcja_opis: k.nastepna_akcja ? notatka?.slice(0, 200) ?? (k.nastepna_akcja === 'follow_up' ? 'Klient z salonu — zapytaj, czy się zdecydował.' : null) : null,
       akcja_od: k.nastepna_akcja ? new Date().toISOString() : null,
       etykiety: k.etykiety,
     })
