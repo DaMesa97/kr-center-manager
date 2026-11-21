@@ -58,12 +58,18 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
    *  ZPL przez labelary.com (render etykiety do PNG; treść dokumentu to szablon, nie dane osobowe) */
   const [preview, setPreview] = useState<{ doc: PrintDocument; html?: string; img?: string; note: string; loading: boolean; error?: string } | null>(null)
 
+  // zwiad 21.11: numer bieżącego podglądu — spóźniona odpowiedź (zamknięty podgląd albo kliknięty inny dokument)
+  // nie otwiera okna ponownie i nie podmienia dokumentu, który potem poszedłby na drukarkę
+  const previewReq = useRef(0)
   const openPreview = async (doc: PrintDocument) => {
+    const req = ++previewReq.current
+    if (preview?.img) URL.revokeObjectURL(preview.img)
     setPreview({ doc, note: '', loading: true })
     try {
       if (doc.doc_type === 'pdf') {
         if (!doc.pdf_base64) throw new Error('Dokument nie ma zapisanego PDF-a')
         const { html, widthMm, heightMm, pages } = await renderPdfForPrint(doc.pdf_base64, doc.name)
+        if (req !== previewReq.current) return
         setPreview({ doc, html, note: `PDF · ${pages} str. · ${widthMm}×${heightMm} mm — dokładnie to, co pójdzie na drukarkę`, loading: false })
         return
       }
@@ -81,14 +87,17 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
       })
       if (!res.ok) throw new Error(`labelary.com odpowiedział ${res.status} — ${(await res.text()).slice(0, 200)}`)
       const blob = await res.blob()
+      if (req !== previewReq.current) return
       const img = URL.createObjectURL(blob)
       setPreview({ doc, img, note: `ZPL · podgląd ${Math.round(wIn * 25.4)}×${Math.round(hIn * 25.4)} mm przez labelary.com (wymaga internetu; wygląd zbliżony do wydruku)`, loading: false })
     } catch (e) {
+      if (req !== previewReq.current) return
       setPreview({ doc, note: '', loading: false, error: (e as Error).message })
     }
   }
 
   const closePreview = () => {
+    previewReq.current++
     if (preview?.img) URL.revokeObjectURL(preview.img)
     setPreview(null)
   }
