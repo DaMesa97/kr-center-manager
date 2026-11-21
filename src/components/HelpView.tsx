@@ -25,60 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
-        <h4>CRM: nowy ekran oferty — kroki i „Teraz” (beta.140)</h4>
-        <ul>
-          <li><b>Kroki na górze:</b> Ustalenia → Liczenie → Wysyłka → Decyzja klienta — od razu widać, na jakim etapie jest oferta.</li>
-          <li><b>Pasek „Teraz”:</b> mówi, co zrobić w tym kroku, i ma właściwe przyciski: „Ustalenia OK — policz ofertę”, „Otwórz w poczcie” + „Wysłałem”, „Klient przyjął” / „Odmówił…”.</li>
-          <li><b>Ustalenia po polsku:</b> tylko wypełnione pola („Kolor skrzydła”, „Wymiar otworu”…), „Brakuje” na żółto. „Popraw ustalenia” — poprawka w tym samym miejscu, potem oferta liczy się od razu.</li>
-          <li><b>Porządek:</b> mail pokazuje się dopiero, gdy jest gotowy; „Usuń ofertę”, „Odśwież” i „Pobierz PDF” są w menu „…”; po prawej „W skrócie”, klient, pliki i wersje.</li>
-        </ul>
-        <h4>CRM: bezpieczniej i jaśniej — poprawki po teście, tytuł oferty (beta.139)</h4>
-        <ul>
-          <li><b>„Zamówił” pyta „za ile?”:</b> na karcie klienta po kliknięciu „Zamówił” wpisujesz kwotę (podpowiada się z ostatniej oferty) i dopiero „Zapisz: zamówił” zapisuje wynik. Potem pasek podpowiada „umów pomiar albo montaż”.</li>
-          <li><b>Mail niepoliczonej oferty:</b> „Otwórz w poczcie” jest wyszarzony, dopóki oferta nie jest policzona — nie da się wysłać pustego maila.</li>
-          <li><b>Nowy klient ma zadanie:</b> domyślnie „Zapytaj o decyzję” za 3 dni, żeby nie zginął z „Do zrobienia”. „Dodaj klienta” jest też w zakładce „Klienci”.</li>
-          <li><b>Tytuł oferty:</b> ołówek przy tytule oferty — np. „Budynek W1 — drzwi do mieszkań”, gdy inwestor ma kilka ofert naraz. Tytuł widać na karcie klienta, w „Oferty” i w zadaniach.</li>
-          <li><b>Drobne:</b> tytuł zadania zgadza się z przyciskiem („Sprawdź ustalenia: …”), zadanie mówi konkretnie, o co chodzi, długi opis ma „więcej”, „Napisz mail” przewija do korespondencji, szukanie w lejku pokazuje też zamówionych i przegranych.</li>
-        </ul>
-        <h4>CRM: Statystyki, schowani zamknięci w lejku (beta.138)</h4>
-        <ul>
-          <li><b>CRM → Statystyki (nowa zakładka):</b> historia wszystkich klientów, także zamkniętych. Okres: ostatnie 12 miesięcy / ten rok / ten miesiąc / od początku. Nowi klienci, wysłane oferty, zamówienia i ich wartość, przegrani, skuteczność, średnie zamówienie i czas do zamówienia; wykresy i tabela miesiąc po miesiącu; skąd przychodzą klienci i jaki rodzaj drzwi (ilu z nich kupiło); dlaczego przegrywamy; kto zamyka sprzedaż.</li>
-          <li><b>Klienci → Lejek:</b> „Zamówił” i „Przegrany” są domyślnie zwinięte do liczby i sumy — karty po „Pokaż karty”. Przeciąganie i „Przenieś…” do zwiniętej kolumny działają jak wcześniej.</li>
-        </ul>
         <h4>Aktualizacje wymagane naprawdę (beta.137)</h4>
         <ul>
           <li><b>Wymagana aktualizacja:</b> gdy kierownik ustawi minimalną wersję, program sprawdza ją co kwadrans i po powrocie do okna — także na stanowiskach, które chodzą od rana. Ekran „Wymagana aktualizacja” od razu proponuje „Pobierz i zainstaluj”; przy kłopocie z pobieraniem jest „Pobierz instalator ręcznie”.</li>
         </ul>
-        <h4>CRM: nowa lista „Do zrobienia”, lejek po nowemu, zakładka „Klienci” (beta.136)</h4>
+        <h4>Wydania Bastionu i Titanów z Excela (beta.134)</h4>
         <ul>
-          <li><b>Do zrobienia:</b> każdy wiersz mówi, co i z kim („Oddzwoń: Anna Kowalczyk”, „Wyślij ofertę: MBT”), pod spodem jedno zdanie po co, obok termin (czerwony = zaległe, żółty = dziś) i jeden przycisk. Klik w tytuł otwiera kartę klienta. Filtr: Wszystko / Telefony / Oferty / Pomiary i montaże.</li>
-          <li><b>Klienci (dawniej „Kontakty”) → Lejek:</b> karta pokazuje tylko nazwę, wartość i następny krok. Przenosisz ją przeciągnięciem albo przyciskiem „Przenieś…” na karcie. Liczby (w grze, zamówili, przegrani, skuteczność) są w jednym wierszu nad lejkiem.</li>
-        </ul>
-        <h4>CRM: nowa karta klienta — następny krok, korespondencja, oferty z boku (beta.135)</h4>
-        <ul>
-          <li><b>Nagłówek:</b> telefon, e-mail i miejscowość od razu pod nazwą klienta (z „edytuj”), etykiety pod spodem.</li>
-          <li><b>Pasek „Następny krok”:</b> co zrobić i do kiedy, te same przyciski co wcześniej i nowy „Napisz mail”. Kolor mówi o terminie: niebieski, żółty na dziś, czerwony „Zaległe”. Klient bez zadania ma „Dodaj zadanie”.</li>
-          <li><b>Lewa kolumna — Korespondencja / Rozmowy / Wszystko:</b> maile z klientem jako wątek (od najstarszego, nasze z prawej, ostatni rozwinięty, bez cytowanej historii), nad nim „Klient czeka na odpowiedź od …”, pod nim szkic odpowiedzi. „Wszystko” to dawna historia.</li>
-          <li><b>Prawa kolumna:</b> „Czego chce” (notatka, zlecanie oferty, nagranie, oferta z montażem), oferty jako karty z „Klient przyjął” / „Odmówił…” (starsze wersje zwinięte), dokumenty i zwinięte szczegóły kontaktu.</li>
-          <li><b>Lejek:</b> „Zamówił” i „Przegrany” pokazują tylko ostatnie 30 dni (najświeższe na górze); starsze — „pokaż na liście”.</li>
-        </ul>
-        <h4>CRM: przeciąganie naprawione, ręczna wartość klienta; wydania Bastionu z Excela (beta.134)</h4>
-        <ul>
-          <li><b>CRM → Kontakty → Lejek:</b> przeciąganie kart działa myszą — złap kartę, przesuń do innej kolumny i puść. Przy kursorze widać nazwę klienta i kolumnę docelową, kolumna pod kursorem się podświetla. Zwykłe kliknięcie nadal otwiera kartę klienta.</li>
-          <li><b>CRM → karta klienta:</b> wartość klienta zmienisz ołówkiem przy kwocie w nagłówku (np. rabat, mniejsze zamówienie albo szacunek dla klienta bez oferty). Wpisana ręcznie ma dopisek „wpisane ręcznie” z osobą i datą, a „Wróć do kwoty z oferty” ją cofa. W lejku liczy się zamiast kwoty z oferty (na karcie z gwiazdką *), kafelek nazywa się teraz „Wartość w grze”.</li>
-          <li><b>CRM → szkic odpowiedzi:</b> to, co wpiszesz w „Co zmienić”, jest teraz najważniejsze — np. „krótko, bez pytań, nie pisz o ofercie” daje krótki mail bez formułki o ofercie i pomiarze.</li>
           <li><b>Wydania z Excela (nocna synchronizacja):</b> zlecenia Bastion, które od kilku dni stały jako „duplikat” (jeden wiersz arkusza pasował do dwóch zleceń), zamykają się już same po pewnym dopasowaniu. Titany w arkuszu ST zamykają się po zaznaczeniu „ETAP 4” (montaż, pakowanie i kontrola jakości) — razem z częścią Bastion.</li>
-        </ul>
-        <h4>CRM: przeciąganie klientów w lejku (beta.133)</h4>
-        <ul>
-          <li><b>CRM → Kontakty → Lejek:</b> kartę klienta przeciągasz między kolumnami. Do <b>„Zamówił”</b> — po potwierdzeniu klient zamawia, a najnowsza wysłana oferta dostaje status „Zaakceptowana”. Do <b>„Przegrany”</b> — otwiera się wybór powodu (jak na karcie klienta). Zamówionego albo przegranego z powrotem do „Nowy” / „Ma ofertę” — wraca do gry z nowym zadaniem. „Nowy” i „Ma ofertę” ustawia system (po wysłaniu oferty), więc między nimi karty się nie przenosi.</li>
-        </ul>
-        <h4>CRM: nowy wygląd, wynik klienta (Zamówił / Przegrany), kilka konfiguracji w ofercie, mail w stylu handlowca (beta.132)</h4>
-        <ul>
-          <li><b>CRM → Oferta z montażem (PDF):</b> kilka konfiguracji w jednej ofercie (np. drzwi wejściowe i do garażu) — pole plików przyjmuje wiele plików naraz, zrzut ekranu konfiguratora wkleisz <b>Ctrl+V</b> (dodaje się jako obrazek z miniaturą), a tekst konfiguracji liczy się razem z plikami. Na ofercie i w dokumentach klienta widać wszystkie pliki konfiguracji; do umowy idą wszystkie PDF-y (zgłoszenie #160).</li>
-          <li><b>CRM → wynik klienta:</b> na karcie klienta przyciski <b>„Zamówił”</b> i <b>„Przegrany…”</b> (przegrany wymaga powodu: cena, termin realizacji, wybrał konkurencję, brak kontaktu, rezygnacja, inne + notatka), a po zamknięciu <b>„Przywróć do gry”</b>. Przy wysłanej ofercie (na karcie klienta i na ekranie oferty) <b>„Klient przyjął” / „Klient odmówił”</b>. Wynik zamyka zadanie i ustawia status oferty; powód widać w nagłówku, w Kontaktach i w historii.</li>
-          <li><b>CRM → nowy wygląd:</b> „Do zrobienia” w grupach <b>Zaległe / Dziś / Później</b>, wiersz jako karta (co zrobić, klient, opis, najwyżej dwie etykiety, termin, jeden przycisk) i filtr po rodzaju zadania; karta klienta z nagłówkiem (status, ostatnia oferta, wynik), „Usuń klienta” schowane w menu „…”, oferty jako tabela; <b>Kontakty</b> z przełącznikiem <b>Lista / Lejek</b> (kolumny Nowy, Ma ofertę, Zamówił, Przegrany z liczbą i sumą ofert) i kafelkami: w grze, wartość ofert w grze, zamówili, przegrani z najczęstszym powodem, % wygranych.</li>
-          <li><b>CRM → mail oferty w stylu handlowca:</b> mail nowej oferty (sklep i z montażem) pisze się stylem osoby, która zleciła ofertę albo prowadzi klienta. Pod mailem podpis, czyim stylem i z ilu próbek; przycisk <b>„Napisz w moim stylu”</b> (opcjonalnie „co zmienić”) przepisuje go Twoim stylem — przy ofercie już wysłanej pokazuje tekst tylko do skopiowania (zgłoszenie #159).</li>
         </ul>
         <h4>Biurko logistyki: w uwagach tylko realne braki (beta.130–131)</h4>
         <ul>
@@ -90,8 +43,6 @@ const SECTIONS: Section[] = [
           <li><b>Zlecenia STA / Disting:</b> nowe pole <b>Samozamykacz</b> w formularzu (obok Osłonek), w szczegółach zlecenia, na stanowisku (dane skrzydła i pakowanie), w historii zmian, w archiwum i jako pole etykiety <code>{'{{samozamykacz}}'}</code>. Wartości w <b>Konfiguracja → STA / Disting → Samozamykacz</b> (na start BRAK i TAK; konkretne modele dopisuje biuro). Przy zleceniach Disting Plus pole przenosi się między STA a Distingiem jak reszta wspólnych danych.</li>
           <li><b>Magazyn → Receptury:</b> nowe kryterium „Samozamykacz” — receptura z tym kryterium dobiera komponent tylko do zleceń, które mają samozamykacz; zmiana pola w zleceniu przerezerwowuje komponenty.</li>
           <li><b>Statystyki → Firmy</b> (zgłoszenie #118): wpisz albo wybierz firmę (lista od najczęściej zamawiających; nazwa „zawiera” łapie warianty pisowni i liczy je razem) i okres (3–24 miesiące albo cały). Kafelki: zlecenia i sztuki, w realizacji, reklamacje (na 100 zleceń), średni czas realizacji z medianą, udział konfiguratora; wykresy: zamówienia i reklamacje w czasie, kategorie, top 10 modeli i kolorów; tabela ostatnich 20 zleceń z dniami realizacji. Wybór firmy i okresu pamiętany na komputerze.</li>
-          <li><b>CRM → karta klienta → Usuń klienta:</b> po usunięciu wracasz do Kontaktów; wcześniej karta potrafiła zostać z komunikatem „Nie znaleziono klienta” (zgłoszenie #142).</li>
-          <li><b>Reklamacje (zlecenia naprawcze), przegląd 17.11:</b> zapis odrzucony przez uprawnienia bazy pokazuje komunikat zamiast udawać sukces (tak wyglądało „nie działa” — rola superadmin nie była wpisana w polityki tabeli reklamacji; poprawka SQL <code>supabase/sql/rls_superadmin_policies.sql</code>); reklamacja Bastion „Skrzydło” / „Ościeżnica” blokuje właściwe etapy Bastionu (wcześniej żadnych); w parze Disting Plus Disting widzi E3/E4 zrobione w STA, a reklamacja „Skrzydło” nie otwiera Distingowi etapów ościeżnicy; układ etapów ST liczy się po reklamacjach, nie po liście zamówień; „Pilne” ustawia się na obu wierszach pary; „Utwórz reklamację” z Archiwum prowadzi do podzakładki Reklamacje (#99) i jest tylko w kategoriach, które mają reklamacje; Statystyki nie liczą anulowanych reklamacji; „Zapisz” bez wybranego zamówienia mówi, czego brakuje.</li>
           <li><b>Excel:</b> automat czyta kolumnę „Samozamykacz” z arkusza i formularza. Dopóki arkusze STA i Disting jej nie mają, zlecenia z Excela mają pole puste i receptura z tym kryterium ich nie obejmie (zgłoszenie #157, Dawid).</li>
         </ul>
         <h4>Biurko logistyki: odbiór osobisty, montaż własny i firmy bez trasy (beta.128)</h4>
@@ -99,143 +50,32 @@ const SECTIONS: Section[] = [
           <li>Lista „Trasa” ma poza dniami tygodnia także <b>Odbiór osobisty</b>, <b>Montaż własny</b> (aluminium) i <b>Bez trasy</b> (firma bez ustawionego dnia trasy w Kontrahentach), z liczbą zleceń przy każdej pozycji. Oznaczanie do fakturowania, lista do druku i „Dodaj do trasy” działają tam tak samo.</li>
           <li>Przy trasie specjalnej dzień produkcji pokazuje „—”; przycisk wyjazdu nazywa się odpowiednio „Odebrane osobiście”, „Wyjechało na montaż” albo „Trasa wyjechała”.</li>
         </ul>
-        <h4>Wysyłka: biurko kierownika logistyki; CRM: oferty liczą się dopiero po akceptacji ustaleń (beta.127)</h4>
+        <h4>Wysyłka: biurko kierownika logistyki (beta.127)</h4>
         <ul>
           <li><b>Wysyłka → „Biurko logistyki”</b> (przełącznik obok „Lista zleceń”, wybór pamiętany na komputerze): wybierasz dzień produkcji, trasa ustawia się sama (czwartek → poniedziałek). Firma po firmie oznaczasz zlecenia <b>do fakturowania</b> (ten sam znacznik co kolumna FAKTURA, nic go nie blokuje), „Oznacz wszystkie”, „Schowaj oznaczone”. Wiersz: pasek z lewej (zielony = na magazynie wysyłkowym), numer, model, system, kolor, rozmiar z kierunkiem, sztuki, kategoria; pod spodem nr klienta, RO z Optimy („BRAK RO” tylko przy zleceniach z konfiguratora), data złożenia z wiekiem, ostrzeżenia (szyba, komplet, niedobór). Nic się nie zawija, pełne uwagi po najechaniu, „Szczegóły” rozwija kolor/wymiar, magazyn, szybę, uwagi i „Otwórz zlecenie”.</li>
           <li><b>„Na magazynie”</b>: STA i Titan-skrzydło po wydaniu z Excela (przekazane z Marklowickiej na Bukową), reszta po komplecie etapów. Wydań z Excela nic nie zmienia.</li>
           <li><b>„Dodaj do trasy zlecenie nr”</b> dopina zlecenie z innej trasy (przy numerze powtarzającym się między kategoriami pyta, które); plakietka „dodane do trasy” przez 7 dni, „Odepnij” w szczegółach.</li>
           <li><b>„Lista do fakturowania (N)”</b>: zestawienie per firma bez cen (nr, kategoria, model, system · kolor · rozmiar, szt., nr zamówienia klienta, RO) do druku / PDF.</li>
           <li><b>„Trasa wyjechała”</b> (kierownik): zapisuje wyjazd wszystkich widocznych zleceń trasy jako osobne zdarzenie; wiersze zostają do końca dnia z godziną, jutro znikają; „Cofnij wyjazd” w szczegółach, gdy coś zostało na hali.</li>
-          <li><b>CRM: automat ofert wyłączony.</b> Rozmowa z Ringostatu i mail klienta dalej dostają analizę (ustalenia), ale oferta czeka w statusie „Czeka na akceptację” i nie zużywa kredytów AI. Na liście „Do zrobienia” i na karcie klienta „Sprawdź ustalenia”, na ekranie oferty „Ustalenia OK — policz ofertę”. „Zleć ofertę” z notatki liczy od razu. Przełącznik w CRM → Ustawienia.</li>
-          <li>CRM: dobór nie proponuje już produktu „zastępczego” — gdy w sklepie nie ma nic pasującego (mieszkanie na istniejącej ościeżnicy, drzwi EI, przetarg), oferta zostaje bez produktu z zadaniem „Przygotuj ofertę ręcznie”. Dopasowanie słów kluczowych od początku wyrazu („ustalenia” nie jest już „stal”).</li>
         </ul>
-        <h4>CRM: otwieranie i edycja zadań, duplikaty klientów, termin z kalendarza; etykiety; RO w fakturowaniu (beta.126)</h4>
+        <h4>Szablony etykiet; RO w fakturowaniu (beta.126)</h4>
         <ul>
-          <li><b>CRM → Do zrobienia:</b> klik w wiersz otwiera kartę klienta ze szczegółami zadania; na karcie <b>Zmień zadanie</b> (rodzaj, termin, opis bez oznaczania „zrobione”) i <b>Usuń zadanie</b>. W dialogu zadania obok „Za ile dni” jest pole <b>„albo termin”</b> z kalendarzem; podpowiedź pokazuje, na jaki dzień roboczy termin wyląduje, a data wstecz dostaje ostrzeżenie.</li>
-          <li><b>CRM → Kontakty, filtr „duplikaty”:</b> pary klientów z tym samym telefonem, e-mailem, nazwą (bez „Sp. z o.o.” itp.) albo domeną firmową, z powodem i pewnością. Na karcie klienta baner <b>„Możliwy duplikat”</b> z linkiem do drugiej karty i <b>Połącz</b>: wybierasz, który kontakt zostaje, drugi wchodzi w niego z całą historią, ofertami i dokumentami (nieodwracalne, z potwierdzeniem). Dane połączonego kontaktu widać w „Inne dane kontaktowe” i działają w wyszukiwarce; w Historii wpis „Połączono klientów”. Mail od nowego adresu z tej samej domeny firmowej trafia do istniejącego klienta („Dopisano do klienta”).</li>
-          <li><b>CRM → oferty nie liczą się same:</b> oferta z rozmowy lub maila powstaje jako „Czeka na akceptację” z zadaniem „Sprawdź ustalenia i zleć ofertę”; na ekranie oferty blok „Ustalenia” z przyciskiem „Ustalenia OK — policz ofertę”. Automat włącza się w CRM → Ustawienia. Oferta sklepowa może mieć kilka pozycji (różne drzwi, ilości) — tabela pozycji w „Danych technicznych”, poprawki typu „w pozycji 2 daj 70 lewe”.</li>
-          <li><b>CRM → Dokumenty → Karta pomiarowa:</b> wymagane jest tylko nazwisko klienta; puste pola (data, godzina, adres, kto jedzie) zostają na blankiecie jako kropki do wpisania na pomiarze.</li>
           <li><b>Konfiguracja → Szablony etykiet:</b> przy każdym polu przycisk <b>„if”</b> wstawia pole w warunku <code>{'{if pole}…{/if}'}</code>, opis warunków widać pod listą, a <b>„Owiń wiersze tabeli warunkami”</b> robi to dla całego szablonu jednym klikiem (wiersz z pustym parametrem znika zamiast „-”). Szablony STA, Disting i Aluminium są już owinięte; kopie sprzed zmiany można usunąć.</li>
           <li><b>Wysyłka → FAKTURA:</b> pod checkboxem numer RO z Optimy (pełny po najechaniu) i plakietka „RO …” w szczegółach zamówienia.</li>
         </ul>
-        <h4>Zgłoszenia z 16.11: konfigurator w Statystykach, pozycje w szkicu ZD, CRM (beta.125)</h4>
+        <h4>Zgłoszenia z 16.11: konfigurator w Statystykach, pozycje w szkicu ZD (beta.125)</h4>
         <ul>
           <li><b>Statystyki → Konfigurator:</b> ile procent zleceń przychodzi z konfiguratora, miesiąc po miesiącu, z linią celu 50% (koniec 2027). Kafelki: bieżący i poprzedni miesiąc, cały okres; linie per kategoria do włączenia; tabela wg kategorii. Liczone po dacie zamówienia, bez anulowanych.</li>
           <li><b>Zamawianie → szkic ZD:</b> po „Edytuj pozycje” pod tabelą jest „Dodaj pozycję” (komponenty tego dostawcy na górze), a przy każdej pozycji „Usuń”. Ostatniej pozycji nie da się usunąć — wtedy anuluj całe zamówienie.</li>
-          <li><b>CRM:</b> nowe zadania <b>Pomiar</b> i <b>Montaż</b> (termin = dzień pomiaru / montażu) w dialogu zadania i przy nowym kliencie z salonu. <b>Usuwanie:</b> „Usuń klienta” na karcie (znika z ofertami, rozmowami, historią i dokumentami, maile zostają bez powiązania), „Usuń ofertę” na ekranie oferty, „Usuń zadanie” bez oznaczania jako zrobione (ślad w historii). Wszystko z potwierdzeniem, nieodwracalne.</li>
         </ul>
-        <h4>CRM Po Drzwi: terminy zadań tylko w dni robocze, dni wolne, zamówienia ze sklepu (beta.124)</h4>
-        <ul>
-          <li><b>Terminy zadań</b> omijają weekendy, święta państwowe i dni firmowe: sobota, niedziela albo święto → następny dzień roboczy, a termin „dziś” zapisany po 17:00 → jutro. Przesuwa baza, także dla zadań dodanych z aplikacji. W dialogu „Zrobione, co dalej” / „Dodaj zadanie” pod „Za ile dni” i w formularzu nowego klienta pod Terminem widać od razu, na jaki dzień termin wyląduje, np. „→ poniedziałek 28.12 (dzień wolny przesuwa się na następny dzień roboczy)”.</li>
-          <li><b>Ustawienia → Dni wolne</b> (administrator): święta na kolejne lata dopisuje system co roku 2 stycznia (z Wigilią); dni firmowe (inwentaryzacja, urlop zbiorowy) dodajesz sam przyciskiem „Dodaj dzień firmowy”. Usunąć można tylko dzień firmowy.</li>
-          <li><b>Maile „Nowe zamówienie NNN” ze sklepu</b> mają własną sprawę „Zamówienie sklepowe”: bez uwag klienta nie tworzą klienta ani zadania (obsługuje Baselinker); z nietypową uwagą powstaje klient i zadanie „Oddzwoń” z powodem.</li>
-        </ul>
-        <h4>CRM Po Drzwi: gotowy szkic odpowiedzi mailowej w stylu handlowca (beta.123)</h4>
-        <ul>
-          <li><b>Karta klienta → Szkic odpowiedzi</b> (pod zadaniem, gdy klient ma e-mail): przy zadaniu „dopytaj” system sam pisze odpowiedź z pytaniami (do minuty), a w dniu terminu follow-upu przypomnienie. Przycisk <b>Wygeneruj odpowiedź</b> / <b>Wygeneruj ponownie</b> z polem „co zmienić” (np. „krócej”) działa zawsze. Szkic jest w stylu zalogowanego handlowca, uczonym z jego wysłanych maili; widać „w stylu Magdaleny, 6 próbek” albo „bez próbek stylu”.</li>
-          <li><b>Nic nie wysyłamy</b>: „Otwórz w poczcie” otwiera gotową wiadomość w programie pocztowym, obok „Kopiuj” adres / temat / treść. Po wysłaniu z czytanej skrzynki CRM sam zamknie zadanie; po odpowiedzi na „dopytaj” ustawi follow-up za 3 dni. Szkic znika sam przy zmianie zadania, więc nigdy nie jest nieaktualny.</li>
-          <li><b>CRM → Poczta</b> (administrator): przy skrzynce przycisk „Wczytaj 30 wysłanych jako próbki stylu” — bierze maile sprzed punktu startu. <b>Ustawienia → Dane firmy</b>: wybór domyślnego handlowca szkiców (gdy system nie wie, kto prowadzi klienta). Nowa zasada w Ustawienia → Zasady (treść maila): klient ze Śląska z montażem nie dostaje pytań o wymiary, tylko propozycję pomiaru. W Historii wpis „✍️ Szkic odpowiedzi”.</li>
-        </ul>
-        <h4>CRM Po Drzwi: karta pomiarowa, umowa i protokół odbioru z karty klienta (beta.122)</h4>
-        <ul>
-          <li><b>Karta klienta → Dokumenty</b>: trzy przyciski. <b>Karta pomiarowa</b> (data, godzina, adres, kto jedzie, piętro, otwory wpisane z góry; wymaga telefonu i e-maila klienta), <b>Umowa</b> (widoczna przy policzonej ofercie oficjalnej z montażem: adres klienta, adres montażu, zaliczka %, termin w tygodniach albo do dnia, gwarancja, data i miejsce zawarcia, własny tekst §1; numer NN/MM/RRRR, załącznik = PDF oferty) i <b>Protokół odbioru</b> (do umowy, z rozliczeniem). PDF w szablonie Po Drzwi powstaje po kilku sekundach i otwiera się w przeglądarce.</li>
-          <li><b>Umowa to zobowiązanie</b>: system nic nie wysyła. Po wygenerowaniu pokazuje „obejrzyj przed wysłaniem”, wysyłka do Autenti zostaje ręczna. Status dokumentu zmieniasz sam na liście (Projekt → Wysłana → Podpisana; karta i protokół → Podpisana po skanie). „Generuj ponownie” robi nowy PDF z poprawionymi polami, umowa zachowuje numer.</li>
-          <li>W <b>Historii</b> wpis „📄 Umowa nr …” z „otwórz”. <b>Ustawienia → Dane firmy</b>: obok licznika ofert licznik umów w roku (wpisz ostatni numer z rejestru). PDF oferty wygląda teraz jak z wtyczki (Poppins, logo), to zmiana po stronie systemu.</li>
-        </ul>
-        <h4>CRM Po Drzwi: Historia klienta — czytelniejsze wpisy (beta.121)</h4>
-        <ul>
-          <li>Zaznaczenie „wysłałem ofertę poza systemem" w dialogu „Zrobione, co dalej" pokazuje się w Historii jako <b>„Oznaczono: oferta wysłana poza systemem"</b> z Twoim imieniem, a nie jak mail wykryty w poczcie przez automat.</li>
-          <li>Długi adres e-mail w kolumnie „kto" jest obcinany z wielokropkiem (pełny po najechaniu) i nie nachodzi na opis. Długie opisy (np. cała analiza maila po „Zrobione") pokazują pierwszą linię i „więcej".</li>
-        </ul>
-        <h4>CRM Po Drzwi: oferta PDF — stawka VAT z konfiguracji producenta, czytelny stan „w przygotowaniu" (beta.120)</h4>
-        <ul>
-          <li><b>Oferta z montażem</b>: stawkę VAT system przepisuje z konfiguracji producenta (to jest źródło prawdy). Obiekt mieszkalny, rodzaj i powierzchnia są opcjonalne i służą tylko do kontroli, czy stawka z pliku ma sens; przy VAT na karcie oferty etykieta „z konfiguracji producenta".</li>
-          <li><b>„W przygotowaniu"</b> pokazuje się tylko, gdy oferta faktycznie się liczy. Błąd systemu od razu daje sekcję błędu z „Ponów przeliczenie" (dotąd mógł udawać trwające liczenie). Podpowiedź: zwykle 20–40 s, przy zimnym starcie do 3 minut.</li>
-        </ul>
-        <h4>CRM Po Drzwi: Kontakty, pełna historia klienta, oferta z montażem w PDF (beta.119)</h4>
-        <ul>
-          <li><b>CRM → Kontakty</b>: wszyscy klienci, także bez zadania. Szukanie po nazwie, telefonie, e-mailu i miejscowości, filtry (status, kanał, etykieta, „bez zadania"), sortowanie po ostatniej aktywności, kolumna z zadaniem i ostatnią ofertą.</li>
-          <li><b>Karta klienta</b>: dane kontaktowe do edycji („edytuj" przy Kontakcie), oferty obu rodzajów, lista dokumentów (PDF, plik konfiguracji) i jedna <b>Historia</b> ze zdarzeń, rozmów i maili w kolejności czasu, z linkami do pełnej treści.</li>
-          <li><b>„Zrobione" pyta, co dalej</b>: nic więcej / zapytaj o decyzję za N dni / oddzwoń / dopytaj / przygotuj ofertę, pole „co ustalono" i „wysłałem ofertę poza systemem". Klient bez zadania ma przycisk „Dodaj zadanie". Dotąd po „Zrobione" klient znikał z listy bez follow-upu.</li>
-          <li><b>„Oferta z montażem" (PDF)</b> na karcie klienta: plik z konfiguratora producenta albo wklejony tekst, usługi własne (nazwa + netto), zakres, montaż / obiekt mieszkalny / rodzaj / powierzchnia. System przepisuje pozycje, liczy VAT 8% lub 23% i robi PDF z numerem RRRR/MM/NNN. Karta takiej oferty pokazuje pozycje, usługi, VAT, uwagę o stawce i „Pobierz PDF"; mail nie dołącza załącznika, więc PDF pobierasz obok. Na liście ofert kolumna „Rodzaj" (Sklep / PDF).</li>
-          <li><b>Ustawienia → Dane firmy</b> (właściciel): stopka PDF, reguły VAT i ważność oferty, logo PNG do nagłówka, numer startowy ofert w roku.</li>
-        </ul>
-        <h4>CRM Po Drzwi: zasady ofert, alerty, notatka głosowa, odświeżanie na żywo (beta.118)</h4>
-        <ul>
-          <li><b>Ustawienia → Zasady ofert</b> (właściciel): co system przyjmuje, gdy klient czegoś nie ustalił (kolor, rozmiar, okucia…) i jak pisze mail. Jedna zasada = jedno zdanie; włącz/wyłącz, kolejność, edycja. Na karcie oferty takie rzeczy są w szarej liście „Przyjęte domyślnie" pod „Sprawdź tylko to", a mail sam o nich informuje klienta.</li>
-          <li><b>Ustawienia → Alerty</b>: adresy, skrzynka nadawcza i port SMTP dla alertów o błędach systemu (jeden mail zbiorczy co 15 minut), przycisk „Wyślij mail próbny", stan ostatniego alertu.</li>
-          <li><b>Ustawienia → Poprawki</b>: co handlowiec poprawiał w ofertach przez ostatnie 30 dni, z tym, jak system to zrozumiał. Powtarzające się poprawki zamień w zasadę.</li>
-          <li><b>„Nagraj notatkę"</b> na karcie klienta i w „Dodaj klienta": do 3 minut z mikrofonu, system spisuje nagranie do notatki i liczy ofertę jak z notatki pisanej. Działa też w przeglądarce telefonu.</li>
-          <li>Lista „Do zrobienia", karta klienta i karta oferty <b>odświeżają się same</b> przy każdej zmianie w bazie (nowa rozmowa, policzona oferta, mail), bez odpytywania co 10 s.</li>
-        </ul>
-        <h4>CRM Po Drzwi: oferta z notatki dla klienta z salonu (beta.117)</h4>
-        <ul>
-          <li>Na karcie klienta z wizyty (albo każdego, kto ma już notatkę) pole „Czego chce" jest do edycji i ma przycisk <b>„Zleć ofertę"</b>. System czyta notatkę jak rozmowę: dobiera drzwi, liczy cenę, robi koszyk i pisze mail. Po kilkunastu sekundach widać „system liczy", po około minucie oferta jest „Do sprawdzenia" jak każda inna. Gdy klient ma już ofertę, przycisk robi nową wersję.</li>
-          <li>Działa też bez klikania: „Dodaj klienta" z zadaniem „Przygotuj ofertę" i wpisaną notatką od razu zleca ofertę.</li>
-          <li>Na karcie takiej oferty zamiast rozmowy jest sekcja <b>„Notatka handlowca"</b>. Notatka to słowa handlowca, system jej nie nadpisuje.</li>
-        </ul>
-        <h4>CRM Po Drzwi: zakładka „Pomoc" z instrukcją pracy (beta.116)</h4>
-        <ul>
-          <li>W CRM obok Poczty jest <b>Pomoc</b>: instrukcja „Jak pracować w CRM" (dzień w 3 krokach, skąd biorą się klienci, zadania, sprawdzanie i poprawka oferty, etykiety, skrzynka, co robić, gdy coś jest nie tak). Treść mieszka w bazie, więc poprawki nie wymagają nowej wersji aplikacji.</li>
-          <li>Właściciel ma przy stronie „Edytuj" (tekst w markdown z podglądem na żywo), „Dodaj stronę" i usuwanie. Linki w treści otwierają się w przeglądarce.</li>
-        </ul>
-        <h4>CRM Po Drzwi: kanał osobno, sprawa osobno, „Dodaj klienta" (beta.115)</h4>
-        <ul>
-          <li><b>Kanał</b> (skąd przyszedł kontakt: Telefon, Formularz, Mail, Wizyta, Inne) to mały badge przy kliencie na liście „Do zrobienia" i na karcie. Mail ze strony (formularz kontaktowy) ma znacznik „Formularz ze strony", a nadawcą jest klient, nie skrzynka techniczna.</li>
-          <li><b>Sprawa</b> (czego dotyczy, wynik analizy: Nowe zapytanie, Obecny klient, Odpowiedź na ofertę, Status zamówienia, Reklamacja, Dostawca, Newsletter, Spam, Nasz mail, Inne) widoczna w podglądzie maila i w trybie pełnym. Nowe polskie nazwy: kierunek maila „Od klienta / Od nas", „Co zrobił system" (Czeka na analizę, Pominięty, Zapisany bez analizy, Przeanalizowany, Błąd), zadanie „Zapytaj o decyzję" zamiast follow-up, status klienta „Ma ofertę / Zamówił", oferta „Liczy się / Stara wersja".</li>
-          <li><b>„Dodaj klienta"</b> na liście „Do zrobienia": klient z wizyty w salonie (nazwa, telefon i/lub e-mail, miejscowość, notatka, etykiety, opcjonalne zadanie z terminem). Telefon zapisuje się jako +48…, a przy numerze już znanym aplikacja proponuje otwarcie istniejącego klienta.</li>
-        </ul>
-        <h4>CRM Po Drzwi: etykiety na zadaniach i klientach (beta.114)</h4>
-        <ul>
-          <li><b>Etykiety</b> mówią od razu, czego dotyczy sprawa: kategoria (zewnętrzne, wejściowe do mieszkania, wewnętrzne, stolarka aluminiowa, inne), usługa (z dostawą, odbiór osobisty, z montażem, pomiar), klient (indywidualny, firma, inwestycja) oraz Czyste Powietrze i pilne. System nadaje je sam z rozmowy lub maila; kliknięcie w „+" przy zadaniu albo na karcie klienta otwiera wybór pogrupowany (kategoria i klient: jedna; usługa i inne: wiele), kliknięcie w etykietę ją zdejmuje.</li>
-          <li><b>Filtr listy „Do zrobienia"</b> po etykiecie. Właściciel ma pod listą „Słownik etykiet": dopisanie własnej (nazwa, grupa, kolor) i włączanie/wyłączanie.</li>
-        </ul>
-        <h4>CRM Po Drzwi: wiele skrzynek i maile przychodzące (beta.113)</h4>
-        <ul>
-          <li><b>Poczta = lista skrzynek</b>: główna kontakt@ i osobiste skrzynki pracowników. Każdy z dostępem do CRM może dodać swoją skrzynkę (serwer, port, login, hasło do sejfu), superadministrator zarządza wszystkimi. Skrzynka czyta folder Wysłane (wysyłka ofert, zamykanie zadań) i/lub Odebrane. „Sprawdź teraz" działa dla jednej skrzynki albo wszystkich.</li>
-          <li><b>Maile przychodzące analizuje system</b> jak rozmowy z Ringostatu: z maila klienta powstaje klient, zadanie „Do zrobienia" albo oferta w przeliczaniu, a odpowiedź klienta na wysłaną ofertę jest oznaczana i blokuje automatyczny follow-up. Nowa sekcja <b>CRM → Maile</b>: lista (data, kierunek, od/do, temat, typ, status, klient, oferta, załączniki, podsumowanie), podgląd treści, „Analizuj ponownie" przy błędzie. Na karcie klienta maile są obok rozmów.</li>
-        </ul>
-        <h4>CRM Po Drzwi: ustawienia skrzynki pocztowej w aplikacji (beta.110)</h4>
-        <ul>
-          <li><b>CRM → Poczta</b>: skrzynkę handlowca czyta teraz sam system (co 5 minut), bez Make. Superadministrator wpisuje serwer IMAP, port (993), login, hasło i folder Wysłane, klika „Testuj połączenie" (lista folderów z serwera z podpowiedzią), „Zapisz" i w razie potrzeby „Sprawdź teraz". Każdy z dostępem do CRM widzi stan: ostatnie sprawdzenie, ostatni sukces, liczbę przetworzonych maili i na czerwono ostatni błąd. Hasło trafia do sejfu i nigdy nie jest wyświetlane; puste pole przy edycji = bez zmiany.</li>
-          <li><b>Port 993 zalecany, 143 też działa</b> (beta.111–112): 993 to szyfrowanie od razu (SSL/TLS), inne porty łączą się przez STARTTLS. „Sprawdź teraz" używa zapisanych ustawień, więc przy niezapisanych zmianach jest zablokowane z podpowiedzią „najpierw Zapisz".</li>
-        </ul>
-        <h4>CRM Po Drzwi: wysyłka wykrywana w poczcie (beta.109)</h4>
-        <ul>
-          <li><b>Mail wysłany z Thunderbirda zamyka ofertę sam</b>: gdy backend znajdzie w folderze Wysłane mail do adresu z oferty, w ciągu 5 minut oferta dostaje status wysłana z datą maila (karta pokazuje „wykryto automatycznie w poczcie"), a zadanie dopytaj lub follow-up zamyka się. Przycisk „Wysłane" zostaje awaryjnie — podwójne oznaczenie niczego nie psuje.</li>
-        </ul>
-        <h4>CRM Po Drzwi: dostawa w ofercie, automaty w tle (beta.108)</h4>
-        <ul>
-          <li><b>Dostawa</b>: karta oferty pokazuje cenę drzwi (zgodną z koszykiem sklepu), dostawę kurierem 300 zł albo odbiór osobisty i sumę z dostawą. Jeśli w rozmowie nie padło, jak klient odbierze, w „Sprawdź tylko to" jest o tym punkt — poprawka „klient odbierze osobiście" zmienia to na odbiór.</li>
-          <li><b>Automaty w tle</b> (backend): po „Wysłane" inne oferty klienta do sprawdzenia stają się robocze, co 15 min ponawiane są rozmowy z błędem (licznik prób widać w „Błędach systemu"), oferty wysłane ≥ 3 dni bez reakcji dostają follow-up na dziś, a klient bez aktywności od 30 dni przechodzi na „przegrany". Historia pokazuje, skąd wzięło się zdarzenie: ręcznie, po rozmowie z Ringostatu czy z automatu.</li>
-        </ul>
-        <h4>CRM Po Drzwi: lista „Do zrobienia", liczenie ofert na żywo (beta.106)</h4>
-        <ul>
-          <li><b>„Do zrobienia" to pierwszy ekran CRM</b>: zadania handlowca zapisane na kliencie (Oddzwoń, Dopytaj, Sprawdź i wyślij ofertę, Follow-up, Reklamacja) z terminem — zaległe na czerwono. „Zrobione" zamyka zadanie; przy ofercie zamiast tego jest „Otwórz ofertę", a „Wysłane" w karcie oferty samo ustawia follow-up za 3 dni. „Oddzwoń" zamyka się samo po odebranej rozmowie wychodzącej z Ringostatu (beta.107), „Zrobione ręcznie" tylko gdy dzwoniłeś z innego telefonu.</li>
-          <li><b>Oferty liczą się same</b>: po rozmowie i po „Przelicz" system liczy 30–90 s, ekran odświeża się sam (co 10 s), a po poprawce przechodzi do nowej wersji. „BŁĄD systemu" przy liczeniu jest na czerwono z przyciskiem „Ponów przeliczenie".</li>
-          <li><b>Rozbicie ceny</b> pokazuje cenę bazową, każdą opcję z dopłatą i sumę. Karta klienta pokazuje przy rozmowach kategorię, następną akcję i (dla superadministratora) status przetwarzania, analizę AI i sekcję „Błędy systemu".</li>
-        </ul>
-        <h4>CRM Po Drzwi: „Otwórz w poczcie", „Wysłane", tryb handlowca (beta.104)</h4>
-        <ul>
-          <li><b>„Otwórz w poczcie"</b> otwiera w domyślnym programie pocztowym (np. Thunderbird) gotową wiadomość z adresatem, tematem i treścią. Pola do kopiowania zostają pod spodem.</li>
-          <li><b>„Wysłane" zamiast „Wysłałam"</b> — potwierdzenie, że mail poszedł z Twojej poczty: oferta znika z listy do zrobienia, system zapamiętuje kto i kiedy, a za 3 dni przypomni o follow-upie.</li>
-          <li><b>Tryb handlowca</b>: osoba z nadanym dostępem widzi kolejkę „Do zrobienia" i kartę oferty bez historii, wersji i danych diagnostycznych. Superadministrator widzi wszystko. Moduł ma pasek i kolory Po Drzwi.</li>
-        </ul>
-        <h4>Podgląd etykiety z przewijaniem, kolor „Utwórz reklamację", CRM „w przygotowaniu" (beta.103)</h4>
+        <h4>Podgląd etykiety z przewijaniem, kolor „Utwórz reklamację" (beta.103)</h4>
         <ul>
           <li><b>Druk etykiety: podgląd da się przewinąć</b> (#141) — ramka podglądu przewija się, a sama etykieta ma w niej swój prawdziwy rozmiar.</li>
           <li><b>„Utwórz reklamację" w Zakończonych</b> (#140) ma kolor ostrzegawczy zamiast większego rozmiaru. Czerwony zostaje dla akcji niszczących.</li>
-          <li><b>CRM Po Drzwi: oferta „w przygotowaniu"</b> — gdy system założył wersję po rozmowie, ale nie policzył jeszcze ceny, koszyka i maila, widok mówi to wprost zamiast pokazywać puste pola i „przeczytaj mail raz i wyślij".</li>
         </ul>
         <h4>Receptury: przeliczanie rezerwacji bez „limitu czasu" (beta.102)</h4>
         <ul>
           <li><b>Zapis receptury nie przelicza już od razu całej kategorii</b> (#139, Dawid): przeliczenie rusza 15 s po ostatniej zmianie receptury, więc seria zapisów to jedno przeliczenie. Porcje są mniejsze (40 zleceń, ok. 4–5 s), a gdy baza mimo to przerwie zapytanie limitem czasu, porcja maleje i idzie jeszcze raz zamiast przerywać całość. Jeśli w trakcie zmienisz kolejną recepturę, po zakończeniu pójdzie drugi przebieg.</li>
-        </ul>
-        <h4>CRM Po Drzwi i rola superadministratora (beta.101)</h4>
-        <ul>
-          <li><b>Nowa zakładka „CRM Po Drzwi"</b> (oferty, leady, rozmowy z Ringostatu) — widzą ją wyłącznie superadministrator i osoby, którym nadał dostęp. Rola administratora sama z siebie dostępu nie daje; dla pozostałych zakładki nie ma w menu.</li>
-          <li><b>Widok oferty</b>: na górze „Sprawdź tylko to" (zgodność koszyka ze sklepem + lista rzeczy do sprawdzenia; pusta = przeczytaj mail raz i wyślij), mail do skopiowania (adres, temat, treść — osobne „Kopiuj"), przycisk „Wysłane", pole „Poprawka" + „Przelicz" (system przelicza i tworzy kolejną wersję), dane techniczne zwijane, historia wersji i zdarzeń.</li>
-          <li><b>Użytkownicy</b>: rola „Superadministrator" (nadaje ją tylko superadministrator), sekcja „Dostęp do CRM Po Drzwi" z listą osób, konta superadministratorów chronione przed dezaktywacją, resetem hasła i usunięciem przez zwykłego administratora. Konta spoza @krcenter.pl (np. @podrzwi.pl) zakłada się i loguje pełnym adresem e-mail.</li>
         </ul>
         <h4>Numer z arkusza Excel obok numeru zlecenia (beta.100)</h4>
         <ul>
