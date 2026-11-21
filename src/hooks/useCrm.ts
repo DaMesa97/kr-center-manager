@@ -49,7 +49,7 @@ export function crmErrorFrom(e: { code?: string; message?: string } | null | und
 
 const LEAD_EMBED = 'lead:leady(id, nazwa, miejscowosc, telefon, email, kategoria, status, nastepna_akcja, nastepny_krok, akcja_opis)'
 const OFERTA_LIST_COLS =
-  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at, rodzaj, numer, brutto, netto, vat_stawka, plik_pdf, konfiguracja_plik, konfiguracja_pliki, z_montazem, streszczenie'
+  'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at, rodzaj, numer, brutto, netto, vat_stawka, plik_pdf, konfiguracja_plik, konfiguracja_pliki, z_montazem, streszczenie, nazwa'
 
 type Result<T> = { data: T; error: CrmError | null }
 
@@ -165,7 +165,7 @@ export async function retryOfertaPrzelicz(oferta: CrmOferta): Promise<CrmError |
 
 export type CrmZadanieRow = CrmLead & {
   /** aktywna oferta leada (przelicz / do_sprawdzenia), jeśli jest */
-  oferta?: Pick<CrmOferta, 'id' | 'status' | 'wersja' | 'cena_razem' | 'liczenie_od'> | null
+  oferta?: Pick<CrmOferta, 'id' | 'status' | 'wersja' | 'cena_razem' | 'liczenie_od' | 'nazwa'> | null
 }
 
 export async function fetchZadania(): Promise<Result<CrmZadanieRow[]>> {
@@ -183,11 +183,11 @@ export async function fetchZadania(): Promise<Result<CrmZadanieRow[]>> {
   if (ids.length > 0) {
     const { data: ofs } = await crm()
       .from('oferty')
-      .select('id, lead_id, status, wersja, cena_razem, liczenie_od')
+      .select('id, lead_id, status, wersja, cena_razem, liczenie_od, nazwa')
       .in('lead_id', ids)
       .in('status', [...CRM_OPEN_STATUSES])
       .order('wersja', { ascending: false })
-    for (const o of (ofs ?? []) as Array<{ id: string; lead_id: string; status: string; wersja: number; cena_razem: number | null; liczenie_od: string | null }>) {
+    for (const o of (ofs ?? []) as Array<{ id: string; lead_id: string; status: string; wersja: number; cena_razem: number | null; liczenie_od: string | null; nazwa: string | null }>) {
       if (!byLead.has(o.lead_id)) byLead.set(o.lead_id, o)
     }
   }
@@ -290,6 +290,26 @@ export async function deleteLead(id: string): Promise<CrmError | null> {
 }
 
 /** Usuwa jedną ofertę (i jej zdarzenia); dokumenty i maile tracą tylko powiązanie. */
+/** 21.11: tytuł oferty (null = podpowiedź). Oferta PDF: wszystkie wersje z tym samym numerem; zdarzenie w historii klienta. */
+export async function nazwijOferte(oferta: Pick<CrmOferta, 'id' | 'lead_id' | 'numer' | 'rodzaj' | 'nazwa'>, nazwa: string | null, userId: string): Promise<CrmError | null> {
+  const n = nazwa?.trim() ? nazwa.trim().slice(0, 120) : null
+  let q = crm().from('oferty').update({ nazwa: n })
+  q = oferta.rodzaj === 'oficjalna' && oferta.numer && oferta.lead_id ? q.eq('lead_id', oferta.lead_id).eq('numer', oferta.numer) : q.eq('id', oferta.id)
+  const { error } = await q
+  if (error) return crmErrorFrom(error)
+  if (oferta.lead_id) {
+    await crm().from('zdarzenia').insert({
+      lead_id: oferta.lead_id,
+      oferta_id: oferta.id,
+      typ: 'oferta_nazwa',
+      opis: n ? `Tytuł oferty: „${n}”${oferta.nazwa ? ` (było „${oferta.nazwa}”)` : ''}` : 'Usunięto tytuł oferty',
+      kto: userId,
+      dane: { zrodlo: 'klik', z: oferta.nazwa ?? null, na: n },
+    })
+  }
+  return null
+}
+
 export async function deleteOferta(oferta: Pick<CrmOferta, 'id' | 'plik_pdf'>): Promise<CrmError | null> {
   await removeCrmFiles([oferta.plik_pdf])
   const { error } = await crm().from('oferty').delete().eq('id', oferta.id)
@@ -346,7 +366,7 @@ export async function usunZadanie(lead: CrmLead, userId: string): Promise<CrmErr
 }
 
 export type CrmKontaktRow = CrmLead & {
-  ostatnia_oferta?: Pick<CrmOferta, 'id' | 'status' | 'wersja' | 'cena_razem' | 'rodzaj' | 'numer' | 'brutto' | 'created_at'> | null
+  ostatnia_oferta?: Pick<CrmOferta, 'id' | 'status' | 'wersja' | 'cena_razem' | 'rodzaj' | 'numer' | 'brutto' | 'created_at' | 'nazwa'> | null
 }
 
 /** Statystyki CRM (21.11): wysłane oferty z kwotą i datą wysłania (do 5000). */
@@ -365,7 +385,7 @@ export async function fetchKontakty(): Promise<Result<CrmKontaktRow[]>> {
   for (let i = 0; i < ids.length; i += 200) {
     const { data: ofs } = await crm()
       .from('oferty')
-      .select('id, lead_id, status, wersja, cena_razem, rodzaj, numer, brutto, created_at')
+      .select('id, lead_id, status, wersja, cena_razem, rodzaj, numer, brutto, created_at, nazwa')
       .in('lead_id', ids.slice(i, i + 200))
       .neq('status', 'robocza')
       .order('created_at', { ascending: false })

@@ -234,6 +234,8 @@ export type CrmOferta = {
   status: CrmOfertaStatus | string
   product_id: number | null
   produkt: string | null
+  /** tytuł nadany przez handlowca (21.11); null = podpowiedź z produktu / streszczenia (tytulOferty) */
+  nazwa?: string | null
   wybory: Record<string, unknown> | null
   zalozenia: unknown[] | null
   /** lista „SPRAWDŹ TYLKO TO” — tablica tekstów */
@@ -412,6 +414,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   przegrany: 'Przegrany',
   przywrocony: 'Przywrócono do gry',
   wartosc_zmieniona: 'Zmieniono wartość klienta',
+  oferta_nazwa: 'Tytuł oferty',
   brak_kandydatow: 'Brak pasującego produktu w cenniku',
   poprawka: 'Poprawka handlowca',
   przeliczono: 'Przeliczono',

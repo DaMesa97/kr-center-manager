@@ -173,3 +173,18 @@ export function ruchWLejku(z: string | null | undefined, doKol: LejekStatus): Ru
   if (from === 'wygrany' || from === 'przegrany') return 'w_grze'
   return 'systemowy'
 }
+
+/**
+ * Tytuł oferty (21.11, Tymek: „inwestorzy, dla których prowadzimy kilka ofert równolegle”):
+ * nazwa nadana przez handlowca → produkt → pierwsze słowa streszczenia → rodzaj (+ numer PDF).
+ */
+export function tytulOferty(o: { nazwa?: string | null; produkt?: string | null; streszczenie?: string | null; rodzaj?: string | null; numer?: string | null } | null | undefined): string {
+  if (!o) return 'Oferta'
+  const n = o.nazwa?.trim()
+  if (n) return n
+  const p = o.produkt?.trim()
+  if (p) return p
+  const s = o.streszczenie?.replace(/\s+/g, ' ').trim()
+  if (s) return s.length > 60 ? `${s.slice(0, 59).trimEnd()}…` : s
+  return o.rodzaj === 'oficjalna' ? `Oferta z montażem${o.numer ? ` nr ${o.numer}` : ''}` : 'Oferta ze sklepu'
+}

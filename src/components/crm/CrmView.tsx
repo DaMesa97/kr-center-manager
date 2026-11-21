@@ -76,6 +76,7 @@ import {
   konfiguracjaPliki,
   napiszMailOferty,
   ustawWartoscKlienta,
+  nazwijOferte,
 } from '../../hooks/useCrm'
 import { supabase } from '../../supabaseClient'
 import { appConfirm } from '../../lib/appDialogs'
@@ -97,7 +98,7 @@ import CrmPolaczPanel from './CrmPolaczPanel'
 import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
 import CrmMaileScreen, { CrmMailScreen } from './CrmMaileScreen'
 import { EtykietyRow, EtykietySlownikEditor, KanalBadge } from './CrmEtykiety'
-import { LEAD_STATUS_CLS, ZADANIE_GRUPY, kwotaOferty, opisWyniku, ostatniaOferta, parseKwota, wartoscKlienta, zadanieGrupa } from '../../lib/crmWynik'
+import { LEAD_STATUS_CLS, ZADANIE_GRUPY, kwotaOferty, opisWyniku, ostatniaOferta, parseKwota, tytulOferty, wartoscKlienta, zadanieGrupa } from '../../lib/crmWynik'
 import CrmNowyKlient from './CrmNowyKlient'
 import { useEtykiety } from '../../hooks/useEtykiety'
 
@@ -569,7 +570,8 @@ function ZadaniaScreen({
                     </span>
                     <div className="crm-z2-tekst">
                       <button type="button" className="crm-z2-tytul" onClick={() => onOpenLead(r.id)} title="Otwórz kartę klienta">
-                        {r.nastepna_akcja === 'przygotuj_oferte' && r.oferta?.status === 'wstrzymana'
+                        {r.oferta?.nazwa ? `${r.nastepna_akcja === 'przygotuj_oferte' && r.oferta.status === 'wstrzymana' ? 'Sprawdź ustalenia' : CRM_AKCJA[r.nastepna_akcja ?? '']?.label ?? 'Zadanie'}: ${leadName(r)} · ${r.oferta.nazwa}`
+                          : r.nastepna_akcja === 'przygotuj_oferte' && r.oferta?.status === 'wstrzymana'
                           ? `Sprawdź ustalenia: ${leadName(r)}`
                           : r.nastepna_akcja === 'przygotuj_oferte' && r.oferta?.status === 'przelicz'
                             ? `Oferta się liczy: ${leadName(r)}`
@@ -652,9 +654,10 @@ function OfertyList({ mode, onOpenOferta, onOpenLead }: { mode: CrmMode; onOpenO
       { key: 'miejscowosc', label: 'Miejscowość', sortValue: (r) => r.lead?.miejscowosc ?? '', render: (r) => r.lead?.miejscowosc || '—' },
       {
         key: 'produkt',
-        label: 'Produkt',
-        sortValue: (r) => r.produkt ?? '',
+        label: 'Oferta',
+        sortValue: (r) => tytulOferty(r),
         render: (r) =>
+          r.nazwa?.trim() ||
           r.produkt ||
           (r.rodzaj === 'oficjalna' && r.numer ? `Oferta nr ${r.numer}` : null) ||
           (r.status === 'przelicz' || r.cena_razem == null ? (
@@ -780,6 +783,9 @@ function OfertaScreen({
   // brief pkt 31: „Klient odmówił” → powód przegranej
   const [odmowa, setOdmowa] = useState(false)
   const [wynikBusy, setWynikBusy] = useState(false)
+  // 21.11: tytuł oferty (kilka ofert równolegle dla jednego inwestora) — null = nie edytujemy
+  const [nazwaEdit, setNazwaEdit] = useState<string | null>(null)
+  const [nazwaBusy, setNazwaBusy] = useState(false)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -949,17 +955,45 @@ function OfertaScreen({
       <div className="crm-screen-head">
         <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}><ArrowLeft size={14} /> Wróć</button>
         <div className="crm-screen-title">
-          <h3>
+          {nazwaEdit != null ? (
+            <form
+              className="crm-oferta-nazwa-form"
+              onSubmit={async (e) => {
+                e.preventDefault()
+                setNazwaBusy(true)
+                const err = await nazwijOferte(oferta, nazwaEdit, currentUser?.id ?? '')
+                setNazwaBusy(false)
+                if (err) { pushToast(`Nie udało się zapisać tytułu: ${err.message}`, 'error'); return }
+                setNazwaEdit(null)
+                pushToast(nazwaEdit.trim() ? 'Tytuł oferty zapisany' : 'Tytuł oferty usunięty', 'success')
+                await load(true)
+              }}
+            >
+              <input type="text" autoFocus maxLength={120} value={nazwaEdit} onChange={(e) => setNazwaEdit(e.target.value)} aria-label="Tytuł oferty" placeholder="np. Budynek W1 — drzwi do mieszkań" disabled={nazwaBusy} />
+              <button type="submit" className="btn btn-sm btn-primary" disabled={nazwaBusy}>{nazwaBusy ? <Spinner inline size={14} /> : <Check size={14} />} Zapisz</button>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={nazwaBusy} onClick={() => setNazwaEdit(null)}>Anuluj</button>
+            </form>
+          ) : (
+            <h3 className="crm-oferta-tytul">
+              {tytulOferty(oferta)}
+              <button type="button" className="crm-wartosc-edytuj" aria-label="Zmień tytuł oferty" title="Zmień tytuł oferty — przydaje się, gdy klient ma kilka ofert naraz" onClick={() => setNazwaEdit(oferta.nazwa ?? '')}>
+                <Pencil size={14} />
+              </button>
+            </h3>
+          )}
+          <div className="crm-screen-sub crm-oferta-szczegol">
             {oficjalna
-              ? `Oferta nr ${oferta.numer ?? '…'} (PDF) · v${oferta.wersja}${pending ? ' · w przygotowaniu' : ` · ${fmtPln(oferta.brutto)} brutto`}`
+              ? `Oferta PDF nr ${oferta.numer ?? '…'} · wersja ${oferta.wersja}${pending ? ' · w przygotowaniu' : ` · ${fmtPln(oferta.brutto)} brutto`}`
               : pending
-              ? `Oferta v${oferta.wersja} · w przygotowaniu`
-              : `Oferta v${oferta.wersja} · ${oferta.produkt || 'produkt nieustalony'} · ${fmtPln(oferta.cena_razem)}${
+              ? `Oferta ze sklepu · wersja ${oferta.wersja} · w przygotowaniu`
+              : oferta.cena_razem == null
+              ? `Oferta ze sklepu · wersja ${oferta.wersja} · jeszcze nie policzona`
+              : `Oferta ze sklepu · wersja ${oferta.wersja} · ${fmtPln(oferta.cena_razem)}${
                   oferta.dostawa_koszt != null && oferta.cena_razem != null
                     ? ` + ${CRM_DOSTAWA_LABEL[oferta.dostawa ?? ''] ?? 'dostawa'} ${fmtPln(oferta.dostawa_koszt)} = ${fmtPln(Number(oferta.cena_razem) + Number(oferta.dostawa_koszt))}`
                     : ''
                 }`}
-          </h3>
+          </div>
           <div className="crm-screen-sub">
             <button type="button" className="crm-link" onClick={() => oferta.lead_id && onOpenLead(oferta.lead_id)}>
               {leadName(oferta.lead)}
@@ -1996,17 +2030,18 @@ function LeadScreen({
   ])
   const OfertaWiersz = ({ o }: { o: CrmOferta }) => (
     <li className={`crm-k2-oferta${o.status === 'zaakceptowana' ? ' crm-k2-oferta--won' : o.status === 'robocza' ? ' crm-k2-oferta--old' : ''}`}>
+      <button type="button" className="crm-k2-oferta-tytul" onClick={() => onOpenOferta(o.id)} title="Otwórz ofertę">{tytulOferty(o)}</button>
       <div className="crm-k2-oferta-top">
-        <button type="button" className="crm-link crm-lead-oferta-nr" onClick={() => onOpenOferta(o.id)} title={CRM_OFERTA_RODZAJ[o.rodzaj ?? 'sklep']?.title}>
+        <span className="crm-muted" title={CRM_OFERTA_RODZAJ[o.rodzaj ?? 'sklep']?.title}>
           {o.rodzaj === 'oficjalna' ? <span className="crm-rodzaj crm-rodzaj--oficjalna">PDF{o.numer ? ` ${o.numer}` : ''}</span> : 'Sklep'} · v{o.wersja}
-        </button>
+        </span>
         <StatusBadge status={o.status} />
         <span className="crm-muted">{fmtDate(o.created_at)}</span>
       </div>
       <div className="crm-k2-oferta-kwota">
         <b>{fmtPln(kwotaOferty(o))}</b>{o.rodzaj === 'oficjalna' && o.brutto != null ? <span className="crm-muted"> brutto</span> : null}
       </div>
-      {(o.produkt || o.streszczenie) && <div className="crm-k2-oferta-co" title={o.produkt ?? o.streszczenie ?? undefined}>{o.produkt || o.streszczenie}</div>}
+      {o.nazwa && (o.produkt || o.streszczenie) && <div className="crm-k2-oferta-co" title={o.produkt ?? o.streszczenie ?? undefined}>{o.produkt || o.streszczenie}</div>}
       <div className="crm-k2-oferta-akcje">
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => onOpenOferta(o.id)}>Otwórz</button>
         {o.status === 'wyslana' && !zamkniety && (

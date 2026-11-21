@@ -130,3 +130,15 @@ describe('crmWynik — okno zamkniętych w lejku', () => {
     expect(swiezoZamkniety({}, now)).toBe(true)
   })
 })
+
+describe('crmWynik — tytuł oferty', () => {
+  it('nazwa handlowca → produkt → streszczenie → rodzaj', async () => {
+    const { tytulOferty } = await import('../lib/crmWynik')
+    expect(tytulOferty({ nazwa: ' Budynek W1 — drzwi do mieszkań ', produkt: 'Otto 31B' })).toBe('Budynek W1 — drzwi do mieszkań')
+    expect(tytulOferty({ nazwa: '', produkt: 'Otto 31B' })).toBe('Otto 31B')
+    expect(tytulOferty({ streszczenie: 'Drzwi zewnętrzne z montażem w kolorze turner z antabą 1600, montaż do końca stycznia, dom w Bielsku' })).toBe('Drzwi zewnętrzne z montażem w kolorze turner z antabą 1600,…')
+    expect(tytulOferty({ rodzaj: 'oficjalna', numer: '2026/11/003' })).toBe('Oferta z montażem nr 2026/11/003')
+    expect(tytulOferty({ rodzaj: 'sklep' })).toBe('Oferta ze sklepu')
+    expect(tytulOferty(null)).toBe('Oferta')
+  })
+})
