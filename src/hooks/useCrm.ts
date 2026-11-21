@@ -156,6 +156,22 @@ export async function zlecOferteWstrzymana(ofertaId: string): Promise<CrmError |
   return crmErrorFrom(error)
 }
 
+/**
+ * 21.11 (oferta v2): poprawka ustaleń PRZED pierwszym liczeniem (status wstrzymana). crm-oferta przy świeżej
+ * ofercie czyta oferty.analiza (całość idzie do promptu doboru i maila), a nie pole poprawka — więc dopisujemy
+ * „poprawka_handlowca” do analizy tej oferty i zlecamy liczenie jak „Ustalenia OK”.
+ */
+export async function poprawUstaleniaIPolicz(oferta: CrmOferta, tekst: string): Promise<CrmError | null> {
+  const t = tekst.trim()
+  if (!t) return { kind: 'other', message: 'Wpisz, co poprawić' }
+  if (!oferta.analiza || typeof oferta.analiza !== 'object') return { kind: 'other', message: 'Ta oferta nie ma zapisanych ustaleń — popraw notatkę na karcie klienta i zleć ofertę stamtąd' }
+  const poprzednia = typeof (oferta.analiza as Record<string, unknown>).poprawka_handlowca === 'string' ? String((oferta.analiza as Record<string, unknown>).poprawka_handlowca) : ''
+  const analiza = { ...(oferta.analiza as Record<string, unknown>), poprawka_handlowca: poprzednia ? `${poprzednia}\n${t}` : t }
+  const { error } = await crm().from('oferty').update({ analiza }).eq('id', oferta.id).eq('status', 'wstrzymana')
+  if (error) return crmErrorFrom(error)
+  return zlecOferteWstrzymana(oferta.id)
+}
+
 export async function retryOfertaPrzelicz(oferta: CrmOferta): Promise<CrmError | null> {
   const { error } = await crm().from('oferty').update({ status: 'przelicz' }).eq('id', oferta.id)
   return crmErrorFrom(error)

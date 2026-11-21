@@ -77,6 +77,7 @@ import {
   napiszMailOferty,
   ustawWartoscKlienta,
   nazwijOferte,
+  poprawUstaleniaIPolicz,
 } from '../../hooks/useCrm'
 import { supabase } from '../../supabaseClient'
 import { appConfirm } from '../../lib/appDialogs'
@@ -91,6 +92,7 @@ import CrmKontaktyScreen from './CrmKontaktyScreen'
 import CrmStatystykiScreen from './CrmStatystykiScreen'
 import CrmKorespondencja from './CrmKorespondencja'
 import { ZADANIE_RODZAJE, zadaniePoCo, zadanieRodzaj, zadanieTytul, type ZadanieRodzaj } from '../../lib/crmZadania'
+import { KROKI_OFERTY, krokOferty, ustaleniaLista } from '../../lib/crmOferta'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
@@ -660,7 +662,9 @@ function OfertyList({ mode, onOpenOferta, onOpenLead }: { mode: CrmMode; onOpenO
           r.nazwa?.trim() ||
           r.produkt ||
           (r.rodzaj === 'oficjalna' && r.numer ? `Oferta nr ${r.numer}` : null) ||
-          (r.status === 'przelicz' || r.cena_razem == null ? (
+          (r.status === 'wstrzymana' ? (
+            <span className="crm-muted" title="Ustalenia czekają na Twoje sprawdzenie — otwórz i kliknij „Ustalenia OK”">czeka na sprawdzenie ustaleń</span>
+          ) : r.status === 'przelicz' || r.cena_razem == null ? (
             <span className="crm-muted" title="System jeszcze nie policzył tej oferty">w przygotowaniu</span>
           ) : (
             '—'
@@ -786,6 +790,9 @@ function OfertaScreen({
   // 21.11: tytuł oferty (kilka ofert równolegle dla jednego inwestora) — null = nie edytujemy
   const [nazwaEdit, setNazwaEdit] = useState<string | null>(null)
   const [nazwaBusy, setNazwaBusy] = useState(false)
+  // oferta v2: menu „…” (odśwież, PDF, usuń) i jedno miejsce na poprawkę (otwierane z paska „Teraz”)
+  const [menuOferty, setMenuOferty] = useState(false)
+  const [poprawOpen, setPoprawOpen] = useState(false)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -949,9 +956,106 @@ function OfertaScreen({
   const zNotatki = !!oferta.notatka && !oferta.rozmowa_id && !oferta.mail_id
   const domyslne = asStrings(dobor.domyslne)
   const linkValid = oferta.link_wazny_do ? new Date(oferta.link_wazny_do).getTime() > Date.now() : null
+  // ---- oferta v2: krok i pasek „Teraz” ----
+  const { krok, idx: krokIdx } = krokOferty(oferta.status, { sysErr, pending })
+  const ustalenia = ustaleniaLista(analiza.dane && typeof analiza.dane === 'object' ? (analiza.dane as Record<string, unknown>) : null)
+  const brakuje = Array.isArray(analiza.brakuje) ? (analiza.brakuje as unknown[]).map(String).filter(Boolean) : []
+  const najnowsza = [...wersje].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+  const kwotaTeraz = oficjalna ? oferta.brutto : oferta.cena_razem
+  const otworzPoprawke = () => {
+    setPoprawOpen(true)
+    window.setTimeout(() => document.querySelector('.crm-o2-poprawka')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60)
+  }
+  const handleUstaleniaOk = async () => {
+    setSaving(true)
+    const err = await zlecOferteWstrzymana(oferta.id)
+    setSaving(false)
+    if (err) { pushToast(`Nie udało się zlecić oferty: ${err.message}`, 'error'); return }
+    pushToast('Oferta liczy się — zwykle do minuty', 'success')
+    void load(true)
+  }
+  const handlePoprawUstalenia = async () => {
+    setSaving(true)
+    const err = await poprawUstaleniaIPolicz(oferta, poprawka)
+    setSaving(false)
+    if (err) { pushToast(`Nie udało się: ${err.message}`, 'error'); return }
+    pushToast('Poprawka dopisana do ustaleń — oferta liczy się', 'success')
+    setPoprawka('')
+    setPoprawOpen(false)
+    void load(true)
+  }
+  const teraz: { klasa: string; tytul: string; opis: ReactNode; akcje: ReactNode } =
+    krok === 'ustalenia'
+      ? {
+          klasa: 'crm-k2-krok',
+          tytul: 'Sprawdź ustalenia',
+          opis: 'Przeczytaj, czego chce klient. Zgadza się — zatwierdź, a system policzy ofertę. Nie zgadza się — kliknij „Popraw ustalenia”.',
+          akcje: (
+            <>
+              <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void handleUstaleniaOk()}><Check size={14} /> Ustalenia OK — policz ofertę</button>
+              <button type="button" className="btn btn-secondary" disabled={saving} onClick={otworzPoprawke}><Pencil size={14} /> Popraw ustalenia</button>
+            </>
+          ),
+        }
+      : krok === 'liczenie'
+        ? {
+            klasa: 'crm-k2-krok crm-k2-krok--brak',
+            tytul: 'Poczekaj chwilę — system liczy ofertę',
+            opis: <><Spinner inline size={14} /> {oficjalna ? 'Przepisuje pozycje z konfiguracji, liczy VAT, robi PDF i pisze mail.' : 'Dobiera drzwi, liczy cenę, robi koszyk i pisze mail.'} Ekran odświeży się sam.</>,
+            akcje: null,
+          }
+        : krok === 'blad'
+          ? {
+              klasa: 'crm-k2-krok crm-k2-krok--late',
+              tytul: 'Błąd przy liczeniu oferty',
+              opis: <>{sprawdz[0]}{oferta.uwagi ? <> · {oferta.uwagi}</> : null} — nie wysyłaj tej oferty; jeśli błąd wraca, zgłoś go przez „Zgłoś uwagę”.</>,
+              akcje: <button type="button" className="btn btn-primary" disabled={saving || isRecalc} onClick={() => void handleRetry()}>Ponów przeliczenie</button>,
+            }
+          : krok === 'wysylka'
+            ? {
+                klasa: 'crm-k2-krok crm-k2-krok--dzis',
+                tytul: 'Sprawdź mail i wyślij klientowi',
+                opis: oficjalna
+                  ? 'Otwórz w poczcie, dołącz PDF i wyślij. Potem kliknij „Wysłałem” — w „Do zrobienia” pojawi się przypomnienie za 3 dni.'
+                  : 'Otwórz w poczcie i wyślij. Potem kliknij „Wysłałem” — w „Do zrobienia” pojawi się przypomnienie za 3 dni.',
+                akcje: (
+                  <>
+                    <button type="button" className="btn btn-primary" disabled={!oferta.mail_do || !oferta.mail_tresc?.trim()} onClick={handleOpenInMail} title="Otwiera w Twoim programie pocztowym gotową wiadomość: adresat, temat i treść"><Mail size={15} /> Otwórz w poczcie</button>
+                    {oficjalna && oferta.plik_pdf && (
+                      <button type="button" className="btn btn-secondary" onClick={() => void handleOpenDokument(oferta.plik_pdf as string)}><FileText size={15} /> Pobierz PDF</button>
+                    )}
+                    <button type="button" className="btn btn-secondary" disabled={!canSend || saving} onClick={() => void handleWyslane()} title="Mail poszedł z Twojej poczty — system zapamięta kto i kiedy i za 3 dni przypomni"><Check size={14} /> Wysłałem</button>
+                  </>
+                ),
+              }
+            : krok === 'decyzja'
+              ? {
+                  klasa: 'crm-k2-krok crm-k2-krok--won',
+                  tytul: leadZamkniety ? 'Klient ma już wynik' : 'Czekamy na decyzję klienta',
+                  opis: `Wysłana ${oferta.wyslano_at ? fmtDateTime(oferta.wyslano_at) : ''}${oferta.wyslano_at && !oferta.sprawdzil ? ' (wykryto w poczcie)' : ''}. Gdy klient odpowie, zaznacz wynik.`,
+                  akcje: oferta.lead_id && !leadZamkniety ? (
+                    <>
+                      <button type="button" className="btn btn-success" disabled={wynikBusy} onClick={() => void handleWynikOferty('wygrany')} title="Oferta zaakceptowana, klient „Zamówił”, zadanie się zamknie"><Check size={15} /> Klient przyjął</button>
+                      <button type="button" className="btn btn-secondary" disabled={wynikBusy} onClick={() => setOdmowa(true)} aria-expanded={odmowa}>Odmówił…</button>
+                    </>
+                  ) : null,
+                }
+              : krok === 'koniec'
+                ? {
+                    klasa: `crm-k2-krok${oferta.status === 'zaakceptowana' ? ' crm-k2-krok--won' : ' crm-k2-krok--late'}`,
+                    tytul: oferta.status === 'zaakceptowana' ? 'Klient przyjął ofertę' : 'Klient odmówił',
+                    opis: oferta.status === 'zaakceptowana' ? 'Oferta zaakceptowana — dalsze kroki (pomiar, montaż, umowa) prowadzisz na karcie klienta.' : 'Oferta odrzucona. Powód jest na karcie klienta.',
+                    akcje: oferta.lead_id ? <button type="button" className="btn btn-secondary" onClick={() => onOpenLead(oferta.lead_id as string)}>Karta klienta</button> : null,
+                  }
+                : {
+                    klasa: 'crm-k2-krok crm-k2-krok--brak',
+                    tytul: 'To starsza wersja oferty',
+                    opis: 'Klient dostał (albo dostanie) nowszą wersję — tę zostawiamy dla historii.',
+                    akcje: najnowsza && najnowsza.id !== oferta.id ? <button type="button" className="btn btn-primary" onClick={() => onOpenOferta(najnowsza.id)}>Otwórz najnowszą (v{najnowsza.wersja})</button> : null,
+                  }
 
   return (
-    <div className="crm-screen">
+    <div className="crm-screen crm-o2">
       <div className="crm-screen-head">
         <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}><ArrowLeft size={14} /> Wróć</button>
         <div className="crm-screen-title">
@@ -996,9 +1100,8 @@ function OfertaScreen({
           </div>
           <div className="crm-screen-sub">
             <button type="button" className="crm-link" onClick={() => oferta.lead_id && onOpenLead(oferta.lead_id)}>
-              {leadName(oferta.lead)}
+              ← {leadName(oferta.lead)}
             </button>
-            {oferta.lead?.miejscowosc ? ` · ${oferta.lead.miejscowosc}` : ''}
             {' · '}
             <StatusBadge status={oferta.status} />
             {' · utworzona '}
@@ -1007,69 +1110,97 @@ function OfertaScreen({
             {oferta.wyslano_at ? ` · wysłana ${fmtDateTime(oferta.wyslano_at)} (${oferta.sprawdzil ? names.get(oferta.sprawdzil) ?? '…' : 'wykryto automatycznie w poczcie'})` : ''}
           </div>
         </div>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież"><RefreshCw size={14} /></button>
-        <button
-          type="button"
-          className="btn btn-sm btn-danger"
-          disabled={saving || oferta.status === 'przelicz'}
-          title="Usuń ofertę (nieodwracalne)"
-          onClick={async () => {
-            const ok = await appConfirm(`Usunąć ofertę v${oferta.wersja}${oferta.numer ? ` nr ${oferta.numer}` : ''}? Zniknie z historii klienta razem z plikiem PDF. Tego nie da się cofnąć.`)
-            if (!ok) return
-            setSaving(true)
-            const err = await deleteOferta(oferta)
-            setSaving(false)
-            if (err) { pushToast(`Nie udało się usunąć oferty: ${err.message}`, 'error'); return }
-            pushToast('Oferta usunięta', 'success')
-            onBack()
-          }}
-        >
-          <Trash2 size={14} /> Usuń ofertę
-        </button>
+        <div className="crm-menu">
+          <button type="button" className="btn btn-secondary crm-menu-btn" aria-label="Więcej akcji oferty" aria-haspopup="menu" aria-expanded={menuOferty} onClick={() => setMenuOferty((v) => !v)}>…</button>
+          {menuOferty && (
+            <div className="crm-menu-lista" role="menu">
+              <button type="button" role="menuitem" className="crm-menu-item" onClick={() => { setMenuOferty(false); void load() }}><RefreshCw size={14} /> Odśwież</button>
+              {oferta.plik_pdf && (
+                <button type="button" role="menuitem" className="crm-menu-item" onClick={() => { setMenuOferty(false); void handleOpenDokument(oferta.plik_pdf as string) }}><FileText size={14} /> Pobierz PDF</button>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                className="crm-menu-item crm-menu-item--danger"
+                disabled={saving || oferta.status === 'przelicz'}
+                title="Usuń ofertę (nieodwracalne)"
+                onClick={async () => {
+                  setMenuOferty(false)
+                  const ok = await appConfirm(`Usunąć ofertę v${oferta.wersja}${oferta.numer ? ` nr ${oferta.numer}` : ''}? Zniknie z historii klienta razem z plikiem PDF. Tego nie da się cofnąć.`)
+                  if (!ok) return
+                  setSaving(true)
+                  const err = await deleteOferta(oferta)
+                  setSaving(false)
+                  if (err) { pushToast(`Nie udało się usunąć oferty: ${err.message}`, 'error'); return }
+                  pushToast('Oferta usunięta', 'success')
+                  onBack()
+                }}
+              >
+                <Trash2 size={14} /> Usuń ofertę…
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* 0. BŁĄD SYSTEMU przy liczeniu */}
-      {sysErr && (
-        <section className="crm-check crm-check--bad">
-          <h4>Błąd systemu przy liczeniu oferty</h4>
-          <p className="crm-text-bad">{sprawdz[0]}</p>
-          {oferta.uwagi && <p className="crm-muted">{oferta.uwagi}</p>}
-          <div className="crm-mail-actions">
-            <button type="button" className="btn btn-primary" disabled={saving || isRecalc} onClick={() => void handleRetry()}>
-              Ponów przeliczenie
-            </button>
-            <span className="crm-muted">Jeśli błąd się powtarza, zgłoś go przez „Zgłoś uwagę” — nie wysyłaj tej oferty.</span>
-          </div>
-        </section>
+      {/* oferta v2: kroki i pasek „Teraz” — co zrobić w tym kroku */}
+      {krokIdx >= 0 && (
+        <ol className="crm-o2-kroki" aria-label="Etap tej oferty">
+          {KROKI_OFERTY.map((k, i) => (
+            <li key={k.key} className={`crm-o2-krok${i < krokIdx ? ' crm-o2-krok--done' : i === krokIdx ? ' crm-o2-krok--teraz' : ''}`} aria-current={i === krokIdx ? 'step' : undefined}>
+              <span className="crm-o2-krok-nr" aria-hidden="true">{i < krokIdx ? '✓' : i + 1}</span>
+              <span className="crm-o2-krok-tekst"><b>{k.nazwa}</b><span>{k.opis}</span></span>
+            </li>
+          ))}
+        </ol>
+      )}
+      <section className={teraz.klasa} aria-label="Teraz">
+        <div className="crm-k2-krok-tekst">
+          <span className="crm-k2-krok-label">Teraz</span>
+          <span className="crm-k2-krok-tytul">{teraz.tytul}</span>
+          <span className="crm-k2-krok-opis crm-k2-krok-opis--pelny">{teraz.opis}</span>
+        </div>
+        {teraz.akcje && <div className="crm-mail-actions">{teraz.akcje}</div>}
+      </section>
+      {odmowa && (
+        <WynikPrzegranyForm
+          busy={wynikBusy}
+          hint="Ta oferta dostanie status „Odrzucona”, a klient „Przegrany”; otwarte zadanie się zamknie."
+          onCancel={() => setOdmowa(false)}
+          onConfirm={(powod, notatka) => void handleWynikOferty('przegrany', { powod, notatka })}
+        />
       )}
 
-      {/* 0b. USTALENIA DO AKCEPTACJI (automat ofert wyłączony) */}
+      <div className="crm-k2-cols">
+      <div className="crm-k2-main crm-o2-main">
+
+      {/* 0b. USTALENIA (automat ofert wyłączony): po polsku, tylko wypełnione pola; akcje w „Teraz” */}
       {wstrzymana && (
-        <section className="crm-check crm-check--pending">
-          <h4>Ustalenia {oferta.mail_id ? 'z maila' : oferta.rozmowa_id ? 'z rozmowy' : ''} — oferta czeka na Twoją akceptację</h4>
-          <p className="crm-pending-text">{typeof analiza.podsumowanie === 'string' && analiza.podsumowanie ? analiza.podsumowanie : 'Brak podsumowania w analizie.'}</p>
-          {analiza.dane && typeof analiza.dane === 'object' ? <KeyValueTable data={analiza.dane as Record<string, unknown>} /> : null}
-          {Array.isArray(analiza.brakuje) && analiza.brakuje.length > 0 && (
-            <p className="crm-muted">Brakuje: {(analiza.brakuje as unknown[]).map(String).join('; ')}</p>
+        <section className="crm-o2-ustalenia">
+          <h4>Ustalenia {oferta.mail_id ? 'z maila' : oferta.rozmowa_id ? 'z rozmowy' : zNotatki ? 'z notatki' : ''}</h4>
+          <p className="crm-o2-podsumowanie">{typeof analiza.podsumowanie === 'string' && analiza.podsumowanie ? analiza.podsumowanie : 'Brak podsumowania w analizie.'}</p>
+          {ustalenia.length > 0 && (
+            <dl className="crm-o2-dl">
+              {ustalenia.map((u) => (
+                <div key={u.klucz} className="crm-o2-dl-row"><dt>{u.nazwa}</dt><dd>{u.wartosc}</dd></div>
+              ))}
+            </dl>
           )}
-          <div className="crm-mail-actions">
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={saving}
-              onClick={async () => {
-                setSaving(true)
-                const err = await zlecOferteWstrzymana(oferta.id)
-                setSaving(false)
-                if (err) { pushToast(`Nie udało się zlecić oferty: ${err.message}`, 'error'); return }
-                pushToast('Oferta liczy się — zwykle 30–90 s', 'success')
-                void load(true)
-              }}
-            >
-              <Check size={14} /> Ustalenia OK — policz ofertę
-            </button>
-            <span className="crm-muted">Jeśli ustalenia są błędne: popraw notatkę na karcie klienta i tam kliknij „Zleć ofertę”, albo usuń tę ofertę.</span>
-          </div>
+          {brakuje.length > 0 && <div className="crm-o2-brakuje"><b>Brakuje:</b> {brakuje.join('; ')}</div>}
+          {poprawOpen ? (
+            <div className="crm-o2-poprawka">
+              <label className="crm-pf-field">
+                <span className="crm-pf-label">Co poprawić w ustaleniach? Zwykłym językiem — np. „okucia zwykłe Haga, nie Premium; kolor antracyt”</span>
+                <textarea className="crm-fix-textarea" rows={3} autoFocus value={poprawka} onChange={(e) => setPoprawka(e.target.value)} disabled={saving} placeholder="Co poprawić?" />
+              </label>
+              <div className="crm-mail-actions">
+                <button type="button" className="btn btn-primary" disabled={saving || !poprawka.trim()} onClick={() => void handlePoprawUstalenia()}>{saving ? <Spinner inline size={14} /> : <Check size={14} />} Zapisz poprawkę i policz</button>
+                <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => setPoprawOpen(false)}>Anuluj</button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="crm-link" onClick={otworzPoprawke}>Coś się nie zgadza? Popraw ustalenia</button>
+          )}
         </section>
       )}
 
@@ -1086,7 +1217,7 @@ function OfertaScreen({
         </section>
       ) : !sysErr ? (
         <section className={`crm-check ${oferta.koszyk_zgodny === false ? 'crm-check--bad' : sprawdz.length === 0 && oferta.koszyk_zgodny ? 'crm-check--clean' : ''}`}>
-          <h4>Sprawdź tylko to</h4>
+          <h4>Zanim wyślesz — sprawdź</h4>
           {!oficjalna && <div className="crm-check-koszyk"><KoszykBadge value={oferta.koszyk_zgodny} /></div>}
           {sprawdz.length === 0 ? (
             <p className="crm-check-clean">{oficjalna ? 'Pozycje przepisane z konfiguracji bez wątpliwości — sprawdź PDF i wyślij.' : 'Konfiguracja w całości z rozmowy — przeczytaj mail raz i wyślij.'}</p>
@@ -1110,54 +1241,15 @@ function OfertaScreen({
       {/* 1b. OFERTA OFICJALNA (brief pkt 21): pozycje z konfiguracji, usługi, VAT, zakres, PDF */}
       {!pending && oficjalna && <OfertaOficjalnaSekcja oferta={oferta} onOpenDokument={handleOpenDokument} />}
 
-      {/* 2. MAIL */}
-      {!pending && (
-        <section className="crm-mail">
+      {/* 2. MAIL — podgląd jak prawdziwa wiadomość; „Otwórz w poczcie” / „Wysłałem” / wynik są w pasku „Teraz” */}
+      {!pending && oferta.mail_tresc?.trim() && (
+        <section className="crm-mail crm-o2-mail">
           <h4>Mail do klienta</h4>
-          <div className="crm-mail-actions crm-mail-actions--top">
-            <button type="button" className="btn btn-primary" disabled={!oferta.mail_do || sysErr || !oferta.mail_tresc?.trim()} onClick={handleOpenInMail} title={oferta.mail_tresc?.trim() ? 'Otwiera w Twoim programie pocztowym gotową wiadomość: adresat, temat i treść. Sprawdź i kliknij Wyślij.' : 'Mail będzie gotowy, gdy oferta zostanie policzona'}>
-              <Mail size={15} /> Otwórz w poczcie
-            </button>
-            {oficjalna && oferta.plik_pdf && (
-              <button type="button" className="btn btn-secondary" onClick={() => void handleOpenDokument(oferta.plik_pdf as string)} title="PDF oferty do dołączenia do maila">
-                <FileText size={15} /> Pobierz PDF
-              </button>
-            )}
-            <span className="crm-muted">
-              {!oferta.mail_tresc?.trim()
-                ? 'Mail do klienta będzie gotowy, gdy oferta zostanie policzona — najpierw sprawdź ustalenia wyżej i kliknij „Ustalenia OK — policz ofertę”.'
-                : oficjalna
-                ? 'Mail otworzy się bez załącznika — pobierz PDF i dołącz go do wiadomości przed wysłaniem.'
-                : 'Wiadomość otworzy się w programie pocztowym gotowa do wysłania. Poniżej te same pola do skopiowania.'}
-            </span>
-          </div>
-          <CopyRow label="Adres" value={oferta.mail_do} onCopied={onCopied} />
+          {oficjalna && <p className="crm-muted">Mail otworzy się bez załącznika — pobierz PDF (pasek „Teraz” albo menu „…”) i dołącz go przed wysłaniem.</p>}
+          <CopyRow label="Do" value={oferta.mail_do} onCopied={onCopied} />
           <CopyRow label="Temat" value={oferta.mail_temat} onCopied={onCopied} />
           <CopyRow label="Treść" value={oferta.mail_tresc} multiline onCopied={onCopied} />
           <MailOfertyStyl oferta={oferta} pushToast={pushToast} onCopied={onCopied} onSaved={silentReload} />
-          <div className="crm-mail-actions">
-            <button type="button" className="btn btn-primary" disabled={!canSend || saving} onClick={() => void handleWyslane()} title={canSend ? 'Mail poszedł z Twojej poczty — potwierdź, oferta zniknie z listy do zrobienia' : 'Dostępne tylko dla oferty do sprawdzenia'}>
-              Wysłane
-            </button>
-            {canSend && <span className="crm-muted">Kliknij po wysłaniu maila — system zapamięta kto i kiedy i za 3 dni przypomni o follow-upie.</span>}
-            {!canSend && !sysErr && <span className="crm-muted">Ta wersja ma status „{CRM_OFERTA_STATUS[oferta.status]?.label ?? oferta.status}”.</span>}
-            {oferta.status === 'wyslana' && oferta.lead_id && !leadZamkniety && (
-              <>
-                <button type="button" className="btn btn-success" disabled={wynikBusy} onClick={() => void handleWynikOferty('wygrany')} title="Oferta zaakceptowana, klient „Zamówił”, zadanie się zamknie">
-                  <Check size={15} /> Klient przyjął
-                </button>
-                <button type="button" className="btn btn-secondary" disabled={wynikBusy} onClick={() => setOdmowa(true)} aria-expanded={odmowa}>Klient odmówił…</button>
-              </>
-            )}
-          </div>
-          {odmowa && (
-            <WynikPrzegranyForm
-              busy={wynikBusy}
-              hint="Ta oferta dostanie status „Odrzucona”, a klient „Przegrany”; otwarte zadanie się zamknie."
-              onCancel={() => setOdmowa(false)}
-              onConfirm={(powod, notatka) => void handleWynikOferty('przegrany', { powod, notatka })}
-            />
-          )}
         </section>
       )}
 
@@ -1169,21 +1261,21 @@ function OfertaScreen({
         </section>
       )}
 
-      {/* 3. POPRAWKA — dopiero gdy jest co poprawiać */}
-      {!pending && (
-        <section className="crm-fix">
-          <h4>Poprawka</h4>
-          <p className="user-modal-hint">
-            Napisz zwykłym językiem, co zmienić (np. „okucia zwykłe Haga nie Premium, kolor antracyt struktura, dopisz że mogę podjechać na pomiar”).
-            System przeliczy cenę, zrobi nowy koszyk i napisze mail od nowa jako kolejną wersję.
-          </p>
-          <textarea className="crm-fix-textarea" rows={3} value={poprawka} onChange={(e) => setPoprawka(e.target.value)} disabled={saving} placeholder="Co poprawić?" />
-          <div className="crm-mail-actions">
-            <button type="button" className="btn btn-secondary" disabled={saving || !poprawka.trim()} onClick={() => void handlePrzelicz()}>
-              Przelicz
-            </button>
+      {/* 3. POPRAWKA policzonej oferty — nowa wersja; zwinięta, żeby nie mylić z wysyłką */}
+      {!pending && !wstrzymana && krok !== 'stara' && (
+        <details className="crm-details crm-o2-poprawka" open={poprawOpen} onToggle={(e) => setPoprawOpen((e.target as HTMLDetailsElement).open)}>
+          <summary>Poprawić coś w ofercie? (powstanie nowa wersja)</summary>
+          <div className="crm-details-body">
+            <p className="user-modal-hint">
+              Napisz zwykłym językiem, co zmienić (np. „okucia zwykłe Haga nie Premium, kolor antracyt struktura, dopisz że mogę podjechać na pomiar”).
+              System przeliczy cenę, zrobi nowy koszyk i napisze mail od nowa jako kolejną wersję.
+            </p>
+            <textarea className="crm-fix-textarea" rows={3} value={poprawka} onChange={(e) => setPoprawka(e.target.value)} disabled={saving} placeholder="Co poprawić?" />
+            <div className="crm-mail-actions">
+              <button type="button" className="btn btn-secondary" disabled={saving || !poprawka.trim()} onClick={() => void handlePrzelicz()}>Przelicz z poprawką</button>
+            </div>
           </div>
-        </section>
+        </details>
       )}
 
       {/* 4. DANE TECHNICZNE */}
@@ -1322,6 +1414,49 @@ function OfertaScreen({
           <Timeline items={zdarzenia} names={names} />
         </section>
       )}
+      </div>
+
+      <aside className="crm-k2-side" aria-label="O ofercie">
+        <section className="crm-k2-card">
+          <h4>W skrócie</h4>
+          <div className="crm-o2-skrot">
+            <span className="crm-muted">Produkt</span><span>{oferta.produkt || (pending || wstrzymana ? 'jeszcze nie dobrany' : '—')}</span>
+            <span className="crm-muted">Cena</span><b>{kwotaTeraz != null ? `${fmtPln(kwotaTeraz)}${oficjalna ? ' brutto' : ''}` : 'po policzeniu'}</b>
+            {!oficjalna && oferta.dostawa_koszt != null && <><span className="crm-muted">Dostawa</span><span>{CRM_DOSTAWA_LABEL[oferta.dostawa ?? ''] ?? 'dostawa'} {fmtPln(oferta.dostawa_koszt)}</span></>}
+            {!oficjalna && oferta.link_wazny_do && <><span className="crm-muted">Ważna do</span><span className={linkValid === false ? 'crm-text-bad' : undefined}>{fmtDate(oferta.link_wazny_do)}{linkValid === false ? ' — wygasła' : ''}</span></>}
+            <span className="crm-muted">Utworzona</span><span>{fmtDateTime(oferta.created_at)}</span>
+          </div>
+        </section>
+        <section className="crm-k2-card">
+          <h4>Klient</h4>
+          <button type="button" className="crm-link crm-o2-klient" onClick={() => oferta.lead_id && onOpenLead(oferta.lead_id)}>{leadName(oferta.lead)}</button>
+          <span className="crm-muted">{[oferta.lead?.miejscowosc, oferta.mail_do || oferta.lead?.email, oferta.lead?.telefon].filter(Boolean).join(' · ') || '—'}</span>
+        </section>
+        {(oferta.plik_pdf || konfiguracjaPliki(oferta).length > 0) && (
+          <section className="crm-k2-card">
+            <h4>Pliki</h4>
+            {oferta.plik_pdf && <button type="button" className="crm-link" onClick={() => void handleOpenDokument(oferta.plik_pdf as string)}><FileText size={13} /> Oferta PDF{oferta.numer ? ` nr ${oferta.numer}` : ''}</button>}
+            {konfiguracjaPliki(oferta).map((sc, i, all) => (
+              <button key={sc} type="button" className="crm-link" onClick={() => void handleOpenDokument(sc)}><FileText size={13} /> Konfiguracja producenta{all.length > 1 ? ` ${i + 1}/${all.length}` : ''}</button>
+            ))}
+          </section>
+        )}
+        {wersje.length > 1 && (
+          <section className="crm-k2-card">
+            <h4>Wersje ({wersje.length})</h4>
+            <ul className="crm-o2-wersje">
+              {[...wersje].reverse().map((w) => (
+                <li key={w.id}>
+                  <button type="button" className={`crm-link${w.id === oferta.id ? ' crm-o2-wersja--ta' : ''}`} disabled={w.id === oferta.id} onClick={() => onOpenOferta(w.id)}>v{w.wersja}</button>
+                  <StatusBadge status={w.status} />
+                  <span className="crm-muted">{w.cena_razem != null ? fmtPln(w.cena_razem) : w.brutto != null ? fmtPln(w.brutto) : ''}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </aside>
+      </div>
     </div>
   )
 }
