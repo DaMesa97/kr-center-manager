@@ -29,6 +29,7 @@ import type { CrmDokument, CrmDokumentOdp, CrmDuplikat, CrmDuplikatLeada, CrmDzi
 import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
 import { isoLocal } from '../utils/crmTermin'
+import { fetchAllPages } from '../lib/fetchPaged'
 
 const crm = () => supabase.schema('crm')
 
@@ -388,12 +389,19 @@ export type CrmKontaktRow = CrmLead & {
 
 /** Statystyki CRM (21.11): wysłane oferty z kwotą i datą wysłania (do 5000). */
 export async function fetchOfertyWyslane(): Promise<Result<Array<{ lead_id: string | null; wyslano_at: string | null; rodzaj: string | null; brutto: number | null; cena_razem: number | null }>>> {
-  const { data, error } = await crm().from('oferty').select('lead_id, wyslano_at, rodzaj, brutto, cena_razem').not('wyslano_at', 'is', null).order('wyslano_at', { ascending: false }).limit(5000)
+  // porcjami po 1000 — PostgREST ucina odpowiedź do 1000 wierszy, .limit(5000) po cichu dawał 1000 (zwiad 21.11)
+  const { data, error } = await fetchAllPages<{ lead_id: string | null; wyslano_at: string | null; rodzaj: string | null; brutto: number | null; cena_razem: number | null }>(
+    (from, to) => crm().from('oferty').select('lead_id, wyslano_at, rodzaj, brutto, cena_razem').not('wyslano_at', 'is', null).order('wyslano_at', { ascending: false }).order('id', { ascending: false }).range(from, to),
+    { max: 5000 },
+  )
   return { data: (data ?? []) as Array<{ lead_id: string | null; wyslano_at: string | null; rodzaj: string | null; brutto: number | null; cena_razem: number | null }>, error: crmErrorFrom(error) }
 }
 
 export async function fetchKontakty(): Promise<Result<CrmKontaktRow[]>> {
-  const { data, error } = await crm().from('leady').select('*').order('updated_at', { ascending: false }).limit(2000)
+  const { data, error } = await fetchAllPages<CrmLead>(
+    (from, to) => crm().from('leady').select('*').order('updated_at', { ascending: false }).order('id', { ascending: false }).range(from, to).overrideTypes<CrmLead[], { merge: false }>(),
+    { max: 5000 },
+  )
   if (error) return { data: [], error: crmErrorFrom(error) }
   const leads = (data ?? []) as unknown as CrmLead[]
   const byLead = new Map<string, CrmKontaktRow['ostatnia_oferta']>()
