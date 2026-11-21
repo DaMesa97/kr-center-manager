@@ -634,10 +634,21 @@ html, body, #root {
   padding: 9px 0;
   gap: 0;
 }
+/* #163: w zwiniętym menu liczba nie mieści się obok ikony i ją zasłaniała —
+   zamiast niej kropka w rogu ikony, liczba w dymku (title przycisku) */
 .app-sidebar--collapsed .sidebar-badge {
   position: absolute;
-  top: 2px;
-  right: 6px;
+  top: calc(50% - 11px);
+  left: calc(50% + 4px);
+  width: 9px;
+  height: 9px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 0;
+  line-height: 0;
+  overflow: hidden;
+  box-shadow: 0 0 0 2px var(--color-sidebar-bg);
 }
 .app-sidebar--collapsed .sidebar-group { position: relative; }
 .app-sidebar--collapsed .sidebar-item { position: relative; }

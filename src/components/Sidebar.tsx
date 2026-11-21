@@ -218,7 +218,7 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
                     toggleGroup(entry.id)
                   }
                 }}
-                title={collapsed ? entry.label : undefined}
+                title={collapsed ? (groupBadge > 0 ? `${entry.label} — ${groupBadge}` : entry.label) : undefined}
               >
                 <GroupIcon size={15} className="sidebar-item-icon" />
                 <span className="sidebar-group-label">{entry.label}</span>
