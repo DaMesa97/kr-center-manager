@@ -200,7 +200,8 @@ export default function Sidebar({ visibleTabs, activeTab, onChange, reviewCount 
           const isExpanded = expandedGroups.has(entry.id)
           const GroupIcon = entry.Icon
           // zwinięta grupa: suma plakietek jej pozycji, żeby alert nie znikał z oczu
-          const groupBadge = isExpanded
+          // w zwiniętym menu dzieci nie widać, nawet gdy grupa „rozwinięta” — wtedy też kropka (zwiad 21.11)
+          const groupBadge = isExpanded && !collapsed
             ? 0
             : groupTabs.reduce((sum, t) => sum + (badgeFor(t)?.value ?? 0), 0)
 

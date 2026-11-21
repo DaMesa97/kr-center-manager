@@ -1157,7 +1157,8 @@ export function isOrderOverdue(order: {
 export function workingDaysBetween(start: Date, end: Date): number {
   const s = new Date(start.getFullYear(), start.getMonth(), start.getDate())
   const e = new Date(end.getFullYear(), end.getMonth(), end.getDate())
-  const days = Math.floor((e.getTime() - s.getTime()) / 86_400_000)
+  // round, nie floor: między północami w dniu zmiany czasu jest 23 h (marzec) — floor gubił dzień do października
+  const days = Math.round((e.getTime() - s.getTime()) / 86_400_000)
   if (days <= 0) return 0
   const fullWeeks = Math.floor(days / 7)
   let count = fullWeeks * 5

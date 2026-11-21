@@ -40,7 +40,7 @@ const fmtDate = (iso: string | null | undefined): string => {
   if (Number.isNaN(d.getTime())) return iso
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
 }
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => new Date().toLocaleDateString('sv-SE')
 
 /**
  * Bastion → Reszta: drobne zamówienia bez drzwi (progi, opaski, zabudowy) —

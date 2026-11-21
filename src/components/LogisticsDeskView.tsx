@@ -14,6 +14,7 @@
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Order } from '../types'
+import { ileOdm } from '../utils/odmiana'
 import { CATEGORY_LABELS } from '../constants'
 import { isOrderReadyToInvoice } from '../utils'
 import { appConfirm } from '../lib/appDialogs'
@@ -126,14 +127,14 @@ export default function LogisticsDeskView({
   const today = todayIso()
   const q = query.trim().toLowerCase()
 
-  const firms = useMemo<DeskFirm[]>(() => {
+  // CAŁA trasa — z niej liczniki, lista do fakturowania i „Trasa wyjechała”. Filtry „Schowaj już oznaczone”
+  // i szukanie tylko ukrywają wiersze (zwiad 21.11: wcześniej lista do druku była pusta, a wyjazd pomijał oznaczone)
+  const routeFirms = useMemo<DeskFirm[]>(() => {
     const map = new Map<string, DeskRow[]>()
     for (const o of candidates) {
       const route = deskRouteOf(o, resolveCompany(o.company))
       if (route !== prefs.route) continue
       const marked = isOrderReadyToInvoice(o)
-      if (prefs.hideMarked && marked) continue
-      if (q && !(o.company.toLowerCase().includes(q) || String(o.order_number).toLowerCase().includes(q) || String(o.client_order_number ?? '').toLowerCase().includes(q))) continue
       const row: DeskRow = {
         order: o, route, pinned: !!readRoutePin(o), marked,
         state: deskWarehouseState(o), warnings: deskWarnings(o, allOrders), noRo: deskNoRo(o), age: deskAge(o), spec: deskSpec(o),
@@ -155,17 +156,32 @@ export default function LogisticsDeskView({
     }
     out.sort((a, b) => a.name.localeCompare(b.name, 'pl'))
     return out
-  }, [candidates, resolveCompany, prefs.route, prefs.hideMarked, q, allOrders, today])
+  }, [candidates, resolveCompany, prefs.route, allOrders, today])
+
+  const firms = useMemo<DeskFirm[]>(() => {
+    if (!prefs.hideMarked && !q) return routeFirms
+    const out: DeskFirm[] = []
+    for (const f of routeFirms) {
+      const rows = f.rows.filter((r) => {
+        if (prefs.hideMarked && r.marked) return false
+        const o = r.order
+        if (q && !(o.company.toLowerCase().includes(q) || String(o.order_number).toLowerCase().includes(q) || String(o.client_order_number ?? '').toLowerCase().includes(q))) return false
+        return true
+      })
+      if (rows.length) out.push({ ...f, rows })
+    }
+    return out
+  }, [routeFirms, prefs.hideMarked, q])
 
   const kpi = useMemo(() => {
     let n = 0, marked = 0, packed = 0, shipped = 0
-    for (const f of firms) for (const r of f.rows) { n++; if (r.marked) marked++; if (r.state.packed) packed++; if (r.shippedNow) shipped++ }
-    return { firms: firms.length, orders: n, marked, packed, shipped }
-  }, [firms])
+    for (const f of routeFirms) for (const r of f.rows) { n++; if (r.marked) marked++; if (r.state.packed) packed++; if (r.shippedNow) shipped++ }
+    return { firms: routeFirms.length, orders: n, marked, packed, shipped }
+  }, [routeFirms])
 
   const printList = useMemo(
-    () => buildPrintList(firms.map((f) => ({ name: f.name, orders: f.rows.map((r) => r.order) })), isOrderReadyToInvoice),
-    [firms],
+    () => buildPrintList(routeFirms.map((f) => ({ name: f.name, orders: f.rows.map((r) => r.order) })), isOrderReadyToInvoice),
+    [routeFirms],
   )
 
   const setProd = (p: DeskDay) => setPrefs((x) => ({ ...x, prod: p, route: ROUTE_OF_PROD[p] }))
@@ -213,11 +229,12 @@ export default function LogisticsDeskView({
   }
 
   const shipRoute = async () => {
-    const ids = firms.flatMap((f) => f.rows.filter((r) => !isShipped(r.order)).map((r) => r.order.id!))
+    const doWyjazdu = routeFirms.filter((f) => f.rows.some((r) => !isShipped(r.order)))
+    const ids = doWyjazdu.flatMap((f) => f.rows.filter((r) => !isShipped(r.order)).map((r) => r.order.id!))
     if (ids.length === 0) { return }
-    const notPacked = firms.flatMap((f) => f.rows.filter((r) => !isShipped(r.order) && !r.state.packed)).length
+    const notPacked = doWyjazdu.flatMap((f) => f.rows.filter((r) => !isShipped(r.order) && !r.state.packed)).length
     const ok = await appConfirm(
-      `${shipButtonLabel(prefs.route)} — ${prefs.route}: oznaczyć ${ids.length} zleceń z ${firms.length} firm?` +
+      `${shipButtonLabel(prefs.route)} — ${prefs.route}: oznaczyć ${ileOdm(ids.length, 'zlecenie', 'zlecenia', 'zleceń')} z ${ileOdm(doWyjazdu.length, 'firmy', 'firm', 'firm')}?` +
       (notPacked ? ` Uwaga: ${notPacked} z nich nie ma kompletu etapów / wydania — jeśli zostały na hali, odznacz je po oznaczeniu („cofnij” w wierszu).` : '') +
       ' Data wydania z Excela zostaje bez zmian.',
     )

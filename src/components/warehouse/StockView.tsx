@@ -297,7 +297,7 @@ function StockView({
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `braki_${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `braki_${new Date().toLocaleDateString('sv-SE')}.csv`
     document.body.appendChild(a)
     a.click()
     a.remove()

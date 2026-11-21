@@ -178,7 +178,7 @@ export default function BatchPrintComboModal({ orders, onClose, onDone, initialM
       const single = orders.length === 1 ? orders[0] : null
       const defaultName = single
         ? [String(single.company ?? '').trim(), String(single.order_number ?? '').trim()].filter(Boolean).join(' ') || 'wydruk'
-        : `komplet ${new Date().toISOString().slice(0, 10)} (${orders.length} zam.)`
+        : `komplet ${new Date().toLocaleDateString('sv-SE')} (${orders.length} zam.)`
       const html = buildCombinedPdfHtml(sections, defaultName)
       const res = (await ipc.invoke('print:exportPdf', { html, defaultName })) as PrintRes
       if (res?.success) {

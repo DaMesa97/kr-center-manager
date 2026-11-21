@@ -161,6 +161,11 @@ describe('workingDaysBetween — wiek zamówienia w dniach roboczych', () => {
     // dwa pełne tygodnie + 1 dzień roboczy
     expect(workingDaysBetween(d('2026-10-05'), d('2026-10-20'))).toBe(11)
   })
+  it('zmiana czasu na letni (doba 23 h) nie gubi dnia', () => {
+    // pt 27.03.2026 → pn 30.03.2026 (w nocy 28/29.03 zmiana czasu) = 1 dzień roboczy
+    expect(workingDaysBetween(d('2026-03-27'), d('2026-03-30'))).toBe(1)
+    expect(workingDaysBetween(d('2026-03-23'), d('2026-04-06'))).toBe(10)
+  })
 })
 
 describe('orderSetCompleteness — komplet pary/trójki w Wysyłce', () => {

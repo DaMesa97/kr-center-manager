@@ -13,6 +13,7 @@
 // =====================================================================
 import type { Order } from '../types'
 import { countCompletedStages, getDaysElapsed, isReleaseDateEmpty, isRushOrderSequence, isStTitanOrder, isTitanBastionOrder, orderSetCompleteness } from '../utils'
+import { getOrderProblem } from './orderProblem'
 import { ALU_MONTAZ_ROUTE, PERSONAL_PICKUP_ROUTE, getOrderRouteDay, type CompanyShippingInfo } from './companyMatch'
 
 export const DESK_DAYS = ['PONIEDZIAŁEK', 'WTOREK', 'ŚRODA', 'CZWARTEK', 'PIĄTEK'] as const
@@ -119,8 +120,9 @@ export function deskWarnings(order: Order, allOrders: Order[]): DeskWarning[] {
   // magazynu i receptur, nie logistyki — na biurku tylko śmieciły i odrywały uwagę.
   if (String(order.stock_status ?? '') === 'insufficient') out.push({ kind: 'stock', text: 'niedobór magazynowy' })
   if (isRushOrderSequence(order.sequence)) out.push({ kind: 'rush', text: 'PILNE' })
-  const extra = order.extra_fields as Record<string, unknown> | null
-  if (extra?.problem === true) out.push({ kind: 'problem', text: String(extra.problem_note ?? 'problem') })
+  // flaga z hali (#87) to obiekt {reason, at, by} — stary warunek `problem === true` nigdy nie łapał (zwiad 21.11)
+  const problem = getOrderProblem(order)
+  if (problem) out.push({ kind: 'problem', text: `problem: ${problem.reason}` })
   if (order.category === 'ST' && isStTitanOrder(order)) out.push({ kind: 'titan', text: 'noga Titan (ościeżnica)' })
   return out
 }

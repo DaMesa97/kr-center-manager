@@ -119,6 +119,6 @@ export function generateGlassOrderPdf(lines: GlassOrderLine[], companyName = 'KR
   }
 
   pdfMakeRuntime.createPdf(docDefinition).download(
-    `zamowienie-szyb_${new Date().toISOString().slice(0, 10)}.pdf`,
+    `zamowienie-szyb_${new Date().toLocaleDateString('sv-SE')}.pdf`,
   )
 }

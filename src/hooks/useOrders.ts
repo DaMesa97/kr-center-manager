@@ -1223,7 +1223,7 @@ export function useOrders({
         company: staFormData.company,
         order_date: isEditing
           ? editingOrderBaseline.order_date
-          : new Date().toISOString().split('T')[0],
+          : new Date().toLocaleDateString('sv-SE'),
         production_day: staFormData.production_day,
         quantity: staFormData.quantity,
         sequence: isEditing ? editingOrderBaseline.sequence : '',
@@ -1589,7 +1589,7 @@ export function useOrders({
         company: stFormData.company,
         order_date: isEditing
           ? editingOrderBaseline.order_date
-          : new Date().toISOString().split('T')[0],
+          : new Date().toLocaleDateString('sv-SE'),
         production_day: stFormData.production_day,
         quantity: stFormData.quantity,
         sequence: isEditing ? editingOrderBaseline.sequence : '',
@@ -1835,7 +1835,7 @@ export function useOrders({
         company: techniczneFormData.company,
         order_date: isEditing
           ? editingOrderBaseline.order_date
-          : new Date().toISOString().split('T')[0],
+          : new Date().toLocaleDateString('sv-SE'),
         production_day: techniczneFormData.production_day,
         quantity: techniczneFormData.quantity,
         sequence: isEditing ? editingOrderBaseline.sequence : '',
@@ -1952,7 +1952,7 @@ export function useOrders({
         company: bastionFormData.company,
         order_date: isEditing
           ? editingOrderBaseline.order_date
-          : new Date().toISOString().split('T')[0],
+          : new Date().toLocaleDateString('sv-SE'),
         production_day: bastionFormData.production_day,
         quantity: bastionFormData.quantity,
         sequence: isEditing ? editingOrderBaseline.sequence : '',
@@ -2105,7 +2105,7 @@ export function useOrders({
           ...formData,
           ...emptyOrderMeta,
           category: formData.category || activeTab,
-          order_date: formData.order_date || new Date().toISOString().split('T')[0],
+          order_date: formData.order_date || new Date().toLocaleDateString('sv-SE'),
           production_stages: createEmptyProductionStages(activeTab),
         } as Record<string, unknown>),
       ])
@@ -2335,7 +2335,7 @@ export function useOrders({
   )
 
   const handleBastionLabelToggle = useCallback(async (orderId: number, current: string) => {
-    const newValue = current ? '' : new Date().toISOString().split('T')[0]
+    const newValue = current ? '' : new Date().toLocaleDateString('sv-SE')
     const { error } = await supabase
       .from('orders')
       .update({ label: newValue })

@@ -388,7 +388,7 @@ export function releaseCol(ctx: OrderTableCtx, opts: ReleaseColOpts = {}): DataT
                 { title: noun === 'wydanie' ? 'Wydanie zamówienia' : 'Realizacja zamówienia', confirmLabel: 'Tak, oznacz' },
               )
               if (!ok) return
-              void ctx.onApplyReleaseDateUpdate(id, new Date().toISOString().split('T')[0])
+              void ctx.onApplyReleaseDateUpdate(id, new Date().toLocaleDateString('sv-SE'))
             })()
           })}
         />

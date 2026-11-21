@@ -111,7 +111,7 @@ function InternalDoorOrderDetailsModal({
       confirmLabel: 'Wydaj',
       message: `Czy na pewno wydać zamówienie #${order.order_number} dla firmy ${order.company}?`,
       run: async () => {
-        const today = new Date().toISOString().slice(0, 10)
+        const today = new Date().toLocaleDateString('sv-SE')
         const { error } = await supabase.from('orders').update({ release_date: today }).eq('id', order.id!)
         if (error) {
           pushToast(`Błąd wydania zamówienia: ${error.message}`, 'error')

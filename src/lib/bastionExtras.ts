@@ -56,7 +56,7 @@ export type BastionExtraForm = {
 }
 
 export const emptyBastionExtraForm = (): BastionExtraForm => ({
-  order_date: new Date().toISOString().slice(0, 10),
+  order_date: new Date().toLocaleDateString('sv-SE'),
   company: '',
   production_day: '',
   description: '',

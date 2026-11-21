@@ -279,7 +279,7 @@ export function useComplaints({
         .from('complaints')
         .insert({
           complaint_number,
-          complaint_date: new Date().toISOString().split('T')[0],
+          complaint_date: new Date().toLocaleDateString('sv-SE'),
           category: 'Disting',
           order_id: complaintFormData.order_id,
           order_number: complaintFormData.order_number ?? '',
@@ -339,7 +339,7 @@ export function useComplaints({
         .from('complaints')
         .insert({
           complaint_number,
-          complaint_date: new Date().toISOString().split('T')[0],
+          complaint_date: new Date().toLocaleDateString('sv-SE'),
           category: 'STA',
           order_id: staOrder?.id ?? null,
           order_number: String(staOrder?.order_number ?? ''),
@@ -402,7 +402,7 @@ export function useComplaints({
     } else {
       const { error } = await supabase.from('complaints').insert({
         complaint_number,
-        complaint_date: new Date().toISOString().split('T')[0],
+        complaint_date: new Date().toLocaleDateString('sv-SE'),
         category: activeTab as string,
         order_id: complaintFormData.order_id,
         order_number: complaintFormData.order_number ?? '',
@@ -607,7 +607,7 @@ export function useComplaints({
       if (!isManager) return
       const id = complaint.id
       if (id === undefined) return
-      const today = new Date().toISOString().split('T')[0]
+      const today = new Date().toLocaleDateString('sv-SE')
       const value = done ? today : null
       const { data, error } = await supabase.from('complaints').update({ release_date: value }).eq('id', id).select('id')
       if (error) {
