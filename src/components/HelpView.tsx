@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: nowy ekran oferty — kroki i „Teraz” (beta.140)</h4>
+        <ul>
+          <li><b>Kroki na górze:</b> Ustalenia → Liczenie → Wysyłka → Decyzja klienta — od razu widać, na jakim etapie jest oferta.</li>
+          <li><b>Pasek „Teraz”:</b> mówi, co zrobić w tym kroku, i ma właściwe przyciski: „Ustalenia OK — policz ofertę”, „Otwórz w poczcie” + „Wysłałem”, „Klient przyjął” / „Odmówił…”.</li>
+          <li><b>Ustalenia po polsku:</b> tylko wypełnione pola („Kolor skrzydła”, „Wymiar otworu”…), „Brakuje” na żółto. „Popraw ustalenia” — poprawka w tym samym miejscu, potem oferta liczy się od razu.</li>
+          <li><b>Porządek:</b> mail pokazuje się dopiero, gdy jest gotowy; „Usuń ofertę”, „Odśwież” i „Pobierz PDF” są w menu „…”; po prawej „W skrócie”, klient, pliki i wersje.</li>
+        </ul>
         <h4>CRM: bezpieczniej i jaśniej — poprawki po teście, tytuł oferty (beta.139)</h4>
         <ul>
           <li><b>„Zamówił” pyta „za ile?”:</b> na karcie klienta po kliknięciu „Zamówił” wpisujesz kwotę (podpowiada się z ostatniej oferty) i dopiero „Zapisz: zamówił” zapisuje wynik. Potem pasek podpowiada „umów pomiar albo montaż”.</li>
