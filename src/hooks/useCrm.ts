@@ -83,11 +83,12 @@ export async function fetchOfertyLeada(leadId: string): Promise<Result<CrmOferta
 }
 
 export async function fetchZdarzenia(filter: { ofertaId?: string; leadId?: string }): Promise<Result<CrmZdarzenie[]>> {
-  let q = crm().from('zdarzenia').select('*').order('created_at', { ascending: true }).limit(500)
+  // 500 NAJNOWSZYCH (malejąco + odwrócenie) — rosnąco z limitem przy bogatej historii ucinało najświeższe zdarzenia
+  let q = crm().from('zdarzenia').select('*').order('created_at', { ascending: false }).limit(500)
   if (filter.ofertaId) q = q.eq('oferta_id', filter.ofertaId)
   else if (filter.leadId) q = q.eq('lead_id', filter.leadId)
   const { data, error } = await q
-  return { data: (data ?? []) as unknown as CrmZdarzenie[], error: crmErrorFrom(error) }
+  return { data: ((data ?? []) as unknown as CrmZdarzenie[]).reverse(), error: crmErrorFrom(error) }
 }
 
 export async function fetchLead(id: string): Promise<Result<CrmLead | null>> {
@@ -114,12 +115,13 @@ const isoDatePlusDays = (days: number): string => {
  * „Wysłane”: status=wyslana, wyslano_at=now(), sprawdzil=ja + zdarzenie `wyslano`.
  * Pilot (brief pkt 6): frontend czyści akcję na leadzie i ustawia follow_up za 3 dni.
  */
-export async function markOfertaWyslana(oferta: CrmOferta, userId: string): Promise<CrmError | null> {
+/** error = status oferty się nie zmienił; bezFollowUpu = oferta wysłana, ale zadanie follow-up nie zapisało się (zwiad 21.11 — wcześniej tylko console.warn, a toast obiecywał follow-up) */
+export async function markOfertaWyslana(oferta: CrmOferta, userId: string): Promise<{ error: CrmError | null; bezFollowUpu?: string }> {
   const { error } = await crm()
     .from('oferty')
     .update({ status: 'wyslana', wyslano_at: new Date().toISOString(), sprawdzil: userId })
     .eq('id', oferta.id)
-  if (error) return crmErrorFrom(error)
+  if (error) return { error: crmErrorFrom(error) }
   const { error: zErr } = await crm().from('zdarzenia').insert({
     lead_id: oferta.lead_id,
     oferta_id: oferta.id,
@@ -140,9 +142,12 @@ export async function markOfertaWyslana(oferta: CrmOferta, userId: string): Prom
         akcja_od: new Date().toISOString(),
       })
       .eq('id', oferta.lead_id)
-    if (lErr) console.warn('crm.leady follow_up:', lErr.message)
+    if (lErr) {
+      console.warn('crm.leady follow_up:', lErr.message)
+      return { error: null, bezFollowUpu: lErr.message }
+    }
   }
-  return null
+  return { error: null }
 }
 
 /** „Przelicz”: poprawka=tekst, status=przelicz. Nową wersję tworzy backend (trigger → crm-oferta). */

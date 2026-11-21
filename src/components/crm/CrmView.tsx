@@ -874,13 +874,14 @@ function OfertaScreen({
     )
     if (!ok) return
     setSaving(true)
-    const err = await markOfertaWyslana(oferta, currentUser.id)
+    const { error: err, bezFollowUpu } = await markOfertaWyslana(oferta, currentUser.id)
     setSaving(false)
     if (err) {
       pushToast(`Nie udało się oznaczyć: ${err.message}`, 'error')
       return
     }
-    pushToast('Oferta oznaczona jako wysłana — follow-up za 3 dni', 'success')
+    if (bezFollowUpu) pushToast(`Oferta oznaczona jako wysłana, ale zadanie follow-up się nie zapisało (${bezFollowUpu}) — ustaw je ręcznie na karcie klienta`, 'error')
+    else pushToast('Oferta oznaczona jako wysłana — follow-up za 3 dni', 'success')
     await load(true)
   }
 
