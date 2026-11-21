@@ -10046,6 +10046,7 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 .crm-kor-tresc { margin: 0; font-size: 0.92rem; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; max-height: 22em; overflow-y: auto; padding-right: 4px; }
 .crm-kor-zajawka { margin: 0; font-size: 0.88rem; color: #4b5563; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crm-kor-zal { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; font-size: 0.8rem; color: #374151; background: #fff; border: 1px solid #d1d5db; border-radius: 8px; padding: 3px 8px; }
+.crm-kor-cytaty { align-self: flex-start; font-size: 0.82rem; }
 @media (max-width: 700px) { .crm-kor-mail { max-width: 100%; } }
 
 /* ── CRM: lista „Do zrobienia” v2 (20.11): wiersz = Akcja: Klient + po co + termin + przycisk ── */

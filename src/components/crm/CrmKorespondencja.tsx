@@ -24,6 +24,7 @@ export default function CrmKorespondencja({ maile, onOpenMail }: { maile: CrmMai
   const lista = watek(maile)
   const ostatniId = lista[lista.length - 1]?.id
   const [otwarte, setOtwarte] = useState<Record<string, boolean>>({})
+  const [zCytatami, setZCytatami] = useState<Record<string, boolean>>({})
   const czeka = czekaNaOdpowiedz(lista)
 
   if (lista.length === 0) return <p className="crm-muted">Brak maili z tym klientem.</p>
@@ -40,6 +41,8 @@ export default function CrmKorespondencja({ maile, onOpenMail }: { maile: CrmMai
           const nasz = m.kierunek === 'wychodzacy'
           const open = otwarte[m.id] ?? m.id === ostatniId
           const tresc = bezCytatu(m.tresc)
+          const pelna = (m.tresc ?? '').trim()
+          const maCytaty = !!tresc && pelna.length > tresc.length + 20
           return (
             <li key={m.id} className={`crm-kor-wiersz${nasz ? ' crm-kor-wiersz--nasz' : ''}`}>
               <article className={`crm-kor-mail${nasz ? ' crm-kor-mail--nasz' : ''}`}>
@@ -56,9 +59,21 @@ export default function CrmKorespondencja({ maile, onOpenMail }: { maile: CrmMai
                 </div>
                 <div className="crm-kor-temat">{m.temat || '(bez tematu)'}</div>
                 {open ? (
-                  <p className="crm-kor-tresc">{tresc || m.podsumowanie || <span className="crm-muted">(pusta treść)</span>}</p>
+                  <p className="crm-kor-tresc">
+                    {(zCytatami[m.id] ? pelna : tresc) || m.podsumowanie || <span className="crm-muted">(pusta treść)</span>}
+                  </p>
                 ) : (
                   <p className="crm-kor-zajawka">{zajawka(m.tresc) || m.podsumowanie || ''}</p>
+                )}
+                {open && maCytaty && (
+                  <button
+                    type="button"
+                    className="crm-link crm-kor-cytaty"
+                    aria-expanded={!!zCytatami[m.id]}
+                    onClick={() => setZCytatami((o) => ({ ...o, [m.id]: !o[m.id] }))}
+                  >
+                    {zCytatami[m.id] ? 'Ukryj cytowaną historię' : 'Pokaż całą historię z cytatami'}
+                  </button>
                 )}
                 {open && m.tresc_ucieta && <span className="crm-muted">Treść ucięta — pełna wersja po „otwórz”.</span>}
                 {m.zalaczniki && m.zalaczniki.length > 0 && (
