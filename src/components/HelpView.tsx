@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Poprawki: biurko logistyki, daty, menu, podgląd dokumentów (beta.143)</h4>
+        <ul>
+          <li><b>Wysyłka → biurko logistyki:</b> w uwagach zlecenia znów widać „problem” zgłoszony z hali (z powodem). „Schowaj już oznaczone” i wyszukiwanie tylko ukrywają wiersze — liczniki, lista do fakturowania i „Trasa wyjechała” zawsze biorą całą trasę, razem z oznaczonymi zleceniami.</li>
+          <li><b>Daty:</b> „dziś” zapisywane po polskim czasie, a nie w UTC — po północy program nie wpisuje już wczorajszej daty (data wydania, data zlecenia, reklamacje, etykieta Bastion, nazwy plików). Liczenie dni roboczych nie gubi dnia po marcowej zmianie czasu.</li>
+          <li><b>Zwinięte menu</b> (zgłoszenie #163): zamiast liczby nad ikoną jest kropka w rogu ikony, a liczba w dymku po najechaniu (np. „Magazyn — 213”); kropka pokazuje się też przy grupie, w której akurat jesteś.</li>
+          <li><b>Etykiety → Dokumenty:</b> spóźniony podgląd nie podmienia już dokumentu klikniętego później i nie otwiera okna, które zostało zamknięte.</li>
+        </ul>
         <h4>Aktualizacje wymagane naprawdę (beta.137)</h4>
         <ul>
           <li><b>Wymagana aktualizacja:</b> gdy kierownik ustawi minimalną wersję, program sprawdza ją co kwadrans i po powrocie do okna — także na stanowiskach, które chodzą od rana. Ekran „Wymagana aktualizacja” od razu proponuje „Pobierz i zainstaluj”; przy kłopocie z pobieraniem jest „Pobierz instalator ręcznie”.</li>
