@@ -106,7 +106,7 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 ## ☎️ RINGOSTAT → CRM — czekamy na pierwszą pełną rozmowę (23.11, Claude)
 - [x] Webhook Ringostat „Po połączeniu” → Make (10162632) → crm-call-ingest: spięte i sprawdzone na rozmowie Tymka 23.11 11:45 (14 s → „pominięta”, nagranie jest).
 - [x] Make: filtr na puste pingi z Ringostatu (pierwszy strzał bez treści wywalał scenariusz i Make go wyłączał).
-- [ ] **Czeka na rozmowę ≥ 20 s z nagraniem**: sprawdzić pobranie nagrania z app.ringostat.com (token w URL), transkrypcję ElevenLabs, analizę Claude, lead + zadanie w CRM. Pierwszy test z numeru Tymka, nie klienta.
+- [x] **Pełna ścieżka sprawdzona 23.11 13:16**: rozmowa 13 min (798 s) → nagranie pobrane → ElevenLabs → Claude (0,09 USD) → lead (Kraków, Bastion) + zadanie „dopytaj” z listą braków; nieodebrane → lead + „oddzwoń”. 10 przebiegów w Make, wszystkie OK.
 - [ ] Ustalić, skąd pusty ping (drugie powiadomienie w Ringostacie? ich test dostępności?) — filtr załatwia skutek, nie przyczynę.
 
 ## 🚚 WYSYŁKA — biurko kierownika logistyki (makieta „Wysyłka — lista dnia”, 16–17.11, Claude, na `clean`, migracja WGRANA, bez nowej bety)
