@@ -16,7 +16,7 @@ import StockAtDateExport from './StockAtDateExport'
 import type { SortState } from '../../lib/tableSort'
 import { appConfirm } from '../../lib/appDialogs'
 import {
-  aggregateStockLevels, buildStockShortageCsv, compareByStockLevel, countStockLevels, isStockProblem, minSourceLabel,
+  aggregateStockLevels, buildStockRowsCsv, buildStockShortageCsv, compareByStockLevel, countStockLevels, isStockProblem, minSourceLabel,
   parseMinInput, stockLevelHint, stockLevelLabel, type AggregatedStockLevelRow,
 } from '../../lib/stockLevels'
 
@@ -291,18 +291,28 @@ function StockView({
     [shelfRowsBase],
   )
 
-  const exportShortages = useCallback(() => {
-    if (shortageRows.length === 0) { pushToast?.('Brak braków w bieżącym filtrze', 'info'); return }
-    const csv = buildStockShortageCsv(shortageRows)
+  const downloadCsv = useCallback((csv: string, name: string) => {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `braki_${new Date().toLocaleDateString('sv-SE')}.csv`
+    a.download = name
     document.body.appendChild(a)
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-  }, [shortageRows, pushToast])
+  }, [])
+
+  const exportShortages = useCallback(() => {
+    if (shortageRows.length === 0) { pushToast?.('Brak braków w bieżącym filtrze', 'info'); return }
+    downloadCsv(buildStockShortageCsv(shortageRows), `braki_${new Date().toLocaleDateString('sv-SE')}.csv`)
+  }, [shortageRows, pushToast, downloadCsv])
+
+  // eksport zaznaczonych półek (#165, Tymek 23.11) — w kolejności z tabeli, ten sam układ kolumn co braki
+  const exportSelected = useCallback(() => {
+    const rows = shelfRows.filter((r) => selected.has(r.stock_id))
+    if (rows.length === 0) { pushToast?.('Nic nie zaznaczono', 'info'); return }
+    downloadCsv(buildStockRowsCsv(rows), `stany_zaznaczone_${new Date().toLocaleDateString('sv-SE')}.csv`)
+  }, [shelfRows, selected, pushToast, downloadCsv])
 
   const addShortagesToShoppingList = useCallback(async () => {
     if (!onAddToShoppingList) return
@@ -696,6 +706,7 @@ function StockView({
           >
             Wyczyść minimum
           </button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={exportSelected} title="CSV z zaznaczonymi półkami (te same kolumny co eksport braków)">Eksport CSV</button>
           <button type="button" className="btn btn-sm btn-ghost" disabled={saving} onClick={() => setSelected(new Set())}>Odznacz</button>
         </div>
       ) : null}

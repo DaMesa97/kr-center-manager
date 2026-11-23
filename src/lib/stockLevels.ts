@@ -205,7 +205,8 @@ const dateFromIso = (d: string | null | undefined): string => {
   return y && m && day ? `${day}.${m}.${y}` : d
 }
 
-export function buildStockShortageCsv(rows: StockLevelRow[]): string {
+/** Wiersze stanów (półki) jako CSV — ten sam układ dla braków i dla zaznaczonych pozycji (#165). */
+export function buildStockRowsCsv(rows: StockLevelRow[]): string {
   const header = ['Komponent', 'Kod', 'Magazyn', 'Poziom', 'Fizyczne', 'Zarezerwowane', 'Dostępne', 'W drodze', 'Najbliższa dostawa', 'Minimum', 'Do zamówienia', 'Jednostka']
   const lines = rows.map((r) =>
     [
@@ -216,3 +217,6 @@ export function buildStockShortageCsv(rows: StockLevelRow[]): string {
   )
   return '﻿' + [header.map(cell).join(';'), ...lines].join('\r\n') + '\r\n'
 }
+
+/** Braki w bieżącym filtrze — ten sam CSV (nazwa zostaje dla czytelności wywołań). */
+export const buildStockShortageCsv = buildStockRowsCsv

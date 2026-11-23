@@ -103,6 +103,12 @@ Zlecenie = lista produkcyjna (LP) z AluronCAD, numer zlecenia = numer OF. Pozycj
 - [ ] **Deklaracje (6.9):** ⚙ Certyfikaty i podpis (wpisz choć podpisującego) → „+ Wystaw deklarację” → grupa zlecenie × kod typu → numer KDWU/26/0001 → PDF otwiera się sam; „🏷 tabliczki” = tabliczka 6.26 + etykieta B/CE na konstrukcję (A5); numer widać w karcie, rejestrze 6.33 i teczce (poz. 9–10 „jest”, gdy wszystkie konstrukcje mają).
 - [ ] **Decyzje PJ:** nominał ościeżnicy z LP do ±2 mm; układ tabliczki vs DWG systemodawcy; UD / uderzenie = NPD do czasu dokumentów ALURON.
 
+## ☎️ RINGOSTAT → CRM — czekamy na pierwszą pełną rozmowę (23.11, Claude)
+- [x] Webhook Ringostat „Po połączeniu” → Make (10162632) → crm-call-ingest: spięte i sprawdzone na rozmowie Tymka 23.11 11:45 (14 s → „pominięta”, nagranie jest).
+- [x] Make: filtr na puste pingi z Ringostatu (pierwszy strzał bez treści wywalał scenariusz i Make go wyłączał).
+- [ ] **Czeka na rozmowę ≥ 20 s z nagraniem**: sprawdzić pobranie nagrania z app.ringostat.com (token w URL), transkrypcję ElevenLabs, analizę Claude, lead + zadanie w CRM. Pierwszy test z numeru Tymka, nie klienta.
+- [ ] Ustalić, skąd pusty ping (drugie powiadomienie w Ringostacie? ich test dostępności?) — filtr załatwia skutek, nie przyczynę.
+
 ## 🚚 WYSYŁKA — biurko kierownika logistyki (makieta „Wysyłka — lista dnia”, 16–17.11, Claude, na `clean`, migracja WGRANA, bez nowej bety)
 
 Decyzje Tymka: ekran dla kierownika logistyki na komputerze (bez mobilnej), wiersz w wariancie C + system · kolor · rozmiar+kierunek obok modelu, **wydań z Excela NIE ruszamy** (release_date = dla STA/Titan przekazanie z Marklowickiej na Bukową; dla kategorii z Bukowej znacznik bez daty w arkuszu to czyjś ptaszek, nie wyjazd — zostaje jak jest). Makieta: https://claude.ai/artifact/QrsYxJCRMSzY4o2U711TgJ
