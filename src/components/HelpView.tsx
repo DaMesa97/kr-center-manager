@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Numery telefonu jako linki (beta.147)</h4>
+        <ul>
+          <li><b>Dzwonienie z aplikacji:</b> numer telefonu klienta jest linkiem — klik otwiera domyślny program do dzwonienia w Windows (np. Ringostat Smart Phone) z wpisanym numerem. Obok numeru jest „kopiuj”. Program trzeba raz ustawić jako domyślny dla linków TEL (Ustawienia → Aplikacje → Aplikacje domyślne → według typu linku → TEL).</li>
+        </ul>
         <h4>Szukanie zleceń kilkoma słowami naraz (beta.146)</h4>
         <ul>
           <li><b>Lista zleceń → szukaj:</b> wpisz kilka słów, a każde musi pasować do któregoś pola zlecenia (numer, numer RO, arkusz, firma, system, model, kolor, numer klienta). „karmon torino” = firma Karmon i model Torino, „231/11 antracyt” = numer RO i kolor. Jedno słowo działa jak dotąd.</li>
