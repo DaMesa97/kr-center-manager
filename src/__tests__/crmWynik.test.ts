@@ -78,7 +78,9 @@ describe('crmWynik — przeciąganie w lejku', () => {
     expect(ruchWLejku('wygrany', 'przegrany')).toBe('przegrany')
     expect(ruchWLejku('przegrany', 'oferta')).toBe('w_grze')
     expect(ruchWLejku('wygrany', 'nowy')).toBe('w_grze')
-    expect(ruchWLejku('nowy', 'oferta')).toBe('systemowy')
+    // #167: oferta wysłana poza systemem — ręcznie do „Ma ofertę”; powrót do „Nowy” tylko systemowo
+    expect(ruchWLejku('nowy', 'oferta')).toBe('oferta')
+    expect(ruchWLejku(null, 'oferta')).toBe('oferta')
     expect(ruchWLejku('oferta', 'nowy')).toBe('systemowy')
   })
 })

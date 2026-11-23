@@ -162,15 +162,17 @@ export const LEAD_STATUS_CLS: Record<string, string> = {
  * Przeciągnięcie karty w lejku (Kontakty): co znaczy przejście z kolumny `z` do `do`.
  * - do „Zamówił” → 'wygrany' (z potwierdzeniem), do „Przegrany” → 'przegrany' (okno z powodem),
  * - z „Zamówił”/„Przegrany” do „Nowy”/„Ma ofertę” → 'w_grze' (serwer sam wybierze Nowy albo Ma ofertę),
- * - między „Nowy” a „Ma ofertę” → 'systemowy' (status ustawia system po wysłaniu oferty), ta sama kolumna → 'nic'.
+ * - z „Nowy” do „Ma ofertę” → 'oferta' (#167: oferta wysłana poza systemem — handlowiec oznacza ręcznie),
+ * - z „Ma ofertę” do „Nowy” → 'systemowy' (status cofa tylko system), ta sama kolumna → 'nic'.
  */
-export type RuchLejka = 'nic' | 'wygrany' | 'przegrany' | 'w_grze' | 'systemowy'
+export type RuchLejka = 'nic' | 'wygrany' | 'przegrany' | 'w_grze' | 'oferta' | 'systemowy'
 export function ruchWLejku(z: string | null | undefined, doKol: LejekStatus): RuchLejka {
   const from = (z || 'nowy') as LejekStatus
   if (from === doKol) return 'nic'
   if (doKol === 'wygrany') return 'wygrany'
   if (doKol === 'przegrany') return 'przegrany'
   if (from === 'wygrany' || from === 'przegrany') return 'w_grze'
+  if (doKol === 'oferta') return 'oferta'
   return 'systemowy'
 }
 

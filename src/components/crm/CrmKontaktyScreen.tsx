@@ -8,7 +8,7 @@ import { Merge, RefreshCw, Search, UserPlus } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import CrmNowyKlient from './CrmNowyKlient'
 import { CRM_AKCJA, CRM_KANAL, CRM_LEAD_STATUS, CRM_OFERTA_RODZAJ, CRM_OFERTA_STATUS, type CrmDuplikat } from '../../types/crm'
-import { fetchDuplikaty, fetchKontakty, oznaczWynik, type CrmError, type CrmKontaktRow } from '../../hooks/useCrm'
+import { fetchDuplikaty, fetchKontakty, oznaczOfertePozaSystemem, oznaczWynik, type CrmError, type CrmKontaktRow } from '../../hooks/useCrm'
 import { appConfirm } from '../../lib/appDialogs'
 import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
 import { useEtykiety } from '../../hooks/useEtykiety'
@@ -144,7 +144,22 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
     const ruch = ruchWLejku(r.status, kol)
     if (ruch === 'nic') return
     if (ruch === 'systemowy') {
-      pushToast('„Nowy” i „Ma ofertę” ustawia system: klient przechodzi do „Ma ofertę”, gdy dostanie ofertę', 'error')
+      pushToast('Z „Ma ofertę” do „Nowy” cofa tylko system — klient, który dostał ofertę, zostaje w „Ma ofertę”', 'error')
+      return
+    }
+    // #167: oferta wysłana poza systemem (Outlook, PDF z LiczOkno) — handlowiec przenosi ręcznie
+    if (ruch === 'oferta') {
+      const ok = await appConfirm(`Przenieść „${leadName(r)}” do „Ma ofertę”? Zapisze się, że oferta poszła poza systemem. Zadanie klienta zostaje bez zmian.`)
+      if (!ok) return
+      setWynikBusy(true)
+      const err = await oznaczOfertePozaSystemem(r.id)
+      setWynikBusy(false)
+      if (err) {
+        pushToast(`Nie udało się przenieść: ${err.message}`, 'error')
+        return
+      }
+      pushToast(`${leadName(r)}: ma ofertę (wysłana poza systemem)`, 'success')
+      await load(true)
       return
     }
     if (ruch === 'przegrany') {

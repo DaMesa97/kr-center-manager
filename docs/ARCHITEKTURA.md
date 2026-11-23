@@ -239,7 +239,7 @@ p_source, p_dry_run)` (`migrate/excel_sync_reklamacje.sql`). Klucz wiersza:
 pierwszym słowie firmy; brak dopasowania = reklamacja bez zlecenia (stare numery).
 Disting Plus w arkuszu STA (ustalenie 23.11): skrzydło = reklamacja pod zleceniem STA
 (parą Distinga), ościeżnica = pod Distingiem — jak podział etapów produkcji; wiersz STA
-„DISTING PLUS” szuka najpierw zlecenia Disting, potem przechodzi na jego .
+„DISTING PLUS” szuka najpierw zlecenia Disting, potem przechodzi na jego `linked_order_id`.
 Etapy naprawy → `production_stages` z kluczami ST (cnc/osc/skr/mon/mag), WYDANIE/ZREALIZOWANE
 → `release_date` (data albo dzień przebiegu, gdy tylko znacznik). Excel wygrywa przy
 kolejnych przebiegach (data, powód, etapy, wydanie gdy w aplikacji puste); parametr

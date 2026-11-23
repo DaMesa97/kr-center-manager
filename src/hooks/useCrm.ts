@@ -270,6 +270,18 @@ export async function oznaczWynik(
   return null
 }
 
+/**
+ * #167 (23.11): lejek Nowy → „Ma ofertę” ręcznie — oferta poszła poza systemem (mail z Outlooka, PDF
+ * z LiczOkno). Rpc dopisuje zdarzenie „oferta wysłana poza systemem” i ustawia status 'oferta';
+ * zadanie klienta zostaje. Zamknięty klient (zamówił / przegrany) → wyjątek po polsku z serwera.
+ */
+export async function oznaczOfertePozaSystemem(leadId: string, notatka?: string | null): Promise<CrmError | null> {
+  const { error } = await crm().rpc('oznacz_oferte_poza_systemem', { p_lead_id: leadId, p_notatka: notatka?.trim() || null })
+  if (error && error.code === 'PGRST202') return { kind: 'other', message: 'Ta funkcja czeka jeszcze na aktualizację bazy CRM — spróbuj za chwilę.' }
+  if (error) return { kind: 'other', message: error.message || 'Nie udało się oznaczyć oferty' }
+  return null
+}
+
 export async function zamknijZadanie(leadId: string, z: CrmZamknijZadanie): Promise<CrmError | null> {
   const { error } = await crm().rpc('zamknij_zadanie', {
     p_lead_id: leadId,
