@@ -82,6 +82,7 @@ import {
 import { supabase } from '../../supabaseClient'
 import { appConfirm } from '../../lib/appDialogs'
 import { openExternalUrl } from '../../hooks/useAluOrders'
+import CrmTelefon from './CrmTelefon'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
 import CrmPocztaScreen from './CrmPocztaScreen'
@@ -2213,9 +2214,9 @@ function LeadScreen({
             {lead.zrodlo ? <> · <KanalBadge zrodlo={lead.zrodlo} /></> : null}
             {lead.kampania ? ` · kampania: ${lead.kampania}` : ''}
           </div>
-          {/* kontakt od razu w nagłówku (v2); tel:/mailto: nie przechodzą przez shell:open-external — tekst do zaznaczenia */}
+          {/* kontakt od razu w nagłówku (v2); telefon = link tel: do Ringostat Smart Phone (23.11), mail tekstem do zaznaczenia */}
           <div className="crm-k2-kontakt">
-            {lead.telefon ? <span className="crm-ext crm-copy-value"><Phone size={13} /> {lead.telefon}</span> : <span className="crm-muted">brak telefonu</span>}
+            {lead.telefon ? <CrmTelefon telefon={lead.telefon} /> : <span className="crm-muted">brak telefonu</span>}
             {lead.email ? <span className="crm-ext crm-copy-value"><Mail size={13} /> {lead.email}</span> : <span className="crm-muted">brak e-maila</span>}
             {/* #166: klient z Facebooka/Instagrama — profil zamiast telefonu i maila */}
             {lead.profil_social ? <span className="crm-ext crm-copy-value" title="Profil Facebook / Instagram"><MessageCircle size={13} /> {lead.profil_social}</span> : null}

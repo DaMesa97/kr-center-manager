@@ -9188,6 +9188,14 @@ html.hl-off-problem .actions-menu-btn--problem { border-color: var(--color-borde
 .crm-copy-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .crm-copy-label { font-weight: 700; font-size: 0.85rem; color: var(--color-text-muted); text-transform: uppercase; }
 .crm-copy-value { font-size: 1rem; user-select: all; }
+/* numer telefonu jako link tel: (Ringostat Smart Phone) + mały „kopiuj” (23.11) */
+.crm-tel-wrap { display: inline-flex; align-items: center; gap: 2px; }
+.crm-tel { font-size: 1rem; text-decoration: none; }
+.crm-tel:hover { text-decoration: underline; }
+.crm-muted .crm-tel { font-size: inherit; color: inherit; }
+.crm-muted .crm-tel:hover { color: var(--pd-accent-strong); }
+.crm-tel-kopiuj { border: 0; background: transparent; color: var(--color-text-muted, #6b7280); cursor: pointer; padding: 2px; border-radius: 4px; display: inline-flex; align-items: center; opacity: 0.6; }
+.crm-tel-kopiuj:hover { opacity: 1; background: var(--color-bg-muted, rgba(0,0,0,0.06)); }
 .crm-pre { margin: 0; padding: 10px 12px; background: #f9fafb; border: 1px solid var(--color-border); border-radius: 8px; white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 0.95rem; line-height: 1.5; max-height: 420px; overflow: auto; user-select: text; }
 .crm-mail-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 .crm-fix-textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; resize: vertical; }

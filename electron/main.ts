@@ -573,10 +573,11 @@ function createWindow() {
   // Otwarcie linku w systemowej przeglądarce (np. podpisany URL do PDF-u LP/LC
   // z prywatnego bucketu) albo gotowej wiadomości w domyślnym kliencie poczty
   // (CRM Po Drzwi, 14.11.2026: „Otwórz w poczcie” → Thunderbird z adresatem,
-  // tematem i treścią). Tylko https:// i mailto: — renderer nie może odpalić
-  // dowolnego protokołu (file://, …) przez shell.openExternal.
+  // tematem i treścią) albo numeru w Ringostat Smart Phone (23.11: `tel:` z samymi
+  // cyframi — Windows odpala aplikację domyślną dla protokołu TEL). Tylko https://,
+  // mailto: i tel: — renderer nie może odpalić dowolnego protokołu (file://, …).
   ipcMain.handle('shell:open-external', async (_e, url: unknown) => {
-    if (typeof url !== 'string' || !/^(https:\/\/|mailto:)/i.test(url)) return false
+    if (typeof url !== 'string' || !/^(https:\/\/|mailto:|tel:\+?\d{6,15}$)/i.test(url)) return false
     try {
       await shell.openExternal(url)
       return true

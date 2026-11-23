@@ -14,6 +14,7 @@ import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
 import { useEtykiety } from '../../hooks/useEtykiety'
 import { EtykietyRow, KanalBadge } from './CrmEtykiety'
 import CrmPolaczPanel from './CrmPolaczPanel'
+import CrmTelefon from './CrmTelefon'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, LEJEK_ZAMKNIETE_DNI, lejekPodsumowanie, opisWyniku, ruchWLejku, swiezoZamkniety, wartoscKlienta, type LejekStatus } from '../../lib/crmWynik'
 import Spinner from '../Spinner'
@@ -225,10 +226,13 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
         label: 'Klient',
         sortValue: (r) => leadName(r),
         render: (r) => (
-          <button type="button" className="crm-link" onClick={() => onOpenLead(r.id)} title="Karta klienta: dane, historia, oferty">
-            <b>{leadName(r)}</b>
-            {r.nazwa && r.telefon ? <span className="crm-muted"> · {r.telefon}</span> : null}
-          </button>
+          <>
+            <button type="button" className="crm-link" onClick={() => onOpenLead(r.id)} title="Karta klienta: dane, historia, oferty">
+              <b>{leadName(r)}</b>
+            </button>
+            {/* 23.11: numer jako link tel: — klik dzwoni przez Ringostat Smart Phone, nie otwiera karty */}
+            {r.nazwa && r.telefon ? <span className="crm-muted"> · <CrmTelefon telefon={r.telefon} compact /></span> : null}
+          </>
         ),
       },
       { key: 'miejscowosc', label: 'Miejscowość', sortValue: (r) => r.miejscowosc ?? '', render: (r) => r.miejscowosc || '—' },
