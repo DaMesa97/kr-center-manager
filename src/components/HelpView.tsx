@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Szukanie zleceń kilkoma słowami naraz (beta.146)</h4>
+        <ul>
+          <li><b>Lista zleceń → szukaj:</b> wpisz kilka słów, a każde musi pasować do któregoś pola zlecenia (numer, numer RO, arkusz, firma, system, model, kolor, numer klienta). „karmon torino” = firma Karmon i model Torino, „231/11 antracyt” = numer RO i kolor. Jedno słowo działa jak dotąd.</li>
+          <li><b>Reklamacje z Excela:</b> Disting Plus z arkusza STA dopinany jak etapy produkcji: skrzydło pod zleceniem STA, ościeżnica pod Distingiem.</li>
+        </ul>
         <h4>Lista zakupowa: minimum z półek; porządek w rezerwacjach (beta.145)</h4>
         <ul>
           <li><b>Zamawianie → lista zakupowa:</b> minimum brane z karty komponentu, a gdy puste, z sumy minimów półek ustawionych w Magazyn → Stany (dotąd lista pokazywała „—”, bo karta komponentu minimum nie ma). Działa w podpowiedziach przy dostawcy, znaczniku „poniżej min” i pozycjach listy. Kolumny po polsku: „Stan / Min”, „Do minimum” (dawne „Runway”), „Stan / Min / Cel”.</li>
