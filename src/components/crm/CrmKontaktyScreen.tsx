@@ -231,7 +231,7 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
               <b>{leadName(r)}</b>
             </button>
             {/* 23.11: numer jako link tel: — klik dzwoni przez Ringostat Smart Phone, nie otwiera karty */}
-            {r.nazwa && r.telefon ? <span className="crm-muted"> · <CrmTelefon telefon={r.telefon} compact /></span> : null}
+            {r.nazwa && r.telefon ? <span className="crm-muted"> · <CrmTelefon telefon={r.telefon} nazwa={r.nazwa} compact /></span> : null}
           </>
         ),
       },

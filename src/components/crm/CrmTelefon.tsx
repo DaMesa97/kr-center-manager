@@ -3,11 +3,13 @@
 // (aplikacja desktopowa ustawiona w Windows jako domyślna dla protokołu TEL) z wpisanym
 // numerem. W Electronie link idzie przez shell:open-external (main przepuszcza tel: tylko
 // z samymi cyframi), w przeglądarce/dev przez window.open. Obok mały „kopiuj” — gdy ktoś
-// nie ma Smart Phone albo dzwoni z komórki.
+// nie ma Smart Phone albo dzwoni z komórki. Przed wybraniem numeru pytamy (Tymek 23.11:
+// Smart Phone dzwoni od razu, przypadkowy klik = przypadkowy telefon do klienta).
 // =====================================================================
 import { useState } from 'react'
 import { Check, Copy, Phone } from 'lucide-react'
 import { openExternalUrl } from '../../hooks/useAluOrders'
+import { appConfirm } from '../../lib/appDialogs'
 
 /** `tel:` tylko z cyframi i plusem — tyle przepuszcza bramka w Electronie */
 function telHref(telefon: string): string | null {
@@ -17,17 +19,25 @@ function telHref(telefon: string): string | null {
 
 type Props = {
   telefon: string | null | undefined
+  /** nazwa klienta do pytania „Zadzwonić do …?” */
+  nazwa?: string | null
   /** mniejszy wariant do list (bez ikony kopiowania) */
   compact?: boolean
   /** klasa dodatkowa na link */
   className?: string
 }
 
-export default function CrmTelefon({ telefon, compact = false, className }: Props) {
+export default function CrmTelefon({ telefon, nazwa, compact = false, className }: Props) {
   const [skopiowano, setSkopiowano] = useState(false)
   const t = (telefon ?? '').trim()
   if (!t) return null
   const href = telHref(t)
+  const zadzwon = async () => {
+    if (!href) return
+    const kto = (nazwa ?? '').trim()
+    const ok = await appConfirm(kto ? `Zadzwonić do ${kto} (${t})? Ringostat Smart Phone wybierze numer od razu.` : `Zadzwonić pod ${t}? Ringostat Smart Phone wybierze numer od razu.`, { title: 'Zadzwonić?', confirmLabel: 'Zadzwoń', tone: 'success' })
+    if (ok) void openExternalUrl(href)
+  }
   const kopiuj = async () => {
     try {
       await navigator.clipboard.writeText(t)
@@ -45,7 +55,7 @@ export default function CrmTelefon({ telefon, compact = false, className }: Prop
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        void openExternalUrl(href)
+        void zadzwon()
       }}
     >
       {compact ? null : <Phone size={13} />} {t}
