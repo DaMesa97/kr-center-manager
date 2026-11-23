@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Porządek nazw firm, Titan liczony raz, reklamacje z Excela, eksport stanów (beta.144)</h4>
+        <ul>
+          <li><b>Statystyki → Firmy:</b> warianty pisowni jednej firmy (wielkość liter, ogonki, „#”, powtórzone słowo) liczą się razem same. Resztę („PO DRZWI” = „PO DRZWI ŻORY”) kierownik scala w panelu <b>„Porządek nazw firm”</b> (podejrzane warianty, wybór nazwy docelowej, „Scal” / rozdziel). Scalenie działa też w „top firm” w statystykach kategorii i reklamacji. <b>Titan</b> (STA + ST + Bastion) i <b>Disting Plus</b> (Disting + STA) liczone raz, a nie z każdego arkusza osobno.</li>
+          <li><b>Jedna pisownia kontrahenta:</b> każde nowe zlecenie (konfigurator, Excel, API, ręcznie) dostaje nazwę firmy z listy Kontrahentów albo z aliasu; nazwa, jaka przyszła, zostaje zapisana w zleceniu.</li>
+          <li><b>Reklamacje z Excela:</b> nocna synchronizacja czyta arkusze „Reklamacje” ze skoroszytów STA, Disting, ST i Bastion (ostatni rok). Numery <code>XL/&lt;kategoria&gt;/&lt;nr&gt;</code>, etapy naprawy i wydanie z arkusza; reklamacja bez wydania jest otwarta (zakładka Reklamacje, zadania naprawy na mobilnym). Statystyki → Reklamacje: wykres miesięczny po dacie reklamacji, nie dacie wpisu.</li>
+          <li><b>Magazyn → Stany</b> (zgłoszenie #165): po zaznaczeniu półek przycisk <b>„Eksport CSV”</b> zapisuje zaznaczone wiersze w tym samym układzie kolumn co eksport braków.</li>
+        </ul>
         <h4>Poprawki: biurko logistyki, daty, menu, podgląd dokumentów (beta.143)</h4>
         <ul>
           <li><b>Wysyłka → biurko logistyki:</b> w uwagach zlecenia znów widać „problem” zgłoszony z hali (z powodem). „Schowaj już oznaczone” i wyszukiwanie tylko ukrywają wiersze — liczniki, lista do fakturowania i „Trasa wyjechała” zawsze biorą całą trasę, razem z oznaczonymi zleceniami.</li>
