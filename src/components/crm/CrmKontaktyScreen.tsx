@@ -37,7 +37,7 @@ const fmtDate = (iso: string | null | undefined): string => {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' })
 }
-const leadName = (l: CrmKontaktRow) => (l.nazwa || l.telefon || l.email || 'Klient bez nazwy').trim()
+const leadName = (l: CrmKontaktRow) => (l.nazwa || l.telefon || l.email || l.profil_social || 'Klient bez nazwy').trim()
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 const aktywnosc = (l: CrmKontaktRow) => (l.ostatnia_rozmowa_at && l.ostatnia_rozmowa_at > l.updated_at ? l.ostatnia_rozmowa_at : l.updated_at) || l.created_at
 
@@ -195,7 +195,7 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
         if (!nq) return true
         // brief pkt 26: szukamy też po danych klientów połączonych w tego (inne_kontakty)
         const inne = l.inne_kontakty ?? []
-        const hay = norm([l.nazwa, l.email, l.miejscowosc, ...inne.flatMap((k) => [k.nazwa, k.email, k.miejscowosc])].filter(Boolean).join(' '))
+        const hay = norm([l.nazwa, l.email, l.profil_social, l.miejscowosc, ...inne.flatMap((k) => [k.nazwa, k.email, k.miejscowosc])].filter(Boolean).join(' '))
         if (hay.includes(nq)) return true
         if (digits.length >= 3 && [l.telefon, ...inne.map((k) => k.telefon)].some((t) => (t ?? '').replace(/\D/g, '').includes(digits))) return true
         return false
@@ -308,7 +308,7 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
           <button type="button" className={`crm-widok-btn${widok === 'lejek' ? ' crm-widok-btn--on' : ''}`} aria-pressed={widok === 'lejek'} onClick={() => zmienWidok('lejek')}>Lejek</button>
         </div>
         <span className="crm-toolbar-hint">{filtered.length} z {rows.length}</span>
-        <button type="button" className="btn btn-sm btn-primary" onClick={() => setNowyKlient((v) => !v)} aria-expanded={nowyKlient} title="Nowy klient (np. z wizyty w salonie albo telefonu)"><UserPlus size={14} /> Dodaj klienta</button>
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => setNowyKlient((v) => !v)} aria-expanded={nowyKlient} title="Nowy klient (z wizyty w salonie, telefonu albo Facebooka / Instagrama)"><UserPlus size={14} /> Dodaj klienta</button>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież"><RefreshCw size={14} /> Odśwież</button>
       </div>
       {nowyKlient && (

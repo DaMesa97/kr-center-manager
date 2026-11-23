@@ -9,7 +9,7 @@
 // co 10 s, póki coś jest w przeliczaniu.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Copy, RefreshCw, Phone, Mail, ExternalLink, Check, UserPlus, FileText, Pencil, Trash2, Merge, Ruler } from 'lucide-react'
+import { ArrowLeft, Copy, RefreshCw, Phone, Mail, MessageCircle, ExternalLink, Check, UserPlus, FileText, Pencil, Trash2, Merge, Ruler } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_AKCJA,
@@ -178,8 +178,8 @@ const fmtDuration = (s: number | null | undefined): string => {
 const asStrings = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).filter(Boolean) : []
 
-const leadName = (lead: Partial<Pick<CrmLead, 'nazwa' | 'telefon' | 'email'>> | null | undefined): string =>
-  (lead?.nazwa || lead?.telefon || lead?.email || 'Klient bez nazwy').trim()
+const leadName = (lead: Partial<Pick<CrmLead, 'nazwa' | 'telefon' | 'email' | 'profil_social'>> | null | undefined): string =>
+  (lead?.nazwa || lead?.telefon || lead?.email || lead?.profil_social || 'Klient bez nazwy').trim()
 
 const isSystemError = (sprawdz: string[]): boolean => (sprawdz[0] ?? '').startsWith(CRM_SYSTEM_ERROR_PREFIX)
 
@@ -2051,7 +2051,7 @@ function LeadScreen({
   const handleZrobione = () => setZadanieDialog(true)
 
   // edycja danych kontaktowych (brief pkt 20)
-  const [dane, setDane] = useState<{ nazwa: string; telefon: string; email: string; miejscowosc: string } | null>(null)
+  const [dane, setDane] = useState<{ nazwa: string; telefon: string; email: string; miejscowosc: string; profil_social: string } | null>(null)
   const saveDane = async () => {
     if (!lead || !dane) return
     setSaving(true)
@@ -2217,9 +2217,11 @@ function LeadScreen({
           <div className="crm-k2-kontakt">
             {lead.telefon ? <span className="crm-ext crm-copy-value"><Phone size={13} /> {lead.telefon}</span> : <span className="crm-muted">brak telefonu</span>}
             {lead.email ? <span className="crm-ext crm-copy-value"><Mail size={13} /> {lead.email}</span> : <span className="crm-muted">brak e-maila</span>}
+            {/* #166: klient z Facebooka/Instagrama — profil zamiast telefonu i maila */}
+            {lead.profil_social ? <span className="crm-ext crm-copy-value" title="Profil Facebook / Instagram"><MessageCircle size={13} /> {lead.profil_social}</span> : null}
             {lead.miejscowosc && <span>{lead.miejscowosc}</span>}
             {!dane && (
-              <button type="button" className="crm-link" disabled={saving} onClick={() => setDane({ nazwa: lead.nazwa ?? '', telefon: lead.telefon ?? '', email: lead.email ?? '', miejscowosc: lead.miejscowosc ?? '' })} title="Popraw nazwę, telefon, e-mail, miejscowość">
+              <button type="button" className="crm-link" disabled={saving} onClick={() => setDane({ nazwa: lead.nazwa ?? '', telefon: lead.telefon ?? '', email: lead.email ?? '', miejscowosc: lead.miejscowosc ?? '', profil_social: lead.profil_social ?? '' })} title="Popraw nazwę, telefon, e-mail, profil, miejscowość">
                 <Pencil size={13} /> edytuj
               </button>
             )}
@@ -2374,6 +2376,7 @@ function LeadScreen({
             <label className="crm-pf-field"><span className="crm-pf-label">Imię i nazwisko / firma</span><input type="text" value={dane.nazwa} onChange={(e) => setDane({ ...dane, nazwa: e.target.value })} disabled={saving} autoComplete="off" /></label>
             <label className="crm-pf-field"><span className="crm-pf-label">Telefon</span><input type="tel" value={dane.telefon} onChange={(e) => setDane({ ...dane, telefon: e.target.value })} disabled={saving} autoComplete="off" /></label>
             <label className="crm-pf-field"><span className="crm-pf-label">E-mail</span><input type="email" value={dane.email} onChange={(e) => setDane({ ...dane, email: e.target.value })} disabled={saving} autoComplete="off" /></label>
+            <label className="crm-pf-field"><span className="crm-pf-label">Profil Facebook / Instagram</span><input type="text" value={dane.profil_social} onChange={(e) => setDane({ ...dane, profil_social: e.target.value })} disabled={saving} autoComplete="off" placeholder="@nazwa albo link" /></label>
             <label className="crm-pf-field"><span className="crm-pf-label">Miejscowość</span><input type="text" value={dane.miejscowosc} onChange={(e) => setDane({ ...dane, miejscowosc: e.target.value })} disabled={saving} autoComplete="off" /></label>
           </div>
           <div className="crm-poczta-actions">

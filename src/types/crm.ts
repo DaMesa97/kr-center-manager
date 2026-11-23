@@ -16,8 +16,10 @@ export type CrmLead = {
   kategoria: string | null
   /** nowy | oferta | wygrany | przegrany */
   status: string | null
-  /** telefon | formularz | mail | inne */
+  /** telefon | formularz | mail | wizyta | social | inne */
   zrodlo: string | null
+  /** #166: profil / nick z Facebooka lub Instagrama — kontakt, gdy klient nie zostawił telefonu ani maila */
+  profil_social?: string | null
   kampania: string | null
   podsumowanie: string | null
   brakuje: string | null
@@ -337,6 +339,8 @@ export const CRM_KANAL: Record<string, { label: string; icon: string }> = {
   formularz: { label: 'Formularz', icon: '📝' },
   mail: { label: 'Mail', icon: '✉️' },
   wizyta: { label: 'Wizyta (walk-in)', icon: '🚪' },
+  /** #166: zapytanie z Messengera / Instagrama — klient ma profil, często bez telefonu i maila */
+  social: { label: 'Facebook / Instagram', icon: '💬' },
   inne: { label: 'Inne', icon: '•' },
 }
 /** maile.kanal: mail zwykły albo zgłoszenie z formularza kontaktowego strony (Contact Form 7) */

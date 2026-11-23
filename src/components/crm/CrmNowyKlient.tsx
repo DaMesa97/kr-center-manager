@@ -1,6 +1,7 @@
 // =====================================================================
-// „Dodaj klienta” — walk-in / wizyta w salonie (brief pkt 13.1). Insert do crm.leady
-// ze zrodlo='wizyta' + zdarzenie lead_utworzony (createLeadWizyta). Etykiety
+// „Dodaj klienta” — walk-in / wizyta w salonie (brief pkt 13.1) albo zapytanie z Facebooka /
+// Instagrama (#166: bez telefonu i maila, wystarczy profil). Insert do crm.leady
+// ze zrodlo='wizyta'|'social' + zdarzenie lead_utworzony (createLeadWizyta). Etykiety
 // wybierane lokalnie (reguła „jedna na grupę” po stronie UI, trigger w bazie i tak
 // pilnuje), opcjonalne zadanie z terminem. Telefon normalizowany do +48… (UNIQUE).
 // =====================================================================
@@ -29,7 +30,7 @@ const AKCJE_WIZYTA = ['follow_up', 'przygotuj_oferte', 'dopytaj', 'oddzwon', 'po
 
 // 21.11 (test UX): domyślnie „Zapytaj o decyzję” za 3 dni — „bez zadania” jako domyślne gubiło klientów (nie trafiali do „Do zrobienia”)
 const za3dni = () => { const d = new Date(); d.setDate(d.getDate() + 3); return isoLocal(d) }
-const empty = (): NowyKlient => ({ nazwa: '', telefon: '', email: '', miejscowosc: '', notatka: '', nastepna_akcja: 'follow_up', nastepny_krok: za3dni(), etykiety: [] })
+const empty = (): NowyKlient => ({ kanal: 'wizyta', nazwa: '', telefon: '', email: '', profil_social: '', miejscowosc: '', notatka: '', nastepna_akcja: 'follow_up', nastepny_krok: za3dni(), etykiety: [] })
 
 export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreated, onOpenExisting, onCancel }: Props) {
   const [k, setK] = useState<NowyKlient>(empty)
@@ -58,8 +59,8 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
 
   const onSave = async () => {
     if (!currentUser) return
-    if (!k.nazwa.trim() && !k.telefon.trim() && !k.email.trim()) {
-      pushToast('Podaj przynajmniej nazwę i telefon albo e-mail', 'error')
+    if (!k.nazwa.trim() && !k.telefon.trim() && !k.email.trim() && !k.profil_social.trim()) {
+      pushToast(k.kanal === 'social' ? 'Podaj przynajmniej nazwę i profil (link albo @nazwa)' : 'Podaj przynajmniej nazwę i telefon albo e-mail', 'error')
       return
     }
     setBusy(true)
@@ -87,19 +88,33 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
 
   return (
     <section className="crm-box crm-pf crm-nowy-klient">
-      <h4>Nowy klient — wizyta w salonie</h4>
+      <h4>{k.kanal === 'social' ? 'Nowy klient — Facebook / Instagram' : 'Nowy klient — wizyta w salonie'}</h4>
       <div className="crm-pf-grid">
+        <label className="crm-pf-field crm-pf-field--short">
+          <span className="crm-pf-label">Skąd klient</span>
+          <select value={k.kanal} onChange={(e) => set('kanal', e.target.value === 'social' ? 'social' : 'wizyta')}>
+            <option value="wizyta">🚪 Wizyta w salonie</option>
+            <option value="social">💬 Facebook / Instagram</option>
+          </select>
+        </label>
         <label className="crm-pf-field">
           <span className="crm-pf-label">Imię i nazwisko / firma</span>
           <input type="text" value={k.nazwa} onChange={(e) => set('nazwa', e.target.value)} placeholder="np. Jan Kowalski" autoComplete="off" autoFocus />
         </label>
+        {k.kanal === 'social' && (
+          <label className="crm-pf-field">
+            <span className="crm-pf-label">Profil / nick <span className="crm-muted">(wystarczy zamiast telefonu i maila)</span></span>
+            <input type="text" value={k.profil_social} onChange={(e) => set('profil_social', e.target.value)} placeholder="@jan.kowalski albo link do profilu" autoComplete="off" />
+            <span className="crm-pf-hint">Wklej link z Messengera/Instagrama albo nazwę profilu — po tym odnajdziesz rozmowę.</span>
+          </label>
+        )}
         <label className="crm-pf-field">
-          <span className="crm-pf-label">Telefon <span className="crm-muted">(telefon albo e-mail — jedno wymagane)</span></span>
+          <span className="crm-pf-label">Telefon {k.kanal === 'social' ? <span className="crm-muted">(jeśli podał)</span> : <span className="crm-muted">(telefon albo e-mail — jedno wymagane)</span>}</span>
           <input type="tel" value={k.telefon} onChange={(e) => set('telefon', e.target.value)} placeholder="601 234 567" autoComplete="off" />
           <span className="crm-pf-hint">Zapisze się jako +48… (tak samo jak z Ringostatu).</span>
         </label>
         <label className="crm-pf-field">
-          <span className="crm-pf-label">E-mail</span>
+          <span className="crm-pf-label">E-mail{k.kanal === 'social' ? <span className="crm-muted"> (jeśli podał)</span> : null}</span>
           <input type="email" value={k.email} onChange={(e) => set('email', e.target.value)} placeholder="jan@przyklad.pl" autoComplete="off" />
         </label>
         <label className="crm-pf-field">
@@ -107,7 +122,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
           <input type="text" value={k.miejscowosc} onChange={(e) => set('miejscowosc', e.target.value)} autoComplete="off" />
         </label>
         <label className="crm-pf-field crm-pf-field--wide">
-          <span className="crm-pf-label">Notatka z rozmowy (czego chce)</span>
+          <span className="crm-pf-label">{k.kanal === 'social' ? 'Notatka z wiadomości (czego chce)' : 'Notatka z rozmowy (czego chce)'}</span>
           <textarea value={k.notatka} onChange={(e) => set('notatka', e.target.value)} rows={3} placeholder="np. drzwi zewnętrzne 90 prawe, antracyt, z montażem, termin do końca miesiąca" />
           <span className="crm-pf-hint crm-pf-hint--rec">
             albo powiedz do mikrofonu:{' '}
@@ -137,7 +152,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
 
       <div className="crm-pf-grid crm-pf-grid--folders">
         <label className="crm-pf-field">
-          <span className="crm-pf-label">Zadanie po wizycie</span>
+          <span className="crm-pf-label">{k.kanal === 'social' ? 'Zadanie po wiadomości' : 'Zadanie po wizycie'}</span>
           <select value={k.nastepna_akcja ?? ''} onChange={(e) => set('nastepna_akcja', e.target.value || null)}>
             {AKCJE_WIZYTA.map((a) => (
               <option key={a} value={a}>

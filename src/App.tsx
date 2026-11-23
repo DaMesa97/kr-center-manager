@@ -1604,44 +1604,20 @@ function App() {
       return []
     }
     const query = searchTerm.trim().toLowerCase()
+    // #164 (Tymek 23.11): kilka słów = każde musi pasować do któregoś pola (np. „karmon torino” = firma + model)
+    const terms = query.split(/\s+/).filter(Boolean)
     const filterByDay = selectedProductionDay !== 'Wszystkie dni'
     const dateRange = resolveDateRange(dateFilter)
     const activeCategory = activeTab.toLowerCase()
 
     return orders.filter((order) => {
       const matchCategory = order.category.toLowerCase() === activeCategory
-      const matchQuery =
-        String(order.order_number ?? '')
-          .toLowerCase()
-          .includes(query) ||
-        // numer RO z Optimy (ZLEC/231/11/2026) — „231/11" trafia w zlecenie
-        String(order.erp_ro_number ?? '')
-          .toLowerCase()
-          .includes(query) ||
-        String(order.disting_sheet ?? '')
-          .toLowerCase()
-          .includes(query) ||
-        String(order.sta_sheet ?? '')
-          .toLowerCase()
-          .includes(query) ||
-        String(order.sta_ref ?? '')
-          .toLowerCase()
-          .includes(query) ||
-        String(order.company ?? '')
-          .toLowerCase()
-          .includes(query) ||
-        String(order.system ?? '')
-          .toLowerCase()
-          .includes(query) ||
-        String(order.model ?? '')
-          .toLowerCase()
-          .includes(query) ||
-        String(order.wing_color ?? '')
-          .toLowerCase()
-          .includes(query) ||
-        String(order.client_order_number ?? '')
-          .toLowerCase()
-          .includes(query)
+      // numer RO z Optimy (ZLEC/231/11/2026) — „231/11" trafia w zlecenie
+      const haystack = [
+        order.order_number, order.erp_ro_number, order.disting_sheet, order.sta_sheet, order.sta_ref,
+        order.company, order.system, order.model, order.wing_color, order.client_order_number,
+      ].map((v) => String(v ?? '').toLowerCase()).join(' | ')
+      const matchQuery = terms.every((t) => haystack.includes(t))
 
       const matchDay = !filterByDay || order.production_day === selectedProductionDay
       // data zamówienia (order_date) w wybranym zakresie

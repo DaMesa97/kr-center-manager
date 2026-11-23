@@ -30,6 +30,7 @@ declare
   o record;
   v_cutoff date := current_date - 365;
   v_today date := (now() at time zone 'Europe/Warsaw')::date;
+  v_pair bigint;
   v_new int := 0; v_upd int := 0; v_skip int := 0; v_nomatch int := 0; v_old int := 0;
   v_key text; v_num text; v_wyk text; v_release date; v_stages jsonb; v_what text; v_details jsonb := '[]'::jsonb;
   v_existing_id bigint; v_run_id bigint; v_reason text; v_info text;
@@ -120,6 +121,23 @@ begin
              or upper(r.firma) like upper(split_part(x.company, ' ', 1)) || '%')
       order by (x.order_date <= r.data) desc, x.order_date desc
       limit 1;
+    end if;
+    -- Disting Plus w arkuszu STA (Tymek 23.11): numer w arkuszu to zlecenie Disting; reklamacja skrzydła zostaje pod STA
+    -- i dopina się do nogi STA pary (gdy para istnieje), inaczej do samego zlecenia Disting. Ościeżnica = arkusz Disting, pod Disting.
+    if o.id is null and p_category = 'STA' and r.nr_zlecenia is not null and upper(coalesce(r.system, '')) like '%DISTING PLUS%' then
+      select * into o
+      from public.orders x
+      where x.category = 'Disting'
+        and btrim(x.order_number) = btrim(split_part(r.nr_zlecenia, '-', 1))
+        and coalesce(x.extra_fields->>'cancelled', '') <> 'true'
+        and (r.firma is null or upper(x.company) like upper(split_part(r.firma, ' ', 1)) || '%'
+             or upper(r.firma) like upper(split_part(x.company, ' ', 1)) || '%')
+      order by (x.order_date <= r.data) desc, x.order_date desc
+      limit 1;
+      v_pair := o.linked_order_id;
+      if v_pair is not null then
+        select * into o from public.orders x where x.id = v_pair;
+      end if;
     end if;
     if o.id is null then v_nomatch := v_nomatch + 1; end if;
 
