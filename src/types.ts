@@ -674,6 +674,8 @@ export type WarehouseStockRow = {
   reserved_quantity?: number
   /** quantity - reserved_quantity (może być ujemne — sygnał planistyczny) */
   available_quantity?: number
+  /** minimum półki ustawione w Magazyn → Stany (null = nie pilnujemy) */
+  min_quantity?: number | null
   updated_at: string
   warehouse_code?: string
   component_code?: string

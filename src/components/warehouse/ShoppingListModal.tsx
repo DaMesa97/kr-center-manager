@@ -114,6 +114,19 @@ export default function ShoppingListModal({
     return map
   }, [stock])
 
+  // Minimum do zamawiania: z karty komponentu, a gdy puste — suma minimów półek ustawionych w Magazyn → Stany
+  // (Tymek 23.11: minima są na półkach, karta komponentu ich nie ma, więc lista pokazywała „—”).
+  const shelfMinByComponentId = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const s of stock) {
+      const m = Number(s.min_quantity)
+      if (s.min_quantity != null && Number.isFinite(m) && m > 0) map.set(s.component_id, (map.get(s.component_id) ?? 0) + m)
+    }
+    return map
+  }, [stock])
+  const effectiveMin = (component: WarehouseComponent): number | null =>
+    component.min_stock_level ?? shelfMinByComponentId.get(component.id) ?? null
+
   const orphanItems = useMemo(
     () =>
       shoppingList.filter((item) => {
@@ -174,9 +187,9 @@ export default function ShoppingListModal({
       .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.code ?? '').toLowerCase().includes(q))
       .map((component) => {
         const currentStock = stockByComponentId.get(component.id) ?? 0
-        const proximityToMin =
-          component.min_stock_level == null ? null : currentStock - component.min_stock_level
-        return { component, currentStock, proximityToMin }
+        const min = effectiveMin(component)
+        const proximityToMin = min == null ? null : currentStock - min
+        return { component, currentStock, proximityToMin, min }
       })
       .sort((a, b) => {
         if (a.proximityToMin == null && b.proximityToMin == null) {
@@ -211,7 +224,7 @@ export default function ShoppingListModal({
       units_per_pallet: component.units_per_pallet ?? null,
       pallets_per_full_tir: component.pallets_per_full_tir ?? null,
       current_stock: currentStock,
-      min_stock_level: component.min_stock_level ?? null,
+      min_stock_level: effectiveMin(component),
       target_stock_level: component.target_stock_level ?? null,
     })
   }
@@ -230,7 +243,7 @@ export default function ShoppingListModal({
       units_per_pallet: component.units_per_pallet ?? null,
       pallets_per_full_tir: component.pallets_per_full_tir ?? null,
       current_stock: currentStock,
-      min_stock_level: component.min_stock_level ?? null,
+      min_stock_level: effectiveMin(component),
       target_stock_level: component.target_stock_level ?? null,
     })
     setQuickQty((prev) => ({ ...prev, [component.id]: '' }))
@@ -267,10 +280,11 @@ export default function ShoppingListModal({
               { key: 'sku', label: 'SKU', render: ({ component }) => component.name },
               {
                 key: 'stock',
-                label: 'Stock / Min',
-                render: ({ component, currentStock, proximityToMin }) => (
+                label: 'Stan / Min',
+                title: 'Stan ze wszystkich magazynów / minimum (z karty komponentu albo suma minimów półek ze Stanów)',
+                render: ({ currentStock, proximityToMin, min }) => (
                   <>
-                    {currentStock} / {component.min_stock_level ?? '—'}{' '}
+                    {currentStock} / {min ?? '—'}{' '}
                     {proximityToMin != null && proximityToMin <= 0 && (
                       <span className="subtab-badge subtab-badge--alert">PONIŻEJ MIN</span>
                     )}
@@ -279,7 +293,8 @@ export default function ShoppingListModal({
               },
               {
                 key: 'runway',
-                label: 'Runway',
+                label: 'Do minimum',
+                title: 'Ile sztuk zostało do progu minimum',
                 render: ({ proximityToMin }) => calculateRunwayLabel(proximityToMin),
               },
               {
@@ -572,7 +587,7 @@ export default function ShoppingListModal({
                       { key: 'sku', label: 'SKU', render: (item) => item.component_name },
                       {
                         key: 'stock',
-                        label: 'Stock / Min/Target',
+                        label: 'Stan / Min / Cel',
                         render: (item) => (
                           <>
                             {item.current_stock} | {item.min_stock_level ?? '—'}/{item.target_stock_level ?? '—'}
