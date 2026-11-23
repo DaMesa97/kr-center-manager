@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Lista zakupowa: minimum z półek; porządek w rezerwacjach (beta.145)</h4>
+        <ul>
+          <li><b>Zamawianie → lista zakupowa:</b> minimum brane z karty komponentu, a gdy puste, z sumy minimów półek ustawionych w Magazyn → Stany (dotąd lista pokazywała „—”, bo karta komponentu minimum nie ma). Działa w podpowiedziach przy dostawcy, znaczniku „poniżej min” i pozycjach listy. Kolumny po polsku: „Stan / Min”, „Do minimum” (dawne „Runway”), „Stan / Min / Cel”.</li>
+          <li><b>Magazyn:</b> rezerwacje otwartych zleceń sprzed 7.10 (miesiąc przed inwentaryzacją 6.11) anulowane bez rozchodu: 187 zleceń, 3327 rezerwacji, głównie Disting. Zlecenia zostają otwarte, stany bez zmian, braków krytycznych ubyło.</li>
+        </ul>
         <h4>Porządek nazw firm, Titan liczony raz, reklamacje z Excela, eksport stanów (beta.144)</h4>
         <ul>
           <li><b>Statystyki → Firmy:</b> warianty pisowni jednej firmy (wielkość liter, ogonki, „#”, powtórzone słowo) liczą się razem same. Resztę („PO DRZWI” = „PO DRZWI ŻORY”) kierownik scala w panelu <b>„Porządek nazw firm”</b> (podejrzane warianty, wybór nazwy docelowej, „Scal” / rozdziel). Scalenie działa też w „top firm” w statystykach kategorii i reklamacji. <b>Titan</b> (STA + ST + Bastion) i <b>Disting Plus</b> (Disting + STA) liczone raz, a nie z każdego arkusza osobno.</li>
