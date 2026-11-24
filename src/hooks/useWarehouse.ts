@@ -1945,11 +1945,28 @@ export function useWarehouse({
       )
       .subscribe()
 
+    // purchase_orders / purchase_order_items → odśwież zamówienia u dostawców (Tymek 24.11: Dorota nie widziała
+    // na żywo zamówienia, które Tymek właśnie wygenerował — lista odświeżała się tylko przy wejściu w Magazyn)
+    let poTimer: ReturnType<typeof setTimeout> | null = null
+    const refreshPurchaseOrders = () => {
+      if (poTimer) clearTimeout(poTimer)
+      poTimer = setTimeout(() => {
+        void fetchPurchaseOrders()
+      }, 1500)
+    }
+    const poChannel = supabase
+      .channel('warehouse:purchase-orders:realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders' }, refreshPurchaseOrders)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_order_items' }, refreshPurchaseOrders)
+      .subscribe()
+
     return () => {
       if (stockTimer) clearTimeout(stockTimer)
       if (movTimer) clearTimeout(movTimer)
+      if (poTimer) clearTimeout(poTimer)
       void supabase.removeChannel(stockChannel)
       void supabase.removeChannel(movChannel)
+      void supabase.removeChannel(poChannel)
     }
   }, [
     isWarehouseTab,
@@ -1959,6 +1976,7 @@ export function useWarehouse({
     fetchAlertsBadgeCount,
     fetchPzGroups,
     fetchMmGroups,
+    fetchPurchaseOrders,
   ])
 
   // ---------------------------------------------------------------------------
