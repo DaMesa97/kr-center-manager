@@ -226,6 +226,19 @@ z folderu bez `supabase/config.toml` albo przez MCP). Titan w ST.xlsm: zapasowa 
 „ETAP 4 (montaż, pakowanie i kontrola jakości)” (arkusz WZ TITAN jej nie ma — opcjonalna);
 wydanie roli ST zamyka też rolę Bastion z tej samej `titan_group`.
 
+**Etapy z Excela → program (od 24.11.2026, ):** ten sam nocny przebieg
+czyta kolumny etapów (inicjały) z arkuszy zamówień, rozpoznane po wzorcach nagłówków per kategoria
+( w : ST/Techniczne CNC→cnc, OŚCIEŻNICA→osc, SKRZYDŁO→skr, MONTAŻ→mon,
+MAGAZYN→mag; Disting CNC→e1+e3, OŚCIEŻNICA→e2_1, PAKOWANIE DOSTAWKI→e2_2, SKRZYDŁO→e4, MONTAŻ→e5; STA ETAP n→en;
+Titan ST ETAP 1–4→e1–e4, Titan STA „frezowanie otworów”→e3; Bastion 9 kolumn→9 kluczy). Wartości: inicjały
+1–3 litery, X→, WSTRZYMANE→, „-”/puste pomijane, reszta (2P, P/Z, NIE FREZOWAĆ…) tylko do raportu.
+Po dopasowaniu wierszy (items z , bez duplikatów i anulowanych) RPC
+ uzupełnia TYLKO puste etapy w 
+(program ma pierwszeństwo;  zwalnia rezerwacje etapu jak w aplikacji) i dopisuje do tego samego wiersza
+ pola  (zlecen/uzupelnione/zgodne/rozne/nietypowe),  (do 300),
+, . Tryb:  =  |  (podgląd, bez zapisu) | ;
+start w  (24.11), przełączenie na  po przeglądzie pierwszego raportu.
+
 ### 4c. Reklamacje z Excela — jedna strona Excel → aplikacja (od 19.11.2026)
 Ten sam nocny przebieg: `excel-sync` czyta z każdego skoroszytu arkusz „Reklamacje"
 (układ kolumn różni się między plikami, stąd aliasy nagłówków w funkcji: ST/Disting/STA
