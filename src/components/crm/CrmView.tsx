@@ -56,6 +56,7 @@ import {
   requestOfertaPrzelicz,
   retryOfertaPrzelicz,
   zlecOferteWstrzymana,
+  polaczLeady,
   odpowiedzIPolicz,
   zlecOferteZNotatki,
   zlecOferteZNagrania,
@@ -900,7 +901,7 @@ function OfertaScreen({
       return
     }
     setSaving(true)
-    const err = await requestOfertaPrzelicz(oferta, text)
+    const err = await requestOfertaPrzelicz(oferta, text, currentUser?.id ?? null)
     setSaving(false)
     if (err) {
       pushToast(`Nie udało się zlecić przeliczenia: ${err.message}`, 'error')
@@ -914,7 +915,7 @@ function OfertaScreen({
   const handleRetry = async () => {
     if (!oferta) return
     setSaving(true)
-    const err = await retryOfertaPrzelicz(oferta)
+    const err = await retryOfertaPrzelicz(oferta, currentUser?.id ?? null)
     setSaving(false)
     if (err) {
       pushToast(`Nie udało się ponowić: ${err.message}`, 'error')
@@ -2114,8 +2115,36 @@ function LeadScreen({
   const saveDane = async () => {
     if (!lead || !dane) return
     setSaving(true)
-    const err = await updateLeadDane(lead.id, dane)
+    let err = await updateLeadDane(lead.id, dane)
     setSaving(false)
+    // 24.11 (Tymek): ten sam numer / e-mail ma już inny klient → zamiast błędu pytamy, czy połączyć obu w jednego
+    if (err?.kind === 'duplikat' && err.inny) {
+      const inny = err.inny
+      const kto = inny.nazwa || inny.telefon || inny.email || 'bez nazwy'
+      const ok = await appConfirm(
+        `${err.message} Połączyć obu klientów w jednego? Oferty, rozmowy, maile i historia „${kto}” (${CRM_LEAD_STATUS[inny.status] ?? inny.status}) przejdą do tego klienta, a tamten wpis zniknie. Tego nie da się cofnąć.`,
+        { title: 'Ten klient już jest w CRM', confirmLabel: 'Połącz klientów', tone: 'danger' },
+      )
+      if (!ok) return
+      setSaving(true)
+      const pol = await polaczLeady(lead.id, inny.id)
+      if (pol.error) {
+        setSaving(false)
+        pushToast(`Nie udało się połączyć: ${pol.error.message}`, 'error')
+        return
+      }
+      err = await updateLeadDane(lead.id, dane)
+      setSaving(false)
+      if (err) {
+        pushToast(`Klienci połączeni, ale danych nie udało się zapisać: ${err.message}`, 'error')
+        await load(true)
+        return
+      }
+      pushToast(`Klienci połączeni, dane zapisane`, 'success')
+      setDane(null)
+      await load(true)
+      return
+    }
     if (err) {
       pushToast(err.message, 'error')
       return

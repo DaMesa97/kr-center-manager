@@ -33,7 +33,12 @@ import { fetchAllPages } from '../lib/fetchPaged'
 
 const crm = () => supabase.schema('crm')
 
-export type CrmError = { kind: 'schema_not_exposed' | 'no_access' | 'other'; message: string }
+export type CrmError = {
+  kind: 'schema_not_exposed' | 'no_access' | 'other' | 'duplikat'
+  message: string
+  /** 24.11: 'duplikat' — inny klient ma już ten telefon / e-mail; ekran proponuje połączenie (polacz_leady) */
+  inny?: { id: string; nazwa: string | null; telefon: string | null; email: string | null; status: string }
+}
 
 export function crmErrorFrom(e: { code?: string; message?: string } | null | undefined): CrmError | null {
   if (!e) return null
@@ -151,8 +156,9 @@ export async function markOfertaWyslana(oferta: CrmOferta, userId: string): Prom
 }
 
 /** „Przelicz”: poprawka=tekst, status=przelicz. Nową wersję tworzy backend (trigger → crm-oferta). */
-export async function requestOfertaPrzelicz(oferta: CrmOferta, poprawka: string): Promise<CrmError | null> {
-  const { error } = await crm().from('oferty').update({ poprawka, status: 'przelicz' }).eq('id', oferta.id)
+export async function requestOfertaPrzelicz(oferta: CrmOferta, poprawka: string, userId?: string | null): Promise<CrmError | null> {
+  // 24.11 (Tymek): handlowiec = kto zlecił — crm-oferta pisze mail w jego stylu, nie domyślnej Magdaleny
+  const { error } = await crm().from('oferty').update({ poprawka, status: 'przelicz', ...(userId ? { handlowiec: userId } : {}) }).eq('id', oferta.id)
   return crmErrorFrom(error)
 }
 
@@ -179,8 +185,8 @@ export async function poprawUstaleniaIPolicz(oferta: CrmOferta, tekst: string): 
   return zlecOferteWstrzymana(oferta.id)
 }
 
-export async function retryOfertaPrzelicz(oferta: CrmOferta): Promise<CrmError | null> {
-  const { error } = await crm().from('oferty').update({ status: 'przelicz' }).eq('id', oferta.id)
+export async function retryOfertaPrzelicz(oferta: CrmOferta, userId?: string | null): Promise<CrmError | null> {
+  const { error } = await crm().from('oferty').update({ status: 'przelicz', ...(userId ? { handlowiec: userId } : {}) }).eq('id', oferta.id)
   return crmErrorFrom(error)
 }
 
@@ -195,7 +201,7 @@ export async function odpowiedzIPolicz(oferta: CrmOferta, tekst: string, userId:
   if (!oferta.analiza || typeof oferta.analiza !== 'object') return { kind: 'other', message: 'Ta oferta nie ma zapisanych ustaleń — zleć ofertę od nowa z karty klienta' }
   const poprzednie = typeof oferta.analiza.odpowiedzi_handlowca === 'string' ? oferta.analiza.odpowiedzi_handlowca : ''
   const analiza = { ...oferta.analiza, odpowiedzi_handlowca: poprzednie ? `${poprzednie}\n${t}` : t }
-  const { data, error } = await crm().from('oferty').update({ analiza, status: 'przelicz', liczenie_od: null }).eq('id', oferta.id).eq('status', 'do_sprawdzenia').select('id')
+  const { data, error } = await crm().from('oferty').update({ analiza, status: 'przelicz', liczenie_od: null, ...(userId ? { handlowiec: userId } : {}) }).eq('id', oferta.id).eq('status', 'do_sprawdzenia').select('id')
   if (error) return crmErrorFrom(error)
   if (!data?.length) return { kind: 'other', message: 'Ta oferta nie czeka już na odpowiedzi (ktoś ją właśnie przeliczył albo zmienił)' }
   const { error: zErr } = await crm().from('zdarzenia').insert({
@@ -469,6 +475,19 @@ export async function updateLeadDane(id: string, d: { nazwa: string; telefon: st
   const profil_social = (d.profil_social ?? '').trim() || null
   // #166: klient z Facebooka/Instagrama może mieć tylko profil
   if (!telefon && !email && !profil_social) return { kind: 'other', message: 'Klient musi mieć telefon, e-mail albo profil (Facebook / Instagram).' }
+  // 24.11 (Tymek): ten sam telefon / e-mail ma już inny klient (np. zamówienie ze sklepu założyło drugi wpis) —
+  // zamiast suchego błędu zwracamy 'duplikat' z danymi tamtego klienta, a ekran proponuje połączenie obu w jednego
+  const warunki: string[] = []
+  if (telefon) warunki.push(`telefon.eq.${telefon}`)
+  if (email) warunki.push(`email.ilike.${email}`)
+  if (warunki.length) {
+    const { data: inni } = await crm().from('leady').select('id, nazwa, telefon, email, status').neq('id', id).or(warunki.join(',')).limit(1)
+    const inny = (inni?.[0] ?? null) as CrmError['inny'] | null
+    if (inny) {
+      const czym = telefon && inny.telefon === telefon ? `numer ${telefon}` : `adres ${email}`
+      return { kind: 'duplikat', message: `Ten ${czym} ma już klient „${inny.nazwa || inny.telefon || inny.email || '?'}”.`, inny }
+    }
+  }
   const { error } = await crm()
     .from('leady')
     .update({ nazwa: d.nazwa.trim() || null, telefon, email, miejscowosc: d.miejscowosc.trim() || null, profil_social })
