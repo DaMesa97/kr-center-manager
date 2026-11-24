@@ -153,6 +153,7 @@ export default function ReorderDashboardView({
         min: effectiveMin,
         target: effectiveTarget,
         unitsPerPallet: component.units_per_pallet ?? null,
+        orderMultiple: component.order_multiple ?? null,
       })
 
       return {
@@ -210,6 +211,7 @@ export default function ReorderDashboardView({
       supplier_name: row.supplier?.name ?? null,
       quantity: qty,
       units_per_pallet: c.units_per_pallet ?? null,
+      order_multiple: c.order_multiple ?? null,
       pallets_per_full_tir: c.pallets_per_full_tir ?? null,
       current_stock: row.current_stock,
       min_stock_level: row.effective_min_stock,

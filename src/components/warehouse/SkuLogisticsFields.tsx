@@ -8,6 +8,9 @@ type Props = {
   setUnitsPerPallet: (n: number | '') => void
   palletsPerFullTir: number | ''
   setPalletsPerFullTir: (n: number | '') => void
+  /** minimum logistyczne (#168): wielokrotność zamówienia u dostawcy; puste = jak paleta */
+  orderMultiple: number | ''
+  setOrderMultiple: (n: number | '') => void
   minStockLevel: number | ''
   setMinStockLevel: (n: number | '') => void
   targetStockLevel: number | ''
@@ -24,6 +27,8 @@ export default function SkuLogisticsFields({
   setUnitsPerPallet,
   palletsPerFullTir,
   setPalletsPerFullTir,
+  orderMultiple,
+  setOrderMultiple,
   minStockLevel,
   setMinStockLevel,
   targetStockLevel,
@@ -117,6 +122,23 @@ export default function SkuLogisticsFields({
           />
           <small className="sku-logistics-helper">
             Ile sztuk tego SKU mieści się na 1 palecie. Wpisz tylko jeśli SKU jeździ paletami.
+          </small>
+        </label>
+
+        <label>
+          <span className="order-field-label-text">Minimum logistyczne</span>
+          <input
+            type="number"
+            min={1}
+            placeholder={unitsPerPallet !== '' ? `jak paleta (${unitsPerPallet})` : 'np. 8'}
+            value={orderMultiple}
+            onChange={(e) =>
+              setOrderMultiple(e.target.value === '' ? '' : Math.max(1, Math.round(Number(e.target.value) || 1)))
+            }
+          />
+          <small className="sku-logistics-helper">
+            W jakiej wielokrotności dostawca sprzedaje ten SKU (np. 8 albo 12 szt.). „Do zamówienia” i sugestie
+            zaokrąglają się w górę do tej liczby. Puste = pełna paleta.
           </small>
         </label>
 

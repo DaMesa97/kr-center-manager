@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Magazyn: minimum logistyczne komponentu (beta.152)</h4>
+        <ul>
+          <li><b>Karta komponentu → Logistyka i zamawianie:</b> nowe pole <b>Minimum logistyczne</b> (#168, Tymek) — w jakiej wielokrotności dostawca sprzedaje dany SKU, np. 8 albo 12 szt., gdy na palecie jest 24. Puste = pełna paleta.</li>
+          <li><b>Stany → DO ZAMÓWIENIA</b>, eksport braków do CSV, „Braki → lista zakupowa”, sugestie w Zamawianiu i krok ilości na liście zakupowej zaokrąglają się w górę do tej wielokrotności (albo do palety, gdy minimum nie wpisano). Koniec podpowiedzi „zamów 1 skrzydło”. Liczenie palet i TIR-ów bez zmian.</li>
+        </ul>
         <h4>Klienci: scalanie przy tym samym numerze, cena z rozmowy jako wartość, bez zadań „oddzwoń” (beta.151)</h4>
         <ul>
           <li><b>Dane klienta:</b> gdy wpisany telefon albo e-mail ma już inny klient (np. drugi wpis z zamówienia ze sklepu), zamiast błędu pytanie „Ten klient już jest — połączyć?”. Po potwierdzeniu oferty, rozmowy, maile i historia tamtego wpisu przechodzą do karty, na której jesteś, a tamten wpis znika.</li>
@@ -168,7 +173,7 @@ const SECTIONS: Section[] = [
           <li><b>Każda półka ma poziom</b> liczony w jednym miejscu (w bazie): <b>Krytyczny</b> (czerwony — dostępne poniżej zera i nic tego nie pokrywa), <b>Pokryty dostawą</b> (żółty — minus, ale otwarte zamówienia do dostawcy go pokrywają; przy statusie widać najbliższą dostawę), <b>Niski</b> (pomarańczowy — dostępne plus w drodze poniżej minimum), OK oraz Nieaktywny (zero, bez rezerwacji, bez minimum — szary). Tło wiersza i tekst w kolumnie STATUS mówią to samo.</li>
           <li><b>Pasek liczników nad tabelą to filtr</b> — klik w „Krytyczne", „Pokryte dostawą", „Niskie" (albo zbiorczo „Problemy") pokazuje tylko te wiersze, drugi klik zdejmuje filtr. Domyślnie tabela jest sortowana <b>„Najpierw braki"</b> (największy minus na górze), obok przełącznik „Alfabetycznie". Filtr, sortowanie i magazyn pamiętają się na tym komputerze.</li>
           <li><b>Minimum półki</b> — kierownik klika w komórkę MINIMUM, wpisuje liczbę, Enter (Esc cofa; puste = nie pilnujemy). Hurtowo: zaznacz wiersze checkboxami (widok jednego magazynu) i „Ustaw minimum" / „Wyczyść minimum". Gdy półka nie ma własnego minimum, obowiązuje Smart ROP (🤖) albo minimum z kartoteki komponentu („komp.").</li>
-          <li>Nowa kolumna <b>DO ZAMÓWIENIA</b> = ile brakuje do minimum po uwzględnieniu tego, co w drodze. Przyciski <b>„Eksportuj braki (CSV)"</b> (gotowa lista do zamówienia) i <b>„Braki → lista zakupowa"</b> (wrzuca braki do Zamawiania).</li>
+          <li>Nowa kolumna <b>DO ZAMÓWIENIA</b> = ile brakuje do minimum po uwzględnieniu tego, co w drodze, zaokrąglone w górę do minimum logistycznego komponentu (albo pełnej palety, gdy minimum nie wpisano). Przyciski <b>„Eksportuj braki (CSV)"</b> (gotowa lista do zamówienia) i <b>„Braki → lista zakupowa"</b> (wrzuca braki do Zamawiania).</li>
           <li>Gdy półka <b>przechodzi w stan krytyczny</b>, kierownicy magazynu i administratorzy dostają powiadomienie w dzwonku (raz na dobę na półkę); klik otwiera Stany. ⚠ przy nazwie jest tylko przy krytycznych; zgłoszenie zniszczenia to teraz przycisk <b>ZN</b> w kolumnie Akcje.</li>
         </ul>
         <h4>Legenda jako przełączniki (beta.92)</h4>

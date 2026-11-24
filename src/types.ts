@@ -954,6 +954,8 @@ export type ShoppingListItem = {
   quantity: number
   units_per_pallet: number | null
   pallets_per_full_tir: number | null
+  /** minimum logistyczne (wielokrotność zamówienia, #168); krok ilości na liście */
+  order_multiple?: number | null
   current_stock: number
   min_stock_level: number | null
   target_stock_level: number | null
@@ -1044,6 +1046,8 @@ export type WarehouseComponent = {
   supplier_id?: number | null
   units_per_pallet?: number | null
   pallets_per_full_tir?: number | null
+  /** minimum logistyczne: wielokrotność, w jakiej dostawca sprzedaje (np. 8 / 12); puste = jak paleta (#168) */
+  order_multiple?: number | null
   min_stock_level?: number | null
   target_stock_level?: number | null
   notes?: string | null
@@ -1066,6 +1070,8 @@ export type WarehouseComponentCreateInput = {
   supplier_id?: number | null
   units_per_pallet?: number | null
   pallets_per_full_tir?: number | null
+  /** minimum logistyczne: wielokrotność, w jakiej dostawca sprzedaje (np. 8 / 12); puste = jak paleta (#168) */
+  order_multiple?: number | null
   min_stock_level?: number | null
   target_stock_level?: number | null
   notes?: string | null
@@ -1080,6 +1086,8 @@ export type WarehouseComponentUpdateInput = {
   supplier_id?: number | null
   units_per_pallet?: number | null
   pallets_per_full_tir?: number | null
+  /** minimum logistyczne: wielokrotność, w jakiej dostawca sprzedaje (np. 8 / 12); puste = jak paleta (#168) */
+  order_multiple?: number | null
   min_stock_level?: number | null
   target_stock_level?: number | null
   notes?: string | null

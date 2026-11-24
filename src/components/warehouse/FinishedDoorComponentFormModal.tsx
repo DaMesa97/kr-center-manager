@@ -63,10 +63,11 @@ function FinishedDoorComponentFormModal({
   const [supplierId, setSupplierId] = useState<number | null>(null)
   const [unitsPerPallet, setUnitsPerPallet] = useState<number | ''>('')
   const [palletsPerFullTir, setPalletsPerFullTir] = useState<number | ''>('')
+  const [orderMultiple, setOrderMultiple] = useState<number | ''>('')
   const [minStockLevel, setMinStockLevel] = useState<number | ''>('')
   const [targetStockLevel, setTargetStockLevel] = useState<number | ''>('')
   const [saving, setSaving] = useState(false)
-  const { requestClose } = useUnsavedGuard({ productCategory, wingModel, handleModel, size, frameCode, handleShield, direction, color, handleColor, hingeCoverColor, code, unit, supplierId, unitsPerPallet, palletsPerFullTir, minStockLevel, targetStockLevel }, onClose, { enabled: !saving, escape: open, resetKey: open })
+  const { requestClose } = useUnsavedGuard({ productCategory, wingModel, handleModel, size, frameCode, handleShield, direction, color, handleColor, hingeCoverColor, code, unit, supplierId, unitsPerPallet, palletsPerFullTir, orderMultiple, minStockLevel, targetStockLevel }, onClose, { enabled: !saving, escape: open, resetKey: open })
 
   const wingModelOptions = useMemo(
     () =>
@@ -150,6 +151,7 @@ function FinishedDoorComponentFormModal({
       setSupplierId(initialComponent.supplier_id ?? null)
       setUnitsPerPallet(initialComponent.units_per_pallet ?? '')
       setPalletsPerFullTir(initialComponent.pallets_per_full_tir ?? '')
+      setOrderMultiple(initialComponent.order_multiple ?? '')
       setMinStockLevel(initialComponent.min_stock_level ?? '')
       setTargetStockLevel(initialComponent.target_stock_level ?? '')
     } else if (open && mode === 'add') {
@@ -289,6 +291,7 @@ function FinishedDoorComponentFormModal({
       supplier_id: supplierId,
       units_per_pallet: unitsPerPallet === '' ? null : Number(unitsPerPallet),
       pallets_per_full_tir: palletsPerFullTir === '' ? null : Number(palletsPerFullTir),
+      order_multiple: orderMultiple === '' ? null : Number(orderMultiple),
       min_stock_level: minStockLevel === '' ? null : Number(minStockLevel),
       target_stock_level: targetStockLevel === '' ? null : Number(targetStockLevel),
     }
@@ -498,6 +501,8 @@ function FinishedDoorComponentFormModal({
             setUnitsPerPallet={setUnitsPerPallet}
             palletsPerFullTir={palletsPerFullTir}
             setPalletsPerFullTir={setPalletsPerFullTir}
+            orderMultiple={orderMultiple}
+            setOrderMultiple={setOrderMultiple}
             minStockLevel={minStockLevel}
             setMinStockLevel={setMinStockLevel}
             targetStockLevel={targetStockLevel}

@@ -1,4 +1,5 @@
 import { appConfirm } from '../../lib/appDialogs'
+import { orderLot } from '../../lib/reorder'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
@@ -205,7 +206,8 @@ export default function ShoppingListModal({
   const getSuggestedQty = (component: WarehouseComponent) => {
     const local = suggestedQuantities[component.id]
     if (local && local > 0) return local
-    return Math.max(component.units_per_pallet ?? 1, 1)
+    // #168: krok = minimum logistyczne, a gdy go nie ma — paleta; bez obu 1 szt.
+    return Math.max(orderLot(component.order_multiple, component.units_per_pallet) ?? 1, 1)
   }
 
   const handleAddSuggestion = (
@@ -223,6 +225,7 @@ export default function ShoppingListModal({
       quantity: Math.max(1, quantity),
       units_per_pallet: component.units_per_pallet ?? null,
       pallets_per_full_tir: component.pallets_per_full_tir ?? null,
+      order_multiple: component.order_multiple ?? null,
       current_stock: currentStock,
       min_stock_level: effectiveMin(component),
       target_stock_level: component.target_stock_level ?? null,
@@ -232,7 +235,7 @@ export default function ShoppingListModal({
   const handleQuickAdd = (component: WarehouseComponent) => {
     const supplier = component.supplier_id ? supplierById.get(component.supplier_id) ?? null : null
     const currentStock = stockByComponentId.get(component.id) ?? 0
-    const qty = parseInt(quickQty[component.id] ?? '') || Math.max(component.units_per_pallet ?? 1, 1)
+    const qty = parseInt(quickQty[component.id] ?? '') || Math.max(orderLot(component.order_multiple, component.units_per_pallet) ?? 1, 1)
     onAddToShoppingList({
       component_id: component.id,
       component_name: component.name,
@@ -242,6 +245,7 @@ export default function ShoppingListModal({
       quantity: Math.max(1, qty),
       units_per_pallet: component.units_per_pallet ?? null,
       pallets_per_full_tir: component.pallets_per_full_tir ?? null,
+      order_multiple: component.order_multiple ?? null,
       current_stock: currentStock,
       min_stock_level: effectiveMin(component),
       target_stock_level: component.target_stock_level ?? null,

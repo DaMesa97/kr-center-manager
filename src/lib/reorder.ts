@@ -20,6 +20,8 @@ export type ReorderInput = {
   min: number | null
   target: number | null
   unitsPerPallet: number | null
+  /** minimum logistyczne (#168): wielokrotność zamówienia u dostawcy, np. 8 albo 12; ma pierwszeństwo przed paletą */
+  orderMultiple?: number | null
 }
 
 export type ReorderResult = {
@@ -34,7 +36,19 @@ export function roundToPallets(qty: number, unitsPerPallet: number | null): numb
   return qty
 }
 
-export function computeReorder({ stock, incoming, min, target, unitsPerPallet }: ReorderInput): ReorderResult {
+/** Partia logistyczna SKU (#168, Tymek 24.11): minimum logistyczne, a gdy go nie ma — pełna paleta; null = sztuki. */
+export function orderLot(orderMultiple: number | null | undefined, unitsPerPallet: number | null | undefined): number | null {
+  if (orderMultiple != null && orderMultiple > 0) return orderMultiple
+  if (unitsPerPallet != null && unitsPerPallet > 0) return unitsPerPallet
+  return null
+}
+
+/** Zaokrąglenie w górę do partii logistycznej (orderLot). To samo liczy baza w stock_order_lot (widok v_stock_levels). */
+export function roundToLot(qty: number, orderMultiple: number | null | undefined, unitsPerPallet: number | null | undefined): number {
+  return roundToPallets(qty, orderLot(orderMultiple, unitsPerPallet))
+}
+
+export function computeReorder({ stock, incoming, min, target, unitsPerPallet, orderMultiple = null }: ReorderInput): ReorderResult {
   const position = stock + Math.max(0, incoming)
   if (min == null) return { position, status: 'no_threshold', suggested: null }
 
@@ -46,11 +60,11 @@ export function computeReorder({ stock, incoming, min, target, unitsPerPallet }:
   if (status === 'critical' || status === 'observe') {
     // bez targetu: uzupełnij do 4× min (jak dotąd)
     const rawQty = Math.max((target ?? min * 4) - position, 1)
-    suggested = Math.max(roundToPallets(rawQty, unitsPerPallet), 1)
+    suggested = Math.max(roundToLot(rawQty, orderMultiple, unitsPerPallet), 1)
   } else if (target != null) {
     // OK: podpowiedź „z wyprzedzeniem" tylko, gdy do targetu czegoś brakuje
     const rawQty = target - position
-    if (rawQty > 0) suggested = roundToPallets(rawQty, unitsPerPallet)
+    if (rawQty > 0) suggested = roundToLot(rawQty, orderMultiple, unitsPerPallet)
   }
   return { position, status, suggested }
 }

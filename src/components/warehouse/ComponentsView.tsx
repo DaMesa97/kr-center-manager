@@ -66,6 +66,7 @@ const emptyForm = () => ({
   supplier_id: null as number | null,
   units_per_pallet: '' as number | '',
   pallets_per_full_tir: '' as number | '',
+  order_multiple: '' as number | '',
   notes: '',
 })
 
@@ -199,6 +200,7 @@ function ComponentsView({
       supplier_id: row.supplier_id ?? null,
       units_per_pallet: row.units_per_pallet ?? '',
       pallets_per_full_tir: row.pallets_per_full_tir ?? '',
+      order_multiple: row.order_multiple ?? '',
       notes: row.notes ?? '',
     })
     setModalOpen(true)
@@ -256,6 +258,8 @@ function ComponentsView({
     const uppNum = uppRaw === '' || uppRaw === null || uppRaw === undefined ? null : Number(uppRaw)
     const pftRaw = form.pallets_per_full_tir
     const pftNum = pftRaw === '' || pftRaw === null || pftRaw === undefined ? null : Number(pftRaw)
+    const omRaw = form.order_multiple
+    const omNum = omRaw === '' || omRaw === null || omRaw === undefined ? null : Number(omRaw)
     if (minNum !== null && Number.isNaN(minNum)) {
       void appAlert('Minimalny stan musi być liczbą.')
       return
@@ -272,6 +276,10 @@ function ComponentsView({
       void appAlert('Palety na pełny TIR muszą być >= 1.')
       return
     }
+    if (omNum !== null && (!Number.isInteger(omNum) || omNum < 1)) {
+      void appAlert('Minimum logistyczne musi być liczbą całkowitą >= 1.')
+      return
+    }
     const payloadCommon = {
       code,
       name,
@@ -282,6 +290,7 @@ function ComponentsView({
       supplier_id: form.supplier_id,
       units_per_pallet: uppNum,
       pallets_per_full_tir: pftNum,
+      order_multiple: omNum,
       notes: form.notes.trim() ? form.notes.trim() : null,
     }
     if (selectedWarehouseIds.length === 0) {
@@ -644,6 +653,8 @@ function ComponentsView({
                   setUnitsPerPallet={(n) => setForm((p) => ({ ...p, units_per_pallet: n }))}
                   palletsPerFullTir={form.pallets_per_full_tir}
                   setPalletsPerFullTir={(n) => setForm((p) => ({ ...p, pallets_per_full_tir: n }))}
+                  orderMultiple={form.order_multiple}
+                  setOrderMultiple={(n) => setForm((p) => ({ ...p, order_multiple: n }))}
                   minStockLevel={form.min_stock_level}
                   setMinStockLevel={(n) => setForm((p) => ({ ...p, min_stock_level: n }))}
                   targetStockLevel={form.target_stock_level}

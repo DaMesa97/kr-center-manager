@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeReorder, roundToPallets } from '../lib/reorder'
+import { computeReorder, orderLot, roundToLot, roundToPallets } from '../lib/reorder'
 
 describe('computeReorder — status i sugerowana ilość', () => {
   it('bez progu = brak statusu i sugestii', () => {
@@ -37,5 +37,24 @@ describe('computeReorder — status i sugerowana ilość', () => {
     expect(roundToPallets(25, 24)).toBe(48)
     expect(roundToPallets(25, null)).toBe(25)
     expect(roundToPallets(25, 0)).toBe(25)
+  })
+
+  it('#168 minimum logistyczne: wygrywa z paletą, puste = paleta, bez obu = sztuki', () => {
+    expect(orderLot(8, 24)).toBe(8)
+    expect(orderLot(null, 24)).toBe(24)
+    expect(orderLot(null, null)).toBeNull()
+    expect(orderLot(0, 24)).toBe(24)
+    expect(roundToLot(1, 8, 24)).toBe(8)      // „1 skrzydło” → partia 8
+    expect(roundToLot(9, 8, 24)).toBe(16)
+    expect(roundToLot(1, null, 24)).toBe(24)  // bez minimum logistycznego jak dotąd: pełna paleta
+    expect(roundToLot(1, null, null)).toBe(1)
+  })
+
+  it('#168 sugestia ROP zaokrąglona do minimum logistycznego zamiast palety', () => {
+    const r = computeReorder({ stock: 100, incoming: 0, min: 80, target: 200, unitsPerPallet: 24, orderMultiple: 12 })
+    expect(r.status).toBe('observe')
+    expect(r.suggested).toBe(108) // 100 → 9 × 12 (wcześniej 120 = 5 palet)
+    const bez = computeReorder({ stock: 100, incoming: 0, min: 80, target: 200, unitsPerPallet: 24 })
+    expect(bez.suggested).toBe(120)
   })
 })

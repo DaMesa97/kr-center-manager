@@ -316,7 +316,8 @@ function StockView({
 
   const addShortagesToShoppingList = useCallback(async () => {
     if (!onAddToShoppingList) return
-    // „do zamówienia” sumowane po komponencie (różne magazyny = jedno zamówienie u dostawcy)
+    // „do zamówienia” sumowane po komponencie (różne magazyny = jedno zamówienie u dostawcy);
+    // każda półka jest już zaokrąglona do minimum logistycznego / palety przez bazę (#168)
     const byComponent = new Map<number, number>()
     for (const r of shortageRows) if (r.shortage > 0) byComponent.set(r.component_id, (byComponent.get(r.component_id) ?? 0) + r.shortage)
     if (byComponent.size === 0) { pushToast?.('Nic do zamówienia w bieżącym filtrze', 'info'); return }
@@ -340,6 +341,7 @@ function StockView({
         quantity: Math.max(1, Math.ceil(qty)),
         units_per_pallet: c?.units_per_pallet ?? null,
         pallets_per_full_tir: c?.pallets_per_full_tir ?? null,
+        order_multiple: c?.order_multiple ?? null,
         current_stock: agg.total,
         min_stock_level: c?.min_stock_level ?? null,
         target_stock_level: c?.target_stock_level ?? null,
