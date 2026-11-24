@@ -237,7 +237,13 @@ NIE FREZOWAĆ…) tylko do raportu. Po dopasowaniu wierszy (items z `sync_releas
 i anulowanych) RPC `sync_stages_from_excel(p_items, p_dry_run, p_run_id, p_category)` uzupełnia TYLKO puste
 etapy w `orders.production_stages` (program ma pierwszeństwo; `#ND` zwalnia rezerwacje etapu jak w aplikacji)
 i dopisuje do tego samego wiersza `excel_sync_runs` pola `summary.etapy` (zlecen / uzupelnione / zgodne / rozne /
-nietypowe), `etapy_zmiany` (do 300), `etapy_rozne`, `etapy_nietypowe`. Tryb: `integration_settings.excel_sync_etapy`
+nietypowe / wydano_pozycji / wymuszone_pozycji / bledy_wydania), `etapy_zmiany` (do 300), `etapy_rozne`, `etapy_nietypowe`,
+`etapy_wymuszone`, `etapy_bledy_wydania`. **Wydanie z magazynu (od 24.11 wieczorem, `migrate/excel_sync_etapy_wydanie.sql`, Tymek: „Tak,
+wymuszaj”):** zwykły etap wpisany z Excela wydaje materiał tak samo jak odhaczenie w aplikacji – `release_stock_for_stage(id, etap, p_force => true)`
+(rezerwacje etapu → zbiorcze WZ, stan fizyczny w dół, przy braku stan schodzi na minus i WZ dostaje „[WYMUSZONE brak N]”; `created_by` null, bo woła
+go service role). Wcześniej RPC pisał sam etap, a wydanie robiła tylko aplikacja (`useOrders.runStockRelease` przed `update_order_stage`) – po
+pierwszym zapisie 24.11 zostało 1153 aktywnych rezerwacji w 132 zleceniach; dogonione jednorazowo tym samym wywołaniem (1153 WZ, 725 na minus).
+Błąd wydania nie blokuje zapisu etapu (trafia do `etapy_bledy_wydania`). Mirrory pary (`dist_*`/`sta_*`) nie są pisane z Excela, więc nie wydają. Tryb: `integration_settings.excel_sync_etapy`
 = `off` | `dry` (podgląd, bez zapisu) | `on`; start w `dry` (24.11), przełączenie na `on` po przeglądzie pierwszego raportu.
 **Włączone `on` 24.11 wieczorem** (pierwszy zapis: 715 etapów w 432 zleceniach). **Mapa inicjałów** (`integration_settings.excel_sync_inicjaly`, JSON per kategoria,
 klucz `*` = wspólna): hala wpisuje w arkuszu pojedyncze litery, program zna pracowników po inicjałach z profilu — STA/STA_TITAN: K→DK (Damian Krasuski),
