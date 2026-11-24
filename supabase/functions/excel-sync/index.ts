@@ -90,15 +90,40 @@ const BASTION_RULES: StageRule[] = [
 const STAGE_RULES: Record<string, StageRule[]> = {
   STA: STA_RULES, STA_TITAN: STA_TITAN_RULES, Disting: DISTING_RULES, ST: ST_RULES, Techniczne: ST_RULES, ST_TITAN: ST_TITAN_RULES, Bastion: BASTION_RULES,
 };
-// wartość komórki etapu → wartość w programie; null = pomiń; { nietypowe } = do raportu, bez zapisu
-function stageValue(raw: unknown): { v: string | null; nietypowe?: string } {
+// wartość komórki etapu → wartość w programie; null = pomiń; { nietypowe } = do raportu, bez zapisu;
+// { v, info } = zapisane, ale z adnotacją w raporcie (komórka z kilkoma osobami)
+function stageValue(raw: unknown): { v: string | null; nietypowe?: string; info?: string } {
   if (raw == null) return { v: null };
   const t = String(raw).trim();
   if (t === "" || t === "-" || t === "—") return { v: null };
   if (/^x+$/i.test(t)) return { v: "#ND" };
   if (/^WSTRZYM/i.test(t)) return { v: "#WS:Excel" };
   if (/^[A-ZĄĆĘŁŃÓŚŹŻ]{1,3}$/i.test(t)) return { v: t.toUpperCase() };
+  // 24.11 (Tymek): „S2”, „T3”, „3K”, „W1J1”, „M5S7” = litera to osoba, cyfra to numer sztuki (druga sztuka zrobił S, trzecią T).
+  // Program ma jedno pole na etap: zapisujemy osobę, która zrobiła najwięcej sztuk (remis = pierwsza wpisana),
+  // a komórkę z kilkoma osobami dopisujemy do raportu jako informację, nie jako brak.
+  const osoby = osobyZeSztuk(t);
+  if (osoby) {
+    const licznik = new Map<string, number>();
+    for (const o of osoby) licznik.set(o, (licznik.get(o) ?? 0) + 1);
+    let best = osoby[0];
+    for (const [o, n] of licznik) if (n > (licznik.get(best) ?? 0)) best = o;
+    const rozne = [...licznik.keys()];
+    return rozne.length > 1 ? { v: best, info: `${t.slice(0, 30)} → ${best} (kilka osób: ${rozne.join(", ")})` } : { v: best };
+  }
   return { v: null, nietypowe: t.slice(0, 40) };
+}
+
+// Komórka złożona z tokenów „litery+cyfry” albo „cyfry+litery” (z opcjonalnymi spacjami/przecinkami) → lista osób w kolejności wpisu;
+// null, gdy w komórce jest cokolwiek innego (np. „W-P”, „P/Z”, „BRAK ALU”).
+const TOKEN_OSOBA_SZTUKA = /([A-ZĄĆĘŁŃÓŚŹŻ]{1,3})(\d{1,3})|(\d{1,3})([A-ZĄĆĘŁŃÓŚŹŻ]{1,3})/g;
+function osobyZeSztuk(t: string): string[] | null {
+  const u = t.toUpperCase();
+  const reszta = u.replace(TOKEN_OSOBA_SZTUKA, " ").replace(/[\s,;.]+/g, "");
+  if (reszta !== "") return null;
+  const osoby: string[] = [];
+  for (const m of u.matchAll(TOKEN_OSOBA_SZTUKA)) osoby.push(m[1] ?? m[4]);
+  return osoby.length ? osoby : null;
 }
 
 // Reklamacje: kategoria aplikacji per plik + aliasy nagłówków (UPPERCASE), pierwszy znaleziony wygrywa.
@@ -265,6 +290,7 @@ Deno.serve(async (req) => {
               const sv = stageValue(x[c.header]);
               if (sv.v) stages[c.key] = sv.v;
               else if (sv.nietypowe) nietypowe.push({ etap: c.key, wartosc: sv.nietypowe });
+              if (sv.v && sv.info) nietypowe.push({ etap: c.key, wartosc: sv.info });   // zapisane, informacja w raporcie
             }
             if (Object.keys(stages).length || nietypowe.length) etapyByRow[`${sheet} ${String(nr).trim()}`] = { stages, nietypowe };
           }

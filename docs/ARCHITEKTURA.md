@@ -231,7 +231,8 @@ czyta kolumny etapów (inicjały) z arkuszy zamówień, rozpoznane po wzorcach n
 (`STAGE_RULES` w `supabase/functions/excel-sync/index.ts`: ST/Techniczne CNC→cnc, OŚCIEŻNICA→osc, SKRZYDŁO→skr,
 MONTAŻ→mon, MAGAZYN→mag; Disting CNC→e1+e3, OŚCIEŻNICA→e2_1, PAKOWANIE DOSTAWKI→e2_2, SKRZYDŁO→e4, MONTAŻ→e5;
 STA ETAP n→en; Titan ST ETAP 1–4→e1–e4, Titan STA „frezowanie otworów”→e3; Bastion 9 kolumn→9 kluczy).
-Wartości: inicjały 1–3 litery, X→`#ND`, WSTRZYMANE→`#WS:Excel`, „-”/puste pomijane, reszta (2P, P/Z,
+Wartości: inicjały 1–3 litery; „S2”/„3K”/„W1J1”/„M5S7” = osoba + numer sztuki (Tymek 24.11) → osoba z największą liczbą
+sztuk (remis = pierwsza), komórka z kilkoma osobami dodatkowo w raporcie nietypowych jako informacja; X→`#ND`, WSTRZYMANE→`#WS:Excel`, „-”/puste pomijane, reszta (P/Z,
 NIE FREZOWAĆ…) tylko do raportu. Po dopasowaniu wierszy (items z `sync_releases_from_excel`, bez duplikatów
 i anulowanych) RPC `sync_stages_from_excel(p_items, p_dry_run, p_run_id, p_category)` uzupełnia TYLKO puste
 etapy w `orders.production_stages` (program ma pierwszeństwo; `#ND` zwalnia rezerwacje etapu jak w aplikacji)
