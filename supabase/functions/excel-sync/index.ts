@@ -7,6 +7,7 @@
 // Od 24.11.2026 czyta też KOLUMNY ETAPÓW (inicjały) z arkuszy zamówień i po dopasowaniu wierszy (items z
 // sync_releases_from_excel) woła RPC sync_stages_from_excel: uzupełnia tylko puste etapy w programie.
 // Tryb: integration_settings.excel_sync_etapy = off | dry (podgląd) | on. Wynik w summary.etapy tego samego przebiegu.
+// Mapa inicjałów Excel → profil (per kategoria): integration_settings.excel_sync_inicjaly (JSON). „--” w komórce etapu = nie dotyczy.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { readSheets, inspectWorkbook } from "./parse.ts";
 
@@ -96,7 +97,7 @@ function stageValue(raw: unknown): { v: string | null; nietypowe?: string; info?
   if (raw == null) return { v: null };
   const t = String(raw).trim();
   if (t === "" || t === "-" || t === "—") return { v: null };
-  if (/^x+$/i.test(t)) return { v: "#ND" };
+  if (/^x+$/i.test(t) || /^-{2,}$/.test(t)) return { v: "#ND" };   // „--” = nie dotyczy (Tymek 24.11, Disting CNC)
   if (/^WSTRZYM/i.test(t)) return { v: "#WS:Excel" };
   if (/^[A-ZĄĆĘŁŃÓŚŹŻ]{1,3}$/i.test(t)) return { v: t.toUpperCase() };
   // 24.11 (Tymek): „S2”, „T3”, „3K”, „W1J1”, „M5S7” = litera to osoba, cyfra to numer sztuki (druga sztuka zrobił S, trzecią T).
@@ -226,6 +227,19 @@ Deno.serve(async (req) => {
     // etapy (24.11): tryb z ustawień + kolumny etapów rozpoznane po nagłówkach z pierwszego wiersza każdego arkusza
     const { data: es } = await supabase.from("integration_settings").select("value").eq("key", "excel_sync_etapy").maybeSingle();
     const etapyMode = (es?.value ?? "off").trim().toLowerCase();   // off | dry | on
+    // 24.11 (Tymek): w arkuszach hala wpisuje pojedyncze litery („K”, „S”, „M”), a program zna pracowników po inicjałach z profilu
+    // („DK”, „KS”, „MK”). Mapa per kategoria (klucz „*” = wspólna) w integration_settings.excel_sync_inicjaly, np.
+    // {"STA": {"K":"DK","M":"MK","S":"KS","P":"PP","B":"BP","BP":"BP"}}; litera bez mapy zostaje jak w Excelu.
+    let mapaInicjalow: Record<string, Record<string, string>> = {};
+    if (etapyMode !== "off") {
+      const { data: mi } = await supabase.from("integration_settings").select("value").eq("key", "excel_sync_inicjaly").maybeSingle();
+      try { mapaInicjalow = mi?.value ? JSON.parse(mi.value) : {}; } catch { mapaInicjalow = {}; }
+    }
+    const mapujInicjaly = (kategoria: string, v: string): string => {
+      if (v.startsWith("#")) return v;
+      const m = mapaInicjalow[kategoria]?.[v] ?? mapaInicjalow["*"]?.[v];
+      return m ? String(m).toUpperCase() : v;
+    };
     const stageCols: Record<string, Array<{ key: string; header: string }>> = {};   // arkusz -> [{klucz etapu, nagłówek}]
     if (etapyMode !== "off") {
       const info = inspectWorkbook(bytes, 1) as Array<{ name: string; rows: Record<string, Record<string, unknown>> }>;
@@ -288,7 +302,7 @@ Deno.serve(async (req) => {
             const nietypowe: Array<{ etap: string; wartosc: string }> = [];
             for (const c of cols) {
               const sv = stageValue(x[c.header]);
-              if (sv.v) stages[c.key] = sv.v;
+              if (sv.v) stages[c.key] = mapujInicjaly(part.category, sv.v);
               else if (sv.nietypowe) nietypowe.push({ etap: c.key, wartosc: sv.nietypowe });
               if (sv.v && sv.info) nietypowe.push({ etap: c.key, wartosc: sv.info });   // zapisane, informacja w raporcie
             }

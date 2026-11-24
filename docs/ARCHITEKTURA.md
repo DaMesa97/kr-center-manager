@@ -232,13 +232,16 @@ czyta kolumny etapów (inicjały) z arkuszy zamówień, rozpoznane po wzorcach n
 MONTAŻ→mon, MAGAZYN→mag; Disting CNC→e1+e3, OŚCIEŻNICA→e2_1, PAKOWANIE DOSTAWKI→e2_2, SKRZYDŁO→e4, MONTAŻ→e5;
 STA ETAP n→en; Titan ST ETAP 1–4→e1–e4, Titan STA „frezowanie otworów”→e3; Bastion 9 kolumn→9 kluczy).
 Wartości: inicjały 1–3 litery; „S2”/„3K”/„W1J1”/„M5S7” = osoba + numer sztuki (Tymek 24.11) → osoba z największą liczbą
-sztuk (remis = pierwsza), komórka z kilkoma osobami dodatkowo w raporcie nietypowych jako informacja; X→`#ND`, WSTRZYMANE→`#WS:Excel`, „-”/puste pomijane, reszta (P/Z,
+sztuk (remis = pierwsza), komórka z kilkoma osobami dodatkowo w raporcie nietypowych jako informacja; X i „--”→`#ND` (Tymek 24.11: dwa myślniki = nie dotyczy), WSTRZYMANE→`#WS:Excel`, „-”/puste pomijane, reszta (P/Z,
 NIE FREZOWAĆ…) tylko do raportu. Po dopasowaniu wierszy (items z `sync_releases_from_excel`, bez duplikatów
 i anulowanych) RPC `sync_stages_from_excel(p_items, p_dry_run, p_run_id, p_category)` uzupełnia TYLKO puste
 etapy w `orders.production_stages` (program ma pierwszeństwo; `#ND` zwalnia rezerwacje etapu jak w aplikacji)
 i dopisuje do tego samego wiersza `excel_sync_runs` pola `summary.etapy` (zlecen / uzupelnione / zgodne / rozne /
 nietypowe), `etapy_zmiany` (do 300), `etapy_rozne`, `etapy_nietypowe`. Tryb: `integration_settings.excel_sync_etapy`
 = `off` | `dry` (podgląd, bez zapisu) | `on`; start w `dry` (24.11), przełączenie na `on` po przeglądzie pierwszego raportu.
+**Włączone `on` 24.11 wieczorem** (pierwszy zapis: 715 etapów w 432 zleceniach). **Mapa inicjałów** (`integration_settings.excel_sync_inicjaly`, JSON per kategoria,
+klucz `*` = wspólna): hala wpisuje w arkuszu pojedyncze litery, program zna pracowników po inicjałach z profilu — STA/STA_TITAN: K→DK (Damian Krasuski),
+M→MK (Mariusz Kuśka), S→KS (Kamil Szczepanik), P→PP (Paweł Popek), B/BP→BP (Piotr Popek); litera bez mapy zostaje jak w Excelu.
 **Na żywo (od 24.11):** drugi scenariusz Make 10229545 „Etapy i wydania z Excela na żywo” – wyzwalacz OneDrive „Watch Files/Folders”
 (folder główny, wg daty modyfikacji) co 15 min pn–pt 6–18, filtr na 4 nazwy „Zamówienia *.xlsm”, zmieniony plik → ten sam `excel-sync`
 (`source=na żywo: <plik>`). Nocny 20:00 zostaje jako siatka bezpieczeństwa; wiersz w `excel_sync_runs` powstaje per plik/kategoria jak dotąd.
