@@ -238,6 +238,9 @@ etapy w `orders.production_stages` (program ma pierwszeństwo; `#ND` zwalnia rez
 i dopisuje do tego samego wiersza `excel_sync_runs` pola `summary.etapy` (zlecen / uzupelnione / zgodne / rozne /
 nietypowe), `etapy_zmiany` (do 300), `etapy_rozne`, `etapy_nietypowe`. Tryb: `integration_settings.excel_sync_etapy`
 = `off` | `dry` (podgląd, bez zapisu) | `on`; start w `dry` (24.11), przełączenie na `on` po przeglądzie pierwszego raportu.
+**Na żywo (od 24.11):** drugi scenariusz Make 10229545 „Etapy i wydania z Excela na żywo” – wyzwalacz OneDrive „Watch Files/Folders”
+(folder główny, wg daty modyfikacji) co 15 min pn–pt 6–18, filtr na 4 nazwy „Zamówienia *.xlsm”, zmieniony plik → ten sam `excel-sync`
+(`source=na żywo: <plik>`). Nocny 20:00 zostaje jako siatka bezpieczeństwa; wiersz w `excel_sync_runs` powstaje per plik/kategoria jak dotąd.
 
 ### 4c. Reklamacje z Excela — jedna strona Excel → aplikacja (od 19.11.2026)
 Ten sam nocny przebieg: `excel-sync` czyta z każdego skoroszytu arkusz „Reklamacje"
