@@ -259,6 +259,9 @@ export function useWarehouse({
         quantity: Number(r.quantity),
         reserved_quantity: Number(r.reserved_quantity ?? 0),
         available_quantity: Number(r.quantity) - Number(r.reserved_quantity ?? 0),
+        // 24.11 (Tymek): minimum półki ze Stanów — lista zakupowa (Zamawianie) sumuje je po komponencie, gdy karta nie ma minimum;
+        // dotąd select brał `*`, ale mapowanie gubiło tę kolumnę i lista zawsze pokazywała „—”
+        min_quantity: r.min_quantity == null ? null : Number(r.min_quantity),
         updated_at: String(r.updated_at ?? ''),
         warehouse_code: whObj?.code,
         component_code: wcObj?.code,
