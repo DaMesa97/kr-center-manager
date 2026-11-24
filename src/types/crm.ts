@@ -267,6 +267,8 @@ export type CrmOferta = {
   poprawka_wynik: Record<string, unknown> | null
   /** tekst ostatniego błędu systemu */
   uwagi: string | null
+  /** 24.11: pytania systemu po nieudanym doborze produktu (crm-oferta); [] gdy produkt dobrany */
+  pytania?: unknown[] | null
   /** dostawa (decyzja Tymka 14.11): 'kurier' (300 zł) | 'odbior_osobisty' (0); cena_razem = same drzwi */
   dostawa: string | null
   dostawa_koszt: number | null
@@ -364,6 +366,8 @@ export const CRM_ZRODLO_LABEL: Record<string, string> = {
 
 /** `sprawdz[0]` zaczynające się tak = błąd systemu przy liczeniu (brief pkt 7) */
 export const CRM_SYSTEM_ERROR_PREFIX = 'BŁĄD systemu'
+/** 24.11: sprawdz[0] oferty, której system nie dobrał produktu (crm-oferta BRAK_DOBORU_TEKST; starsze oferty: „System nie znalazł w sklepie…”) */
+export const CRM_BRAK_DOBORU_PREFIXES = ['System nie dobrał produktu', 'System nie znalazł w sklepie'] as const
 /** Follow-up po wysłaniu oferty: termin = dziś + tyle dni (pilot: ustawia frontend) */
 export const CRM_FOLLOW_UP_DAYS = 3
 

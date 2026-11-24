@@ -56,6 +56,7 @@ import {
   requestOfertaPrzelicz,
   retryOfertaPrzelicz,
   zlecOferteWstrzymana,
+  odpowiedzIPolicz,
   zlecOferteZNotatki,
   zlecOferteZNagrania,
   zamknijZadanie,
@@ -94,7 +95,7 @@ import CrmStatystykiScreen from './CrmStatystykiScreen'
 import CrmKorespondencja from './CrmKorespondencja'
 import { ZADANIE_RODZAJE, zadaniePoCo, zadanieRodzaj, zadanieTytul, type ZadanieRodzaj } from '../../lib/crmZadania'
 import { ileOdm } from '../../utils/odmiana'
-import { KROKI_OFERTY, krokOferty, ustaleniaLista, wersjeOferty } from '../../lib/crmOferta'
+import { KROKI_OFERTY, brakDoboruOferty, krokOferty, pytaniaOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../../lib/crmOferta'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
@@ -666,6 +667,8 @@ function OfertyList({ mode, onOpenOferta, onOpenLead }: { mode: CrmMode; onOpenO
           (r.rodzaj === 'oficjalna' && r.numer ? `Oferta nr ${r.numer}` : null) ||
           (r.status === 'wstrzymana' ? (
             <span className="crm-muted" title="Ustalenia czekają na Twoje sprawdzenie — otwórz i kliknij „Ustalenia OK”">czeka na sprawdzenie ustaleń</span>
+          ) : brakDoboruOferty(r) ? (
+            <span className="crm-text-bad" title="System nie dobrał produktu — otwórz ofertę i odpowiedz na pytania">czeka na odpowiedzi</span>
           ) : r.status === 'przelicz' || r.cena_razem == null ? (
             <span className="crm-muted" title="System jeszcze nie policzył tej oferty">w przygotowaniu</span>
           ) : (
@@ -801,6 +804,9 @@ function OfertaScreen({
   // oferta v2: menu „…” (odśwież, PDF, usuń) i jedno miejsce na poprawkę (otwierane z paska „Teraz”)
   const [menuOferty, setMenuOferty] = useState(false)
   const [poprawOpen, setPoprawOpen] = useState(false)
+  // 24.11: odpowiedzi na pytania systemu po nieudanym doborze produktu (indeks pytania → odpowiedź) + wolne uwagi
+  const [odpowiedzi, setOdpowiedzi] = useState<Record<number, string>>({})
+  const [odpUwagi, setOdpUwagi] = useState('')
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -958,7 +964,11 @@ function OfertaScreen({
   // brak treści = ingest założył wersję, backend jeszcze nie policzył (albo stara pusta robocza).
   // Oficjalna: crm-oferta-pdf zapisuje brutto, PDF, mail i status jednym update'em, więc znacznikiem jest sam status
   // 'przelicz' (zimny start funkcji 2–3 min to nie błąd); błąd = do_sprawdzenia + sprawdz[0] „BŁĄD systemu” + brutto null → sekcja błędu, nie „w przygotowaniu”
-  const pending = !wstrzymana && (isRecalc || (!oficjalna && !oferta.mail_tresc && !oferta.produkt && oferta.cena_razem == null))
+  // 24.11 (Perzanowski): oferta bez dobranego produktu NIE jest „w przygotowaniu” — system skończył (10 s) i zadał pytania,
+  // a ekran brał pusty produkt/cenę/mail za liczenie i kręcił spinner bez końca
+  const brakDoboru = !wstrzymana && !isRecalc && !sysErr && brakDoboruOferty(oferta)
+  const pytania = pytaniaOferty(oferta)
+  const pending = !wstrzymana && !brakDoboru && (isRecalc || (!oficjalna && !oferta.mail_tresc && !oferta.produkt && oferta.cena_razem == null))
   const dobor = oferta.dobor ?? {}
   const analiza = oferta.analiza ?? {}
   const pw = oferta.poprawka_wynik ?? {}
@@ -967,7 +977,7 @@ function OfertaScreen({
   const domyslne = asStrings(dobor.domyslne)
   const linkValid = oferta.link_wazny_do ? new Date(oferta.link_wazny_do).getTime() > Date.now() : null
   // ---- oferta v2: krok i pasek „Teraz” ----
-  const { krok, idx: krokIdx } = krokOferty(oferta.status, { sysErr, pending })
+  const { krok, idx: krokIdx } = krokOferty(oferta.status, { sysErr, pending, brakDoboru })
   const ustalenia = ustaleniaLista(analiza.dane && typeof analiza.dane === 'object' ? (analiza.dane as Record<string, unknown>) : null)
   const brakuje = Array.isArray(analiza.brakuje) ? (analiza.brakuje as unknown[]).map(String).filter(Boolean) : []
   const lancuch = wersjeOferty(wersje, oferta)
@@ -995,6 +1005,16 @@ function OfertaScreen({
     setPoprawOpen(false)
     void load(true)
   }
+  const handleOdpowiedzi = async () => {
+    setSaving(true)
+    const err = await odpowiedzIPolicz(oferta, tekstOdpowiedzi(pytania, odpowiedzi, odpUwagi), currentUser?.id ?? null)
+    setSaving(false)
+    if (err) { pushToast(`Nie udało się: ${err.message}`, 'error'); return }
+    pushToast('Odpowiedzi zapisane — oferta liczy się od nowa', 'success')
+    setOdpowiedzi({})
+    setOdpUwagi('')
+    void load(true)
+  }
   const teraz: { klasa: string; tytul: string; opis: ReactNode; akcje: ReactNode } =
     krok === 'ustalenia'
       ? {
@@ -1008,6 +1028,13 @@ function OfertaScreen({
             </>
           ),
         }
+      : krok === 'dobor'
+        ? {
+            klasa: 'crm-k2-krok crm-k2-krok--late',
+            tytul: 'System nie dobrał produktu — odpowiedz na pytania',
+            opis: <>{sprawdz[1] ?? oferta.uwagi ?? 'Zabrakło danych do doboru.'} Odpowiedz niżej na pytania systemu (albo zadzwoń do klienta i dopytaj) — oferta policzy się od nowa od razu po zapisaniu.</>,
+            akcje: <button type="button" className="btn btn-primary" onClick={() => document.querySelector('.crm-o2-pytania')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>Przejdź do pytań</button>,
+          }
       : krok === 'liczenie'
         ? {
             klasa: 'crm-k2-krok crm-k2-krok--brak',
@@ -1101,6 +1128,8 @@ function OfertaScreen({
               ? `Oferta PDF nr ${oferta.numer ?? '…'} · wersja ${oferta.wersja}${pending ? ' · w przygotowaniu' : ` · ${fmtPln(oferta.brutto)} brutto`}`
               : pending
               ? `Oferta ze sklepu · wersja ${oferta.wersja} · w przygotowaniu`
+              : brakDoboru
+              ? `Oferta ze sklepu · wersja ${oferta.wersja} · produkt nie dobrany`
               : oferta.cena_razem == null
               ? `Oferta ze sklepu · wersja ${oferta.wersja} · jeszcze nie policzona`
               : `Oferta ze sklepu · wersja ${oferta.wersja} · ${fmtPln(oferta.cena_razem)}${
@@ -1215,8 +1244,37 @@ function OfertaScreen({
         </section>
       )}
 
+      {/* 0c. PYTANIA SYSTEMU (24.11): produkt nie dobrany — odpowiedzi idą do analizy i oferta liczy się od nowa */}
+      {brakDoboru && (
+        <section className="crm-o2-ustalenia crm-o2-pytania">
+          <h4>Pytania systemu — żeby dobrać produkt</h4>
+          <p className="crm-o2-podsumowanie">{oferta.uwagi || sprawdz[1] || 'System nie znalazł w sklepie produktu pasującego do ustaleń.'}</p>
+          {pytania.length > 0 ? (
+            <ol className="crm-o2-pytania-lista">
+              {pytania.map((p, i) => (
+                <li key={i}>
+                  <label className="crm-pf-field">
+                    <span className="crm-pf-label">{p}</span>
+                    <input className="crm-fix-input" type="text" value={odpowiedzi[i] ?? ''} onChange={(e) => setOdpowiedzi((s) => ({ ...s, [i]: e.target.value }))} disabled={saving} placeholder="Odpowiedź (puste = pomiń)" />
+                  </label>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="crm-muted">Ta oferta nie ma zapisanych pytań (starsza). Napisz niżej, jakie to drzwi: rodzaj, linia/system, wzór, rozmiar, kierunek.</p>
+          )}
+          <label className="crm-pf-field">
+            <span className="crm-pf-label">Inne uwagi do doboru (opcjonalnie)</span>
+            <textarea className="crm-fix-textarea" rows={2} value={odpUwagi} onChange={(e) => setOdpUwagi(e.target.value)} disabled={saving} placeholder="np. „Bastion A-104, ościeżnica drewniana, 80 prawe”" />
+          </label>
+          <div className="crm-mail-actions">
+            <button type="button" className="btn btn-primary" disabled={saving || !tekstOdpowiedzi(pytania, odpowiedzi, odpUwagi)} onClick={() => void handleOdpowiedzi()}>{saving ? <Spinner inline size={14} /> : <Check size={14} />} Zapisz odpowiedzi i policz od nowa</button>
+          </div>
+        </section>
+      )}
+
       {/* 1. SPRAWDŹ TYLKO TO */}
-      {wstrzymana ? null : pending ? (
+      {wstrzymana || brakDoboru ? null : pending ? (
         <section className="crm-check crm-check--pending">
           <h4>Oferta w przygotowaniu</h4>
           <p className="crm-pending-text">
@@ -1273,7 +1331,7 @@ function OfertaScreen({
       )}
 
       {/* 3. POPRAWKA policzonej oferty — nowa wersja; zwinięta, żeby nie mylić z wysyłką */}
-      {!pending && !wstrzymana && krok !== 'stara' && (
+      {!pending && !wstrzymana && !brakDoboru && krok !== 'stara' && (
         <details className="crm-details crm-o2-poprawka" open={poprawOpen} onToggle={(e) => setPoprawOpen((e.target as HTMLDetailsElement).open)}>
           <summary>Poprawić coś w ofercie? (powstanie nowa wersja)</summary>
           <div className="crm-details-body">

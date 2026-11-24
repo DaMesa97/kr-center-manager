@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { etykietaUstalenia, krokOferty, ustaleniaLista, wersjeOferty } from '../lib/crmOferta'
+import { brakDoboruOferty, etykietaUstalenia, krokOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../lib/crmOferta'
 
 describe('crmOferta — krok oferty', () => {
   it('status → krok i podświetlony etap', () => {
@@ -7,11 +7,36 @@ describe('crmOferta — krok oferty', () => {
     expect(krokOferty('przelicz', {})).toEqual({ krok: 'liczenie', idx: 1 })
     expect(krokOferty('do_sprawdzenia', { pending: true })).toEqual({ krok: 'liczenie', idx: 1 })
     expect(krokOferty('do_sprawdzenia', { sysErr: true })).toEqual({ krok: 'blad', idx: 1 })
+    // 24.11: produkt nie dobrany — pytania systemu zamiast spinnera; błąd systemu ma pierwszeństwo
+    expect(krokOferty('do_sprawdzenia', { brakDoboru: true })).toEqual({ krok: 'dobor', idx: 1 })
+    expect(krokOferty('do_sprawdzenia', { brakDoboru: true, sysErr: true })).toEqual({ krok: 'blad', idx: 1 })
     expect(krokOferty('do_sprawdzenia', {})).toEqual({ krok: 'wysylka', idx: 2 })
     expect(krokOferty('wyslana', {})).toEqual({ krok: 'decyzja', idx: 3 })
     expect(krokOferty('zaakceptowana', {})).toEqual({ krok: 'koniec', idx: 3 })
     expect(krokOferty('odrzucona', {})).toEqual({ krok: 'koniec', idx: 3 })
     expect(krokOferty('robocza', {})).toEqual({ krok: 'stara', idx: -1 })
+  })
+})
+
+describe('crmOferta — brak doboru produktu (24.11, Perzanowski)', () => {
+  it('oferta skończona bez produktu i ceny = pytania, nie „w przygotowaniu”', () => {
+    const baza = { status: 'do_sprawdzenia', rodzaj: 'sklep', produkt: null, cena_razem: null }
+    expect(brakDoboruOferty({ ...baza, sprawdz: ['System nie dobrał produktu — odpowiedz na pytania poniżej…', 'powód'], pytania: ['Titan czy Bastion?'] })).toBe(true)
+    // starsza oferta sprzed pytań (Perzanowski 08:45)
+    expect(brakDoboruOferty({ ...baza, sprawdz: ['System nie znalazł w sklepie produktu pasującego do potrzeby klienta — przygotuj ofertę ręcznie albo dopytaj.'], pytania: [] })).toBe(true)
+    expect(brakDoboruOferty({ ...baza, sprawdz: [], pytania: ['Jaki wzór?'] })).toBe(true)
+    // naprawdę w liczeniu / policzona / oficjalna / błąd — nie
+    expect(brakDoboruOferty({ ...baza, sprawdz: [], pytania: [] })).toBe(false)
+    expect(brakDoboruOferty({ ...baza, status: 'przelicz', pytania: ['x'] })).toBe(false)
+    expect(brakDoboruOferty({ ...baza, produkt: 'Bastion A-104', cena_razem: 2600, pytania: ['x'] })).toBe(false)
+    expect(brakDoboruOferty({ ...baza, rodzaj: 'oficjalna', pytania: ['x'] })).toBe(false)
+  })
+
+  it('odpowiedzi: pytanie → odpowiedź, puste pomijane, uwagi na końcu', () => {
+    const pyt = ['Titan czy Bastion?', 'Jaki wzór?', 'Rozmiar?']
+    expect(tekstOdpowiedzi(pyt, { 0: 'Bastion', 2: ' 80 prawe ' }, '')).toBe('Titan czy Bastion? → Bastion\nRozmiar? → 80 prawe')
+    expect(tekstOdpowiedzi(pyt, {}, 'ościeżnica drewniana')).toBe('ościeżnica drewniana')
+    expect(tekstOdpowiedzi(pyt, { 1: '' }, '  ')).toBe('')
   })
 })
 

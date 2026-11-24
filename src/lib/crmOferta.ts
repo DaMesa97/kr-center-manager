@@ -3,7 +3,10 @@
  * i ustalenia z analizy po polsku — tylko wypełnione pola.
  */
 
-export type KrokOferty = 'ustalenia' | 'liczenie' | 'blad' | 'wysylka' | 'decyzja' | 'koniec' | 'stara'
+import { CRM_BRAK_DOBORU_PREFIXES } from '../types/crm'
+
+/** 'dobor' (24.11): system nie dobrał produktu i zadał pytania — handlowiec odpowiada, oferta liczy się od nowa */
+export type KrokOferty = 'ustalenia' | 'liczenie' | 'dobor' | 'blad' | 'wysylka' | 'decyzja' | 'koniec' | 'stara'
 
 export const KROKI_OFERTY: Array<{ key: string; nazwa: string; opis: string }> = [
   { key: 'ustalenia', nazwa: 'Ustalenia', opis: 'sprawdź, czego chce klient' },
@@ -13,10 +16,11 @@ export const KROKI_OFERTY: Array<{ key: string; nazwa: string; opis: string }> =
 ]
 
 /** Na którym kroku jest oferta i który z 4 kroków podświetlić (-1 = stara wersja, bez kroków). */
-export function krokOferty(status: string | null | undefined, f: { sysErr?: boolean; pending?: boolean }): { krok: KrokOferty; idx: number } {
+export function krokOferty(status: string | null | undefined, f: { sysErr?: boolean; pending?: boolean; brakDoboru?: boolean }): { krok: KrokOferty; idx: number } {
   if (status === 'robocza') return { krok: 'stara', idx: -1 }
   if (status === 'wstrzymana') return { krok: 'ustalenia', idx: 0 }
   if (f.sysErr) return { krok: 'blad', idx: 1 }
+  if (f.brakDoboru) return { krok: 'dobor', idx: 1 }
   if (f.pending || status === 'przelicz') return { krok: 'liczenie', idx: 1 }
   if (status === 'wyslana') return { krok: 'decyzja', idx: 3 }
   if (status === 'zaakceptowana' || status === 'odrzucona') return { krok: 'koniec', idx: 3 }
@@ -81,4 +85,29 @@ export function wersjeOferty<T extends { id: string; poprzednia_id?: string | nu
   }
   const moj = korzen(biezaca)
   return wszystkie.filter((w) => korzen(w) === moj)
+}
+
+/**
+ * 24.11 (Perzanowski): oferta sklepowa, której system nie dobrał produktu — skończona (do_sprawdzenia), ale bez produktu,
+ * ceny i maila. Dotąd ekran brał to za „w przygotowaniu” i kręcił spinner bez końca; teraz pokazuje pytania systemu.
+ */
+export function brakDoboruOferty(o: {
+  status?: string | null; rodzaj?: string | null; produkt?: string | null; cena_razem?: number | null; sprawdz?: unknown[] | null; pytania?: unknown[] | null
+}): boolean {
+  if (o.status !== 'do_sprawdzenia' || o.rodzaj === 'oficjalna' || o.produkt || o.cena_razem != null) return false
+  const pierwsze = Array.isArray(o.sprawdz) && typeof o.sprawdz[0] === 'string' ? o.sprawdz[0] : ''
+  if (CRM_BRAK_DOBORU_PREFIXES.some((p) => pierwsze.startsWith(p))) return true
+  return pytaniaOferty(o).length > 0
+}
+
+export function pytaniaOferty(o: { pytania?: unknown[] | null }): string[] {
+  return Array.isArray(o.pytania) ? o.pytania.map((p) => String(p ?? '').trim()).filter(Boolean) : []
+}
+
+/** Tekst do analiza.odpowiedzi_handlowca: „pytanie → odpowiedź” (puste pomijane) + uwagi; pusty = nic nie wpisano. */
+export function tekstOdpowiedzi(pytania: string[], odpowiedzi: Record<number, string>, uwagi: string): string {
+  const linie = pytania.map((p, i) => ({ p, o: (odpowiedzi[i] ?? '').trim() })).filter((x) => x.o).map((x) => `${x.p} → ${x.o}`)
+  const u = uwagi.trim()
+  if (u) linie.push(u)
+  return linie.join('\n')
 }

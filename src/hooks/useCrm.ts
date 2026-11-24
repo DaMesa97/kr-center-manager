@@ -184,6 +184,29 @@ export async function retryOfertaPrzelicz(oferta: CrmOferta): Promise<CrmError |
   return crmErrorFrom(error)
 }
 
+/**
+ * 24.11 (Tymek, Perzanowski): system nie dobrał produktu i zadał pytania (oferty.pytania). Odpowiedzi handlowca
+ * dopisujemy do oferty.analiza.odpowiedzi_handlowca (cała analiza idzie do promptu doboru, prefiltr szuka w nich linii
+ * i wzoru) i zlecamy liczenie od nowa (status przelicz → trigger → crm-oferta). Tylko oferta w do_sprawdzenia.
+ */
+export async function odpowiedzIPolicz(oferta: CrmOferta, tekst: string, userId: string | null): Promise<CrmError | null> {
+  const t = tekst.trim()
+  if (!t) return { kind: 'other', message: 'Odpowiedz przynajmniej na jedno pytanie' }
+  if (!oferta.analiza || typeof oferta.analiza !== 'object') return { kind: 'other', message: 'Ta oferta nie ma zapisanych ustaleń — zleć ofertę od nowa z karty klienta' }
+  const poprzednie = typeof oferta.analiza.odpowiedzi_handlowca === 'string' ? oferta.analiza.odpowiedzi_handlowca : ''
+  const analiza = { ...oferta.analiza, odpowiedzi_handlowca: poprzednie ? `${poprzednie}\n${t}` : t }
+  const { data, error } = await crm().from('oferty').update({ analiza, status: 'przelicz', liczenie_od: null }).eq('id', oferta.id).eq('status', 'do_sprawdzenia').select('id')
+  if (error) return crmErrorFrom(error)
+  if (!data?.length) return { kind: 'other', message: 'Ta oferta nie czeka już na odpowiedzi (ktoś ją właśnie przeliczył albo zmienił)' }
+  const { error: zErr } = await crm().from('zdarzenia').insert({
+    lead_id: oferta.lead_id, oferta_id: oferta.id, typ: 'oferta_zlecona', kto: userId,
+    opis: `Handlowiec odpowiedział na pytania systemu — oferta liczy się od nowa: ${t.slice(0, 300)}`,
+    dane: { zrodlo: 'klik', odpowiedzi: t },
+  })
+  if (zErr) console.warn('crm.zdarzenia oferta_zlecona:', zErr.message)
+  return null
+}
+
 // ---- Zadania handlowca = kolumny na leadzie (brief pkt 6) ----
 
 export type CrmZadanieRow = CrmLead & {
