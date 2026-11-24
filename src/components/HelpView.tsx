@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Pytanie przed telefonem; oferta bez dobranego produktu pyta, zamiast czekać (beta.148)</h4>
+        <ul>
+          <li><b>Dzwonienie z aplikacji:</b> klik w numer telefonu najpierw pyta „Zadzwonić do …?”, bo program do dzwonienia wybiera numer od razu. Przypadkowy klik nie dzwoni do klienta.</li>
+          <li><b>Oferta bez dobranego produktu:</b> gdy system nie znajdzie w sklepie produktu do ustaleń z rozmowy, zamiast kręcić „w przygotowaniu” zadaje 2–5 pytań (jakie drzwi, linia, wzór, rozmiar). Odpowiedz na ekranie oferty albo dopytaj klienta, a oferta policzy się od nowa po zapisaniu. Na liście ofert taka oferta ma „czeka na odpowiedzi”.</li>
+          <li><b>Dobór produktu:</b> drzwi dodatkowe wspomniane przy okazji (np. „do tego drzwi wewnętrzne z magazynu, modele wybiorę sam”) nie blokują wyceny głównych drzwi; mail wspomina o nich osobno i podaje link do kategorii drzwi dostępnych od ręki.</li>
+        </ul>
         <h4>Numery telefonu jako linki (beta.147)</h4>
         <ul>
           <li><b>Dzwonienie z aplikacji:</b> numer telefonu klienta jest linkiem — klik otwiera domyślny program do dzwonienia w Windows (np. Ringostat Smart Phone) z wpisanym numerem. Obok numeru jest „kopiuj”. Program trzeba raz ustawić jako domyślny dla linków TEL (Ustawienia → Aplikacje → Aplikacje domyślne → według typu linku → TEL).</li>
