@@ -170,7 +170,7 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
 
 // --------------------------------------------------------------------------------------------
 // Zamówienie sklepowe (zasada właściciela 2026-11-15): bez adnotacji klienta – bez AI, bez leada, bez zadania (Baselinker to obsługuje).
-// Z adnotacją – krótka ocena AI, czy adnotacja zgadza się z zamówionym towarem; nietypowa → lead + zadanie „oddzwoń” przed realizacją.
+// Z adnotacją – krótka ocena AI, czy adnotacja zgadza się z zamówionym towarem; nietypowa → lead + zadanie „dopytaj” przed realizacją.
 async function obsluzZamowienie(db: SupabaseClient, mail: MailWiersz, zam: Zamowienie, lead: Lead | null, email: string) {
   const opisZam = `Zamówienie sklepowe nr ${zam.numer}${zam.klient ? ` od ${zam.klient}` : ''}${zam.razem ? `, razem ${zam.razem}` : ''}`
   if (zam.rodzaj !== 'nowe') {
@@ -197,7 +197,7 @@ async function obsluzZamowienie(db: SupabaseClient, mail: MailWiersz, zam: Zamow
     : `${opisZam}. ${zam.adnotacja ? `Adnotacja klienta „${zam.adnotacja}” – bez uwag. ` : ''}Obsługuje Baselinker, nic do zrobienia w CRM.`
   const teraz = new Date().toISOString()
   await db.from('maile').update({
-    typ: 'zamowienie', podsumowanie: podsumowanie.slice(0, 1000), nastepna_akcja: nietypowe ? 'oddzwon' : 'brak',
+    typ: 'zamowienie', podsumowanie: podsumowanie.slice(0, 1000), nastepna_akcja: nietypowe ? 'dopytaj' : 'brak',
     analiza: { zamowienie: zam, ocena }, koszt_ai_usd: koszt || null, zuzycie_tokenow: zuzycie, lead_id: lead?.id ?? null,
   }).eq('id', mail.id)
 
@@ -208,10 +208,11 @@ async function obsluzZamowienie(db: SupabaseClient, mail: MailWiersz, zam: Zamow
     const zmiany: Record<string, unknown> = {
       ostatnia_rozmowa_at: mail.data ?? teraz,
       podsumowanie: podsumowanie.slice(0, 1000),
-      nastepna_akcja: 'oddzwon',
-      nastepny_krok: await terminZBazy(db, 'oddzwon'),
+      // Tymek 24.11: bez zadań „oddzwoń” — nietypowe zamówienie to zadanie „dopytaj” (wyjaśnić z klientem przed realizacją)
+      nastepna_akcja: 'dopytaj',
+      nastepny_krok: await terminZBazy(db, 'dopytaj'),
       akcja_od: teraz,
-      akcja_opis: `${OPISY_AKCJI.oddzwon} ${opisZam}: adnotacja „${zam.adnotacja}” – ${ocena!.powod} Wyjaśnij przed realizacją.`.slice(0, 500),
+      akcja_opis: `${OPISY_AKCJI.dopytaj} ${opisZam}: adnotacja „${zam.adnotacja}” – ${ocena!.powod} Wyjaśnij przed realizacją.`.slice(0, 500),
     }
     if (!l.nazwa && (zam.klient || mail.od_nazwa)) zmiany.nazwa = zam.klient ?? mail.od_nazwa
     if (!l.email) zmiany.email = email
@@ -222,14 +223,14 @@ async function obsluzZamowienie(db: SupabaseClient, mail: MailWiersz, zam: Zamow
     }
     await db.from('leady').update(zmiany).eq('id', l.id)
     await db.from('maile').update({ lead_id: l.id }).eq('id', mail.id)
-    await zdarzenie(db, { lead_id: l.id, mail_id: mail.id, typ: 'analiza', opis: `mail, zamowienie: ${podsumowanie}`.slice(0, 500), dane: { akcja: 'oddzwon', koszt_usd: koszt, zamowienie: zam.numer } })
+    await zdarzenie(db, { lead_id: l.id, mail_id: mail.id, typ: 'analiza', opis: `mail, zamowienie: ${podsumowanie}`.slice(0, 500), dane: { akcja: 'dopytaj', koszt_usd: koszt, zamowienie: zam.numer } })
   } else {
     if (lead) await db.from('leady').update({ ostatnia_rozmowa_at: mail.data ?? teraz }).eq('id', lead.id)
     await zdarzenie(db, { lead_id: leadId, mail_id: mail.id, typ: 'analiza', opis: `mail, zamowienie: ${podsumowanie}`.slice(0, 500), dane: { koszt_usd: koszt, zamowienie: zam.numer } })
   }
 
   await db.from('maile').update({ status_przetwarzania: 'przetworzony', blad: null }).eq('id', mail.id)
-  return { typ: 'zamowienie', akcja: nietypowe ? 'oddzwon' : 'brak', lead_id: leadId, oferta_id: null, koszt_usd: Number(koszt.toFixed(4)), zamowienie: zam.numer, nietypowe }
+  return { typ: 'zamowienie', akcja: nietypowe ? 'dopytaj' : 'brak', lead_id: leadId, oferta_id: null, koszt_usd: Number(koszt.toFixed(4)), zamowienie: zam.numer, nietypowe }
 }
 
 async function leadPoId(db: SupabaseClient, id: string): Promise<Lead | null> {

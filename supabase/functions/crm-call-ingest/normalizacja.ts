@@ -130,7 +130,7 @@ export function numerKlienta(r: Rozmowa): string | null {
 // Decyzja, co robić z rozmową (zasady z CRM_PODRZWI_KONTEKST.md, „Przepływ: rozmowa z Ringostatu”).
 export type Decyzja =
   | { krok: 'pomin'; powod: string }      // zapis rozmowy, nic więcej
-  | { krok: 'oddzwon' }                   // nieodebrana przychodząca: lead + zadanie, bez AI
+  | { krok: 'nieodebrana' }               // nieodebrana przychodząca: lead + wpis w historii, BEZ zadania (Tymek 24.11), bez AI
   | { krok: 'bez_ai'; powod: string }     // zapis + podpięcie do leada, bez AI
   | { krok: 'analizuj' }                  // transkrypcja + AI
 
@@ -139,7 +139,7 @@ export const MIN_CZAS_S = 20
 export function zdecyduj(r: Rozmowa, maTranskrypcje = false): Decyzja {
   if (!r.odebrana) {
     if (r.kierunek === 'przychodzaca') {
-      return r.numer_dzwoniacego ? { krok: 'oddzwon' } : { krok: 'pomin', powod: 'nieodebrana, numer zastrzeżony' }
+      return r.numer_dzwoniacego ? { krok: 'nieodebrana' } : { krok: 'pomin', powod: 'nieodebrana, numer zastrzeżony' }
     }
     return { krok: 'bez_ai', powod: 'wychodząca nieodebrana' }
   }

@@ -25,7 +25,8 @@ type Props = {
   onCancel: () => void
 }
 
-const AKCJE_WIZYTA = ['follow_up', 'przygotuj_oferte', 'dopytaj', 'oddzwon', 'pomiar', 'montaz'] as const
+// 24.11 (Tymek): bez zadań „oddzwoń” — kontakt z klientem to „dopytaj”
+const AKCJE_WIZYTA = ['follow_up', 'przygotuj_oferte', 'dopytaj', 'pomiar', 'montaz'] as const
 
 
 // 21.11 (test UX): domyślnie „Zapytaj o decyzję” za 3 dni — „bez zadania” jako domyślne gubiło klientów (nie trafiali do „Do zrobienia”)

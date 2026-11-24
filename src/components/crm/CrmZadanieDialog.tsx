@@ -40,7 +40,6 @@ type Props = {
 const OPCJE: Array<{ akcja: string | null; label: string; hint: string }> = [
   { akcja: null, label: 'Nic więcej', hint: 'Klient znika z listy „Do zrobienia”; zostaje w Kontaktach' },
   { akcja: 'follow_up', label: 'Zapytaj o decyzję', hint: 'Przypomnienie za kilka dni, np. po wysłanej ofercie' },
-  { akcja: 'oddzwon', label: 'Oddzwoń', hint: 'Zamknie się samo po odebranej rozmowie z Ringostatu' },
   { akcja: 'dopytaj', label: 'Dopytaj', hint: 'Brakuje danych do oferty (wymiar, kolor…)' },
   { akcja: 'przygotuj_oferte', label: 'Przygotuj ofertę', hint: 'Z notatką w karcie system sam policzy ofertę' },
   { akcja: 'pomiar', label: 'Pomiar', hint: 'Umówiony pomiar u klienta — termin = dzień pomiaru' },

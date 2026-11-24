@@ -1,7 +1,7 @@
 // Mail „Nowe zamówienie NNN” ze sklepu podrzwi.pl (WooCommerce, przychodzi przez kontakt@ z adresem klienta w Reply-To).
 // Zasada właściciela (2026-11-15): zamówienia sklepowe obsługuje Baselinker (potwierdzenie, płatność, wysyłka), więc CRM
 // nic z nimi nie robi – chyba że klient dopisał adnotację (uwagi do zamówienia), która nie zgadza się z zamówionym towarem
-// albo wymaga decyzji handlowca; wtedy zadanie „oddzwoń” przed realizacją. Bez adnotacji: zero AI, zero zadań.
+// albo wymaga decyzji handlowca; wtedy zadanie „dopytaj” przed realizacją. Bez adnotacji: zero AI, zero zadań.
 
 import { SLOWNIK } from './prompt.ts'
 

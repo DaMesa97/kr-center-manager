@@ -3,7 +3,7 @@
 // Co robi (zasady z CRM_PODRZWI_KONTEKST.md):
 //   1. sprawdza klucz: nagłówek x-ingest-key (sekret CRM_INGEST_KEY) albo x-internal-key (klucz z vault, używany przez pg_cron),
 //   2. normalizuje payload (różne nazwy pól), zapisuje KAŻDĄ rozmowę w crm.rozmowy (idempotentnie po ringostat_call_id),
-//   3. nieodebrana przychodząca → lead + zadanie „oddzwoń” na dziś, bez AI,
+//   3. nieodebrana przychodząca → lead + wpis w historii, BEZ zadania (Tymek 24.11: CRM nie prowadzi zadań „oddzwoń”), bez AI,
 //   4. odebrana < 20 s albo numer zastrzeżony → tylko zapis,
 //   5. odebrana → nagranie → ElevenLabs → Claude (analiza wg schematu z prototypu) → lead, zadanie,
 //      a przy akcji „przygotuj_oferte” wiersz w crm.oferty ze statusem 'przelicz' (liczy go osobna funkcja),
@@ -11,7 +11,7 @@
 //   7. każdy błąd ląduje w crm.rozmowy.blad + crm.zdarzenia (typ 'blad'); żadna rozmowa nie ginie po cichu,
 //   8. { "akcja": "mail", "mail_id": "<uuid>" } – analiza maila przychodzącego z crm.maile (mail.ts): ten sam schemat AI
 //      i te same decyzje (lead po e-mailu, zadanie, oferta 'przelicz'); woła to trigger crm.zlec_analize_maila.
-//      Mail „Nowe zamówienie NNN” ze sklepu (zamowienie.ts): obsługuje Baselinker, CRM robi zadanie „oddzwoń” tylko przy
+//      Mail „Nowe zamówienie NNN” ze sklepu (zamowienie.ts): obsługuje Baselinker, CRM robi zadanie „dopytaj” tylko przy
 //      nietypowej adnotacji klienta (bez adnotacji: bez AI, bez leada).
 //   9. { "akcja": "notatka", "lead_id": "<uuid>", "notatka"?: "tekst", "kto"?: "<uuid>" } – oferta z notatki handlowca
 //      (klient z salonu, bez rozmowy i maila; notatka.ts): analiza notatki tym samym schematem, uzupełnienie leada,
@@ -146,20 +146,14 @@ async function przetworz(db: SupabaseClient, r: Rozmowa, payload: Record<string,
         await zdarzenie(db, { lead_id: lead?.id ?? null, rozmowa_id: rozmowaId, typ: 'rozmowa', opis: decyzja.powod })
         return { ok: true, rozmowa_id: rozmowaId, krok: 'bez_ai', powod: decyzja.powod }
       }
-      case 'oddzwon': {
+      case 'nieodebrana': {
+        // Tymek 24.11: CRM nie prowadzi zadań „oddzwoń” — nieodebrana zostaje w historii klienta (lead + rozmowa + zdarzenie),
+        // istniejące zadanie leada bez zmian (dotąd: zadanie „oddzwoń” na dziś, 7 takich wisiało w „Do zrobienia”)
         const l = lead ?? await nowyLead(db, telefon!, r)
-        // jeden klient = jedno otwarte zadanie: istniejące zostaje, ale termin ma być najpóźniej dziś
-        const dzis = await terminZBazy(db, 'oddzwon')
-        const akcja = l.nastepna_akcja ?? 'oddzwon'
-        const termin = l.nastepny_krok && l.nastepny_krok < dzis ? l.nastepny_krok : dzis
-        await db.from('leady').update({
-          nastepna_akcja: akcja, nastepny_krok: termin, akcja_od: l.nastepna_akcja ? undefined : new Date().toISOString(),
-          akcja_opis: l.nastepna_akcja && l.nastepna_akcja !== 'oddzwon' ? `${OPISY_AKCJI[akcja]} Klient dzwonił ${godzinaPL(r.data_rozmowy)}, nieodebrane.` : `Nieodebrana rozmowa ${godzinaPL(r.data_rozmowy)}, oddzwoń.`,
-          ostatnia_rozmowa_at: r.data_rozmowy,
-        }).eq('id', l.id)
-        await db.from('rozmowy').update({ lead_id: l.id, status_przetwarzania: 'bez_ai', podsumowanie: 'Nieodebrana, zadanie: oddzwoń.', blad: null }).eq('id', rozmowaId)
-        await zdarzenie(db, { lead_id: l.id, rozmowa_id: rozmowaId, typ: 'nieodebrana', opis: `Zadanie „${akcja}” na ${termin}` })
-        return { ok: true, rozmowa_id: rozmowaId, krok: 'oddzwon', lead_id: l.id, termin }
+        await db.from('leady').update({ ostatnia_rozmowa_at: r.data_rozmowy }).eq('id', l.id)
+        await db.from('rozmowy').update({ lead_id: l.id, status_przetwarzania: 'bez_ai', podsumowanie: 'Nieodebrana przychodząca.', blad: null }).eq('id', rozmowaId)
+        await zdarzenie(db, { lead_id: l.id, rozmowa_id: rozmowaId, typ: 'nieodebrana', opis: `Nieodebrana rozmowa ${godzinaPL(r.data_rozmowy)} (bez zadania).` })
+        return { ok: true, rozmowa_id: rozmowaId, krok: 'nieodebrana', lead_id: l.id }
       }
       case 'analizuj': {
         const wynik = await analizuj(db, r, rozmowaId, lead, telefon, transkrypcjaTest)
@@ -254,7 +248,8 @@ async function analizuj(db: SupabaseClient, r: Rozmowa, rozmowaId: string, lead:
   if ((sprzedazowa || a.typ === 'reklamacja') && (telefon || lead)) {
     const l = lead ?? await nowyLead(db, telefon!, r)
     leadId = l.id
-    const akcja = a.typ === 'reklamacja' ? 'reklamacja' : (a.nastepna_akcja === 'brak' ? null : a.nastepna_akcja)
+    // Tymek 24.11: bez zadań „oddzwoń” — gdy model chce kontaktu z klientem, to zadanie „dopytaj”
+    const akcja = a.typ === 'reklamacja' ? 'reklamacja' : (a.nastepna_akcja === 'brak' ? null : a.nastepna_akcja === 'oddzwon' ? 'dopytaj' : a.nastepna_akcja)
     const zmiany: Record<string, unknown> = {
       ostatnia_rozmowa_at: r.data_rozmowy,
       podsumowanie: a.podsumowanie,

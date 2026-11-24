@@ -64,8 +64,8 @@ export const SCHEMA_ANALIZA = {
     ustalenia_z_rozmowy: { type: 'array', items: { type: 'string' },
       description: 'Konkretne obietnice i prośby klienta, do których mail ma nawiązać' },
     podsumowanie: { type: 'string', description: '2–3 zdania dla handlowca' },
-    nastepna_akcja: { type: 'string', enum: ['oddzwon', 'dopytaj', 'przygotuj_oferte', 'follow_up', 'brak'],
-      description: 'przygotuj_oferte tylko, gdy wiadomo przynajmniej jaki rodzaj drzwi i klient chce wyceny (przy montażu na Śląsku także bez wymiarów: robimy wstępną ofertę i pomiar); dopytaj TYLKO, gdy klient chce iść dalej (prosi o wycenę, termin, kontakt), a do tego brakuje danych kluczowych, których sam nie obiecał podesłać; follow_up, gdy klient ma już ofertę i trzeba wrócić po decyzję; brak dla statusów, dostawców, spamu ORAZ dla rozmów czysto informacyjnych: klient tylko pytał, nie zostawił danych, nie prosił o ofertę ani kontakt, albo szuka czegoś, czego nie mamy (np. pomiar i montaż poza Śląskiem bez chęci zakupu wysyłkowego, produkt spoza oferty) — wtedy brak, a w podsumowaniu napisz, czego szukał' },
+    nastepna_akcja: { type: 'string', enum: ['dopytaj', 'przygotuj_oferte', 'follow_up', 'brak'],
+      description: 'Zadania „oddzwoń” nie ma (24.11): gdy klient prosi o kontakt albo oddzwonienie, wybierz dopytaj. przygotuj_oferte tylko, gdy wiadomo przynajmniej jaki rodzaj drzwi i klient chce wyceny (przy montażu na Śląsku także bez wymiarów: robimy wstępną ofertę i pomiar); dopytaj TYLKO, gdy klient chce iść dalej (prosi o wycenę, termin, kontakt), a do tego brakuje danych kluczowych, których sam nie obiecał podesłać; follow_up, gdy klient ma już ofertę i trzeba wrócić po decyzję; brak dla statusów, dostawców, spamu ORAZ dla rozmów czysto informacyjnych: klient tylko pytał, nie zostawił danych, nie prosił o ofertę ani kontakt, albo szuka czegoś, czego nie mamy (np. pomiar i montaż poza Śląskiem bez chęci zakupu wysyłkowego, produkt spoza oferty) — wtedy brak, a w podsumowaniu napisz, czego szukał' },
     rodzaj_klienta: { type: 'string', enum: ['indywidualny', 'firma', 'inwestycja', ''],
       description: 'indywidualny = osoba prywatna do własnego domu/mieszkania; firma = działalność kupuje do swojej siedziby/lokalu; inwestycja = deweloper, wspólnota, generalny wykonawca, budynek wielorodzinny lub kilka sztuk do jednej budowy; pusty, gdy nie wiadomo' },
   },
@@ -149,7 +149,7 @@ export function systemAnalizyMaila(): string {
     + '(akceptuje, negocjuje, dopytuje, prosi o zmianę); status = pyta tylko o status zamówienia/dostawy/zwrotu; reklamacja = usterka, uszkodzenie, '
     + 'niezgodność; dostawca = oferta handlowa, faktura, firma do nas; spam = reklama, phishing; inne = nie pasuje nigdzie. '
     + 'Akcje: przygotuj_oferte, gdy wiadomo przynajmniej jaki rodzaj drzwi i klient chce wyceny; dopytaj, gdy brakuje danych kluczowych '
-    + 'i trzeba o nie zapytać mailem; oddzwon, gdy klient wprost prosi o telefon i podał numer; follow_up, gdy klient odpisał na ofertę '
+    + 'i trzeba o nie zapytać mailem, a także gdy klient wprost prosi o telefon (zadania „oddzwoń” nie ma); follow_up, gdy klient odpisał na ofertę '
     + 'i trzeba mu odpowiedzieć lub domknąć sprzedaż; brak dla statusów, dostawców, spamu i innych. '
     + 'Mail może zawierać pod spodem cytowaną wcześniejszą korespondencję: analizuj to, co klient napisał teraz, a cytat traktuj jako kontekst. '
     + 'Zdjęcia i PDF-y w załącznikach widzisz tylko z nazwy: jeśli klient pisze, że wysyła wymiary/zdjęcia, zapisz to w ustaleniach, nie zgaduj ich treści. '
