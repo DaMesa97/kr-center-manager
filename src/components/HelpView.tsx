@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Zamówienia u dostawców na żywo (beta.150)</h4>
+        <ul>
+          <li><b>Magazyn → Zamawianie:</b> zamówienie u dostawcy wygenerowane na jednym komputerze pojawia się u wszystkich od razu (po ok. 1,5 s), bez przechodzenia między zakładkami. Tak samo zmiany statusu i pozycji zamówienia.</li>
+        </ul>
         <h4>Lista zakupowa: minimum z półek naprawdę widoczne (beta.149)</h4>
         <ul>
           <li><b>Zamawianie → lista zakupowa:</b> minimum półki wpisane w Magazyn → Stany wreszcie pokazuje się w kolumnach „Stan / Min” i „Do minimum” oraz w podpowiedziach przy dostawcy. Od beta.145 lista miała je sumować, ale wczytywanie stanów gubiło tę kolumnę po drodze i wszędzie było „—”.</li>
