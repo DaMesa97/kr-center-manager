@@ -4,6 +4,9 @@
 // (jedna strona Excel → aplikacja; układ kolumn różni się między skoroszytami, stąd aliasy nagłówków).
 // Autoryzacja: nagłówek x-sync-secret = integration_settings.excel_sync_secret
 // ?file=STA|DISTING|ST|BASTION  &dry_run=1  &inspect=1  &reklamacje=0 (pomiń reklamacje)
+// Od 24.11.2026 czyta też KOLUMNY ETAPÓW (inicjały) z arkuszy zamówień i po dopasowaniu wierszy (items z
+// sync_releases_from_excel) woła RPC sync_stages_from_excel: uzupełnia tylko puste etapy w programie.
+// Tryb: integration_settings.excel_sync_etapy = off | dry (podgląd) | on. Wynik w summary.etapy tego samego przebiegu.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { readSheets, inspectWorkbook } from "./parse.ts";
 
@@ -36,6 +39,67 @@ const FILES: Record<string, Part[]> = {
     },
   }],
 };
+
+// ── Etapy z Excela → klucze etapów w programie (production_stages). Nagłówki porównywane WIELKIMI literami,
+// po wzorcu, bo między skoroszytami różnią się dopiskami. Kolejność reguł nie ma znaczenia; jedna kolumna może
+// zasilać dwa klucze (Disting: CNC = frezowanie ościeżnicy e1 i skrzydła e3).
+type StageRule = { key: string; re: RegExp };
+const ST_RULES: StageRule[] = [
+  { key: "cnc", re: /^CNC$/ },
+  { key: "osc", re: /^OŚCIEŻNICA \(SKRĘCANIE/ },
+  { key: "skr", re: /^SKRZYDŁO \(OKUWANIE/ },
+  { key: "mon", re: /^MONTAŻ DRZWI/ },
+  { key: "mag", re: /^MAGAZYN, KONTROLA/ },
+];
+const DISTING_RULES: StageRule[] = [
+  { key: "e1", re: /^CNC$/ },
+  { key: "e3", re: /^CNC$/ },
+  { key: "e2_1", re: /^OŚCIEŻNICA \(SKRĘCANIE/ },
+  { key: "e2_2", re: /^PAKOWANIE DOSTAWKI/ },
+  { key: "e4", re: /^SKRZYDŁO \(OKUWANIE/ },
+  { key: "e5", re: /^MONTAŻ DRZWI/ },
+];
+const STA_RULES: StageRule[] = [
+  { key: "e1", re: /^ETAP 1\b/ },
+  { key: "e2_1", re: /^ETAP 2\.1\b/ },
+  { key: "e2_2", re: /^ETAP 2\.2\b/ },
+  { key: "e3", re: /^ETAP 3\b/ },
+  { key: "e4", re: /^ETAP 4\b/ },
+  { key: "e5", re: /^ETAP 5\b/ },
+];
+// Titan w STA.xlsm: arkusz STA robi frezowanie otworów w skrzydle (e3); „podcięcie” nie ma etapu w programie
+const STA_TITAN_RULES: StageRule[] = [{ key: "e3", re: /FREZOWANIE OTWORÓW/ }];
+// Titan w ST.xlsm: ETAP 1 ościeżnica (e1), ETAP 2 skrzydło odebrane (e2), ETAP 3 okuwanie (e3), ETAP 4 montaż/pakowanie (e4)
+const ST_TITAN_RULES: StageRule[] = [
+  { key: "e1", re: /^ETAP 1 \(OŚCIEŻNICA/ },
+  { key: "e2", re: /SKRZYDŁO ODEBRANE/ },
+  { key: "e3", re: /^ETAP 3 \(OKUWANIE/ },
+  { key: "e4", re: /^ETAP 4 \(MONTAŻ/ },
+];
+const BASTION_RULES: StageRule[] = [
+  { key: "cnc", re: /^CNC$/ },
+  { key: "okleinowanie_skrzydla", re: /^OKLEINOWANIE SKRZYDŁA/ },
+  { key: "okuwanie_skrzydla", re: /^OKUWANIE SKRZYDŁA/ },
+  { key: "oscieznica_cnc", re: /^OŚCIEŻNICA CNC/ },
+  { key: "oscieznica_skrecanie", re: /^OŚCIEŻNICA \(SKRĘCANIE/ },
+  { key: "magazyn_kontrola", re: /^MAGAZYN, KONTROLA/ },
+  { key: "stolarnia", re: /^STOLARNIA/ },
+  { key: "magazyn_regulowana", re: /^MAGAZYN REGULOWANE/ },
+  { key: "regulowana_do_zlozenia", re: /^REGULOWANA DO ZŁOŻENIA/ },
+];
+const STAGE_RULES: Record<string, StageRule[]> = {
+  STA: STA_RULES, STA_TITAN: STA_TITAN_RULES, Disting: DISTING_RULES, ST: ST_RULES, Techniczne: ST_RULES, ST_TITAN: ST_TITAN_RULES, Bastion: BASTION_RULES,
+};
+// wartość komórki etapu → wartość w programie; null = pomiń; { nietypowe } = do raportu, bez zapisu
+function stageValue(raw: unknown): { v: string | null; nietypowe?: string } {
+  if (raw == null) return { v: null };
+  const t = String(raw).trim();
+  if (t === "" || t === "-" || t === "—") return { v: null };
+  if (/^x+$/i.test(t)) return { v: "#ND" };
+  if (/^WSTRZYM/i.test(t)) return { v: "#WS:Excel" };
+  if (/^[A-ZĄĆĘŁŃÓŚŹŻ]{1,3}$/i.test(t)) return { v: t.toUpperCase() };
+  return { v: null, nietypowe: t.slice(0, 40) };
+}
 
 // Reklamacje: kategoria aplikacji per plik + aliasy nagłówków (UPPERCASE), pierwszy znaleziony wygrywa.
 // ST/Disting: NR. REKLAMACJI, DATA REKLAMACJI, PA/CA/WZ | PD/CD/WZ, NR. ZLECENIA, …, POWÓD REKLAMACJI, WPISAŁ
@@ -133,6 +197,29 @@ Deno.serve(async (req) => {
     const allSheets = [...new Set(parts.flatMap((p) => Object.keys(p.sheets)))];
     const headers = [...new Set(["FIRMA", "DATA", "MODEL", "AIRTABLE ID", "NUMER ZAMÓWIENIA KLIENTA", ...parts.flatMap((p) => [p.nr, p.wyd, ...(p.done ? [p.done] : [])])])];
     const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+
+    // etapy (24.11): tryb z ustawień + kolumny etapów rozpoznane po nagłówkach z pierwszego wiersza każdego arkusza
+    const { data: es } = await supabase.from("integration_settings").select("value").eq("key", "excel_sync_etapy").maybeSingle();
+    const etapyMode = (es?.value ?? "off").trim().toLowerCase();   // off | dry | on
+    const stageCols: Record<string, Array<{ key: string; header: string }>> = {};   // arkusz -> [{klucz etapu, nagłówek}]
+    if (etapyMode !== "off") {
+      const info = inspectWorkbook(bytes, 1) as Array<{ name: string; rows: Record<string, Record<string, unknown>> }>;
+      for (const sh of info) {
+        if (!allSheets.includes(sh.name)) continue;
+        const row1 = Object.values(sh.rows?.["1"] ?? {}).map((v) => String(v ?? "").trim().toUpperCase()).filter(Boolean);
+        for (const part of parts) {
+          if (!(sh.name in part.sheets)) continue;
+          const rules = STAGE_RULES[part.category] ?? [];
+          const cols: Array<{ key: string; header: string }> = [];
+          for (const r of rules) {
+            const h = row1.find((x) => r.re.test(x));
+            if (h) cols.push({ key: r.key, header: h });
+          }
+          stageCols[`${part.category}|${sh.name}`] = cols;
+          for (const c of cols) if (!headers.includes(c.header)) headers.push(c.header);
+        }
+      }
+    }
     const parsed = readSheets(bytes, allSheets, headers);
     const cutoff = Date.now() - 365 * 24 * 3600 * 1000;
     const results: unknown[] = [];
@@ -140,9 +227,14 @@ Deno.serve(async (req) => {
     for (const part of parts) {
       const rows: Record<string, unknown>[] = [];
       const perSheet: Record<string, number> = {};
+      // etapy per wiersz arkusza: klucz = to, co RPC zwraca w items.excel_row (`${sheet} ${nr}`)
+      const etapyByRow: Record<string, { stages: Record<string, string>; nietypowe: Array<{ etap: string; wartosc: string }> }> = {};
+      const stageColsMissing: string[] = [];
       for (const [sheetName, sheet] of Object.entries(part.sheets)) {
         const p = parsed[sheetName];
         if (!p) { perSheet[sheetName] = -1; continue; }
+        const cols = stageCols[`${part.category}|${sheetName}`] ?? [];
+        if (etapyMode !== "off" && !cols.length) stageColsMissing.push(sheetName);
         const have = Object.values(p.headers);
         for (const h of [part.nr, "MODEL", part.wyd, "DATA", ...(part.done && !part.doneOptional ? [part.done] : [])])
           if (!have.includes(h)) return json({ error: `arkusz ${sheetName}: brak kolumny ${h}` }, 422);
@@ -166,6 +258,16 @@ Deno.serve(async (req) => {
             const dv = x[doneCol];
             if (dv != null && String(dv).trim() !== "" && String(dv).trim() !== "-") { wyd = today; szac = true; }
           }
+          if (cols.length) {
+            const stages: Record<string, string> = {};
+            const nietypowe: Array<{ etap: string; wartosc: string }> = [];
+            for (const c of cols) {
+              const sv = stageValue(x[c.header]);
+              if (sv.v) stages[c.key] = sv.v;
+              else if (sv.nietypowe) nietypowe.push({ etap: c.key, wartosc: sv.nietypowe });
+            }
+            if (Object.keys(stages).length || nietypowe.length) etapyByRow[`${sheet} ${String(nr).trim()}`] = { stages, nietypowe };
+          }
           rows.push({
             sheet, nr: String(nr).trim(),
             firma: String(x["FIRMA"] ?? ""),
@@ -183,7 +285,22 @@ Deno.serve(async (req) => {
         p_rows: rows, p_dry_run: dryRun, p_source: `make: ${fileName || fileKey}`, p_category: part.category,
       });
       if (error) { results.push({ category: part.category, error: error.message, perSheet }); continue; }
-      results.push({ category: part.category, rows_sent: rows.length, perSheet, run_id: result.run_id, summary: result.summary });
+      const entry: Record<string, unknown> = { category: part.category, rows_sent: rows.length, perSheet, run_id: result.run_id, summary: result.summary };
+      // etapy: tylko wiersze dopasowane jednoznacznie (bez duplikatów i anulowanych); program ma pierwszeństwo (RPC uzupełnia puste)
+      if (etapyMode !== "off") {
+        try {
+          const items = ((result.items ?? []) as Array<Record<string, unknown>>)
+            .filter((i) => i.status !== "duplikat" && i.status !== "anulowane_w_excelu" && etapyByRow[String(i.excel_row)])
+            .map((i) => ({ id: i.id, order_number: i.order_number, excel_row: i.excel_row, ...etapyByRow[String(i.excel_row)] }));
+          const { data: eres, error: eerr } = await supabase.rpc("sync_stages_from_excel", {
+            p_items: items, p_dry_run: dryRun || etapyMode !== "on", p_run_id: result.run_id, p_category: part.category,
+          });
+          entry.etapy = eerr ? { error: eerr.message } : { ...(eres ?? {}), zmiany: undefined, rozne_lista: undefined, nietypowe_lista: undefined, kolumny_brak: stageColsMissing };
+        } catch (e) {
+          entry.etapy = { error: String((e as Error)?.message ?? e) };
+        }
+      }
+      results.push(entry);
     }
 
     // ── Reklamacje (arkusz „Reklamacje” w tym samym skoroszycie) ─────────────────────────

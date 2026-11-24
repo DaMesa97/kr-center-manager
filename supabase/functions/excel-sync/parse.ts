@@ -187,7 +187,8 @@ export function inspectWorkbook(bytes, maxRows = 4) {
         if (vm) v = t === "s" ? ss(+vm[1]) : unesc(vm[1]);
       }
       if (v === null || v === "") continue;
-      (rows[rowNum] ??= {})[m[1]] = typeof v === "string" && v.length > 60 ? v.slice(0, 60) + "…" : v;
+      // nagłówki (wiersz 1) bez ucinania — excel-sync rozpoznaje po nich kolumny etapów (24.11)
+      (rows[rowNum] ??= {})[m[1]] = typeof v === "string" && v.length > 60 && rowNum > 1 ? v.slice(0, 60) + "…" : v;
     }
     out.push({ name: s.name, hidden: s.hidden, dim, rows });
   }
