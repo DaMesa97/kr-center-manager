@@ -88,10 +88,15 @@ describe('crmWynik — przeciąganie w lejku', () => {
 describe('crmWynik — wartość klienta (#162)', () => {
   it('ręczna wartość wygrywa z ofertą, bez ręcznej = kwota oferty', async () => {
     const { wartoscKlienta } = await import('../lib/crmWynik')
-    expect(wartoscKlienta(12500, { rodzaj: 'oficjalna', brutto: 13073 })).toEqual({ kwota: 12500, reczna: true })
-    expect(wartoscKlienta('9800.50', null)).toEqual({ kwota: 9800.5, reczna: true })
-    expect(wartoscKlienta(null, { rodzaj: 'sklep', cena_razem: 8220 })).toEqual({ kwota: 8220, reczna: false })
-    expect(wartoscKlienta(undefined, null)).toEqual({ kwota: null, reczna: false })
+    expect(wartoscKlienta(12500, { rodzaj: 'oficjalna', brutto: 13073 })).toEqual({ kwota: 12500, reczna: true, wstepna: false })
+    expect(wartoscKlienta('9800.50', null)).toEqual({ kwota: 9800.5, reczna: true, wstepna: false })
+    expect(wartoscKlienta(null, { rodzaj: 'sklep', cena_razem: 8220 })).toEqual({ kwota: 8220, reczna: false, wstepna: false })
+    expect(wartoscKlienta(undefined, null)).toEqual({ kwota: null, reczna: false, wstepna: false })
+    // 24.11: cena orientacyjna z rozmowy liczy się tylko, gdy nie ma oferty ani wpisu ręcznego
+    expect(wartoscKlienta(null, null, 3850)).toEqual({ kwota: 3850, reczna: false, wstepna: true })
+    expect(wartoscKlienta(null, { rodzaj: 'sklep', cena_razem: 3500 }, 3850)).toEqual({ kwota: 3500, reczna: false, wstepna: false })
+    expect(wartoscKlienta(4000, null, 3850)).toEqual({ kwota: 4000, reczna: true, wstepna: false })
+    expect(wartoscKlienta(null, null, 0)).toEqual({ kwota: null, reczna: false, wstepna: false })
   })
 
   it('parsuje kwoty wpisane przez handlowca', async () => {

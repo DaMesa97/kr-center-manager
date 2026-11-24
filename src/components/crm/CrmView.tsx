@@ -2176,7 +2176,7 @@ function LeadScreen({
   const activeOferta = oferty.find((o) => o.status === 'do_sprawdzenia' || o.status === 'przelicz' || o.status === 'wstrzymana')
   const ostatnia = ostatniaOferta(oferty)
   const zamkniety = lead.status === 'wygrany' || lead.status === 'przegrany'
-  const wartosc = wartoscKlienta(lead.wartosc_szac, ostatnia)
+  const wartosc = wartoscKlienta(lead.wartosc_szac, ostatnia, lead.wartosc_wstepna)
   const wartoscZmiana = wartosc.reczna ? [...zdarzenia].filter((z) => z.typ === 'wartosc_zmieniona').sort((a, b) => b.created_at.localeCompare(a.created_at))[0] : undefined
   const zapiszWartosc = async (kwota: number | null) => {
     setWartoscBusy(true)
@@ -2297,8 +2297,8 @@ function LeadScreen({
           </div>
           {zamkniety && <div className={`crm-lead-wynik crm-lead-wynik--${lead.status}`}>{opisWyniku(lead)}</div>}
         </div>
-        <div className="crm-lead-head-kwota" title={wartosc.reczna ? 'Wartość wpisana ręcznie — liczy się w lejku zamiast kwoty z oferty' : 'Ostatnia oferta klienta (bez starych wersji)'}>
-          <span className="crm-pf-label">{wartosc.reczna ? 'Wartość (wpisana ręcznie)' : ostatnia ? 'Ostatnia oferta' : 'Wartość'}</span>
+        <div className="crm-lead-head-kwota" title={wartosc.reczna ? 'Wartość wpisana ręcznie — liczy się w lejku zamiast kwoty z oferty' : wartosc.wstepna ? 'Cena orientacyjna podana klientowi w rozmowie / mailu — liczy się w lejku do czasu oferty' : 'Ostatnia oferta klienta (bez starych wersji)'}>
+          <span className="crm-pf-label">{wartosc.reczna ? 'Wartość (wpisana ręcznie)' : ostatnia ? 'Ostatnia oferta' : wartosc.wstepna ? 'Wartość (wstępnie z rozmowy)' : 'Wartość'}</span>
           {wartoscEdit != null ? (
             <form
               className="crm-wartosc-form"
@@ -2343,6 +2343,8 @@ function LeadScreen({
                 </>
               ) : ostatnia ? (
                 <span className="crm-muted">{ostatnia.rodzaj === 'oficjalna' ? 'brutto · ' : ''}{(CRM_OFERTA_STATUS[ostatnia.status]?.label ?? ostatnia.status).toLowerCase()} · {fmtDate(ostatnia.created_at)}</span>
+              ) : wartosc.wstepna ? (
+                <span className="crm-muted">cena orientacyjna z rozmowy / maila — zmieni się po ofercie, możesz też wpisać ręcznie</span>
               ) : (
                 <span className="crm-muted">bez oferty — możesz wpisać szacunek</span>
               )}

@@ -25,6 +25,7 @@ export type StatLead = {
   wynik_powod?: string | null
   wynik_kto?: string | null
   wartosc_szac?: number | string | null
+  wartosc_wstepna?: number | string | null
   ostatnia_oferta?: OfertaKw | null
 }
 
@@ -98,7 +99,7 @@ const wKresie = (iso: string | null | undefined, od: Date | null, now: Date) => 
   return !Number.isNaN(t) && (!od || t >= od.getTime()) && t <= now.getTime()
 }
 const dataWyniku = (l: StatLead): string | null => l.wynik_at ?? l.updated_at ?? null
-const wartoscLeada = (l: StatLead) => wartoscKlienta(l.wartosc_szac, l.ostatnia_oferta).kwota ?? 0
+const wartoscLeada = (l: StatLead) => wartoscKlienta(l.wartosc_szac, l.ostatnia_oferta, l.wartosc_wstepna).kwota ?? 0
 
 function grupuj(leady: StatLead[], klucz: (l: StatLead) => string): Wiersz[] {
   const m = new Map<string, Wiersz>()

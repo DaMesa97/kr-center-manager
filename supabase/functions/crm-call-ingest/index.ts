@@ -28,7 +28,7 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { normalizujPayload, numerKlienta, zdecyduj, OPISY_AKCJI, etykietyZAnalizy, type Rozmowa } from './normalizacja.ts'
 import { terminZBazy, znajdzLeadaZBazy } from './termin.ts'
-import { SCHEMA_ANALIZA, systemAnalizy, userAnalizy, type Analiza, type KontekstRozmowy } from './prompt.ts'
+import { SCHEMA_ANALIZA, systemAnalizy, userAnalizy, cenaOrientacyjna, type Analiza, type KontekstRozmowy } from './prompt.ts'
 import { claudeJson } from './ai.ts'
 import { pobierzNagranie, transkrybuj } from './stt.ts'
 import { przetworzMailAkcja, ponowMaile } from './mail.ts'
@@ -264,8 +264,12 @@ async function analizuj(db: SupabaseClient, r: Rozmowa, rozmowaId: string, lead:
     if (a.email && !l.email) zmiany.email = a.email
     if (a.kategoria && a.kategoria !== 'nieznana') zmiany.kategoria = a.kategoria
     if (r.kampania && !lead) zmiany.kampania = r.kampania
+    // 24.11 (Tymek): cena podana klientowi w rozmowie od razu jest wartością klienta w lejku (do czasu oferty / wpisu ręcznego)
+    const cena = cenaOrientacyjna(a)
+    if (cena != null) zmiany.wartosc_wstepna = cena
     await db.from('leady').update(zmiany).eq('id', l.id)
     await db.from('rozmowy').update({ lead_id: l.id }).eq('id', rozmowaId)
+    if (cena != null) await zdarzenie(db, { lead_id: l.id, rozmowa_id: rozmowaId, typ: 'wartosc_wstepna', opis: `Cena orientacyjna z rozmowy: ${cena.toLocaleString('pl-PL')} zł`, dane: { kwota: cena, zrodlo: 'rozmowa' } })
     const etykiety = etykietyZAnalizy(a)
     if (etykiety.length) await db.rpc('dodaj_etykiety', { p_lead_id: l.id, p_etykiety: etykiety })
 

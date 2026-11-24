@@ -24,6 +24,8 @@ export type CrmLead = {
   podsumowanie: string | null
   brakuje: string | null
   wartosc_szac: number | null
+  /** 24.11: cena orientacyjna podana klientowi w rozmowie / mailu / notatce (z analizy AI); liczy się, gdy nie ma oferty ani wartości ręcznej */
+  wartosc_wstepna?: number | null
   link_oferty: string | null
   baselinker_order_id: string | null
   asana_task_gid: string | null

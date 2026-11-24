@@ -68,9 +68,11 @@ export const SCHEMA_ANALIZA = {
       description: 'Zadania „oddzwoń” nie ma (24.11): gdy klient prosi o kontakt albo oddzwonienie, wybierz dopytaj. przygotuj_oferte tylko, gdy wiadomo przynajmniej jaki rodzaj drzwi i klient chce wyceny (przy montażu na Śląsku także bez wymiarów: robimy wstępną ofertę i pomiar); dopytaj TYLKO, gdy klient chce iść dalej (prosi o wycenę, termin, kontakt), a do tego brakuje danych kluczowych, których sam nie obiecał podesłać; follow_up, gdy klient ma już ofertę i trzeba wrócić po decyzję; brak dla statusów, dostawców, spamu ORAZ dla rozmów czysto informacyjnych: klient tylko pytał, nie zostawił danych, nie prosił o ofertę ani kontakt, albo szuka czegoś, czego nie mamy (np. pomiar i montaż poza Śląskiem bez chęci zakupu wysyłkowego, produkt spoza oferty) — wtedy brak, a w podsumowaniu napisz, czego szukał' },
     rodzaj_klienta: { type: 'string', enum: ['indywidualny', 'firma', 'inwestycja', ''],
       description: 'indywidualny = osoba prywatna do własnego domu/mieszkania; firma = działalność kupuje do swojej siedziby/lokalu; inwestycja = deweloper, wspólnota, generalny wykonawca, budynek wielorodzinny lub kilka sztuk do jednej budowy; pusty, gdy nie wiadomo' },
+    cena_orientacyjna: { type: 'number',
+      description: 'Cena brutto w złotych, którą HANDLOWIEC podał klientowi w tej rozmowie / mailu / notatce (orientacyjna, „około”, „wyjdzie jakieś”); przy kilku pozycjach suma; z dostawą, jeśli handlowiec ją doliczył. 0, gdy handlowiec żadnej ceny nie podał (sam budżet klienta to nie cena)' },
   },
   required: ['typ', 'nazwa', 'miejscowosc', 'email', 'telefon', 'kategoria', 'potrzeba', 'dane', 'brakuje',
-    'ustalenia_z_rozmowy', 'podsumowanie', 'nastepna_akcja', 'rodzaj_klienta'],
+    'ustalenia_z_rozmowy', 'podsumowanie', 'nastepna_akcja', 'rodzaj_klienta', 'cena_orientacyjna'],
   additionalProperties: false,
 } as const
 
@@ -83,6 +85,14 @@ export type Analiza = {
   podsumowanie: string
   nastepna_akcja: 'oddzwon' | 'dopytaj' | 'przygotuj_oferte' | 'follow_up' | 'brak'
   rodzaj_klienta: 'indywidualny' | 'firma' | 'inwestycja' | ''
+  /** 24.11: cena orientacyjna podana klientowi przez handlowca (zł brutto); 0 = nie padła → leady.wartosc_wstepna */
+  cena_orientacyjna?: number
+}
+
+/** Cena orientacyjna z analizy jako liczba do leady.wartosc_wstepna; null, gdy nie padła albo bzdura. */
+export function cenaOrientacyjna(a: { cena_orientacyjna?: unknown }): number | null {
+  const n = Number(a.cena_orientacyjna)
+  return Number.isFinite(n) && n > 0 && n < 10_000_000 ? Math.round(n * 100) / 100 : null
 }
 
 export type KontekstRozmowy = {

@@ -8,7 +8,7 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { normalizujTelefon, etykietyZAnalizy } from './normalizacja.ts'
 import { terminZBazy } from './termin.ts'
-import { SCHEMA_ANALIZA, systemAnalizyNotatki, userAnalizyNotatki, type Analiza, type KontekstNotatki } from './prompt.ts'
+import { SCHEMA_ANALIZA, systemAnalizyNotatki, userAnalizyNotatki, cenaOrientacyjna, type Analiza, type KontekstNotatki } from './prompt.ts'
 import { claudeJson } from './ai.ts'
 import { transkrybuj } from './stt.ts'
 
@@ -116,7 +116,11 @@ async function analizujNotatke(db: SupabaseClient, lead: Lead, notatka: string, 
     const { data: zajety } = await db.from('leady').select('id').eq('telefon', tel).maybeSingle()
     if (!zajety) zmiany.telefon = tel
   }
+  // 24.11 (Tymek): cena z notatki handlowca od razu jest wartością klienta w lejku (do czasu oferty / wpisu ręcznego)
+  const cena = cenaOrientacyjna(a)
+  if (cena != null) zmiany.wartosc_wstepna = cena
   await db.from('leady').update(zmiany).eq('id', lead.id)
+  if (cena != null) await zdarzenie(db, { lead_id: lead.id, typ: 'wartosc_wstepna', kto, opis: `Cena orientacyjna z notatki: ${cena.toLocaleString('pl-PL')} zł`, dane: { kwota: cena, zrodlo: 'notatka' } })
   const etykiety = etykietyZAnalizy(a)
   if (etykiety.length) await db.rpc('dodaj_etykiety', { p_lead_id: lead.id, p_etykiety: etykiety })
 

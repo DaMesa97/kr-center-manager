@@ -4,7 +4,7 @@
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { normalizujTelefon, OPISY_AKCJI, etykietyZAnalizy } from './normalizacja.ts'
-import { SCHEMA_ANALIZA, systemAnalizyMaila, userAnalizyMaila, type Analiza, type KontekstMaila } from './prompt.ts'
+import { SCHEMA_ANALIZA, systemAnalizyMaila, userAnalizyMaila, cenaOrientacyjna, type Analiza, type KontekstMaila } from './prompt.ts'
 import { claudeJson } from './ai.ts'
 import { terminZBazy, znajdzLeadaZBazy } from './termin.ts'
 import { rozpoznajZamowienie, systemAnalizyZamowienia, userAnalizyZamowienia, SCHEMA_ZAMOWIENIE, type Zamowienie, type AnalizaZamowienia } from './zamowienie.ts'
@@ -135,8 +135,12 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
       const { data: zajety } = await db.from('leady').select('id').eq('telefon', tel).maybeSingle()
       if (!zajety) zmiany.telefon = tel
     }
+    // 24.11 (Tymek): cena podana klientowi w mailu od razu jest wartością klienta w lejku (do czasu oferty / wpisu ręcznego)
+    const cena = cenaOrientacyjna(a)
+    if (cena != null) zmiany.wartosc_wstepna = cena
     await db.from('leady').update(zmiany).eq('id', l.id)
     await db.from('maile').update({ lead_id: l.id }).eq('id', mail.id)
+    if (cena != null) await zdarzenie(db, { lead_id: l.id, mail_id: mail.id, typ: 'wartosc_wstepna', opis: `Cena orientacyjna z maila: ${cena.toLocaleString('pl-PL')} zł`, dane: { kwota: cena, zrodlo: 'mail' } })
     const etykiety = etykietyZAnalizy(a)
     if (etykiety.length) await db.rpc('dodaj_etykiety', { p_lead_id: l.id, p_etykiety: etykiety })
 

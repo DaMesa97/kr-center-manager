@@ -38,13 +38,21 @@ export function kwotaOferty(o: OfertaKwota | null | undefined): number | null {
   return v == null ? null : Number(v)
 }
 
-/** Wartość klienta (#162): wpisana ręcznie (crm.leady.wartosc_szac) wygrywa z kwotą ostatniej oferty. */
+/**
+ * Wartość klienta (#162): wpisana ręcznie (crm.leady.wartosc_szac) wygrywa z kwotą ostatniej oferty;
+ * 24.11 (Tymek): gdy nie ma ani jednego, ani drugiego — cena orientacyjna podana klientowi w rozmowie / mailu
+ * (crm.leady.wartosc_wstepna, z analizy AI) → `wstepna: true`.
+ */
 export function wartoscKlienta(
   wartoscSzac: number | string | null | undefined,
   oferta: OfertaKwota | null | undefined,
-): { kwota: number | null; reczna: boolean } {
-  if (wartoscSzac != null && String(wartoscSzac) !== '' && Number.isFinite(Number(wartoscSzac))) return { kwota: Number(wartoscSzac), reczna: true }
-  return { kwota: kwotaOferty(oferta), reczna: false }
+  wartoscWstepna?: number | string | null,
+): { kwota: number | null; reczna: boolean; wstepna: boolean } {
+  if (wartoscSzac != null && String(wartoscSzac) !== '' && Number.isFinite(Number(wartoscSzac))) return { kwota: Number(wartoscSzac), reczna: true, wstepna: false }
+  const zOferty = kwotaOferty(oferta)
+  if (zOferty != null) return { kwota: zOferty, reczna: false, wstepna: false }
+  if (wartoscWstepna != null && String(wartoscWstepna) !== '' && Number.isFinite(Number(wartoscWstepna)) && Number(wartoscWstepna) > 0) return { kwota: Number(wartoscWstepna), reczna: false, wstepna: true }
+  return { kwota: null, reczna: false, wstepna: false }
 }
 
 /** Kwota wpisana przez handlowca: „12 500”, „12500,50”, „12.500 zł” → liczba; puste / bzdura / ≤ 0 → null. */
@@ -79,6 +87,7 @@ type LejekLead = {
   status: string | null
   wynik_powod?: string | null
   wartosc_szac?: number | string | null
+  wartosc_wstepna?: number | string | null
   ostatnia_oferta?: OfertaKwota | null
 }
 
@@ -116,7 +125,7 @@ export function lejekPodsumowanie(rows: LejekLead[]): LejekPodsumowanie {
     const st = (r.status ?? 'nowy') as LejekStatus
     const kol = kolumny[st] ?? kolumny.nowy
     kol.n += 1
-    kol.suma += wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta).kwota ?? 0
+    kol.suma += wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta, r.wartosc_wstepna).kwota ?? 0
     if (st === 'przegrany' && r.wynik_powod) powody.set(r.wynik_powod, (powody.get(r.wynik_powod) ?? 0) + 1)
   }
   let topPowod: string | null = null

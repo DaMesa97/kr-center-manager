@@ -435,7 +435,7 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
                 const starsze = wszystkie.length - lista.length
                 // przy wyszukiwaniu zamknięci są widoczni — inaczej znaleziony klient „znikał” w zwiniętej kolumnie
                 const zwinieta = zamknieta && !rozwiniete[kol.key as 'wygrany' | 'przegrany'] && !q.trim()
-                const suma = lista.reduce((a, r) => a + (wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta).kwota ?? 0), 0)
+                const suma = lista.reduce((a, r) => a + (wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta, r.wartosc_wstepna).kwota ?? 0), 0)
                 const MAX = 60
                 return (
                   <section
@@ -489,8 +489,8 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
                             <span className="crm-lejek-top">
                               <b>{leadName(r)}</b>
                               {(() => {
-                                const w = wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta)
-                                return <span title={w.reczna ? 'Wartość wpisana ręcznie' : undefined}>{fmtPln(w.kwota)}{w.reczna ? '*' : ''}</span>
+                                const w = wartoscKlienta(r.wartosc_szac, r.ostatnia_oferta, r.wartosc_wstepna)
+                                return <span title={w.reczna ? 'Wartość wpisana ręcznie' : w.wstepna ? 'Cena orientacyjna podana klientowi w rozmowie / mailu' : undefined}>{fmtPln(w.kwota)}{w.reczna ? '*' : w.wstepna ? '~' : ''}</span>
                               })()}
                             </span>
                           </button>
