@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Klienci: scalanie przy tym samym numerze, cena z rozmowy jako wartość, bez zadań „oddzwoń” (beta.151)</h4>
+        <ul>
+          <li><b>Dane klienta:</b> gdy wpisany telefon albo e-mail ma już inny klient (np. drugi wpis z zamówienia ze sklepu), zamiast błędu pytanie „Ten klient już jest — połączyć?”. Po potwierdzeniu oferty, rozmowy, maile i historia tamtego wpisu przechodzą do karty, na której jesteś, a tamten wpis znika.</li>
+          <li><b>Wartość klienta:</b> cena orientacyjna, którą handlowiec podał klientowi w rozmowie, mailu albo notatce, od razu jest wartością klienta w lejku, dopóki nie ma oferty ani wartości wpisanej ręcznie. W Kontaktach ma znaczek „~”, na karcie etykietę „Wartość (wstępnie z rozmowy)”.</li>
+          <li><b>Zadania:</b> „Oddzwoń” zniknęło z listy zadań. Nieodebrana rozmowa zostaje w historii klienta bez zadania; prośba klienta o kontakt to „Dopytaj”.</li>
+          <li><b>Mail oferty:</b> pisze się w stylu osoby, która zleciła ofertę (także po „Ustalenia OK”, „Przelicz” i „Ponów”), nie w stylu domyślnym.</li>
+          <li><b>Zamówienie ze sklepu:</b> klient z CRM, który złożył zamówienie w sklepie, sam staje się „Zamówił” z kwotą zamówienia jako wartością; zadanie się zamyka (przy nietypowej adnotacji zostaje „Dopytaj”).</li>
+        </ul>
         <h4>Zamówienia u dostawców na żywo (beta.150)</h4>
         <ul>
           <li><b>Magazyn → Zamawianie:</b> zamówienie u dostawcy wygenerowane na jednym komputerze pojawia się u wszystkich od razu (po ok. 1,5 s), bez przechodzenia między zakładkami. Tak samo zmiany statusu i pozycji zamówienia.</li>
