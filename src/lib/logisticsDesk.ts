@@ -112,9 +112,13 @@ export function deskWarnings(order: Order, allOrders: Order[]): DeskWarning[] {
   if (order.glass_order_date && !order.glass_received) {
     out.push({ kind: 'glass', text: `szyba zamówiona ${fmtDay(order.glass_order_date)}, jeszcze nie ma` })
   }
-  const set = orderSetCompleteness(order, allOrders)
-  if (set && !set.complete && set.missing.length) {
-    out.push({ kind: 'pair', text: `niekompletny komplet: ${set.missing.join(', ')}` })
+  // Tymek 24.11: gdy drzwi już stoją NA MAGAZYNIE wysyłkowym, ostrzeżenie o nieodhaczonych etapach
+  // kompletu nie ma znaczenia — towar jest, brakuje tylko „ptaszków” w Excelu / programie.
+  if (!deskWarehouseState(order).packed) {
+    const set = orderSetCompleteness(order, allOrders)
+    if (set && !set.complete && set.missing.length) {
+      out.push({ kind: 'pair', text: `niekompletny komplet: ${set.missing.join(', ')}` })
+    }
   }
   // Tylko realne braki (Tymek 17.11): „brak receptury” / „częściowa receptura” to sprawa
   // magazynu i receptur, nie logistyki — na biurku tylko śmieciły i odrywały uwagę.

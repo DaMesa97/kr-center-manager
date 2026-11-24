@@ -50,6 +50,17 @@ describe('logisticsDesk — biurko kierownika logistyki', () => {
     expect(deskWarnings(order({ stock_status: 'insufficient' }), []).map((w) => w.kind)).toEqual(['stock'])
   })
 
+  it('NA MAGAZYNIE: ostrzeżenie o niekompletnym komplecie znika, reszta zostaje (Tymek 24.11)', () => {
+    // STA bez wydania: brakujące etapy kompletu są ostrzeżeniem
+    const sta = order({ id: 11, order_number: '4624', category: 'STA', system: 'Disting Plus', linked_order_id: 12, release_date: null, production_stages: {} })
+    expect(deskWarnings(sta, [sta]).some((w) => w.kind === 'pair')).toBe(true)
+    // to samo zlecenie po wydaniu z Marklowickiej (NA MAGAZYNIE): etapy przestają być istotne
+    const wydane = order({ ...sta, release_date: '2026-11-20', stock_status: 'insufficient' })
+    const w = deskWarnings(wydane, [wydane])
+    expect(w.some((x) => x.kind === 'pair')).toBe(false)
+    expect(w.map((x) => x.kind)).toEqual(['stock'])
+  })
+
   it('przypięcie do trasy wygrywa nad firmą i wygasa po 7 dniach', () => {
     const company = { production_day: 'CZWARTEK', route_day: 'PONIEDZIAŁEK' }
     expect(deskRouteOf(order({}), company)).toBe('PONIEDZIAŁEK')
