@@ -25,8 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
-        <h4>Magazyn: minimum logistyczne komponentu (beta.152)</h4>
+        <h4>Magazyn: minimum logistyczne komponentu, równe plakietki w NR ZLECENIA, Biurko logistyki (beta.152)</h4>
         <ul>
+          <li><b>Tabele zleceń → NR ZLECENIA:</b> plakietki znów stoją w równych kolumienkach (Tymek 24.11): ⚠️ weryfikacji, wykonawca, 💬 komentarze (także z licznikiem) i status magazynu mają stałe miejsca; rzadkie plakietki (⚠ problem, „ark. N”) stoją na końcu, a RO z Optimy zawsze w osobnej linijce pod numerem.</li>
+          <li><b>Biurko logistyki:</b> gdy zlecenie jest <b>NA MAGAZYNIE</b>, ostrzeżenie „niekompletny komplet: …” (nieodhaczone etapy) znika — towar już jest, brakuje tylko ptaszków. Niedobór magazynowy, szyba, PILNE i problem zostają.</li>
           <li><b>Karta komponentu → Logistyka i zamawianie:</b> nowe pole <b>Minimum logistyczne</b> (#168, Tymek) — w jakiej wielokrotności dostawca sprzedaje dany SKU, np. 8 albo 12 szt., gdy na palecie jest 24. Istniejące i nowe komponenty mają 1 (sztuki); wyczyszczone przy edycji = pełna paleta.</li>
           <li><b>Stany → DO ZAMÓWIENIA</b>, eksport braków do CSV, „Braki → lista zakupowa”, sugestie w Zamawianiu i krok ilości na liście zakupowej zaokrąglają się w górę do tej wielokrotności. Koniec podpowiedzi „zamów 1 skrzydło” tam, gdzie wpiszesz minimum. Liczenie palet i TIR-ów bez zmian.</li>
         </ul>

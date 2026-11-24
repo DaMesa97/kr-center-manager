@@ -8225,6 +8225,36 @@ html.hl-off-priority:not(.hl-off-notes) .orders-table tbody tr.orders-table-row-
   min-width: 52px;
   justify-content: center;
 }
+/* 24.11 (Tymek: „znowu się porozjeżdżało"): slot na 💬 o stałej szerokości — licznik komentarzy
+   nie przesuwa plakietek za nim; slot na status magazynu obecny także bez plakietki.
+   Rzadkie plakietki (⚠ problem, „ark. N") stoją na końcu wiersza, więc nic za nimi nie faluje. */
+.order-slot-comments {
+  display: inline-flex;
+  width: 44px;
+  justify-content: flex-start;
+  flex: none;
+}
+.order-slot-comments .order-comments-inline-btn {
+  min-width: 40px;
+  justify-content: center;
+  padding: 0.2rem 0.3rem;
+}
+.order-slot-stock {
+  display: inline-flex;
+  width: 22px;
+  justify-content: center;
+  flex: none;
+}
+.order-slot-stock .stock-badge-wrapper {
+  margin-left: 0;
+}
+.order-slot-stock .stock-badge {
+  margin-left: 0;
+}
+/* RO w tabelach zleceń: zawsze osobna linijka pod numerem (jak ZREALIZOWANE), nie „raz w linii, raz pod” */
+.orders-table .col-order-number > .erp-badge {
+  display: flex;
+}
 
 /* ── Moje stanowisko: chipy etapow + naglowki sekcji ──────────────── */
 .station-stage-chips {

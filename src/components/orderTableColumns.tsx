@@ -259,14 +259,25 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
                 </span>
               )}
             </span>
-            {/* #119: numer tego zlecenia w arkuszu Excel, gdy inny niż w aplikacji */}
-            <SheetNumberBadge order={o} />
             {opts.afterNumber?.(o)}
-            <OrderCommentsButton
-              order={o}
-              counts={o.id !== undefined ? ctx.orderCommentsCounts.get(o.id) : undefined}
-              onOpen={ctx.onOpenCommentsPanel}
-            />
+            {/* Stałe sloty (Tymek 24.11: „żeby wszystko szło równo w linii"): 💬 ma stałą szerokość także z licznikiem,
+                magazyn ma swoje miejsce także bez plakietki; rzadkie plakietki (⚠ problem, „ark.") stoją NA KOŃCU,
+                więc nic za nimi nie faluje */}
+            <span className="order-slot-comments">
+              <OrderCommentsButton
+                order={o}
+                counts={o.id !== undefined ? ctx.orderCommentsCounts.get(o.id) : undefined}
+                onOpen={ctx.onOpenCommentsPanel}
+              />
+            </span>
+            <span className="order-slot-stock">
+              <StockStatusBadge
+                status={o.stock_status}
+                issues={o.stock_issues}
+                category={o.category}
+                glassAllowances={ctx.glassAllowances}
+              />
+            </span>
             {(() => {
               // #87: plakietka problemu — powód, kto i kiedy w podpowiedzi
               const p = getOrderProblem(o)
@@ -276,13 +287,10 @@ export function orderNumberCol(ctx: OrderTableCtx, opts: OrderNumberOpts = {}): 
                 </span>
               ) : null
             })()}
+            {/* #119: numer tego zlecenia w arkuszu Excel, gdy inny niż w aplikacji — na końcu, bo tylko w części wierszy */}
+            <SheetNumberBadge order={o} />
           </span>
-          <StockStatusBadge
-            status={o.stock_status}
-            issues={o.stock_issues}
-            category={o.category}
-            glassAllowances={ctx.glassAllowances}
-          />
+          {/* RO zawsze osobną linijką pod numerem (jak ZREALIZOWANE) — .orders-table .col-order-number > .erp-badge */}
           <ErpStatusBadge order={o} />
         </>
       )
