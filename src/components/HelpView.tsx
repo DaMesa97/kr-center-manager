@@ -27,8 +27,8 @@ const SECTIONS: Section[] = [
       <>
         <h4>Magazyn: minimum logistyczne komponentu (beta.152)</h4>
         <ul>
-          <li><b>Karta komponentu → Logistyka i zamawianie:</b> nowe pole <b>Minimum logistyczne</b> (#168, Tymek) — w jakiej wielokrotności dostawca sprzedaje dany SKU, np. 8 albo 12 szt., gdy na palecie jest 24. Puste = pełna paleta.</li>
-          <li><b>Stany → DO ZAMÓWIENIA</b>, eksport braków do CSV, „Braki → lista zakupowa”, sugestie w Zamawianiu i krok ilości na liście zakupowej zaokrąglają się w górę do tej wielokrotności (albo do palety, gdy minimum nie wpisano). Koniec podpowiedzi „zamów 1 skrzydło”. Liczenie palet i TIR-ów bez zmian.</li>
+          <li><b>Karta komponentu → Logistyka i zamawianie:</b> nowe pole <b>Minimum logistyczne</b> (#168, Tymek) — w jakiej wielokrotności dostawca sprzedaje dany SKU, np. 8 albo 12 szt., gdy na palecie jest 24. Istniejące i nowe komponenty mają 1 (sztuki); wyczyszczone przy edycji = pełna paleta.</li>
+          <li><b>Stany → DO ZAMÓWIENIA</b>, eksport braków do CSV, „Braki → lista zakupowa”, sugestie w Zamawianiu i krok ilości na liście zakupowej zaokrąglają się w górę do tej wielokrotności. Koniec podpowiedzi „zamów 1 skrzydło” tam, gdzie wpiszesz minimum. Liczenie palet i TIR-ów bez zmian.</li>
         </ul>
         <h4>Klienci: scalanie przy tym samym numerze, cena z rozmowy jako wartość, bez zadań „oddzwoń” (beta.151)</h4>
         <ul>

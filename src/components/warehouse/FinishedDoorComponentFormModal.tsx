@@ -291,7 +291,7 @@ function FinishedDoorComponentFormModal({
       supplier_id: supplierId,
       units_per_pallet: unitsPerPallet === '' ? null : Number(unitsPerPallet),
       pallets_per_full_tir: palletsPerFullTir === '' ? null : Number(palletsPerFullTir),
-      order_multiple: orderMultiple === '' ? null : Number(orderMultiple),
+      order_multiple: orderMultiple === '' ? (mode === 'add' ? 1 : null) : Number(orderMultiple),
       min_stock_level: minStockLevel === '' ? null : Number(minStockLevel),
       target_stock_level: targetStockLevel === '' ? null : Number(targetStockLevel),
     }

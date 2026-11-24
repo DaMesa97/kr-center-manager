@@ -138,7 +138,7 @@ export default function SkuLogisticsFields({
           />
           <small className="sku-logistics-helper">
             W jakiej wielokrotności dostawca sprzedaje ten SKU (np. 8 albo 12 szt.). „Do zamówienia” i sugestie
-            zaokrąglają się w górę do tej liczby. Puste = pełna paleta.
+            zaokrąglają się w górę do tej liczby. Nowy komponent zapisuje się z 1 (sztuki); wyczyszczone przy edycji = pełna paleta.
           </small>
         </label>
 

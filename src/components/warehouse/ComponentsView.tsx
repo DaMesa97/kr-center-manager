@@ -290,7 +290,7 @@ function ComponentsView({
       supplier_id: form.supplier_id,
       units_per_pallet: uppNum,
       pallets_per_full_tir: pftNum,
-      order_multiple: omNum,
+      order_multiple: omNum ?? (modalMode === 'create' ? 1 : null),
       notes: form.notes.trim() ? form.notes.trim() : null,
     }
     if (selectedWarehouseIds.length === 0) {
