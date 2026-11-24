@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Lista zakupowa: minimum z półek naprawdę widoczne (beta.149)</h4>
+        <ul>
+          <li><b>Zamawianie → lista zakupowa:</b> minimum półki wpisane w Magazyn → Stany wreszcie pokazuje się w kolumnach „Stan / Min” i „Do minimum” oraz w podpowiedziach przy dostawcy. Od beta.145 lista miała je sumować, ale wczytywanie stanów gubiło tę kolumnę po drodze i wszędzie było „—”.</li>
+        </ul>
         <h4>Pytanie przed telefonem; oferta bez dobranego produktu pyta, zamiast czekać (beta.148)</h4>
         <ul>
           <li><b>Dzwonienie z aplikacji:</b> klik w numer telefonu najpierw pyta „Zadzwonić do …?”, bo program do dzwonienia wybiera numer od razu. Przypadkowy klik nie dzwoni do klienta.</li>
