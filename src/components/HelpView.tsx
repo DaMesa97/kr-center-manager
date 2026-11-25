@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM → Zamówienia: lista zamówień od razu na wierzchu (beta.156)</h4>
+        <ul>
+          <li>Zamiast długiej listy ostrzeżeń nad tabelą jest jeden przycisk „⚠ N zamówień wymaga uwagi” (włącza filtr), a powód stoi w wierszu zamówienia pod numerem. Otwarte zlecenia KR Po Drzwi bez pary w sklepie są zwinięte w jednej linijce — rozwijasz, gdy chcesz je powiązać.</li>
+          <li>Zamówienie z gotowym listem przewozowym, a bez zlecenia KR, nie jest już „Brak zlecenia” (towar spakowany, drzwi spoza KR Center).</li>
+        </ul>
         <h4>CRM → Zamówienia: list przewozowy i przesyłki kurierskie (beta.155)</h4>
         <ul>
           <li>Nowa kolumna <b>Wysyłka</b> ze stanem przesyłek z Baselinkera: <b>List gotowy</b> (list przewozowy wygenerowany, kurier jeszcze nie odebrał — przygotowane do wysyłki), <b>U kuriera</b>, <b>Doręczone</b>, <b>Problem z paczką</b> (nie doręczona, zwrot, zagubiona). Nowy filtr „Przygotowane do wysyłki”.</li>

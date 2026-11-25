@@ -45,6 +45,8 @@ type Props = {
   onOpenLead: (id: string) => void
   /** przejście do zlecenia w zakładce kategorii (tylko gdy użytkownik ma te zakładki) */
   onOpenOrder?: (o: Order) => void
+  /** podgląd ekranu bez logowania (dane podane z zewnątrz zamiast pobierania z bazy) — sprawdzanie układu w przeglądarce dev */
+  podglad?: CrmZamowieniaPanel
 }
 
 type Filtr = 'wszystkie' | 'uwaga' | 'brak' | 'prod' | 'gotowe' | 'list' | 'wyslane' | 'reklamacja' | 'bez_produkcji' | 'anulowane'
@@ -152,7 +154,7 @@ function ChipZlecenia({ o }: { o: Order }) {
   )
 }
 
-export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder }: Props) {
+export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder, podglad }: Props) {
   const [panel, setPanel] = useState<CrmZamowieniaPanel | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
@@ -164,11 +166,11 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
 
   const load = useCallback(async (cicho = false) => {
     if (!cicho) setLoading(true)
-    const { data, error: e } = await fetchZamowieniaPanel()
+    const { data, error: e } = podglad ? { data: podglad, error: null } : await fetchZamowieniaPanel()
     setPanel(data)
     setError(e)
     setLoading(false)
-  }, [])
+  }, [podglad])
   useEffect(() => { void load() }, [load])
 
   const { wiersze, sieroty } = useMemo(() => (panel ? zbuduj(panel) : { wiersze: [], sieroty: [] }), [panel])
@@ -240,7 +242,8 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
       render: (w) => (
         <span className="crm-zam-nr">
           <b>{w.z.bl_id}</b>
-          <span className="crm-muted">{fmtDateTime(w.z.data_zlozenia)}{w.uwagi.length > 0 && <span className="crm-status crm-status--todo crm-zam-uwaga" title={w.uwagi.join('\n')}>uwaga</span>}</span>
+          <span className="crm-muted">{fmtDateTime(w.z.data_zlozenia)}</span>
+          {w.uwagi.length > 0 && <span className="crm-zam-uwaga-txt" title={w.uwagi.join('\n')}>⚠ {w.uwagi[0]}{w.uwagi.length > 1 ? ` (+${w.uwagi.length - 1})` : ''}</span>}
         </span>
       ),
     },
@@ -310,16 +313,19 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
         </span>
       </div>
 
+      {/* 25.11 (Tymek: „lista ostrzegawcza z dupy, nie widać zamówień”): jeden pasek zamiast listy — powody są w wierszach
+          (filtr „Wymagają uwagi”), zlecenia KR bez pary zwinięte */}
       {(uwagiLista.length > 0 || sieroty.length > 0) && (
-        <section className="crm-zam-uwagi">
-          <h4>Wymaga uwagi ({uwagiLista.length + sieroty.length})</h4>
-          <ul>
-            {uwagiLista.slice(0, 12).map((w) => (
-              <li key={w.z.bl_id}>
-                <button type="button" className="crm-link" onClick={() => setOtwarte(w.z.bl_id)}>{w.z.bl_id} {w.z.klient ?? ''}</button>: {w.uwagi.join('; ')}
-              </li>
-            ))}
-            {uwagiLista.length > 12 && <li className="crm-muted">…i {uwagiLista.length - 12} więcej (filtr „Wymagają uwagi”)</li>}
+        <div className="crm-zam-uwagi-bar">
+          {uwagiLista.length > 0 && (
+            <button type="button" className={`crm-chip crm-zam-uwagi-chip${filtr === 'uwaga' ? ' crm-chip--on' : ''}`} onClick={() => setFiltr(filtr === 'uwaga' ? 'wszystkie' : 'uwaga')} title="Pokaż tylko zamówienia z uwagą (powód w wierszu)">
+              ⚠ {uwagiLista.length} {uwagiLista.length === 1 ? 'zamówienie wymaga' : uwagiLista.length < 5 ? 'zamówienia wymagają' : 'zamówień wymaga'} uwagi
+            </button>
+          )}
+          {sieroty.length > 0 && (
+            <details className="crm-zam-sieroty">
+              <summary>{sieroty.length} otwartych zleceń KR Po Drzwi bez pary w sklepie</summary>
+              <ul>
             {sieroty.map((o) => (
               <li key={`o${o.id}`}>
                 zlecenie KR <b>{o.category} {o.order_number}</b> „{o.client_order_number || 'bez numeru klienta'}” ({fmtDate(o.order_date)}){' '}
@@ -330,8 +336,10 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
                 {onOpenOrder && <> · <button type="button" className="crm-link" onClick={() => onOpenOrder(o)}>otwórz zlecenie</button></>}
               </li>
             ))}
-          </ul>
-        </section>
+              </ul>
+            </details>
+          )}
+        </div>
       )}
 
       <DataTable

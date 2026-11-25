@@ -108,6 +108,7 @@ describe('przesyłki z Baselinkera (list przewozowy)', () => {
   it('paczka u kuriera = wysłane; list przy zleceniu w produkcji i zwrot = uwaga', () => {
     expect(stanZamowienia(zam({ paczki: [pk(11)] }), [zlecenie({ release_date: '2026-11-19' })], 0, 'W produkcji')).toBe('wyslane')
     expect(stanZamowienia(zam({ paczki: [pk(0)] }), [zlecenie({ release_date: '2026-11-19' })], 0, 'W produkcji')).toBe('gotowe')
+    expect(stanZamowienia(zam({ paczki: [pk(0)] }), [], 0, 'W produkcji')).toBe('bez_produkcji')
     expect(uwagiZamowienia(zam({ paczki: [pk(0)] }), [zlecenie()], 'prod', 'W produkcji', TERAZ)).toContain('list przewozowy już jest, a zlecenie KR jeszcze w produkcji')
     expect(uwagiZamowienia(zam({ paczki: [pk(6)] }), [], 'bez_produkcji', 'Wysłane', TERAZ)[0]).toMatch(/przesyłka MKRI1: zwrot/)
     expect(uwagiZamowienia(zam({ paczki: [pk(6)] }), [], 'bez_produkcji', 'Zrealizowane', TERAZ)).toEqual([])

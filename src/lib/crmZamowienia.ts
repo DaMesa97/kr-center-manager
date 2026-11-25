@@ -137,7 +137,8 @@ export function stanZamowienia(z: ZamowienieSklep, zlecenia: Order[], reklamacje
   if (zlecenia.length > 0 && aktywne.length === 0) return 'anulowane'
   if (aktywne.length === 0) {
     if (statusNazwa && ANUL_RE.test(statusNazwa)) return 'anulowane'
-    return maDrzwi(z) && !statusKoncowy(statusNazwa) ? 'brak' : 'bez_produkcji'
+    // jest list przewozowy = towar już spakowany (drzwi spoza KR Center), więc to nie „brak zlecenia”
+    return maDrzwi(z) && !statusKoncowy(statusNazwa) && stanWysylki(z) === 'brak' ? 'brak' : 'bez_produkcji'
   }
   if (reklamacjeOtwarte > 0) return 'reklamacja'
   const stany = aktywne.map(stanZlecenia)
