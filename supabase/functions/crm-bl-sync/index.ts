@@ -9,7 +9,9 @@
 //
 // Token API Baselinkera: vault crm_bl_token (wpisuje właściciel w Ustawieniach CRM, rpc crm.ustaw_token_bl), czytany
 // przez rpc crm.token_bl (tylko service_role). Funkcja tylko CZYTA z Baselinkera (getOrders, getOrderStatusList,
-// getOrderExtraFields) — zmiany statusów to etap 2.
+// getOrderExtraFields, getOrderPackages) — zmiany statusów to etap 2.
+// Przesyłki (Tymek 25.11): dla zamówień z numerem paczki getOrderPackages najwyżej co godzinę, aż wszystkie doręczone /
+// zwrócone / anulowane, max MAX_PACZEK zamówień na przebieg; zapis w crm.zamowienia_sklep.paczki.
 // Wynik ostatniego przebiegu: crm.ustawienia bl_sync_ostatni_at / bl_sync_ostatni_wynik / bl_sync_ostatni_blad.
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
@@ -20,6 +22,9 @@ const BL_URL = 'https://api.baselinker.com/connector.php'
 const OKNO_DNI = 60
 const MAX_STRON = 30
 const MAX_DOCIAGNIETYCH = 40
+const MAX_PACZEK = 40
+// tracking_status z Baselinkera: 5 doręczona, 6 zwrot, 9 zagubiona, 10 anulowana — dalej nie śledzimy
+const PACZKA_KONIEC = new Set([5, 6, 9, 10])
 let kluczWewnetrzny: string | null = null
 
 type BlProdukt = {
@@ -52,6 +57,7 @@ Deno.serve(async (req) => {
       const r = await bl(token, 'getOrders', { order_id: blId, get_unconfirmed_orders: true, include_custom_extra_fields: true })
       const zam = (r.orders as BlZamowienie[] | undefined) ?? []
       const zapisane = await zapiszZamowienia(db, zam)
+      if (zam.length && zam[0].delivery_package_nr) await zapiszPaczki(db, token, blId)
       return odp(200, { ok: true, akcja, zapisane, znalezione: zam.length })
     }
 
@@ -79,7 +85,8 @@ Deno.serve(async (req) => {
     }
     // zamówienia otwartych zleceń KR spoza okna (np. drzwi zamówione we wrześniu, jeszcze w produkcji) — pojedynczo
     const dociagniete = await dociagnijOtwarte(db, token)
-    const wynik = { ok: true, statusy, pobrane, zapisane, nowe, dociagniete, od: new Date(od * 1000).toISOString().slice(0, 10), ms: Date.now() - t0 }
+    const paczki = await odswiezPaczki(db, token)
+    const wynik = { ok: true, statusy, pobrane, zapisane, nowe, dociagniete, paczki, od: new Date(od * 1000).toISOString().slice(0, 10), ms: Date.now() - t0 }
     await zapiszWynik(db, wynik, null)
     return odp(200, wynik)
   } catch (e) {
@@ -259,4 +266,36 @@ async function dociagnijOtwarte(db: SupabaseClient, token: string): Promise<numb
     if (zam.length) { await zapiszZamowienia(db, zam); n++ }
   }
   return n
+}
+
+type BlPaczka = {
+  package_id?: number; courier_package_nr?: string; courier_code?: string; courier_other_name?: string
+  tracking_status?: number; tracking_status_date?: number; is_return?: boolean
+}
+
+async function zapiszPaczki(db: SupabaseClient, token: string, blId: number) {
+  const r = await bl(token, 'getOrderPackages', { order_id: blId })
+  const lista = ((r.packages as BlPaczka[] | undefined) ?? []).map((p) => ({
+    nr: txt(p.courier_package_nr),
+    kurier: txt(p.courier_other_name) ?? txt(p.courier_code),
+    status: num(p.tracking_status) ?? 0,
+    status_at: dataUnix(p.tracking_status_date),
+    zwrot: p.is_return === true,
+  }))
+  const { error } = await db.from('zamowienia_sklep').update({ paczki: lista, paczki_at: new Date().toISOString() }).eq('bl_id', blId)
+  if (error) throw new Error('Zapis przesyłek: ' + error.message)
+}
+
+// Zamówienia z numerem paczki, których przesyłki nie były sprawdzane od godziny i nie są jeszcze doręczone / zwrócone.
+async function odswiezPaczki(db: SupabaseClient, token: string): Promise<number> {
+  const godzine = new Date(Date.now() - 55 * 60_000).toISOString()
+  const { data, error } = await db.from('zamowienia_sklep').select('bl_id, paczki, paczki_at')
+    .not('paczka_nr', 'is', null).or(`paczki_at.is.null,paczki_at.lt.${godzine}`)
+    .order('data_zlozenia', { ascending: false }).limit(300)
+  if (error || !data) return 0
+  const doSprawdzenia = (data as Array<{ bl_id: number; paczki: Array<{ status: number }> | null; paczki_at: string | null }>)
+    .filter((z) => !z.paczki_at || !(z.paczki ?? []).length || (z.paczki ?? []).some((p) => !PACZKA_KONIEC.has(Number(p.status))))
+    .slice(0, MAX_PACZEK)
+  for (const z of doSprawdzenia) await zapiszPaczki(db, token, Number(z.bl_id))
+  return doSprawdzenia.length
 }

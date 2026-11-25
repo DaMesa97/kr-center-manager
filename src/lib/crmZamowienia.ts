@@ -31,6 +31,8 @@ export type ZamowienieSklep = {
   uwagi_klienta: string | null
   uwagi_sklepu: string | null
   pola_dodatkowe: Record<string, unknown>
+  /** przesyłki z Baselinkera (getOrderPackages, crm-bl-sync co godzinę do doręczenia) */
+  paczki?: Paczka[] | null
   strona_klienta: string | null
   lead_id: string | null
   synced_at: string
@@ -98,6 +100,38 @@ export function oplacone(z: Pick<ZamowienieSklep, 'oplacone' | 'kwota' | 'pobran
   return k > 0 && Number(z.oplacone ?? 0) >= k - 0.5
 }
 
+// ---- przesyłki kurierskie (Tymek 25.11: „sprawdzać, czy jest list przewozowy, i oznaczać, że przygotowane do wysyłki”)
+
+export type Paczka = { nr: string | null; kurier: string | null; status: number; status_at: string | null; zwrot?: boolean }
+/** Stan wysyłki zamówienia złożony z jego przesyłek w Baselinkerze. */
+export type StanWysylki = 'brak' | 'list' | 'w_drodze' | 'doreczone' | 'problem'
+
+/** tracking_status z Baselinkera (getOrderPackages). 0 = brak skanu kuriera — u nas: list wygenerowany, paczka nie odebrana. */
+export const BL_STATUS_PACZKI: Record<number, string> = {
+  0: 'list wygenerowany', 1: 'list wygenerowany', 2: 'nadana', 3: 'nie doręczona', 4: 'w doręczeniu', 5: 'doręczona',
+  6: 'zwrot', 7: 'awizo', 8: 'czeka w punkcie', 9: 'zagubiona', 10: 'anulowana', 11: 'w drodze',
+}
+
+export const STAN_WYSYLKI: Record<StanWysylki, { label: string; cls: string; title: string }> = {
+  brak: { label: '—', cls: '', title: 'Brak listu przewozowego w Baselinkerze' },
+  list: { label: 'List gotowy', cls: 'crm-status--sent', title: 'List przewozowy wygenerowany — przygotowane do wysyłki, kurier jeszcze nie odebrał' },
+  w_drodze: { label: 'U kuriera', cls: 'crm-status--working', title: 'Paczka nadana / w drodze / w doręczeniu' },
+  doreczone: { label: 'Doręczone', cls: 'crm-status--won', title: 'Kurier doręczył wszystkie paczki' },
+  problem: { label: 'Problem z paczką', cls: 'crm-status--lost', title: 'Nie doręczona, zwrot albo zagubiona' },
+}
+
+const PACZKA_PROBLEM = new Set([3, 6, 9])
+const PACZKA_W_DRODZE = new Set([2, 4, 7, 8, 11])
+
+export function stanWysylki(z: Pick<ZamowienieSklep, 'paczki' | 'paczka_nr'>): StanWysylki {
+  const aktywne = (z.paczki ?? []).filter((p) => Number(p.status) !== 10)
+  if (aktywne.length === 0) return (z.paczki ?? []).length === 0 && z.paczka_nr ? 'list' : 'brak'
+  if (aktywne.some((p) => PACZKA_PROBLEM.has(Number(p.status)) || p.zwrot)) return 'problem'
+  if (aktywne.every((p) => Number(p.status) === 5)) return 'doreczone'
+  if (aktywne.some((p) => PACZKA_W_DRODZE.has(Number(p.status)) || Number(p.status) === 5)) return 'w_drodze'
+  return 'list'
+}
+
 export function stanZamowienia(z: ZamowienieSklep, zlecenia: Order[], reklamacjeOtwarte: number, statusNazwa: string | null): StanZamowienia {
   const aktywne = zlecenia.filter((o) => stanZlecenia(o) !== 'anulowane')
   if (zlecenia.length > 0 && aktywne.length === 0) return 'anulowane'
@@ -107,6 +141,9 @@ export function stanZamowienia(z: ZamowienieSklep, zlecenia: Order[], reklamacje
   }
   if (reklamacjeOtwarte > 0) return 'reklamacja'
   const stany = aktywne.map(stanZlecenia)
+  // paczka u kuriera albo doręczona = towar wyjechał, nawet gdy biurko logistyki nie odhaczyło wyjazdu
+  const wys = stanWysylki(z)
+  if (wys === 'w_drodze' || wys === 'doreczone') return 'wyslane'
   if (stany.every((s) => s === 'wyslane')) return 'wyslane'
   if (stany.every((s) => s === 'wyslane' || s === 'gotowe')) return 'gotowe'
   if (stany.some((s) => s === 'wyslane' || s === 'gotowe')) return 'czesc'
@@ -136,7 +173,26 @@ export function uwagiZamowienia(
     const otwarte = zlecenia.filter((o) => { const s = stanZlecenia(o); return s === 'prod' || s === 'gotowe' })
     if (otwarte.length > 0) out.push(`anulowane w sklepie, a zlecenie KR ${otwarte.map((o) => `${o.category} ${o.order_number}`).join(', ')} dalej otwarte`)
   }
+  if (stanWysylki(z) === 'problem') {
+    const p = (z.paczki ?? []).find((x) => PACZKA_PROBLEM.has(Number(x.status)) || x.zwrot)
+    if (!/zrealiz/i.test(statusNazwa ?? '') && !anulowaneWSklepie) {
+      out.push(`przesyłka ${p?.nr ?? ''}: ${p ? (p.zwrot ? 'zwrot' : BL_STATUS_PACZKI[Number(p.status)] ?? `status ${p.status}`) : 'problem'}`.replace(/\s+:/, ':'))
+    }
+  }
+  if (stanWysylki(z) === 'list' && stan === 'prod') {
+    out.push('list przewozowy już jest, a zlecenie KR jeszcze w produkcji')
+  }
   return out
+}
+
+/** Termin z przesyłki kurierskiej (pierwszeństwo przed biurkiem logistyki), null gdy brak paczki w drodze / doręczonej. */
+export function terminWysylki(z: Pick<ZamowienieSklep, 'paczki' | 'paczka_nr'>): string | null {
+  const s = stanWysylki(z)
+  if (s !== 'w_drodze' && s !== 'doreczone') return null
+  const daty = (z.paczki ?? []).map((p) => p.status_at).filter(Boolean).sort() as string[]
+  const ost = daty[daty.length - 1]
+  const d = ost ? new Date(ost).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' }) : ''
+  return s === 'doreczone' ? `doręczone ${d}`.trim() : `u kuriera${d ? ` (${d})` : ''}`
 }
 
 /** Krótki termin / stan wyjazdu do kolumny „Termin”. */

@@ -293,6 +293,11 @@ Status produkcji i „wymaga uwagi” liczy aplikacja (`src/lib/crmZamowienia.ts
 `crm.klient_zamowienia_sklep` znajduje albo zakłada klienta (zrodlo `inne`, kampania `sklep`,
 od razu „wygrany”). Migracja: `crm_zamowienia_sklep` (konektor). Etap 2 (zmiana statusu w BL,
 mail, reklamacja z karty) wymaga osobnego zapisu do API — dziś funkcja niczego w BL nie zmienia.
+Przesyłki (beta.155, migracja `crm_zamowienia_sklep_paczki`): dla zamówień z `paczka_nr` funkcja woła
+`getOrderPackages` najwyżej co godzinę (`paczki_at`), aż wszystkie paczki mają tracking_status 5/6/9/10, max 40 zamówień
+na przebieg; wynik w `crm.zamowienia_sklep.paczki` (`[{nr, kurier, status, status_at, zwrot}]`). Kody BL: 0/1 list
+wygenerowany, 2 nadana, 3 nie doręczona, 4 w doręczeniu, 5 doręczona, 6 zwrot, 7 awizo, 8 w punkcie, 9 zagubiona,
+10 anulowana, 11 w drodze. Kurier sklepu to Rohlig Suus (`rohligsuus`), który zwraca 0, dopóki nie zeskanuje paczki.
 
 ## 5. Rekordy łączone (Disting Plus, Titan)
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Order } from '../types'
 import { createEmptyProductionStages } from '../utils'
-import { pasujeDoKlienta, slowaNazwiska, stanZamowienia, stanZlecenia, terminZamowienia, uwagiZamowienia, type ZamowienieSklep } from '../lib/crmZamowienia'
+import { pasujeDoKlienta, slowaNazwiska, stanWysylki, stanZamowienia, stanZlecenia, terminWysylki, terminZamowienia, uwagiZamowienia, type Paczka, type ZamowienieSklep } from '../lib/crmZamowienia'
 
 const TERAZ = Date.parse('2026-11-25T12:00:00Z')
 
@@ -90,5 +90,28 @@ describe('termin i dopasowanie po nazwisku', () => {
     expect(slowaNazwiska('MICHALIK DARIUSZ')).toEqual(['MICHALIK', 'DARIUSZ'])
     expect(pasujeDoKlienta(zam({ klient: 'Dariusz Michalik' }), slowaNazwiska('MICHALIK DARIUSZ'))).toBe(true)
     expect(pasujeDoKlienta(zam(), slowaNazwiska('DONALSKA'))).toBe(false)
+  })
+})
+
+describe('przesyłki z Baselinkera (list przewozowy)', () => {
+  const pk = (status: number, extra: Partial<Paczka> = {}): Paczka => ({ nr: 'MKRI1', kurier: 'rohligsuus', status, status_at: '2026-11-24T10:00:00Z', ...extra })
+  it('stan wysyłki z paczek', () => {
+    expect(stanWysylki({ paczki: [], paczka_nr: null })).toBe('brak')
+    expect(stanWysylki({ paczki: [], paczka_nr: 'MKRI1' })).toBe('list')
+    expect(stanWysylki({ paczki: [pk(0)], paczka_nr: 'MKRI1' })).toBe('list')
+    expect(stanWysylki({ paczki: [pk(11)], paczka_nr: 'MKRI1' })).toBe('w_drodze')
+    expect(stanWysylki({ paczki: [pk(5), pk(0)], paczka_nr: 'MKRI1' })).toBe('w_drodze')
+    expect(stanWysylki({ paczki: [pk(5), pk(10)], paczka_nr: 'MKRI1' })).toBe('doreczone')
+    expect(stanWysylki({ paczki: [pk(6)], paczka_nr: 'MKRI1' })).toBe('problem')
+    expect(stanWysylki({ paczki: [pk(10)], paczka_nr: 'MKRI1' })).toBe('brak')
+  })
+  it('paczka u kuriera = wysłane; list przy zleceniu w produkcji i zwrot = uwaga', () => {
+    expect(stanZamowienia(zam({ paczki: [pk(11)] }), [zlecenie({ release_date: '2026-11-19' })], 0, 'W produkcji')).toBe('wyslane')
+    expect(stanZamowienia(zam({ paczki: [pk(0)] }), [zlecenie({ release_date: '2026-11-19' })], 0, 'W produkcji')).toBe('gotowe')
+    expect(uwagiZamowienia(zam({ paczki: [pk(0)] }), [zlecenie()], 'prod', 'W produkcji', TERAZ)).toContain('list przewozowy już jest, a zlecenie KR jeszcze w produkcji')
+    expect(uwagiZamowienia(zam({ paczki: [pk(6)] }), [], 'bez_produkcji', 'Wysłane', TERAZ)[0]).toMatch(/przesyłka MKRI1: zwrot/)
+    expect(uwagiZamowienia(zam({ paczki: [pk(6)] }), [], 'bez_produkcji', 'Zrealizowane', TERAZ)).toEqual([])
+    expect(uwagiZamowienia(zam({ paczki: [pk(6)] }), [], 'anulowane', 'Usunięte', TERAZ)).toEqual([])
+    expect(terminWysylki({ paczki: [pk(5)], paczka_nr: 'MKRI1' })).toMatch(/^doręczone 24\.11/)
   })
 })

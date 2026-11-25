@@ -20,8 +20,13 @@ import {
   pasujeDoKlienta,
   slowaNazwiska,
   stanZamowienia,
+  stanWysylki,
   stanZlecenia,
+  terminWysylki,
   terminZamowienia,
+  BL_STATUS_PACZKI,
+  STAN_WYSYLKI,
+  type StanWysylki,
   uwagiZamowienia,
   type Powiazanie,
   type ReklamacjaKr,
@@ -42,7 +47,7 @@ type Props = {
   onOpenOrder?: (o: Order) => void
 }
 
-type Filtr = 'wszystkie' | 'uwaga' | 'brak' | 'prod' | 'gotowe' | 'wyslane' | 'reklamacja' | 'bez_produkcji' | 'anulowane'
+type Filtr = 'wszystkie' | 'uwaga' | 'brak' | 'prod' | 'gotowe' | 'list' | 'wyslane' | 'reklamacja' | 'bez_produkcji' | 'anulowane'
 
 type Wiersz = {
   z: ZamowienieSklep
@@ -52,6 +57,7 @@ type Wiersz = {
   status: string | null
   uwagi: string[]
   termin: string
+  wysylka: StanWysylki
 }
 
 const fmtPln = (v: number | null | undefined): string =>
@@ -73,6 +79,7 @@ const FILTRY: Array<{ id: Filtr; label: string }> = [
   { id: 'brak', label: 'Brak zlecenia' },
   { id: 'prod', label: 'W produkcji' },
   { id: 'gotowe', label: 'Gotowe' },
+  { id: 'list', label: 'Przygotowane do wysyłki' },
   { id: 'wyslane', label: 'Wysłane' },
   { id: 'reklamacja', label: 'Reklamacje' },
   { id: 'bez_produkcji', label: 'Bez produkcji' },
@@ -84,6 +91,7 @@ function pasujeFiltr(w: Wiersz, f: Filtr): boolean {
     case 'wszystkie': return true
     case 'uwaga': return w.uwagi.length > 0
     case 'prod': return w.stan === 'prod' || w.stan === 'czesc'
+    case 'list': return w.wysylka === 'list'
     default: return w.stan === f
   }
 }
@@ -115,7 +123,7 @@ function zbuduj(panel: CrmZamowieniaPanel): { wiersze: Wiersz[]; sieroty: Order[
     const rekl = orders.flatMap((o) => reklPoZleceniu.get(Number(o.id)) ?? [])
     const status = z.status_id != null ? statusy.get(z.status_id) ?? `status ${z.status_id}` : null
     const stan = stanZamowienia(z, orders, rekl.filter((r) => !r.release_date).length, status)
-    return { z, zlecenia: zl, reklamacje: rekl, stan, status, uwagi: uwagiZamowienia(z, orders, stan, status, teraz), termin: terminZamowienia(orders) }
+    return { z, zlecenia: zl, reklamacje: rekl, stan, status, uwagi: uwagiZamowienia(z, orders, stan, status, teraz), termin: terminWysylki(z) ?? terminZamowienia(orders), wysylka: stanWysylki(z) }
   })
   // otwarte zlecenia Po Drzwi bez pary (bez numeru BL albo z numerem, którego nie ma w Baselinkerze);
   // przed pierwszym pobraniem z BL lista byłaby pełna fałszywych alarmów, więc wtedy pusta
@@ -165,7 +173,7 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
 
   const { wiersze, sieroty } = useMemo(() => (panel ? zbuduj(panel) : { wiersze: [], sieroty: [] }), [panel])
   const liczniki = useMemo(() => {
-    const m: Record<Filtr, number> = { wszystkie: 0, uwaga: 0, brak: 0, prod: 0, gotowe: 0, wyslane: 0, reklamacja: 0, bez_produkcji: 0, anulowane: 0 }
+    const m: Record<Filtr, number> = { wszystkie: 0, uwaga: 0, brak: 0, prod: 0, gotowe: 0, list: 0, wyslane: 0, reklamacja: 0, bez_produkcji: 0, anulowane: 0 }
     for (const w of wiersze) for (const f of FILTRY) if (pasujeFiltr(w, f.id)) m[f.id]++
     return m
   }, [wiersze])
@@ -261,6 +269,10 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
     {
       key: 'kr', label: 'Zlecenia KR',
       render: (w) => (w.zlecenia.length ? <span className="crm-zam-krs">{w.zlecenia.map(({ o }) => <ChipZlecenia key={o.id} o={o} />)}</span> : <span className="crm-muted">—</span>),
+    },
+    {
+      key: 'wysylka', label: 'Wysyłka', sortValue: (w) => w.wysylka,
+      render: (w) => { const s = STAN_WYSYLKI[w.wysylka]; return w.wysylka === 'brak' ? <span className="crm-muted">—</span> : <span className={`crm-status ${s.cls}`} title={`${s.title}${w.z.paczka_nr ? ` · ${w.z.paczka_nr}` : ''}`}>{s.label}</span> },
     },
     { key: 'termin', label: 'Termin', sortValue: (w) => w.termin, render: (w) => w.termin },
   ], [])
@@ -427,7 +439,6 @@ function KartaZamowienia({ w, pola, busy, onClose, onOdswiez, onKlient, onPowiaz
             <dt>Dostawa</dt><dd>{z.dostawa_metoda || '—'}{z.dostawa_cena ? ` (${fmtPln(z.dostawa_cena)})` : ''}</dd>
             <dt>Adres</dt><dd>{[z.adres, [z.kod, z.miasto].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—'}</dd>
             {z.punkt_odbioru && <><dt>Punkt</dt><dd>{z.punkt_odbioru}</dd></>}
-            {z.paczka_nr && <><dt>Paczka</dt><dd>{z.paczka_nr}</dd></>}
             <dt>Płatność</dt><dd>{z.platnosc_metoda || '—'} · {z.pobranie ? 'pobranie' : `wpłacono ${fmtPln(z.oplacone)}`} z {fmtPln(z.kwota)}</dd>
             {z.uwagi_klienta && <><dt>Uwagi klienta</dt><dd>{z.uwagi_klienta}</dd></>}
             {z.uwagi_sklepu && <><dt>Uwagi sklepu</dt><dd>{z.uwagi_sklepu}</dd></>}
@@ -505,6 +516,24 @@ function KartaZamowienia({ w, pola, busy, onClose, onOdswiez, onKlient, onPowiaz
             </ul>
           )}
         </section>
+
+        {(w.wysylka !== 'brak' || (z.paczki ?? []).length > 0) && (
+          <section className="crm-k2-card">
+            <h4>Przesyłki <span className={`crm-status ${STAN_WYSYLKI[w.wysylka].cls}`}>{STAN_WYSYLKI[w.wysylka].label}</span></h4>
+            {(z.paczki ?? []).length === 0 ? (
+              <p className="crm-muted">List {z.paczka_nr} wygenerowany w Baselinkerze; status kuriera pojawi się przy następnym sprawdzeniu (co godzinę).</p>
+            ) : (
+              <ul className="crm-zam-poz">
+                {(z.paczki ?? []).map((p, i) => (
+                  <li key={i}>
+                    <span><b>{p.nr || '—'}</b> <span className="crm-muted">{p.kurier ?? ''}{p.zwrot ? ' · zwrot' : ''}</span></span>
+                    <span className="crm-zam-poz-k">{BL_STATUS_PACZKI[Number(p.status)] ?? `status ${p.status}`}{p.status_at ? ` · ${fmtDateTime(p.status_at)}` : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {w.reklamacje.length > 0 && (
           <section className="crm-k2-card">

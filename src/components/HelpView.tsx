@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM → Zamówienia: list przewozowy i przesyłki kurierskie (beta.155)</h4>
+        <ul>
+          <li>Nowa kolumna <b>Wysyłka</b> ze stanem przesyłek z Baselinkera: <b>List gotowy</b> (list przewozowy wygenerowany, kurier jeszcze nie odebrał — przygotowane do wysyłki), <b>U kuriera</b>, <b>Doręczone</b>, <b>Problem z paczką</b> (nie doręczona, zwrot, zagubiona). Nowy filtr „Przygotowane do wysyłki”.</li>
+          <li>Paczka u kuriera albo doręczona oznacza zamówienie jako <b>Wysłane</b>, a w kolumnie Termin pokazuje „u kuriera (data)” albo „doręczone data”.</li>
+          <li>W karcie zamówienia sekcja <b>Przesyłki</b>: numer listu, kurier, status i data ostatniego skanu. Statusy przesyłek sprawdzają się co godzinę, aż paczka dojdzie; „Odśwież z Baselinkera” w karcie sprawdza od razu.</li>
+          <li>Wymaga uwagi: zwrot / niedoręczona / zagubiona paczka (poza zamówieniami zrealizowanymi i usuniętymi) oraz list przewozowy wygenerowany, gdy zlecenie KR jest jeszcze w produkcji (zwykle nieodhaczone etapy).</li>
+        </ul>
         <h4>CRM → Zamówienia: mniej fałszywych „Brak zlecenia” (beta.154)</h4>
         <ul>
           <li>Po pierwszym pobraniu z Baselinkera: drzwi wewnętrzne „Dostępne od ręki” (z magazynu) i akcesoria „do drzwi” (okapnik, wizjer, podwalina) mają status <b>Bez produkcji</b>, nie „Brak zlecenia”. Zlecenia wymagają tylko drzwi zewnętrzne i wewnątrzklatkowe (Bastion, Titan).</li>

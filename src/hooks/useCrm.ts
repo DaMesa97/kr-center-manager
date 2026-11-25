@@ -1090,7 +1090,7 @@ export async function retryMailAnaliza(id: string): Promise<CrmError | null> {
 // ---- Zamówienia ze sklepu (Baselinker → crm.zamowienia_sklep, #144/#153) ----
 
 const ZAMOWIENIE_COLS =
-  'bl_id, shop_order_id, status_id, potwierdzone, data_zlozenia, data_potwierdzenia, data_statusu, klient, firma, email, telefon, adres, kod, miasto, dostawa_metoda, dostawa_cena, paczka_nr, punkt_odbioru, platnosc_metoda, pobranie, oplacone, kwota, waluta, pozycje, uwagi_klienta, uwagi_sklepu, pola_dodatkowe, strona_klienta, lead_id, synced_at'
+  'bl_id, shop_order_id, status_id, potwierdzone, data_zlozenia, data_potwierdzenia, data_statusu, klient, firma, email, telefon, adres, kod, miasto, dostawa_metoda, dostawa_cena, paczka_nr, punkt_odbioru, platnosc_metoda, pobranie, oplacone, kwota, waluta, pozycje, uwagi_klienta, uwagi_sklepu, pola_dodatkowe, strona_klienta, lead_id, synced_at, paczki'
 const PO_DRZWI_OR = 'company.ilike.%PO%DRZWI%,company.ilike.%PODRZWI%'
 
 const kawalki = <T,>(xs: T[], n: number): T[][] => {
