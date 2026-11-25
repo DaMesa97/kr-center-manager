@@ -56,7 +56,7 @@ export type StanZamowienia = 'brak' | 'bez_produkcji' | 'prod' | 'czesc' | 'goto
 
 export const STAN_ZAMOWIENIA: Record<StanZamowienia, { label: string; cls: string; title: string }> = {
   brak: { label: 'Brak zlecenia', cls: 'crm-status--todo', title: 'Drzwi w zamówieniu, a w KR Center nie ma jeszcze zlecenia' },
-  bez_produkcji: { label: 'Bez produkcji', cls: 'crm-status--muted', title: 'Zamówienie bez zlecenia KR (akcesoria albo jeszcze nie wysłane na produkcję)' },
+  bez_produkcji: { label: 'Bez produkcji', cls: 'crm-status--muted', title: 'Zamówienie bez zlecenia KR: drzwi „od ręki” z magazynu, akcesoria albo sprawa zamknięta w sklepie' },
   prod: { label: 'W produkcji', cls: 'crm-status--working', title: 'Zlecenia KR w toku' },
   czesc: { label: 'Częściowo gotowe', cls: 'crm-status--todo', title: 'Część zleceń gotowa, część jeszcze w produkcji' },
   gotowe: { label: 'Gotowe', cls: 'crm-status--sent', title: 'Wszystkie zlecenia wydane z produkcji, czekają na wyjazd' },
@@ -75,11 +75,21 @@ export function stanZlecenia(o: Order): StanZlecenia {
   return c.total > 0 && c.completed >= c.total ? 'gotowe' : 'prod'
 }
 
-const ANUL_RE = /anul/i
-const DRZWI_RE = /drzwi|skrzyd[łl]o|o[śs]cie[żz]nic/i
+// Statusy BL (25.11, pierwsze pobranie): „Anulowane” i „Usunięte” = zamówienie nie idzie; „Zrealizowane” i „Wysłane”
+// = sklep zamknął sprawę, więc brak zlecenia KR nie jest już alarmem.
+const ANUL_RE = /anul|usuni/i
+const KONCOWY_RE = /anul|usuni|zrealiz|wys[łl]ane/i
+// Pozycja produkowana w KR Center: drzwi zewnętrzne i wewnątrzklatkowe (Bastion, Titan). Drzwi wewnętrzne „Dostępne od ręki”
+// idą z magazynu, a okapnik / wizjer / podwalina „do drzwi” to akcesoria — te nie potrzebują zlecenia.
+const PRODUKCJA_RE = /drzwi\s+(zewn|wewn[aą]trzklat)|bastion|titan/i
+const NIE_PRODUKCJA_RE = /od r[eę]ki|\bdo drzwi\b/i
 
 export function maDrzwi(z: Pick<ZamowienieSklep, 'pozycje'>): boolean {
-  return (z.pozycje ?? []).some((p) => DRZWI_RE.test(p.nazwa ?? ''))
+  return (z.pozycje ?? []).some((p) => PRODUKCJA_RE.test(p.nazwa ?? '') && !NIE_PRODUKCJA_RE.test(p.nazwa ?? ''))
+}
+
+export function statusKoncowy(statusNazwa: string | null): boolean {
+  return !!statusNazwa && KONCOWY_RE.test(statusNazwa)
 }
 
 export function oplacone(z: Pick<ZamowienieSklep, 'oplacone' | 'kwota' | 'pobranie'>): boolean {
@@ -93,7 +103,7 @@ export function stanZamowienia(z: ZamowienieSklep, zlecenia: Order[], reklamacje
   if (zlecenia.length > 0 && aktywne.length === 0) return 'anulowane'
   if (aktywne.length === 0) {
     if (statusNazwa && ANUL_RE.test(statusNazwa)) return 'anulowane'
-    return maDrzwi(z) ? 'brak' : 'bez_produkcji'
+    return maDrzwi(z) && !statusKoncowy(statusNazwa) ? 'brak' : 'bez_produkcji'
   }
   if (reklamacjeOtwarte > 0) return 'reklamacja'
   const stany = aktywne.map(stanZlecenia)

@@ -310,7 +310,10 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
             {uwagiLista.length > 12 && <li className="crm-muted">…i {uwagiLista.length - 12} więcej (filtr „Wymagają uwagi”)</li>}
             {sieroty.map((o) => (
               <li key={`o${o.id}`}>
-                zlecenie KR <b>{o.category} {o.order_number}</b> „{o.client_order_number || 'bez numeru klienta'}” ({fmtDate(o.order_date)}) nie ma pary w zamówieniach sklepu ·{' '}
+                zlecenie KR <b>{o.category} {o.order_number}</b> „{o.client_order_number || 'bez numeru klienta'}” ({fmtDate(o.order_date)}){' '}
+                {/^\s*\d{8}(\D|$)/.test(o.client_order_number ?? '')
+                  ? 'otwarte, a jego zamówienia nie ma w Baselinkerze (archiwum BL albo zlecenie do zamknięcia)'
+                  : 'nie ma pary w zamówieniach sklepu'} ·{' '}
                 <button type="button" className="crm-link" onClick={() => setSierotaDoPowiazania(o)}>powiąż</button>
                 {onOpenOrder && <> · <button type="button" className="crm-link" onClick={() => onOpenOrder(o)}>otwórz zlecenie</button></>}
               </li>

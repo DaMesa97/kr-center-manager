@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM → Zamówienia: mniej fałszywych „Brak zlecenia” (beta.154)</h4>
+        <ul>
+          <li>Po pierwszym pobraniu z Baselinkera: drzwi wewnętrzne „Dostępne od ręki” (z magazynu) i akcesoria „do drzwi” (okapnik, wizjer, podwalina) mają status <b>Bez produkcji</b>, nie „Brak zlecenia”. Zlecenia wymagają tylko drzwi zewnętrzne i wewnątrzklatkowe (Bastion, Titan).</li>
+          <li>Zamówienie bez zlecenia ze statusem w sklepie „Zrealizowane” albo „Wysłane” nie jest już alarmem; „Usunięte” liczy się jak anulowane.</li>
+          <li>Otwarte zlecenie z numerem BL, którego zamówienia nie ma w Baselinkerze (stare, w archiwum BL), ma w pasku „wymaga uwagi” własny opis — to zwykle zlecenie do zamknięcia.</li>
+        </ul>
         <h4>CRM: zakładka Zamówienia — zamówienia ze sklepu razem z produkcją (beta.153)</h4>
         <ul>
           <li><b>CRM Po Drzwi → Zamówienia</b> (#144/#153): każde zamówienie z Baselinkera od 1.11 (także akcesoria) z tym, co dzieje się z nim w KR Center. W wierszu: numer BL, klient, co zamówił, kwota i wpłata, status w sklepie, <b>status produkcji jednym słowem</b> (Brak zlecenia / W produkcji / Częściowo gotowe / Gotowe / Wysłane / Reklamacja / Bez produkcji / Anulowane), zlecenia KR z paskiem etapów i termin (dzień produkcji, „na magazynie od”, „wyjechało” z trasą).</li>

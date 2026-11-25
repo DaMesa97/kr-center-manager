@@ -43,6 +43,16 @@ describe('status zamówienia sklepu', () => {
     expect(stanZamowienia(zam(), [], 0, 'Nowe')).toBe('brak')
     expect(stanZamowienia(zam({ pozycje: [{ nazwa: 'Wkładka WILKA', atrybuty: null, sku: null, ilosc: 1, cena: 100 }] }), [], 0, 'Nowe')).toBe('bez_produkcji')
     expect(stanZamowienia(zam(), [], 0, 'Anulowane')).toBe('anulowane')
+    expect(stanZamowienia(zam(), [], 0, 'Usunięte')).toBe('anulowane')
+  })
+  it('drzwi „od ręki” i akcesoria „do drzwi” nie potrzebują zlecenia; status końcowy w sklepie gasi „brak”', () => {
+    const p = (nazwa: string) => zam({ pozycje: [{ nazwa, atrybuty: null, sku: null, ilosc: 1, cena: 1 }] })
+    expect(stanZamowienia(p('⭐️Dostępne od ręki!⭐️ Drzwi wewnętrzne ramiakowe przylgowe – Rivoli'), [], 0, 'W przygotowaniu')).toBe('bez_produkcji')
+    expect(stanZamowienia(p('Okapnik do drzwi zewnętrznych'), [], 0, 'Nowe')).toBe('bez_produkcji')
+    expect(stanZamowienia(p('Podwalina EPS Klinaryt do drzwi ALU/WOOD'), [], 0, 'Do zamówienia')).toBe('bez_produkcji')
+    expect(stanZamowienia(p('Drzwi wewnątrzklatkowe drewniane Bastion STD-01 akustyczne'), [], 0, 'W produkcji')).toBe('brak')
+    expect(stanZamowienia(p('JESIENNA PROMOCJA Drzwi zewnętrzne do domu Otto 35'), [], 0, 'Do zamówienia')).toBe('brak')
+    expect(stanZamowienia(p('Drzwi zewnętrzne do domu Otto 35'), [], 0, 'Zrealizowane')).toBe('bez_produkcji')
   })
   it('zestaw: część gotowa = częściowo, wszystko wyjechało = wysłane, reklamacja wygrywa', () => {
     const a = zlecenie({ id: 1, release_date: '2026-11-19' })
