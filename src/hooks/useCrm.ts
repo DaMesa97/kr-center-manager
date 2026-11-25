@@ -30,6 +30,8 @@ import { fnErrorMessage } from '../lib/fnError'
 import { normalizePlPhone } from '../utils/crmPhone'
 import { isoLocal } from '../utils/crmTermin'
 import { fetchAllPages } from '../lib/fetchPaged'
+import type { Order } from '../types'
+import type { BlStatus, Powiazanie, ReklamacjaKr, ZamowienieSklep } from '../lib/crmZamowienia'
 
 const crm = () => supabase.schema('crm')
 
@@ -1082,5 +1084,108 @@ export async function fetchPoprawkiOstatnie(): Promise<Result<CrmPoprawkaRow[]>>
 /** „Analizuj ponownie”: status → 'nowy', trigger w bazie sam zleca analizę (tylko przychodzące). */
 export async function retryMailAnaliza(id: string): Promise<CrmError | null> {
   const { error } = await crm().from('maile').update({ status_przetwarzania: 'nowy' }).eq('id', id)
+  return crmErrorFrom(error)
+}
+
+// ---- Zamówienia ze sklepu (Baselinker → crm.zamowienia_sklep, #144/#153) ----
+
+const ZAMOWIENIE_COLS =
+  'bl_id, shop_order_id, status_id, potwierdzone, data_zlozenia, data_potwierdzenia, data_statusu, klient, firma, email, telefon, adres, kod, miasto, dostawa_metoda, dostawa_cena, paczka_nr, punkt_odbioru, platnosc_metoda, pobranie, oplacone, kwota, waluta, pozycje, uwagi_klienta, uwagi_sklepu, pola_dodatkowe, strona_klienta, lead_id, synced_at'
+const PO_DRZWI_OR = 'company.ilike.%PO%DRZWI%,company.ilike.%PODRZWI%'
+
+const kawalki = <T,>(xs: T[], n: number): T[][] => {
+  const out: T[][] = []
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n))
+  return out
+}
+
+export type CrmZamowieniaPanel = {
+  zamowienia: ZamowienieSklep[]
+  statusy: BlStatus[]
+  powiazania: Powiazanie[]
+  /** zlecenia KR spięte z zamówieniami + otwarte zlecenia Po Drzwi bez pary */
+  zlecenia: Order[]
+  reklamacje: ReklamacjaKr[]
+  /** crm.ustawienia bl_* (token ustawiony, ostatni przebieg, błąd, nazwy pól dodatkowych) */
+  ustawienia: Record<string, string>
+}
+
+export async function fetchZamowieniaPanel(): Promise<Result<CrmZamowieniaPanel>> {
+  const pusty: CrmZamowieniaPanel = { zamowienia: [], statusy: [], powiazania: [], zlecenia: [], reklamacje: [], ustawienia: {} }
+  const [zam, st, pow, ust, sieroty] = await Promise.all([
+    fetchAllPages<ZamowienieSklep>((from, to) =>
+      crm().from('zamowienia_sklep').select(ZAMOWIENIE_COLS).order('data_zlozenia', { ascending: false }).order('bl_id', { ascending: false }).range(from, to) as unknown as PromiseLike<{ data: ZamowienieSklep[] | null; error: { message: string; code?: string } | null }>),
+    crm().from('bl_statusy').select('id, nazwa, nazwa_klient, kolor, kolejnosc').order('kolejnosc'),
+    fetchAllPages<Powiazanie>((from, to) =>
+      crm().from('v_zamowienia_sklep_zlecenia').select('bl_id, order_id, powiazanie').order('bl_id').order('order_id').range(from, to) as unknown as PromiseLike<{ data: Powiazanie[] | null; error: { message: string; code?: string } | null }>),
+    crm().from('ustawienia').select('klucz, wartosc').like('klucz', 'bl_%'),
+    supabase.from('orders').select('*').is('release_date', null).or(PO_DRZWI_OR).limit(1000),
+  ])
+  const err = zam.error ?? st.error ?? pow.error ?? ust.error ?? sieroty.error
+  if (err) return { data: pusty, error: crmErrorFrom(err as { code?: string; message?: string }) }
+
+  const blIds = new Set(zam.data.map((z) => Number(z.bl_id)))
+  const powiazania = pow.data.filter((p) => blIds.has(Number(p.bl_id)))
+  const mamy = new Map<number, Order>(((sieroty.data ?? []) as Order[]).map((o) => [Number(o.id), o]))
+  const brakuje = [...new Set(powiazania.map((p) => Number(p.order_id)))].filter((id) => !mamy.has(id))
+  for (const ids of kawalki(brakuje, 150)) {
+    const { data, error } = await supabase.from('orders').select('*').in('id', ids)
+    if (error) return { data: pusty, error: crmErrorFrom(error) }
+    for (const o of (data ?? []) as Order[]) mamy.set(Number(o.id), o)
+  }
+  const reklamacje: ReklamacjaKr[] = []
+  for (const ids of kawalki([...mamy.keys()], 150)) {
+    const { data, error } = await supabase.from('complaints')
+      .select('id, complaint_number, complaint_date, order_id, category, what_complained, reason, release_date').in('order_id', ids)
+    if (error) return { data: pusty, error: crmErrorFrom(error) }
+    reklamacje.push(...((data ?? []) as ReklamacjaKr[]))
+  }
+  const ustawienia: Record<string, string> = {}
+  for (const r of (ust.data ?? []) as Array<{ klucz: string; wartosc: string | null }>) ustawienia[r.klucz] = r.wartosc ?? ''
+  return {
+    data: { zamowienia: zam.data, statusy: (st.data ?? []) as BlStatus[], powiazania, zlecenia: [...mamy.values()], reklamacje, ustawienia },
+    error: null,
+  }
+}
+
+/** „Odśwież z Baselinkera”: całość (bez numeru) albo jedno zamówienie. Funkcja działa w tle (pg_net) — wynik po chwili w tabeli. */
+export async function odswiezZamowieniaBl(blId?: number): Promise<CrmError | null> {
+  const { error } = await crm().rpc('odswiez_zamowienia_bl', { p_bl_id: blId ?? null })
+  return crmErrorFrom(error)
+}
+
+/** Klient zamówienia w CRM: istniejący po telefonie / mailu albo nowy (wygrany). Zwraca id leada. */
+export async function klientZamowieniaSklep(blId: number): Promise<Result<string | null>> {
+  const { data, error } = await crm().rpc('klient_zamowienia_sklep', { p_bl_id: blId })
+  return { data: typeof data === 'string' ? data : null, error: crmErrorFrom(error) }
+}
+
+/** Ręczne spięcie zlecenia KR z zamówieniem BL (albo cofnięcie odpięcia). */
+export async function powiazZlecenie(blId: number, orderId: number): Promise<CrmError | null> {
+  const { error } = await crm().from('zamowienia_sklep_zlecenia').upsert({ bl_id: blId, order_id: orderId, rodzaj: 'dodane', kiedy: new Date().toISOString() }, { onConflict: 'bl_id,order_id' })
+  return crmErrorFrom(error)
+}
+
+/** Odpięcie: ręczne powiązanie znika, automatyczne (po numerze BL) dostaje wpis „odpiete”. */
+export async function odepnijZlecenie(blId: number, orderId: number, powiazanie: Powiazanie['powiazanie']): Promise<CrmError | null> {
+  const { error } = powiazanie === 'reczne'
+    ? await crm().from('zamowienia_sklep_zlecenia').delete().eq('bl_id', blId).eq('order_id', orderId)
+    : await crm().from('zamowienia_sklep_zlecenia').upsert({ bl_id: blId, order_id: orderId, rodzaj: 'odpiete', kiedy: new Date().toISOString() }, { onConflict: 'bl_id,order_id' })
+  return crmErrorFrom(error)
+}
+
+/** Szukanie zlecenia KR Po Drzwi do ręcznego powiązania (numer zlecenia, numer klienta, nazwisko). */
+export async function szukajZlecenPoDrzwi(fraza: string): Promise<Result<Order[]>> {
+  const q = fraza.trim().replace(/[%,()]/g, ' ').trim()
+  if (q.length < 2) return { data: [], error: null }
+  const { data, error } = await supabase.from('orders').select('*')
+    .or(`order_number.eq."${q}",client_order_number.ilike."%${q}%"`).order('id', { ascending: false }).limit(60)
+  const poDrzwi = ((data ?? []) as Order[]).filter((o) => /PO\s*DRZWI|PODRZWI/i.test(o.company ?? '')).slice(0, 20)
+  return { data: poDrzwi, error: crmErrorFrom(error) }
+}
+
+/** Ustawienia → Baselinker (tylko właściciel): token do sejfu (vault); pusty = usunięcie. Zapis od razu zleca synchronizację. */
+export async function ustawTokenBl(token: string): Promise<CrmError | null> {
+  const { error } = await crm().rpc('ustaw_token_bl', { p_token: token })
   return crmErrorFrom(error)
 }

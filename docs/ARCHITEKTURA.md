@@ -273,6 +273,27 @@ kolejnych przebiegach (data, powód, etapy, wydanie gdy w aplikacji puste); para
 (`summary.blad`) i NIE przerywa łańcucha wydań w Make (odpowiedź 200). Otwarte reklamacje
 (bez wydania) widać w zakładce Reklamacje i jako zadania naprawy na mobilnym.
 
+### 4d. Zamówienia ze sklepu (Baselinker) w CRM — tylko odczyt (od 25.11.2026, beta.153)
+Zgłoszenia #144/#153, etap 1. Edge Function `crm-bl-sync` (źródło w `supabase/functions/crm-bl-sync`,
+`verify_jwt: false`, autoryzacja nagłówkiem `x-internal-key` jak pozostałe funkcje CRM) czyta
+z API Baselinkera `getOrderStatusList`, `getOrderExtraFields` i `getOrders` (także niepotwierdzone,
+z polami dodatkowymi) od `max(crm.ustawienia.bl_sync_od = 2026-11-01, dziś − 60 dni)`, stronicując po
+`id_from`, i robi upsert do `crm.zamowienia_sklep` (klucz `bl_id`, pozycje w JSON, surowa odpowiedź
+w `surowe`) oraz `crm.bl_statusy`. Nowemu zamówieniu przypina klienta CRM (`lead_id`) po telefonie /
+mailu (`crm.znajdz_leada`, bez dopasowania po domenie). Woła ją pg_cron `crm_bl_sync` co 15 min,
+rpc `crm.odswiez_zamowienia_bl(p_bl_id)` (przycisk „Odśwież”) i zapis tokenu. Token: vault
+`crm_bl_token`, zapis tylko przez rpc `crm.ustaw_token_bl` (superadmin, CRM → Ustawienia →
+Baselinker), odczyt `crm.token_bl()` tylko dla service_role. Wynik ostatniego przebiegu w
+`crm.ustawienia` (`bl_sync_ostatni_at`, `bl_sync_ostatni_wynik`, `bl_sync_ostatni_blad`).
+Powiązanie ze zleceniami: widok `crm.v_zamowienia_sklep_zlecenia` (security invoker) = zlecenia,
+których `client_order_number` zaczyna się 8 cyframi numeru BL, a firma to PO DRZWI / PODRZWI
+(`crm.bl_id_zlecenia`), plus ręczne `dodane` i minus `odpiete` z `crm.zamowienia_sklep_zlecenia`.
+Status produkcji i „wymaga uwagi” liczy aplikacja (`src/lib/crmZamowienia.ts`, etapy przez
+`countCompletedStages`), ekran `src/components/crm/CrmZamowieniaScreen.tsx`. Rpc
+`crm.klient_zamowienia_sklep` znajduje albo zakłada klienta (zrodlo `inne`, kampania `sklep`,
+od razu „wygrany”). Migracja: `crm_zamowienia_sklep` (konektor). Etap 2 (zmiana statusu w BL,
+mail, reklamacja z karty) wymaga osobnego zapisu do API — dziś funkcja niczego w BL nie zmienia.
+
 ## 5. Rekordy łączone (Disting Plus, Titan)
 
 Rekordy łączone to **osobne wiersze** w `orders` spięte `linked_order_id`

@@ -30,6 +30,8 @@ import {
   testAlert,
   updateZasada,
   uploadLogo,
+  ustawTokenBl,
+  odswiezZamowieniaBl,
   type CrmError,
 } from '../../hooks/useCrm'
 import { openExternalUrl } from '../../hooks/useAluOrders'
@@ -44,7 +46,7 @@ type Props = {
   onOpenLead: (id: string) => void
 }
 
-type Tab = 'zasady' | 'alerty' | 'poprawki' | 'firma' | 'dni_wolne'
+type Tab = 'zasady' | 'alerty' | 'poprawki' | 'firma' | 'dni_wolne' | 'baselinker'
 
 const fmtDateTime = (iso: string | null | undefined): string => {
   if (!iso) return '—'
@@ -594,6 +596,76 @@ const fmtDzien = (iso: string): string => {
   return d.toLocaleDateString('pl-PL', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+// ---------------------------------------------------------------- Baselinker (25.11, #144/#153)
+
+function BaselinkerSection({ pushToast }: Pick<Props, 'pushToast'>) {
+  const [ust, setUst] = useState<Record<string, string>>({})
+  const [token, setToken] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<CrmError | null>(null)
+
+  const load = useCallback(async () => {
+    const { data, error: e } = await fetchUstawienia()
+    const m: Record<string, string> = {}
+    for (const r of data) if (r.klucz.startsWith('bl_')) m[r.klucz] = r.wartosc ?? ''
+    setUst(m)
+    setError(e)
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  const zapisz = async (wartosc: string) => {
+    if (!wartosc.trim()) {
+      const ok = await appConfirm('Synchronizacja z Baselinkerem stanie, a zakładka Zamówienia przestanie się odświeżać.', { title: 'Usunąć token Baselinkera?', confirmLabel: 'Usuń token', tone: 'danger' })
+      if (!ok) return
+    }
+    setBusy(true)
+    const e = await ustawTokenBl(wartosc)
+    setBusy(false)
+    if (e) { pushToast(`Nie udało się zapisać tokenu: ${e.message}`, 'error'); return }
+    setToken('')
+    pushToast(wartosc.trim() ? 'Token zapisany w sejfie — pierwsze pobranie zamówień już trwa' : 'Token usunięty', 'success')
+    window.setTimeout(() => void load(), wartosc.trim() ? 10000 : 0)
+  }
+
+  const synchronizuj = async () => {
+    setBusy(true)
+    const e = await odswiezZamowieniaBl()
+    if (e) { setBusy(false); pushToast(`Nie udało się: ${e.message}`, 'error'); return }
+    window.setTimeout(() => { void load().then(() => setBusy(false)) }, 10000)
+  }
+
+  let wynik: { pobrane?: number; nowe?: number; statusy?: number; od?: string } | null = null
+  try { wynik = ust.bl_sync_ostatni_wynik ? JSON.parse(ust.bl_sync_ostatni_wynik) : null } catch { wynik = null }
+  const tokenOk = ust.bl_token_ustawiony === 'true'
+
+  return (
+    <section className="crm-box crm-pf">
+      <h5>Baselinker — zamówienia ze sklepu</h5>
+      <p className="crm-muted crm-pf-hint">
+        Zakładka <b>Zamówienia</b> pobiera zamówienia z Baselinkera co 15 minut (funkcja crm-bl-sync, tylko odczyt). Token API generujesz w panelu Baselinkera:
+        Moje konto → API → Wygeneruj token. Najlepiej osobny dla KR Center, nie ten z Make. Token trafia do sejfu Supabase i nie da się go stąd odczytać.
+      </p>
+      {error && <p className="crm-text-bad">{error.message}</p>}
+      <div className="crm-pf-grid">
+        <label className="crm-pf-field">
+          <span className="crm-pf-label">Token API {tokenOk ? '(zapisany — wpisz nowy, żeby zmienić)' : '(brak)'}</span>
+          <input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} disabled={busy} placeholder={tokenOk ? '••••••••' : 'wklej token z panelu Baselinkera'} />
+        </label>
+      </div>
+      <div className="crm-poczta-actions">
+        <button type="button" className="btn btn-sm btn-primary" disabled={busy || !token.trim()} onClick={() => void zapisz(token)}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz token</button>
+        {tokenOk && <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void synchronizuj()}><RefreshCw size={14} /> Pobierz teraz</button>}
+        {tokenOk && <button type="button" className="crm-link" disabled={busy} onClick={() => void zapisz('')}>usuń token</button>}
+      </div>
+      <dl className="crm-zam-kv">
+        <dt>Ostatnie pobranie</dt><dd>{ust.bl_sync_ostatni_at ? fmtDateTime(ust.bl_sync_ostatni_at) : '—'}</dd>
+        <dt>Wynik</dt><dd>{ust.bl_sync_ostatni_blad ? <span className="crm-text-bad">{ust.bl_sync_ostatni_blad}</span> : wynik ? `OK · ${wynik.pobrane ?? 0} zamówień (nowych ${wynik.nowe ?? 0}), ${wynik.statusy ?? 0} statusów, od ${wynik.od ?? '?'}` : '—'}</dd>
+        <dt>Zamówienia od</dt><dd>{ust.bl_sync_od || '—'} (albo ostatnie 60 dni, co później)</dd>
+      </dl>
+    </section>
+  )
+}
+
 function DniWolneSection({ pushToast }: Pick<Props, 'pushToast'>) {
   const [lista, setLista] = useState<CrmDzienWolny[]>([])
   const [loading, setLoading] = useState(true)
@@ -720,6 +792,7 @@ export default function CrmUstawieniaScreen({ currentUser, pushToast, onOpenOfer
     { id: 'poprawki', label: 'Poprawki' },
     { id: 'firma', label: 'Dane firmy' },
     { id: 'dni_wolne', label: 'Dni wolne' },
+    { id: 'baselinker', label: 'Baselinker' },
   ]
   return (
     <div className="crm-screen crm-ust">
@@ -735,6 +808,7 @@ export default function CrmUstawieniaScreen({ currentUser, pushToast, onOpenOfer
       {tab === 'poprawki' && <PoprawkiSection onOpenOferta={onOpenOferta} onOpenLead={onOpenLead} />}
       {tab === 'firma' && <FirmaSection pushToast={pushToast} />}
       {tab === 'dni_wolne' && <DniWolneSection pushToast={pushToast} />}
+      {tab === 'baselinker' && <BaselinkerSection pushToast={pushToast} />}
     </div>
   )
 }

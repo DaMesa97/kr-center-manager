@@ -10,7 +10,7 @@
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, Copy, RefreshCw, Phone, Mail, MessageCircle, ExternalLink, Check, UserPlus, FileText, Pencil, Trash2, Merge, Ruler } from 'lucide-react'
-import type { CurrentUser, ToastVariant } from '../../types'
+import type { CurrentUser, Order, ToastVariant } from '../../types'
 import {
   CRM_AKCJA,
   CRM_LEAD_STATUS,
@@ -93,6 +93,7 @@ import CrmUstawieniaScreen from './CrmUstawieniaScreen'
 import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import CrmKontaktyScreen from './CrmKontaktyScreen'
 import CrmStatystykiScreen from './CrmStatystykiScreen'
+import CrmZamowieniaScreen from './CrmZamowieniaScreen'
 import CrmKorespondencja from './CrmKorespondencja'
 import { ZADANIE_RODZAJE, zadaniePoCo, zadanieRodzaj, zadanieTytul, type ZadanieRodzaj } from '../../lib/crmZadania'
 import { ileOdm } from '../../utils/odmiana'
@@ -119,6 +120,8 @@ type Props = {
   currentUser: CurrentUser | null
   pushToast: (message: string, variant: ToastVariant) => void
   mode?: CrmMode
+  /** 25.11: „otwórz zlecenie” z zakładki Zamówienia — przejście do zlecenia w zakładce kategorii */
+  onOpenOrder?: (o: Order) => void
 }
 
 type Screen =
@@ -130,6 +133,7 @@ type Screen =
   | { kind: 'ustawienia' }
   | { kind: 'kontakty' }
   | { kind: 'statystyki' }
+  | { kind: 'zamowienia' }
   | { kind: 'oferta'; id: string }
   | { kind: 'lead'; id: string }
   | { kind: 'mail'; id: string }
@@ -2901,7 +2905,7 @@ function LeadScreen({
 
 // ---- KORZEŃ ----
 
-export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Props) {
+export default function CrmView({ currentUser, pushToast, mode = 'pelny', onOpenOrder }: Props) {
   const [screen, setScreen] = useState<Screen>({ kind: 'zadania' })
   // historia ekranów (zadania → lead → oferta…): „Wróć” cofa o jeden
   const [, setStack] = useState<Screen[]>([])
@@ -2924,12 +2928,12 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
   const zastapOferte = useCallback((id: string) => setScreen({ kind: 'oferta', id }), [])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
   const openMail = useCallback((id: string) => go({ kind: 'mail', id }), [go])
-  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia' | 'kontakty' | 'statystyki') => {
+  const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia' | 'kontakty' | 'statystyki' | 'zamowienia') => {
     setStack([])
     setScreen({ kind })
   }
   const topKind =
-    screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' || screen.kind === 'ustawienia' || screen.kind === 'kontakty' || screen.kind === 'statystyki'
+    screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' || screen.kind === 'ustawienia' || screen.kind === 'kontakty' || screen.kind === 'statystyki' || screen.kind === 'zamowienia'
       ? screen.kind
       : screen.kind === 'mail'
         ? 'maile'
@@ -2946,6 +2950,10 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
           </button>
           <button type="button" className={`crm-nav-btn${topKind === 'oferty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('oferty')}>
             Oferty
+          </button>
+          {/* 25.11 (#144/#153): zamówienia sklepu z Baselinkera + status produkcji w KR Center */}
+          <button type="button" className={`crm-nav-btn${topKind === 'zamowienia' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('zamowienia')} title="Zamówienia ze sklepu (Baselinker) i gdzie są na produkcji">
+            Zamówienia
           </button>
           {/* brief pkt 20: wszyscy klienci, także bez zadania */}
           <button type="button" className={`crm-nav-btn${topKind === 'kontakty' ? ' crm-nav-btn--active' : ''}`} onClick={() => goTop('kontakty')} title="Wszyscy klienci: lejek, lista, szukanie, filtry">
@@ -2978,6 +2986,7 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny' }: Prop
       {screen.kind === 'zadania' && <ZadaniaScreen mode={mode} currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'oferty' && <OfertyList mode={mode} onOpenOferta={openOferta} onOpenLead={openLead} />}
       {screen.kind === 'statystyki' && <CrmStatystykiScreen />}
+      {screen.kind === 'zamowienia' && <CrmZamowieniaScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOrder={onOpenOrder} />}
       {screen.kind === 'kontakty' && <CrmKontaktyScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'maile' && <CrmMaileScreen mode={mode} onOpenMail={openMail} onOpenLead={openLead} onOpenOferta={openOferta} />}
       {screen.kind === 'mail' && <CrmMailScreen id={screen.id} mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />}

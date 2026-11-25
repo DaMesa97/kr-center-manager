@@ -1159,6 +1159,11 @@ function App() {
     }
   }, [setActiveTab, setActiveSubTab, setSearchTerm, setShowCancelledOrders, setHideCompletedOrders, setSelectedProductionDay, setSourceFilter, setWykonawcaFilter])
 
+  // CRM → Zamówienia (25.11): „otwórz zlecenie” prowadzi do zakładki kategorii jak wynik szukania globalnego
+  const openOrderFromCrm = useCallback((o: Order) => {
+    handleGlobalSearchNavigate({ id: Number(o.id), order_number: o.order_number, category: o.category ?? '', company: o.company, model: o.model ?? null, system: o.system ?? null, client_order_number: o.client_order_number ?? null, release_date: o.release_date ?? null, extra_fields: o.extra_fields })
+  }, [handleGlobalSearchNavigate])
+
   // Bramka minimalnej wersji: migracje bazy wyprzedzają klientów — klient
   // starszy niż app_config.min_app_version dostaje blokadę zamiast pracować
   // na nieaktualnym formacie danych. Brak wiersza w configu = brak bramki.
@@ -3649,7 +3654,7 @@ function App() {
         ) : isZkpTab ? (
           <ZkpView currentUser={currentUser} isManager={isManager} pushToast={pushToast} />
         ) : isCrmTab && hasCrm ? (
-          <CrmView currentUser={currentUser} pushToast={pushToast} mode={isSuperadminRole(currentUser?.role) ? 'pelny' : 'handlowiec'} />
+          <CrmView currentUser={currentUser} pushToast={pushToast} mode={isSuperadminRole(currentUser?.role) ? 'pelny' : 'handlowiec'} onOpenOrder={openOrderFromCrm} />
         ) : isWarehouseTab ? (
           <WarehouseView
             isManager={isManager}

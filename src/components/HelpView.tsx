@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: zakładka Zamówienia — zamówienia ze sklepu razem z produkcją (beta.153)</h4>
+        <ul>
+          <li><b>CRM Po Drzwi → Zamówienia</b> (#144/#153): każde zamówienie z Baselinkera od 1.11 (także akcesoria) z tym, co dzieje się z nim w KR Center. W wierszu: numer BL, klient, co zamówił, kwota i wpłata, status w sklepie, <b>status produkcji jednym słowem</b> (Brak zlecenia / W produkcji / Częściowo gotowe / Gotowe / Wysłane / Reklamacja / Bez produkcji / Anulowane), zlecenia KR z paskiem etapów i termin (dzień produkcji, „na magazynie od”, „wyjechało” z trasą).</li>
+          <li><b>Wymaga uwagi:</b> opłacone ponad dobę temu, a nie ma zlecenia; gotowe albo wysłane, a w sklepie nadal status produkcyjny; anulowane w sklepie przy otwartym zleceniu; otwarte zlecenia Po Drzwi bez pary w sklepie (z przyciskiem „powiąż” i podpowiedzią po nazwisku).</li>
+          <li><b>Karta zamówienia</b> (kliknięcie wiersza): klient i dostawa, płatność, uwagi, pola dodatkowe z BL (np. RO, faktury), pozycje z atrybutami, zlecenia KR z etapami i RO, reklamacje. Przyciski: Odśwież z Baselinkera, Otwórz w Baselinkerze, Strona klienta, Klient w CRM (znajdzie po telefonie / mailu albo założy jako „Zamówił”), ręczne powiązanie i odpięcie zlecenia, „otwórz zlecenie” w zakładce kategorii.</li>
+          <li>Zlecenie łączy się z zamówieniem samo po 8-cyfrowym numerze BL na początku „nr zamówienia klienta” (tak zapisuje automat z Make). Dane z Baselinkera odświeżają się co 15 minut; aplikacja niczego w Baselinkerze nie zmienia (zmiana statusu, mail i reklamacja z karty to etap 2).</li>
+          <li><b>Ustawienia → Baselinker</b> (właściciel): token API Baselinkera trafia do sejfu Supabase; bez niego zakładka jest pusta. Tam też stan ostatniego pobrania i „Pobierz teraz”.</li>
+        </ul>
         <h4>Magazyn: minimum logistyczne komponentu, równe plakietki w NR ZLECENIA, Biurko logistyki (beta.152)</h4>
         <ul>
           <li><b>Tabele zleceń → NR ZLECENIA:</b> plakietki znów stoją w równych kolumienkach (Tymek 24.11): ⚠️ weryfikacji, wykonawca, 💬 komentarze (także z licznikiem) i status magazynu mają stałe miejsca; rzadkie plakietki (⚠ problem, „ark. N”) stoją na końcu, a RO z Optimy zawsze w osobnej linijce pod numerem.</li>
