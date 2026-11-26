@@ -1627,7 +1627,7 @@ function App() {
       return []
     }
     const query = searchTerm.trim().toLowerCase()
-    // #164 (Tymek 23.11): kilka słów = każde musi pasować do któregoś pola (np. „karmon torino” = firma + model)
+    // #164 (Tymek 23.11): kilka słów = każde musi pasować do któregoś pola (np. „231/11 antracyt” = numer RO + kolor)
     const terms = query.split(/\s+/).filter(Boolean)
     const filterByDay = selectedProductionDay !== 'Wszystkie dni'
     const dateRange = resolveDateRange(dateFilter)

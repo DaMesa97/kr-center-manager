@@ -63,8 +63,8 @@ export default function OrdersFilters({
       <input
         type="text"
         className="search-input"
-        placeholder="Szukaj: numer, firma, system, model, kolor… (kilka słów = wszystkie muszą pasować, np. karmon torino)"
-        title="Każde wpisane słowo musi pasować do któregoś pola zlecenia: „karmon torino” = firma Karmon i model Torino"
+        placeholder="Szukaj: numer, firma, system, model, kolor… (kilka słów = wszystkie muszą pasować, np. 231/11 antracyt)"
+        title="Każde wpisane słowo musi pasować do któregoś pola zlecenia: „231/11 antracyt” = numer RO i kolor"
         value={searchTerm}
         onChange={(event) => onSearchChange(event.target.value)}
         onKeyDown={(event) => {
