@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Telefon: przygotowanie do pakowania (beta.166)</h4>
+        <ul>
+          <li>W wersji na telefon (osobna strona mobile — na razie bez hostingu): <b>Zlecenia → Wewn.</b> → zlecenie → lista pozycji z dużymi polami do odznaczania (grupy jak na komputerze, „Zaznacz / Odznacz wszystkie”, kto i kiedy). Na liście zleceń widać „przygotowano 3/7” albo „✓ przygotowane”.</li>
+          <li>Lista Wewn. na telefonie nie pokazuje już RO zrealizowanych w Optimie (tak jak komputer).</li>
+        </ul>
         <h4>Drzwi wewnętrzne: przygotowanie do pakowania (beta.165)</h4>
         <ul>
           <li>W szczegółach zlecenia przy każdej pozycji jest checkbox <b>„przygotowane”</b> — magazyn odznacza drzwi, ościeżnice, klamki… przygotowane do pakowania (jest też „Zaznacz wszystkie”). Po najechaniu widać, kto i kiedy odznaczył.</li>

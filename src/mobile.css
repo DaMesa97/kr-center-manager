@@ -755,3 +755,25 @@ html, body, #root {
   color: #fff;
   font-weight: 700;
 }
+
+/* ── Wewn.: przygotowanie do pakowania (order_item_picks) ── */
+.mpick-info { padding: 0.8rem; color: #64748b; font-size: 0.85rem; }
+.mpick-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
+.mpick-badge { display: inline-block; align-self: flex-start; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #fef3c7; color: #b45309; }
+.mpick-badge--done { background: #dcfce7; color: #15803d; }
+.mpick-error { color: #b91c1c; font-size: 0.8rem; margin-bottom: 0.5rem; }
+.mpick-bulk { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+.mpick-bulk-btn { flex: 1; padding: 0.6rem; border-radius: 10px; border: none; background: #1b304a; color: #fff; font-weight: 700; font-size: 0.85rem; }
+.mpick-bulk-btn--ghost { background: #fff; color: #1b304a; border: 1px solid #cbd5e1; }
+.mpick-group { margin-top: 0.5rem; }
+.mpick-group-title { font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 0.3rem; }
+.mpick-group-title span { color: #94a3b8; font-weight: 600; margin-left: 0.3rem; }
+.mpick-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.65rem 0.2rem; border-top: 1px solid #f1f5f9; cursor: pointer; }
+.mpick-row input { width: 26px; height: 26px; flex-shrink: 0; accent-color: #16a34a; }
+.mpick-row--ro { cursor: default; }
+.mpick-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.mpick-row-name { font-size: 0.88rem; font-weight: 600; color: #1e293b; }
+.mpick-row--done .mpick-row-name { color: #94a3b8; text-decoration: line-through; }
+.mpick-row-notes { font-size: 0.75rem; color: #64748b; }
+.mpick-row-who { font-size: 0.7rem; color: #15803d; font-weight: 600; }
+.mpick-row-qty { font-size: 0.9rem; font-weight: 800; color: #1e293b; white-space: nowrap; }

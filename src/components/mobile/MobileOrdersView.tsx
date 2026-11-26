@@ -3,6 +3,9 @@ import { Search, ArrowLeft, RefreshCw } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { countCompletedStages, isReleaseDateEmpty, isRushOrderSequence } from '../../utils'
 import type { Order } from '../../types'
+import { isOptimaClosed } from '../../lib/optimaRo'
+import { groupPicks, pickProgress, type OrderPick } from '../../lib/orderPicks'
+import MobileIntDoorPicking from './MobileIntDoorPicking'
 
 const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'] as const
 
@@ -85,12 +88,42 @@ function detailSections(order: Order): { title: string; fields: Field[] }[] {
     .filter((s) => s.fields.length > 0)
 }
 
-export default function MobileOrdersView() {
+type Props = {
+  /** Wewn.: odznaczanie pozycji przygotowanych do pakowania (kierownik, magazyn) */
+  canPickItems?: boolean
+  initials?: string
+}
+
+type PickProg = { done: number; total: number; complete: boolean }
+
+/** Postęp przygotowania dla listy Wewn. (pozycje + odznaczenia otwartych zleceń, porcjami po 150 id). */
+async function loadPickProgress(orderIds: number[]): Promise<Map<number, PickProg>> {
+  const items: Array<{ id: number; order_id: number; optima_element_id: number | null }> = []
+  const picks: OrderPick[] = []
+  for (let i = 0; i < orderIds.length; i += 150) {
+    const part = orderIds.slice(i, i + 150)
+    const [it, pk] = await Promise.all([
+      supabase.from('order_internal_door_items').select('id, order_id, optima_element_id').in('order_id', part).limit(5000),
+      supabase.from('order_item_picks').select('order_id, line_key, picked_at, picked_by, picked_initials').in('order_id', part).limit(5000),
+    ])
+    items.push(...((it.data ?? []) as typeof items))
+    picks.push(...((pk.data ?? []) as OrderPick[]))
+  }
+  const byOrder = new Map<number, typeof items>()
+  for (const it of items) byOrder.set(it.order_id, [...(byOrder.get(it.order_id) ?? []), it])
+  const picksBy = groupPicks(picks)
+  const out = new Map<number, PickProg>()
+  for (const [id, its] of byOrder) out.set(id, pickProgress(its, picksBy.get(id)))
+  return out
+}
+
+export default function MobileOrdersView({ canPickItems = false, initials = '' }: Props = {}) {
   const [category, setCategory] = useState<string>('STA')
   const [query, setQuery] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Order | null>(null)
+  const [pickProg, setPickProg] = useState<Map<number, PickProg>>(new Map())
   const mountedRef = useRef(true)
 
   // wersja zapytania — szybkie przełączanie chipów kategorii nie może
@@ -130,9 +163,17 @@ export default function MobileOrdersView() {
       const extra = o.extra_fields as Record<string, unknown> | null
       if (extra?.cancelled === true) return false
       if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
+      // RO zrealizowane / zamknięte w Optimie (tysiące z importu) — jak na komputerze, poza listą
+      if (isOptimaClosed(o)) return false
       return true
     })
     setOrders(active)
+    if (cat === 'DrzwiWewnetrzne') {
+      const prog = await loadPickProgress(active.map((o) => o.id).filter((id): id is number => id != null))
+      if (mountedRef.current && version === loadVersionRef.current) setPickProg(prog)
+    } else {
+      setPickProg(new Map())
+    }
   }, [])
 
   useEffect(() => {
@@ -148,6 +189,7 @@ export default function MobileOrdersView() {
       (o) =>
         String(o.order_number ?? '').toLowerCase().includes(q) ||
         String(o.company ?? '').toLowerCase().includes(q) ||
+        String(o.client_order_number ?? '').toLowerCase().includes(q) ||
         String(o.model ?? '').toLowerCase().includes(q),
     )
   }, [orders, query])
@@ -157,7 +199,7 @@ export default function MobileOrdersView() {
     const sections = detailSections(selected)
     return (
       <div className="morders-detail">
-        <button type="button" className="mpack-back" onClick={() => setSelected(null)}>
+        <button type="button" className="mpack-back" onClick={() => { setSelected(null); if (selected.category === 'DrzwiWewnetrzne') void load(category) }}>
           <ArrowLeft size={18} /> Wróć do listy
         </button>
         <div className="morders-detail-head">
@@ -177,6 +219,9 @@ export default function MobileOrdersView() {
             </div>
             <span className="morders-progress-label">Etapy: {completed}/{total} ({percent}%)</span>
           </div>
+        )}
+        {selected.category === 'DrzwiWewnetrzne' && selected.id != null && (
+          <MobileIntDoorPicking orderId={selected.id} canEdit={canPickItems} initials={initials} />
         )}
         {sections.map((s) => (
           <div key={s.title} className="morders-section">
@@ -246,6 +291,15 @@ export default function MobileOrdersView() {
                 <span className="morders-card-model">{o.model}</span>
               </div>
               <div className="morders-card-company">{o.company}</div>
+              {o.category === 'DrzwiWewnetrzne' && o.id != null && (() => {
+                const pp = pickProg.get(o.id)
+                if (!pp || pp.total === 0) return null
+                return (
+                  <span className={`mpick-badge${pp.complete ? ' mpick-badge--done' : ''}`}>
+                    {pp.complete ? '✓ przygotowane' : pp.done > 0 ? `przygotowano ${pp.done}/${pp.total}` : `${pp.total} poz. do przygotowania`}
+                  </span>
+                )
+              })()}
               {total > 0 && (
                 <div className="morders-card-prog">
                   <div className="morders-card-prog-bar">

@@ -5,9 +5,10 @@ import MobilePackingView from './components/mobile/MobilePackingView'
 import MobileStationView from './components/mobile/MobileStationView'
 import MobileOrdersView from './components/mobile/MobileOrdersView'
 import MobileShippingView from './components/mobile/MobileShippingView'
-import { can } from './lib/permissions'
+import { can, isManagerRole } from './lib/permissions'
+import { canPick } from './lib/orderPicks'
 
-type SessionUser = { id: string; initials: string; role: string; categories: string[] }
+type SessionUser = { id: string; initials: string; role: string; department: string; categories: string[] }
 
 export default function MobileApp() {
   const [ready, setReady] = useState(false)
@@ -25,7 +26,7 @@ export default function MobileApp() {
   const loadProfile = async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, initials, full_name, role, categories')
+      .select('id, initials, full_name, role, department, categories')
       .eq('id', userId)
       .maybeSingle()
     if (!mountedRef.current) return
@@ -37,6 +38,7 @@ export default function MobileApp() {
       id: userId,
       initials: (data?.initials as string) || (data?.full_name as string)?.slice(0, 2)?.toUpperCase() || '??',
       role: String(data?.role ?? ''),
+      department: String((data as { department?: string } | null)?.department ?? ''),
       categories: Array.isArray((data as { categories?: string[] } | null)?.categories)
         ? ((data as { categories?: string[] }).categories as string[])
         : [],
@@ -192,7 +194,7 @@ export default function MobileApp() {
         ) : activeView === 'station' ? (
           <MobileStationView userId={user.id} />
         ) : activeView === 'orders' ? (
-          <MobileOrdersView />
+          <MobileOrdersView canPickItems={canPick({ role: user.role, department: user.department }, isManagerRole(user.role))} initials={user.initials} />
         ) : (
           <MobileShippingView role={user.role} categories={user.categories} />
         )}
