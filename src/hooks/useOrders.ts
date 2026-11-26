@@ -6,6 +6,7 @@ import { mirrorStageKey } from '../lib/stageMirror'
 import { DATE_FILTER_ALL, type DateRangeFilter } from '../lib/dateRange'
 import { isStageDone, isStageNA, isStageSpecial } from '../lib/stageSpecial'
 import { markLocalStageWrite } from '../lib/stageWrites'
+import { fetchAllPages } from '../lib/fetchPaged'
 import {
   EDITABLE_CATEGORIES,
   INITIAL_BASTION_ORDER_FORM,
@@ -485,12 +486,26 @@ export function useOrders({
       setInternalDoorItems([])
       return
     }
-    const { data: itemsData, error: itemsError } = await supabase
-      .from('order_internal_door_items')
-      .select(
-        '*, warehouse_components(name, product_category, door_model, door_size, door_direction, door_color, door_frame_type, door_frame_code, door_handle_shield)',
+    // Zlecenia z Optimy (setki RO) — porcje po 150 id (długość URL) i każda
+    // porcja stronicowana (PostgREST ucina odpowiedź do 1000 wierszy)
+    const CHUNK = 150
+    const itemsData: Array<Record<string, unknown>> = []
+    let itemsError: { message: string } | null = null
+    for (let i = 0; i < orderIds.length && !itemsError; i += CHUNK) {
+      const ids = orderIds.slice(i, i + CHUNK)
+      const res = await fetchAllPages<Record<string, unknown>>((from, to) =>
+        supabase
+          .from('order_internal_door_items')
+          .select(
+            '*, warehouse_components(name, product_category, door_model, door_size, door_direction, door_color, door_frame_type, door_frame_code, door_handle_shield)',
+          )
+          .in('order_id', ids)
+          .order('id')
+          .range(from, to),
       )
-      .in('order_id', orderIds)
+      itemsData.push(...res.data)
+      itemsError = res.error
+    }
     if (itemsError) {
       console.error(itemsError)
       setInternalDoorItems([])

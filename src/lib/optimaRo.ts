@@ -1,0 +1,264 @@
+// =====================================================================
+// Zlecenia drzwi wewnętrznych z Optimy (rezerwacje odbiorcy, RO).
+//
+// Import robi edge function optima-ro-import (pg_cron co godzinę) z dwóch baz
+// Optimy: KR Center i MR Profil. Jedno RO = jedno zlecenie (category
+// 'DrzwiWewnetrzne', source 'optima_ro'). Przy każdej zmianie RO import
+// NADPISUJE pola z OPTIMA_OWNED_FIELDS i wszystkie pozycje (kasuje i wstawia
+// na nowo — id pozycji się zmieniają, nie trzymać referencji do nich).
+// Pól produkcyjnych (release_date, etapy, wysyłka, reszta extra_fields) nie rusza.
+// =====================================================================
+import { supabase } from '../supabaseClient'
+import type { InternalDoorItem, Order } from '../types'
+
+export const OPTIMA_SOURCE = 'optima_ro'
+
+export type OptimaBaza = 'KR' | 'MR'
+
+export const OPTIMA_BAZA_LABEL: Record<OptimaBaza, string> = {
+  KR: 'KR Center',
+  MR: 'MR Profil',
+}
+
+/** Pola zlecenia, które import nadpisuje — w aplikacji tylko do odczytu. */
+export const OPTIMA_OWNED_FIELDS = [
+  'order_number', 'erp_ro_number', 'erp_status', 'company', 'client_order_number',
+  'order_date', 'quantity', 'notes', 'entered_by', 'source_metadata',
+] as const
+
+export const OPTIMA_READONLY_HINT = 'Zmieniaj w Optimie, synchronizacja co godzinę'
+
+export const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s)
+
+/** Role z zapisem do optima_component_map (polityka ocm_write w bazie). */
+export const OPTIMA_MAP_ROLES = [
+  'superadmin', 'admin', 'manager', 'kierownik_magazynu', 'kierownik_produkcji', 'kierownik_firmowy', 'magazynier',
+] as const
+
+export function canMapOptimaCodes(role: string | null | undefined): boolean {
+  return (OPTIMA_MAP_ROLES as readonly string[]).includes(String(role ?? ''))
+}
+
+export type OptimaRecipient = {
+  code?: string | null
+  name?: string | null
+  city?: string | null
+  street?: string | null
+  post_code?: string | null
+}
+
+export type OptimaMeta = {
+  optima_key?: string
+  baza?: string
+  document_id?: number
+  full_number?: string
+  status?: number
+  state?: number
+  updated?: string
+  created?: string
+  reservation_date?: string
+  payer_code?: string
+  recipient?: OptimaRecipient | null
+}
+
+export function isOptimaOrder(o: Pick<Order, 'source'> | null | undefined): boolean {
+  return o?.source === OPTIMA_SOURCE
+}
+
+export function optimaMeta(o: Pick<Order, 'source' | 'source_metadata'> | null | undefined): OptimaMeta | null {
+  if (!o || !isOptimaOrder(o)) return null
+  const m = o.source_metadata
+  return m && typeof m === 'object' ? (m as OptimaMeta) : null
+}
+
+/** Baza Optimy z klucza KR:<id> / MR:<id>, awaryjnie z nazwy bazy. */
+export function optimaBaza(o: Pick<Order, 'source' | 'source_metadata'> | null | undefined): OptimaBaza | null {
+  const m = optimaMeta(o)
+  if (!m) return null
+  const key = String(m.optima_key ?? '').toUpperCase()
+  if (key.startsWith('KR:')) return 'KR'
+  if (key.startsWith('MR:')) return 'MR'
+  const baza = String(m.baza ?? '').toUpperCase()
+  if (baza.includes('MR')) return 'MR'
+  if (baza.includes('KR')) return 'KR'
+  return null
+}
+
+function extra(o: Pick<Order, 'extra_fields'> | null | undefined): Record<string, unknown> {
+  const e = o?.extra_fields
+  return e && typeof e === 'object' ? (e as Record<string, unknown>) : {}
+}
+
+export function isOrderCancelled(o: Pick<Order, 'extra_fields'> | null | undefined): boolean {
+  return extra(o).cancelled === true
+}
+
+/** Powód anulowania — import wpisuje cancelled_reason, ręczne anulowanie: kto i kiedy. */
+export function cancelledReason(o: Pick<Order, 'extra_fields'> | null | undefined): string {
+  const e = extra(o)
+  const reason = String(e.cancelled_reason ?? '').trim()
+  if (reason) return reason
+  const at = String(e.cancelled_at ?? '').trim()
+  const by = String(e.cancelled_by ?? '').trim()
+  if (!at && !by) return ''
+  return `Anulowano${at ? ` ${at.slice(0, 10)}` : ''}${by ? ` przez ${by}` : ''}`
+}
+
+export function recipientAddress(r: OptimaRecipient | null | undefined): string {
+  if (!r) return ''
+  const city = [r.post_code, r.city].map((v) => String(v ?? '').trim()).filter(Boolean).join(' ')
+  return [r.name, r.street, city].map((v) => String(v ?? '').trim()).filter(Boolean).join(', ')
+}
+
+export function unmappedItems<T extends Pick<InternalDoorItem, 'component_id'>>(items: T[]): T[] {
+  return items.filter((it) => it.component_id == null)
+}
+
+/** Data ze znacznika Optimy (2026-11-20T07:37:56, bez strefy) do wyświetlenia. */
+export function formatOptimaDateTime(v: string | null | undefined): string {
+  const s = String(v ?? '').trim()
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/)
+  if (!m) return s || '—'
+  const date = `${m[3]}.${m[2]}.${m[1]}`
+  return m[4] ? `${date} ${m[4]}:${m[5]}` : date
+}
+
+// ---------------------------------------------------------------------
+// Filtry listy drzwi wewnętrznych (dochodzą do ogólnych: szukaj, daty, anulowane)
+// ---------------------------------------------------------------------
+
+export type IntDoorFilter = {
+  baza: 'all' | OptimaBaza
+  zrodlo: 'all' | 'optima' | 'manual'
+  bezKomponentu: boolean
+}
+
+export const INT_DOOR_FILTER_DEFAULT: IntDoorFilter = { baza: 'all', zrodlo: 'all', bezKomponentu: false }
+
+export function isIntDoorFilterActive(f: IntDoorFilter): boolean {
+  return f.baza !== 'all' || f.zrodlo !== 'all' || f.bezKomponentu
+}
+
+export function matchesIntDoorFilter(
+  o: Pick<Order, 'source' | 'source_metadata'>,
+  f: IntDoorFilter,
+  unmappedCount: number,
+): boolean {
+  const optima = isOptimaOrder(o)
+  if (f.zrodlo === 'optima' && !optima) return false
+  if (f.zrodlo === 'manual' && optima) return false
+  if (f.baza !== 'all' && optimaBaza(o) !== f.baza) return false
+  if (f.bezKomponentu && unmappedCount === 0) return false
+  return true
+}
+
+// ---------------------------------------------------------------------
+// Powiązania kod Optimy → komponent magazynu
+// ---------------------------------------------------------------------
+
+export type OptimaMapRow = { optima_code: string; component_id: number; created_by: string | null; created_at: string }
+
+/** Kod bez komponentu zebrany z pozycji (component_id IS NULL). */
+export type UnmappedCode = { code: string; count: number; orders: number; sampleName: string; group: string }
+
+export function groupUnmappedCodes(
+  rows: Array<Pick<InternalDoorItem, 'optima_code' | 'optima_name' | 'optima_group' | 'order_id'>>,
+): UnmappedCode[] {
+  const byCode = new Map<string, { u: UnmappedCode; orderIds: Set<number> }>()
+  for (const r of rows) {
+    const code = String(r.optima_code ?? '').trim()
+    if (!code) continue
+    const cur = byCode.get(code) ?? { u: { code, count: 0, orders: 0, sampleName: '', group: '' }, orderIds: new Set<number>() }
+    cur.u.count += 1
+    cur.orderIds.add(r.order_id)
+    if (!cur.u.sampleName && r.optima_name) cur.u.sampleName = r.optima_name
+    if (!cur.u.group && r.optima_group) cur.u.group = r.optima_group
+    byCode.set(code, cur)
+  }
+  return [...byCode.values()]
+    .map(({ u, orderIds }) => ({ ...u, orders: orderIds.size }))
+    .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code))
+}
+
+const isMissingFn = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === 'PGRST202' || e.code === '42883' || /could not find the function/i.test(e.message ?? ''))
+
+/**
+ * Powiąż kod z komponentem (componentId = null → usuń powiązanie) i od razu
+ * przepnij wszystkie pozycje z tym kodem. Robi to RPC optima_map_component
+ * (migrate/optima_component_map_rpc.sql) — jedna transakcja, działa też dla
+ * magazyniera, który nie ma UPDATE na order_internal_door_items. Póki RPC nie
+ * ma w bazie: upsert mapy + update pozycji z klienta (wystarczy kierownikom).
+ * Zwraca liczbę przepiętych pozycji.
+ */
+export async function mapOptimaCode(code: string, componentId: number | null): Promise<number> {
+  const optimaCode = code.trim()
+  if (!optimaCode) throw new Error('Pusty kod Optimy')
+  const { data, error } = await supabase.rpc('optima_map_component', { p_code: optimaCode, p_component_id: componentId })
+  if (!error) return Number(data ?? 0)
+  if (!isMissingFn(error)) throw new Error(error.message)
+
+  if (componentId == null) {
+    const { error: delErr } = await supabase.from('optima_component_map').delete().eq('optima_code', optimaCode)
+    if (delErr) throw new Error(delErr.message)
+  } else {
+    const { error: upErr } = await supabase
+      .from('optima_component_map')
+      .upsert({ optima_code: optimaCode, component_id: componentId }, { onConflict: 'optima_code' })
+    if (upErr) throw new Error(upErr.message)
+  }
+  // tylko pozycje, które faktycznie się zmieniają (jak „is distinct from" w RPC)
+  const base = supabase.from('order_internal_door_items').update({ component_id: componentId }).eq('optima_code', optimaCode)
+  const { data: upd, error: itErr } = await (componentId == null
+    ? base.not('component_id', 'is', null)
+    : base.or(`component_id.is.null,component_id.neq.${componentId}`)
+  ).select('id')
+  if (itErr) throw new Error(`Powiązanie zapisane, ale pozycji nie przepięto: ${itErr.message}`)
+  return (upd ?? []).length
+}
+
+// ---------------------------------------------------------------------
+// Stan synchronizacji (optima_ro_sync_state — tylko odczyt)
+// ---------------------------------------------------------------------
+
+export type OptimaSyncResult = {
+  ro?: number
+  nowe?: number
+  zaktualizowane?: number
+  anulowane?: number
+  pominięte?: number
+  bledy?: string[]
+  [k: string]: unknown
+}
+
+export type OptimaSyncState = {
+  baza: string
+  last_u_date: string | null
+  last_run_at: string | null
+  last_result: OptimaSyncResult | null
+}
+
+export const OPTIMA_SYNC_COUNTERS: Array<{ key: string; label: string }> = [
+  { key: 'ro', label: 'RO sprawdzone' },
+  { key: 'nowe', label: 'nowe' },
+  { key: 'zaktualizowane', label: 'zaktualizowane' },
+  { key: 'anulowane', label: 'anulowane' },
+  { key: 'pominięte', label: 'pominięte' },
+]
+
+export function syncErrors(s: OptimaSyncState | null | undefined): string[] {
+  const b = s?.last_result?.bledy
+  return Array.isArray(b) ? b.map(String).filter(Boolean) : []
+}
+
+export async function fetchOptimaSyncState(): Promise<OptimaSyncState[]> {
+  const { data, error } = await supabase.from('optima_ro_sync_state').select('*').order('baza')
+  if (error) throw new Error(error.message)
+  return (data ?? []) as OptimaSyncState[]
+}
+
+/** Ręczne uruchomienie importu (tylko kierownicy — RPC sprawdza też po swojej stronie). Asynchroniczne. */
+export async function runOptimaImportNow(baza: OptimaBaza | null = null): Promise<void> {
+  const { error } = await supabase.rpc('optima_ro_import_now', { p_baza: baza })
+  if (error) throw new Error(error.message)
+}

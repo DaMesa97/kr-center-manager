@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Drzwi wewnętrzne z Optimy (beta.157)</h4>
+        <ul>
+          <li>Rezerwacje odbiorcy (RO) z pozycjami drzwi wewnętrznych z baz <b>KR Center</b> i <b>MR Profil</b> same wpadają do zakładki Drzwi wewnętrzne (import co godzinę). Lista ma kolumny: nr RO, źródło (plakietka bazy albo „Ręczne”), firma, nr zamówienia klienta, data RO, pozycje, <b>bez komponentu</b> i status; nowe filtry: źródło, baza, „Tylko bez komponentu”. RO anulowane w Optimie są wyszarzone (powód w dymku) i domyślnie ukryte — pokazuje je „Pokaż anulowane”.</li>
+          <li>W szczegółach zlecenia z Optimy dane z RO (firma, nr klienta, data, odbiorca, opis, pozycje) są tylko do odczytu — zmieniasz je w Optimie. Edytować można pola produkcyjne (wentylacja), wydawać i rozliczać magazyn.</li>
+          <li>Pozycja bez komponentu magazynu ma znacznik ⚠ i przycisk <b>„Powiąż z komponentem”</b>: powiązanie robisz raz na kod towaru z Optimy — od razu dostają go wszystkie pozycje z tym kodem i kolejne RO. Wszystkie kody naraz (z masowym przypisaniem) są w <b>Magazyn → Komponenty → Kody Optimy</b>. Powiązania zmieniają kierownicy i magazynier.</li>
+          <li>„✓ Wydane” przy zleceniu z Optimy zdejmuje pozycje z magazynu wewnętrznego i ostrzega, ile pozycji bez komponentu zostanie pominiętych. Po późniejszym powiązaniu kodu — „Dolicz wydanie z magazynu”. RO anulowane w Optimie po wydaniu: „Zwróć wydany towar”.</li>
+          <li>Stan importu (ostatnie uruchomienie, liczniki, błędy) dla obu baz: nad listą i w <b>Ustawienia → Integracje → Optima → Drzwi wewnętrzne</b>. Kierownicy mają „Synchronizuj teraz” (wynik po 1–2 minutach).</li>
+        </ul>
         <h4>CRM → Zamówienia: lista zamówień od razu na wierzchu (beta.156)</h4>
         <ul>
           <li>Zamiast długiej listy ostrzeżeń nad tabelą jest jeden przycisk „⚠ N zamówień wymaga uwagi” (włącza filtr), a powód stoi w wierszu zamówienia pod numerem. Otwarte zlecenia KR Po Drzwi bez pary w sklepie są zwinięte w jednej linijce — rozwijasz, gdy chcesz je powiązać.</li>

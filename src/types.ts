@@ -62,8 +62,10 @@ export type Order = {
   label: string
   category: string
   // Realne wartości w bazie: manual, bot (konfigurator), excel (arkusz),
-  // migracja (import historyczny). 'api' zostaje dla ewentualnych integracji.
-  source?: 'manual' | 'bot' | 'excel' | 'migracja' | 'api' | null
+  // migracja (import historyczny), alu_lp (lista produkcyjna aluminium),
+  // optima_ro (drzwi wewnętrzne z rezerwacji odbiorcy w Optimie, lib/optimaRo.ts).
+  // 'api' zostaje dla ewentualnych integracji.
+  source?: 'manual' | 'bot' | 'excel' | 'migracja' | 'alu_lp' | 'optima_ro' | 'api' | null
   source_metadata?:
     | {
         received_at?: string
@@ -245,12 +247,21 @@ export type OrderCategory =
 export type InternalDoorItem = {
   id: number
   order_id: number
-  component_id: number
+  /** NULL = pozycja z Optimy, której kodu jeszcze nie powiązano z komponentem (optima_component_map) */
+  component_id: number | null
   quantity: number
   shorten_enabled: boolean
   shorten_target_height: number | null
+  /** przy pozycjach z Optimy: opis pozycji z dokumentu RO */
   notes: string | null
   created_at: string
+  // Pozycje z importu Optimy (source = 'optima_ro'); przy ręcznych NULL.
+  // Import kasuje i wstawia pozycje na nowo — id się zmieniają.
+  optima_code?: string | null
+  optima_name?: string | null
+  optima_group?: string | null
+  optima_element_id?: number | null
+  unit?: string | null
   component_name?: string | null
   component_category?: string | null
 }
@@ -920,6 +931,7 @@ export type WarehouseSubTab =
   | 'Zamówienia'
   | 'Zamawianie'
   | 'Inwentaryzacja'
+  | 'Kody Optimy'
 
 export type InventorySession = {
   id: number

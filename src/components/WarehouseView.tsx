@@ -35,6 +35,8 @@ import ReservationsView from './warehouse/ReservationsView'
 import ReorderDashboardView from './warehouse/ReorderDashboardView'
 import PurchaseOrdersView from './warehouse/PurchaseOrdersView'
 import InventoryView from './warehouse/InventoryView'
+import OptimaCodesView from './warehouse/OptimaCodesView'
+import { canMapOptimaCodes } from '../lib/optimaRo'
 
 type WarehouseViewProps = {
   isManager: boolean
@@ -352,6 +354,8 @@ function WarehouseView({
           incomingLoading={incomingStockLoading}
           onRefreshIncoming={onRefreshIncoming}
         />
+      ) : activeSubTab === 'Kody Optimy' ? (
+        <OptimaCodesView components={components} canEdit={canMapOptimaCodes(currentUser?.role)} pushToast={pushToast} />
       ) : activeSubTab === 'Inwentaryzacja' ? (
         <InventoryView pushToast={pushToast} currentUser={currentUser} components={components} />
       ) : (

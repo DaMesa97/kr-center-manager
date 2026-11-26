@@ -160,16 +160,17 @@ export default function InternalDoorStatsDashboard({ orders, internalDoorItems, 
   }, [releasedFilteredItems, ordersById, rangeMonths])
 
   const topSku = useMemo(() => {
-    const map = new Map<number, { name: string; qty: number; cat: string }>()
+    // pozycje z Optimy bez komponentu liczymy po kodzie Optimy
+    const map = new Map<string, { name: string; qty: number; cat: string }>()
     for (const it of releasedFilteredItems) {
-      const key = it.component_id
+      const key = it.component_id != null ? `c:${it.component_id}` : `o:${it.optima_code ?? it.optima_name ?? '?'}`
       const prev = map.get(key)
       const qty = Number(it.quantity) || 0
       if (prev) {
         prev.qty += qty
       } else {
         map.set(key, {
-          name: String(it.component_name ?? `#${key}`),
+          name: String(it.component_name ?? it.optima_name ?? `#${key}`),
           qty,
           cat: String(it.component_category ?? it.component_product_category ?? ''),
         })

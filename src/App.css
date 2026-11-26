@@ -10246,3 +10246,128 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 .crm-zam-wyniki li { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 4px 6px; border-bottom: 1px dashed var(--color-border); }
 .crm-zam-stopka { font-size: 0.78rem; }
 @media (max-width: 700px) { .crm-zam-kv { grid-template-columns: 1fr; } }
+
+/* ===== Drzwi wewnętrzne z Optimy (RO) — lista, szczegóły, kody, synchronizacja ===== */
+.optima-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.optima-badge--kr { background: #fde8e8; color: #9b1c1c; border-color: #f8b4b4; }
+.optima-badge--mr { background: #e6f6ec; color: #166534; border-color: #9ae6b4; }
+.optima-badge--manual { background: transparent; color: var(--color-text-muted); border-color: var(--color-border); }
+.optima-unmapped-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #fff4e5;
+  color: #b45309;
+  border: 1px solid #fcd9a6;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.optima-code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; font-weight: 600; }
+.orders-table tbody tr.int-door-row--cancelled td { color: var(--color-text-muted); background: #f6f6f6; }
+.orders-table tbody tr.int-door-row--cancelled td .optima-badge { opacity: 0.6; }
+
+.int-door-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 6px 0 8px;
+}
+.int-door-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; }
+.int-door-filter > span { color: var(--color-text-muted); }
+.int-door-sync {
+  margin-left: auto;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 0.82rem;
+}
+.int-door-sync-item { white-space: nowrap; }
+
+.internal-door-details-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.optima-readonly {
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface-1, #fafafa);
+}
+.optima-readonly-hint { font-size: 0.82rem; color: var(--color-text-muted); margin-bottom: 6px; }
+.optima-readonly-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px 14px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.optima-readonly-grid dt { color: var(--color-text-muted); }
+.optima-readonly-grid dd { margin: 0; }
+.optima-readonly-notes { white-space: pre-wrap; }
+.optima-items-table td { vertical-align: top; }
+.optima-items-table tr.optima-item--unmapped td { background: #fffaf0; }
+.optima-item-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.optima-items-readonly { margin: 0 0 6px; padding-left: 18px; font-size: 0.9rem; }
+.optima-items-readonly li { margin: 2px 0; }
+
+.component-picker-subject { margin: 0 0 10px; font-size: 0.9rem; display: grid; gap: 3px; }
+.component-picker .search-input { width: 100%; margin-bottom: 8px; }
+.component-picker-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.component-picker-item {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-light, #eee);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.component-picker-item:hover { background: var(--color-surface-container, #f3f4f6); }
+.component-picker-item--active { background: #e0ecff; outline: 1px solid #93b4f5; }
+.component-picker-code { font-family: ui-monospace, Consolas, monospace; color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; }
+.component-picker-cat { color: var(--color-text-muted); font-size: 0.8rem; white-space: nowrap; }
+
+.optima-codes-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.optima-codes-toolbar .search-input { flex: 1; }
+.optima-codes-title { margin: 16px 0 6px; display: flex; align-items: center; gap: 8px; font-size: 1rem; }
+.optima-codes-bulk { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.optima-draft { color: #1d4ed8; font-weight: 600; }
+.orders-table tbody tr.optima-row--draft td { background: #eef4ff; }
+
+.optima-sync-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.optima-sync-card {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+.optima-sync-card--error { border-color: #f8b4b4; }
+.optima-sync-card-head { display: flex; align-items: center; justify-content: space-between; }
+.optima-sync-counters { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.88rem; }
+.optima-sync-counter strong { font-size: 1rem; }
+.optima-sync-errors { color: #9b1c1c; font-size: 0.85rem; }
+.optima-sync-errors ul { margin: 4px 0 0; padding-left: 18px; max-height: 200px; overflow-y: auto; }
+.internal-door-details-body { padding: 0 1.5rem 8px; }
+.component-picker-body { padding: 14px 1.5rem 0; }
+.order-modal > .optima-readonly-hint { padding: 10px 24px 0; margin: 0; }

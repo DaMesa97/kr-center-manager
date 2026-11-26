@@ -299,6 +299,33 @@ na przebieg; wynik w `crm.zamowienia_sklep.paczki` (`[{nr, kurier, status, statu
 wygenerowany, 2 nadana, 3 nie doręczona, 4 w doręczeniu, 5 doręczona, 6 zwrot, 7 awizo, 8 w punkcie, 9 zagubiona,
 10 anulowana, 11 w drodze. Kurier sklepu to Rohlig Suus (`rohligsuus`), który zwraca 0, dopóki nie zeskanuje paczki.
 
+### 4e. Drzwi wewnętrzne z Optimy — rezerwacje odbiorcy (od 26.11.2026, beta.157)
+
+Import robi edge function `optima-ro-import` (pg_cron `optima_ro_import_*` co godzinę) z baz Optimy KR Center
+i MR Profil — **poza aplikacją, nie zmieniać jej z poziomu frontu**. Jedno RO = jedno zlecenie `orders`
+(`category = 'DrzwiWewnetrzne'`, `source = 'optima_ro'`, unikalność: `source_metadata->>'optima_key'` = `KR:<id>` / `MR:<id>`).
+Przy każdej zmianie RO import nadpisuje `order_number`, `erp_ro_number`, `erp_status`, `company`, `client_order_number`,
+`order_date`, `quantity`, `notes`, `entered_by`, `source_metadata` oraz **kasuje i wstawia na nowo wszystkie pozycje**
+`order_internal_door_items` (id pozycji się zmieniają — nie trzymać do nich referencji). Pól produkcyjnych
+(`release_date`, etapy, `shipped_*`, reszta `extra_fields`) nie rusza; `extra_fields.cancelled` + `cancelled_reason`,
+gdy RO straciło wszystkie pozycje drzwi wewnętrznych. Pozycje mają `optima_code/name/group/element_id`, `unit`;
+`component_id` może być NULL — import dopina go z `optima_component_map` (ręczna mapa kod → komponent), potem po
+`warehouse_components.code = optima_code`. `issue_internal_door_stock` pomija pozycje bez komponentu.
+
+Aplikacja (`src/lib/optimaRo.ts`): lista i filtry (`InternalDoorOrdersTable`, `InternalDoorFiltersBar`), szczegóły
+(`InternalDoorOrderDetailsModal` — pola z Optimy tylko do odczytu, „Powiąż z komponentem”), edycja tylko wentylacji
+(`InternalDoorOrderModal`), ekran Magazyn → Komponenty → Kody Optimy (`warehouse/OptimaCodesView`), karta
+Ustawienia → Integracje → Optima → Drzwi wewnętrzne (`config/OptimaSyncCard`, czyta `optima_ro_sync_state`,
+„Synchronizuj teraz” = rpc `optima_ro_import_now`, tylko `current_user_is_manager()`). Magazyn dla zleceń z Optimy
+schodzi przy „✓ Wydane” (ręczne zlecenia — przy zapisie); `issue_internal_door_stock` liczy różnicę netto, więc
+„Dolicz wydanie” po późniejszym powiązaniu kodu jest bezpieczne. Pozycje nie mają kanału realtime — po zdarzeniu
+na `orders` w tej zakładce aplikacja dociąga pozycje (debounce 1,5 s).
+
+Powiązanie kodu: `mapOptimaCode` → rpc `optima_map_component(p_code, p_component_id)` (migracja
+`migrate/optima_component_map_rpc.sql`, security definer, role jak polityka `ocm_write`: upsert mapy + przepięcie
+wszystkich pozycji z kodem). Bez tej funkcji w bazie aplikacja robi upsert + update z klienta — to działa tylko dla
+kierowników, bo UPDATE na `order_internal_door_items` (polityka `oidi_modify_mgr_seller`) nie obejmuje magazyniera.
+
 ## 5. Rekordy łączone (Disting Plus, Titan)
 
 Rekordy łączone to **osobne wiersze** w `orders` spięte `linked_order_id`

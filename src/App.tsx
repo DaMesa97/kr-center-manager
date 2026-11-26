@@ -88,6 +88,8 @@ import { useBastionBatches } from './hooks/useBastionBatches'
 import BastionExtrasPanel from './components/BastionExtrasPanel'
 import { useBastionExtras } from './hooks/useBastionExtras'
 import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
+import InternalDoorFiltersBar from './components/InternalDoorFiltersBar'
+import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, matchesIntDoorFilter, type IntDoorFilter } from './lib/optimaRo'
 import AluOrdersTable from './components/AluOrdersTable'
 import AluOrderDetailsModal from './components/AluOrderDetailsModal'
 import AluImportModal, { type AluImportOpts } from './components/AluImportModal'
@@ -388,6 +390,8 @@ function App() {
   }, [authUserId])
 
   const isManager = isManagerRole(currentUser?.role)
+  // Drzwi wewnętrzne z Optimy: baza / źródło / „bez komponentu" (reszta filtrów jak w innych zakładkach)
+  const [intDoorFilter, setIntDoorFilter] = useState<IntDoorFilter>(INT_DOOR_FILTER_DEFAULT)
   // CRM Po Drzwi: widoczność WYŁĄCZNIE z rpc current_user_has_crm() (superadmin
   // albo wpis w crm.dostep). Brak funkcji w bazie / brak dostępu = brak zakładki.
   const { hasCrm, refreshCrmAccess } = useCrmAccess(currentUser?.id)
@@ -808,6 +812,9 @@ function App() {
   // Update refs so useWarehouse can call fetchOrders and setOrders from useOrders
   fetchOrdersRef.current = fetchOrders
   setOrdersRef.current = setOrders
+  // Najświeższa lista zleceń dla odświeżenia pozycji drzwi wewnętrznych po zdarzeniu realtime
+  const ordersLatestRef = useRef(orders)
+  ordersLatestRef.current = orders
   setAlertsBadgeCountRef.current = setAlertsBadgeCount
 
   // Pracownik produkcji (nowa rola) oznacza TYLKO przypisane mu etapy — także w tabelach.
@@ -1309,6 +1316,14 @@ function App() {
       if (complaintsDebounce) clearTimeout(complaintsDebounce)
       complaintsDebounce = setTimeout(() => void fetchStationComplaints(), 1000)
     }
+    // Drzwi wewnętrzne: import z Optimy zmienia zlecenie i podmienia pozycje (kasuje
+    // i wstawia na nowo). Pozycje nie mają kanału realtime — po zdarzeniu na orders
+    // dociągamy je dla aktualnej listy (zlecenie scala się niżej, jak w innych zakładkach)
+    let intDoorItemsDebounce: ReturnType<typeof setTimeout> | null = null
+    const intDoorItemsDebounced = () => {
+      if (intDoorItemsDebounce) clearTimeout(intDoorItemsDebounce)
+      intDoorItemsDebounce = setTimeout(() => void fetchInternalDoorItemsForVisibleOrders(ordersLatestRef.current), 1500)
+    }
 
     // Subskrypcja na zmiany w orders
     const ordersChannel = supabase
@@ -1331,6 +1346,7 @@ function App() {
             if (needsFull) stationRefetchDebounced()
             return
           }
+          if (activeTab === 'DrzwiWewnetrzne') intDoorItemsDebounced()
           if (payload.eventType === 'INSERT') {
             setOrders((prev) => {
               if (prev.some((o) => o.id === (payload.new as Order).id)) return prev
@@ -1444,6 +1460,7 @@ function App() {
     return () => {
       if (stationDebounce) clearTimeout(stationDebounce)
       if (complaintsDebounce) clearTimeout(complaintsDebounce)
+      if (intDoorItemsDebounce) clearTimeout(intDoorItemsDebounce)
       window.removeEventListener('online', onOnline)
       void supabase.removeChannel(ordersChannel)
       void supabase.removeChannel(complaintsChannel)
@@ -1654,8 +1671,19 @@ function App() {
     // działać po cichu (wybrany w STA chował wszystko np. w Technicznych: 0/589)
     const useWykonawca = wykonawcaFilter.length > 0 && (activeTab === 'STA' || activeTab === 'Disting')
     const titanOnly = bastionTitanOnly && activeTab === 'Bastion'
+    const intDoor = activeTab === 'DrzwiWewnetrzne'
+    const unmappedByOrder = new Map<number, number>()
+    if (intDoor && intDoorFilter.bezKomponentu) {
+      for (const it of internalDoorItems) {
+        if (it.component_id == null) unmappedByOrder.set(it.order_id, (unmappedByOrder.get(it.order_id) ?? 0) + 1)
+      }
+    }
     return categoryFilteredOrders.filter((order) => {
       if (titanOnly && !isTitanOrderRow(order)) return false
+      if (intDoor) {
+        // filtr źródła bot/ręczne nie jest tu pokazany — nie może działać po cichu
+        return matchesIntDoorFilter(order, intDoorFilter, unmappedByOrder.get(order.id ?? -1) ?? 0)
+      }
       if (sourceFilter !== 'all') {
         if (sourceFilter === 'manual' && order.source === 'bot') return false
         if (sourceFilter === 'bot' && order.source !== 'bot') return false
@@ -1667,7 +1695,14 @@ function App() {
       return true
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryFilteredOrders, sourceFilter, wykonawcaFilter, activeTab, bastionTitanOnly])
+  }, [categoryFilteredOrders, sourceFilter, wykonawcaFilter, activeTab, bastionTitanOnly, intDoorFilter, internalDoorItems])
+
+  // Ile zleceń na liście ma pozycje bez komponentu (licznik przy filtrze „Tylko bez komponentu")
+  const intDoorUnmappedOrders = useMemo(() => {
+    if (activeTab !== 'DrzwiWewnetrzne') return 0
+    const withUnmapped = new Set(internalDoorItems.filter((it) => it.component_id == null).map((it) => it.order_id))
+    return categoryFilteredOrders.filter((o) => o.id !== undefined && withUnmapped.has(o.id)).length
+  }, [activeTab, internalDoorItems, categoryFilteredOrders])
 
   const sourceFilterCounts = useMemo(
     () => ({
@@ -2311,6 +2346,12 @@ function App() {
     void fetchWarehouseComponents()
   }, [isWarehouseDataTab, fetchWarehouseComponents])
 
+  // Drzwi wewnętrzne: komponenty do formularza i do „Powiąż z komponentem" (kody z Optimy) —
+  // bez tego lista była pusta, dopóki ktoś nie zajrzał do Magazynu
+  useEffect(() => {
+    if (activeTab === 'DrzwiWewnetrzne') void fetchWarehouseComponents()
+  }, [activeTab, fetchWarehouseComponents])
+
   useEffect(() => {
     if (isWarehouseDataTab) {
       void fetchWarehouses()
@@ -2952,6 +2993,8 @@ function App() {
             id: currentUser?.id ?? '',
             initials: currentUser?.initials ?? '',
           }}
+          components={warehouseComponents}
+          canMapCodes={canMapOptimaCodes(currentUser?.role)}
           onClose={closeInternalDoorDetails}
           onEdit={(order) => {
             closeInternalDoorDetails()
@@ -3509,6 +3552,7 @@ function App() {
         ) : isApiKeysTab && (isAdminRole(currentUser?.role) || currentUser?.role === 'manager') ? (
           <IntegrationsView
             pushToast={pushToast}
+            canSyncOptima={isManager}
             apiKeys={filteredApiKeys}
             filteredApiKeys={filteredApiKeys}
             loading={apiKeysLoading}
@@ -3986,12 +4030,22 @@ function App() {
                   />
                 )}
                 {activeTab === 'DrzwiWewnetrzne' && (
-                  <InternalDoorOrdersTable
-                    orders={filteredOrders}
-                    items={internalDoorItems}
-                    onShowDetails={openInternalDoorDetails}
-                    tableWrapperRef={ordersTableWrapperRef}
-                  />
+                  <>
+                    <InternalDoorFiltersBar
+                      filter={intDoorFilter}
+                      onChange={(f) => startFilterTransition(() => setIntDoorFilter(f))}
+                      unmappedOrders={intDoorUnmappedOrders}
+                      canSync={isManager}
+                      onImported={() => void fetchOrders()}
+                      pushToast={pushToast}
+                    />
+                    <InternalDoorOrdersTable
+                      orders={filteredOrders}
+                      items={internalDoorItems}
+                      onShowDetails={openInternalDoorDetails}
+                      tableWrapperRef={ordersTableWrapperRef}
+                    />
+                  </>
                 )}
                 {activeTab === 'Aluminium' && (
                   <AluOrdersTable

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
+import { componentLabel } from '../lib/componentLabel'
+import { OPTIMA_READONLY_HINT, isOptimaOrder, lowerFirst } from '../lib/optimaRo'
 import type { Order, WarehouseComponent, InternalDoorItem, ToastVariant } from '../types'
 
 type Mode = 'create' | 'edit'
@@ -49,6 +51,8 @@ function InternalDoorOrderModal({
   const [stocks, setStocks] = useState<Record<number, number>>({})
   const [saving, setSaving] = useState(false)
   const { requestClose } = useUnsavedGuard({ companyName, notes, wentylacja, items }, onClose, { enabled: !saving, escape: open, resetKey: open })
+  // Zlecenie z Optimy: firmę, opis i pozycje nadpisuje import — tu tylko pola produkcyjne
+  const fromOptima = mode === 'edit' && isOptimaOrder(initialOrder)
 
   const internalDoorComponents = useMemo(() => {
     return components.filter((c) => c.is_active && c.product_category !== 'raw')
@@ -159,6 +163,20 @@ function InternalDoorOrderModal({
   const savingRef = useRef(false)
 
   const handleSaveImpl = async () => {
+    if (fromOptima) {
+      // Pozycji i pól z Optimy nie zapisujemy (import i tak by je nadpisał);
+      // magazyn rozlicza „✓ Wydane" w szczegółach zlecenia
+      setSaving(true)
+      const { error } = await supabase.from('orders').update({ wentylacja: wentylacja.trim() }).eq('id', initialOrder!.id!)
+      setSaving(false)
+      if (error) {
+        pushToast(`Błąd zapisu zamówienia: ${error.message}`, 'error')
+        return
+      }
+      onSaved()
+      onClose()
+      return
+    }
     if (items.length === 0) {
       pushToast('Dodaj co najmniej jedną pozycję', 'error')
       return
@@ -327,29 +345,6 @@ function InternalDoorOrderModal({
     }
   }
 
-  const componentLabel = (c: WarehouseComponent) => {
-    const parts: string[] = [c.name]
-    if (c.product_category === 'door_wing') {
-      if (c.door_model) parts.push(c.door_model)
-      if (c.door_size) parts.push(c.door_size)
-      if (c.door_direction) parts.push(c.door_direction)
-      if (c.door_color) parts.push(c.door_color)
-    } else if (c.product_category === 'door_frame') {
-      parts.push(c.door_frame_type === 'adjustable' ? 'regulowana' : 'prosta')
-      if (c.door_frame_type === 'adjustable' && c.door_frame_code) parts.push(c.door_frame_code)
-      if (c.door_size) parts.push(c.door_size)
-      if (c.door_direction) parts.push(c.door_direction)
-      if (c.door_color) parts.push(c.door_color)
-    } else if (c.product_category === 'door_handle') {
-      if (c.door_model) parts.push(c.door_model)
-      if (c.door_color) parts.push(c.door_color)
-      if (c.door_handle_shield) parts.push(c.door_handle_shield)
-    } else if (c.product_category === 'door_hinge_cover') {
-      if (c.door_color) parts.push(c.door_color)
-    }
-    return parts.filter(Boolean).join(' / ')
-  }
-
   if (!open) return null
 
   return createPortal(
@@ -360,20 +355,23 @@ function InternalDoorOrderModal({
         style={{ maxWidth: 900, maxHeight: '90vh', overflowY: 'auto' }}
       >
         <div className="order-modal-header">
-          <h2>{mode === 'create' ? 'Nowe zamówienie - Drzwi wewnętrzne' : 'Edytuj zamówienie'}</h2>
+          <h2>{mode === 'create' ? 'Nowe zamówienie - Drzwi wewnętrzne' : fromOptima ? `Edytuj zlecenie ${initialOrder?.order_number ?? ''}` : 'Edytuj zamówienie'}</h2>
           <button className="btn btn-icon btn-ghost" onClick={() => void requestClose()}>
             x
           </button>
         </div>
+        {fromOptima && <div className="optima-readonly-hint">🔒 Firma, opis i pozycje przychodzą z Optimy — {lowerFirst(OPTIMA_READONLY_HINT)}.</div>}
         <div className="order-form-grid">
-          <label className="order-field-full">
-            <span className="order-field-label-text">Firma</span>
+          <label className="order-field-full" title={fromOptima ? OPTIMA_READONLY_HINT : undefined}>
+            <span className="order-field-label-text">Firma{fromOptima ? ' (z Optimy)' : ''}</span>
             <input
               type="text"
               list="companies-list"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="Nazwa firmy lub klienta"
+              readOnly={fromOptima}
+              disabled={fromOptima}
             />
             <datalist id="companies-list">
               {companies.map((c) => (
@@ -395,12 +393,27 @@ function InternalDoorOrderModal({
             </select>
           </label>
 
-          <label className="order-field-full">
-            <span className="order-field-label-text">Uwagi</span>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          <label className="order-field-full" title={fromOptima ? OPTIMA_READONLY_HINT : undefined}>
+            <span className="order-field-label-text">{fromOptima ? 'Opis RO (z Optimy)' : 'Uwagi'}</span>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} readOnly={fromOptima} disabled={fromOptima} />
           </label>
         </div>
 
+        {fromOptima ? (
+          <div className="internal-door-items-section" title={OPTIMA_READONLY_HINT}>
+            <h3 style={{ marginTop: 20, marginBottom: 8 }}>Pozycje (z Optimy)</h3>
+            <ul className="optima-items-readonly">
+              {(initialItems ?? []).map((it) => (
+                <li key={`${it.optima_element_id ?? it.id}`}>
+                  <span className="optima-code">{it.optima_code || '—'}</span> {it.optima_name || it.component_name || '—'} —{' '}
+                  {it.quantity} {it.unit || 'szt.'}
+                  {it.component_id == null && <span className="optima-unmapped-badge" style={{ marginLeft: 6 }}>⚠ brak komponentu</span>}
+                </li>
+              ))}
+            </ul>
+            <p className="muted">Pozycje dodajesz i usuwasz w Optimie. Komponent magazynu przypinasz w szczegółach zlecenia („Powiąż z komponentem”).</p>
+          </div>
+        ) : (
         <div className="internal-door-items-section">
           <h3 style={{ marginTop: 20, marginBottom: 8 }}>Pozycje</h3>
 
@@ -502,6 +515,7 @@ function InternalDoorOrderModal({
             + Dodaj pozycję
           </button>
         </div>
+        )}
         <div className="order-form-actions" style={{ marginTop: 16 }}>
           <button
             type="button"
