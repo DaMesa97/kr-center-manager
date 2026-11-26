@@ -732,3 +732,52 @@ Kategoria w bazie `Aluminium`, zakładka „Stolarka aluminiowa”. Inny model n
 - **Postęp zlecenia**: trigger `trg_alu_positions_progress` po każdej zmianie pozycji przepisuje `{ done, total, percent }` do `orders.extra_fields.alu.progress` (`migrate/aluminium_etap2_postep.sql`); `countCompletedStages(order)` dla Aluminium czyta to pole — Wysyłka, Pulpit, mobile i statystyki nie dociągają pozycji. Koszt: każdy klik sztuki = UPDATE orders (wpis w audycie).
 - **Wysyłka**: `getOrderRouteDay` dla Aluminium = dzień tygodnia z `alu.deadline` (jak `route_day` firm, np. PIĄTEK), realizacja `montaz` = grupa `Montaż własny` (`ALU_MONTAZ_ROUTE`) + chip MONTAŻ. Wydanie jak w innych kategoriach (`release_remaining_for_order` jest no-op — brak rezerwacji).
 - **Dokumenty**: `order_documents.kind` ∈ LP / LC / **ZM** (ZM GLASS z LiczOkna — zamówienie szyb; szyby alu nie przechodzą przez zakładkę Szyby). Nowy rodzaj → check constraint + walidacja w `attach_order_document` (`migrate/aluminium_etap3_zm_glass.sql`).
+
+---
+
+## 14. Wydajność — co ładują ekrany i czego nie robić (od 26.11.2026, beta.169)
+
+Po imporcie RO z Optimy (25–26.11: +11,6 tys. zleceń `DrzwiWewnetrzne`, +2,5 tys. kartotek jako komponenty)
+aplikacja zwolniła na wszystkich ekranach. Pomiar (`pg_stat_statements` 15:26–21:53, 6,5 h; `explain analyze`;
+rozmiary wierszy `pg_column_size`) pokazał dwie przyczyny, obie po stronie **ilości**, nie brakujących indeksów:
+
+| Co | Przed | Po |
+|---|---|---|
+| Zlecenia → Drzwi wewnętrzne (wejście w zakładkę) | 11 581 wierszy `select *`, 9,9 MB, 24 zapytania po 500 (każde ~200 ms w bazie + JSON) | 629 wierszy (niewydane), 0,5 MB, 1 zapytanie |
+| Zlecenia → STA / Bastion / Disting / ST | 4 435 / 3 507 / 2 170 / 1 143 wierszy (3–4,5 MB, 9 / 8 / 5 / 3 zapytań) | 129 / 252 / 288 / 105 wierszy, 1 zapytanie |
+| `get_stock_alerts_summary()` (badge w menu) | 3 536 wywołań / 6,5 h, śr. 492 ms, max 4,3 s = 29 min czasu bazy (nr 1 na liście) | wynik z pamięci 60 s w bazie (1,5 ms) + 15 s w aplikacji; liczenie 185 ms |
+| `v_stock_levels` (Stany → poziomy braków) | 280 ms (smart ROP liczony per półka, 856×) | 153 ms (per komponent, 483×), wiersze identyczne (md5) |
+| `get_orders_needing_review()` (co 60 s z każdego komputera kierownika) | seq scan 23,6 tys. wierszy, 36 ms | indeks częściowy, 1,7 ms |
+| Realtime Drzwi wewnętrzne (po każdym imporcie, każdy komputer) | pozycje całej listy: 3,3 tys. wierszy w 5 porcjach | pozycje tylko zmienionych zleceń |
+| Wysyłka „wydane 14 dni” | `limit(1000)` ucinał (1 346 wydanych, w tym 637 RO Optimy) | stronicowanie, anulowane odfiltrowane w bazie |
+
+Zasady, które z tego wynikają:
+
+1. **`orders` to już 23,6 tys. wierszy i rośnie o ~100 RO dziennie.** Żaden ekran nie ładuje całej kategorii.
+   `fetchOrders` (useOrders) ciągnie `release_date IS NULL` dopóki filtr „Ukryj wydane” jest włączony
+   (`hideCompletedRef`), a całość dopiero po jego odznaczeniu (`loadedOnlyOpenRef` + efekt). Realtime i miejsca
+   wołające `fetchOrders()` nic o tym nie wiedzą — flaga czytana jest z ref-a, nie z domknięcia.
+   Nowy ekran, który potrzebuje historii, ma dostać własne zapytanie z filtrem i `fetchAllPages`, nie `orders` z App.
+2. **Każde zapytanie wołane z realtime albo z `setInterval` musi mieć hamulec.** Zdarzenia magazynu przychodzą
+   seriami (wydanie etapu = N UPDATE stanów), a każdy otwarty komputer reaguje osobno — ilość wywołań mnoży się przez
+   liczbę stanowisk. Wzorzec: `src/lib/alertsBadge.ts` (TTL w aplikacji + in-flight) i `stock_alerts_summary_cache`
+   (TTL w bazie, `p_fresh` po własnej operacji).
+3. **Funkcje plpgsql per wiersz (`calculate_dynamic_rop`) liczyć tylko tam, gdzie wynik jest używany** —
+   `get_stock_alerts` liczy ROP tylko dla komponentów ze stanem (`exists warehouse_stock`), nie dla 2,5 tys.
+   kartotek Optimy; `v_stock_levels` raz na komponent (CTE `rop`), nie raz na półkę.
+4. **Warunek na JSON (`extra_fields->>'x'`) w funkcji wołanej cyklicznie = indeks częściowy** z dokładnie tym
+   wyrażeniem (`idx_orders_needs_review`).
+5. **Pomiar przed decyzją:** `pg_stat_statements` (reset 26.11 15:26) — kolumny `calls × mean_exec_time`;
+   `get_advisors(performance)` zgłasza tylko klucze obce bez indeksu (crm.*), nic z powyższego.
+
+Co jeszcze można zrobić (nie zrobione, do decyzji):
+- `calculate_dynamic_rop` przepisać na jedno zapytanie zbiorcze dla wszystkich komponentów (dziś 0,27 ms × 483 =
+  ~130 ms w każdym odczycie alertów / Stanów / Zamawiania); zysk ~3× na tych ekranach, ale to zmiana logiki ROP.
+- `orders.source_metadata` RO z Optimy (5,4 MB z 9,9 MB kategorii) ładuje się razem z `select *` — po odznaczeniu
+  „Ukryj wydane” w Drzwiach wewnętrznych nadal 10 MB; zakładka mogłaby wtedy ładować kolumny listy, a metadane
+  dopiero w szczegółach.
+- Weryfikacja (duble bot/Excel) ściąga wszystkie 23,6 tys. zleceń okrojonym zapytaniem przy każdym wejściu;
+  wystarczyłoby ostatnie 90 dni albo RPC w bazie.
+- `audit_log` 296 MB / 104 tys. wierszy — archiwizacja starszych niż rok.
+
+Migracja: `migrate/wydajnosc_2026_11_26.sql` (wgrana konektorem jako `wydajnosc_2026_11_26` i `_b`).

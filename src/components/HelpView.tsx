@@ -33,6 +33,14 @@ const SECTIONS: Section[] = [
           <li><b>STA, Disting, ST, Techniczne, Bastion</b> — pod dotychczasowym pulpitem dwie nowe karty: <b>Trend</b> po systemach / modelach / kolorach skrzydła (ten sam podział spada / rośnie / stabilne) i <b>Braki materiałowe</b> = wymuszone wydania z magazynu („[WYMUSZONE brak N]”): komponent, ile zleceń, ile brakowało, kiedy ostatnio, średnia realizacja tych zleceń vs całej kategorii, stan / rezerwacje / dostępne.</li>
           <li>Liczby liczy baza (funkcje <code>stat_wew_*</code>, <code>stat_zew_*</code>), więc zakładka Statystyki nie ściąga już 50 tys. pozycji drzwi wewnętrznych do przeglądarki.</li>
         </ul>
+        <h4>Szybsze ładowanie ekranów (beta.169)</h4>
+        <ul>
+          <li><b>Zlecenia</b> ściągają z serwera tylko zlecenia <b>niewydane</b> — tyle, ile lista i tak pokazuje przy włączonym „Ukryj wydane”. Dotąd każde wejście w zakładkę ładowało całą historię kategorii: w Drzwiach wewnętrznych 11,6 tys. RO z Optimy (ok. 10 MB w 24 zapytaniach), w STA 4,4 tys. zleceń. Po odznaczeniu „Ukryj wydane” wydane dociągają się jak dotąd. Licznik pod filtrami mówi teraz „Niewydanych zleceń: N” zamiast „Zamówień: N”.</li>
+          <li><b>Drzwi wewnętrzne:</b> po imporcie z Optimy odświeżają się pozycje tylko zmienionych zleceń, nie całej listy (3,3 tys. wierszy na każdym komputerze po każdym imporcie).</li>
+          <li><b>Licznik alertów magazynu</b> (liczba w menu) był najcięższym zapytaniem bazy: 3,5 tys. wywołań po pół sekundy w jedno popołudnie (co 5 minut i po każdej serii zmian stanów, z każdego komputera). Teraz baza liczy go najwyżej raz na minutę dla całej firmy, aplikacja pyta najwyżej raz na 15 s; po własnym PZ / MM liczy się od razu.</li>
+          <li><b>Wysyłka:</b> „Pokaż wydane (ost. 14 dni)” pokazuje wszystkie wydane, nie pierwsze 1000 — po dojściu RO z Optimy lista była ucinana.</li>
+          <li><b>Baza:</b> poziomy braków w Stanach liczą smart ROP raz na komponent (2× szybciej), alerty tylko dla komponentów ze stanem, indeksy pod Weryfikację i Wysyłkę.</li>
+        </ul>
         <h4>Magazyn wewnętrzne: „na magazynie” albo kartoteka w tle (beta.167)</h4>
         <ul>
           <li>Komponent ma pole <b>Na magazynie</b>: TAK = trzymamy na półce (inwentaryzacja, wydania zdejmują stan), NIE = kartoteka w tle — towar na zamówienie, bez stanu. Kartoteki z Optimy mają NIE.</li>

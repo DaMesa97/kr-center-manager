@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { appConfirm } from '../lib/appDialogs'
 import { fetchAllPages } from '../lib/fetchPaged'
+import { alertsBadgeThrottled, parseAlertsSummary } from '../lib/alertsBadge'
 import { normalizeStockLevelRow } from '../lib/stockLevels'
 
 /** Ruchy: pierwsza porcja i krok „Wczytaj starsze" */
@@ -823,19 +824,21 @@ export function useWarehouse({
   // Alert badge count
   // ---------------------------------------------------------------------------
 
-  const fetchAlertsBadgeCount = useCallback(async () => {
+  const fetchAlertsBadgeCount = useCallback(async (opts: { fresh?: boolean } = {}) => {
     // Lekki licznik (get_stock_alerts_summary) zamiast pełnych alertów —
     // pełne get_stock_alerts (840 wierszy + symulacja) było wołane przy
     // KAŻDYM zdarzeniu realtime magazynu i zjadało godziny czasu bazy
-    const { data, error } = await supabase.rpc('get_stock_alerts_summary')
-    if (error) {
-      console.warn('[Alerts] badge count fetch error:', error.message)
-      return
-    }
-    const arr = Array.isArray(data) ? data : data != null ? [data] : []
-    const row = arr[0] as Record<string, unknown> | undefined
-    const count = Number(row?.r_total_needs_attention ?? 0)
-    setAlertsBadgeCount(Number.isFinite(count) ? count : 0)
+    // 26.11: i tak był to najcięższy klient bazy (3,5 tys. wywołań / 6,5 h) —
+    // odpowiedź trzymana 15 s (lib/alertsBadge), równoległe wywołania dzielą jedno zapytanie
+    const count = await alertsBadgeThrottled(async (fresh) => {
+      const { data, error } = await supabase.rpc('get_stock_alerts_summary', { p_fresh: fresh })
+      if (error) {
+        console.warn('[Alerts] badge count fetch error:', error.message)
+        return null
+      }
+      return parseAlertsSummary(data)
+    }, opts)
+    if (count != null) setAlertsBadgeCount(count)
   }, [setAlertsBadgeCount])
 
   // ---------------------------------------------------------------------------
@@ -1583,7 +1586,7 @@ export function useWarehouse({
       await fetchWarehouseStock()
       await fetchOrders()
       await fetchOrdersNeedingReviewInternal()
-      void fetchAlertsBadgeCount()
+      void fetchAlertsBadgeCount({ fresh: true }) // własna operacja — licznik od razu świeży, bez pamięci 15 s / 60 s
     } finally {
       setPzSaving(false)
     }
@@ -1710,7 +1713,7 @@ export function useWarehouse({
       await fetchMmGroups()
       await fetchWarehouseStock()
       await fetchOrders()
-      void fetchAlertsBadgeCount()
+      void fetchAlertsBadgeCount({ fresh: true })
     } finally {
       setMmSaving(false)
     }

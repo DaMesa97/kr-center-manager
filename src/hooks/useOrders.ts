@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { supabase } from '../supabaseClient'
+import { alertsBadgeThrottled, parseAlertsSummary } from '../lib/alertsBadge'
 import { buildPartnerSyncPayload } from '../lib/linkedSync'
 import { appConfirm } from '../lib/appDialogs'
 import { mirrorStageKey } from '../lib/stageMirror'
@@ -238,6 +239,13 @@ export function useOrders({
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProductionDay, setSelectedProductionDay] = useState('Wszystkie dni')
   const [hideCompletedOrders, setHideCompletedOrders] = useState(true)
+  // 26.11: z serwera ciągniemy tylko to, co lista i tak pokaże. Przy włączonym „Ukryj wydane” (domyślnie)
+  // = zlecenia bez daty wydania (ok. 2,2 tys. zamiast 23,6 tys.; same RO drzwi wewnętrznych zamknięte
+  // w Optimie to 11 tys. wierszy / 10 MB). Wydane dociągają się po odznaczeniu filtra.
+  // Ref, nie domknięcie: fetchOrders woła też kanał realtime ze starym closure (deps [authUserId, activeTab]).
+  const hideCompletedRef = useRef(hideCompletedOrders)
+  hideCompletedRef.current = hideCompletedOrders
+  const loadedOnlyOpenRef = useRef(true)
   const [showCancelledOrders, setShowCancelledOrders] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'bot'>('all')
   // filtr dat zamówienia (presety: dziś / tydzień / miesiąc / zakres) — lib/dateRange
@@ -258,14 +266,16 @@ export function useOrders({
 
   const fetchAlertsBadgeCount = useCallback(async () => {
     if (!isManager) return
-    const { data, error } = await supabase.rpc('get_stock_alerts_summary')
-    if (error) {
-      console.error(error)
-      return
-    }
-    const arr = Array.isArray(data) ? data : data != null ? [data] : []
-    const row = arr[0] as Record<string, unknown> | undefined
-    setAlertsBadgeCount(Number(row?.r_total_needs_attention ?? 0))
+    // odpowiedź wspólna z useWarehouse i ważna 15 s (lib/alertsBadge) — patrz komentarz tam
+    const count = await alertsBadgeThrottled(async (fresh) => {
+      const { data, error } = await supabase.rpc('get_stock_alerts_summary', { p_fresh: fresh })
+      if (error) {
+        console.error(error)
+        return null
+      }
+      return parseAlertsSummary(data)
+    })
+    if (count != null) setAlertsBadgeCount(count)
   }, [isManager])
 
   const submitOnEnterInInput = useCallback(
@@ -567,6 +577,32 @@ export function useOrders({
     setInternalDoorItems((prev) => [...prev.filter((it) => it.order_id !== orderId), ...mapped])
   }, [])
 
+  /**
+   * Pozycje WSKAZANYCH zleceń (realtime: import z Optimy podmienił pozycje zlecenia).
+   * 26.11: dotąd każde zdarzenie na orders ściągało pozycje całej listy (3,3 tys. wierszy
+   * w 5 porcjach, na każdym otwartym komputerze) — teraz tylko zmienione zlecenia.
+   */
+  const refreshInternalDoorItems = useCallback(async (orderIds: number[]) => {
+    const ids = [...new Set(orderIds)].filter((n) => Number.isFinite(n))
+    if (ids.length === 0) return
+    const CHUNK = 150
+    const rows: Array<Record<string, unknown>> = []
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK)
+      const res = await fetchAllPages<Record<string, unknown>>((from, to) =>
+        supabase.from('order_internal_door_items').select(INT_DOOR_ITEMS_SELECT).in('order_id', chunk).order('id').range(from, to),
+      )
+      if (res.error) {
+        console.error('[drzwi wewnętrzne] pozycje zleceń (realtime)', res.error)
+        return
+      }
+      rows.push(...res.data)
+    }
+    const mapped = rows.map(mapIntDoorItemRow)
+    const changed = new Set(ids)
+    setInternalDoorItems((prev) => [...prev.filter((it) => !changed.has(it.order_id)), ...mapped])
+  }, [])
+
   const fetchOrders = useCallback(async () => {
     touchSession()
     setLoading(true)
@@ -584,18 +620,20 @@ export function useOrders({
         return numB - numA
       })
 
-    // Progresywne ładowanie — pierwsza partia (500) pokazuje się od razu i wyłącza
+    // Progresywne ładowanie — pierwsza partia pokazuje się od razu i wyłącza
     // spinner; kolejne dochodzą w tle (szybciej odczuwalnie na słabym necie).
+    // Domyślnie tylko otwarte (release_date IS NULL, indeks idx_orders_open) — patrz hideCompletedRef.
+    const onlyOpen = hideCompletedRef.current
+    loadedOnlyOpenRef.current = onlyOpen
     const allOrders: Order[] = []
     let from = 0
-    const PAGE = 500
+    const PAGE = 1000 // maksimum PostgREST — otwarte zlecenia kategorii mieszczą się w 1 porcji
     let fetchError = null
     let firstPaint = true
     for (;;) {
-      const { data, error: pageError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('category', fetchTab)
+      let pageQuery = supabase.from('orders').select('*').eq('category', fetchTab)
+      if (onlyOpen) pageQuery = pageQuery.is('release_date', null)
+      const { data, error: pageError } = await pageQuery
         .order('id', { ascending: false })
         .range(from, from + PAGE - 1)
       if (pageError) { fetchError = pageError; break }
@@ -664,6 +702,12 @@ export function useOrders({
     }
     setLoading(false)
   }, [activeTab, fetchInternalDoorItemsForVisibleOrders, touchSession, pushToast])
+
+  // Odznaczenie „Ukryj wydane” przy liście załadowanej tylko z otwartych — dociągnij całość.
+  // Zaznaczenie z powrotem niczego nie ładuje (filtr w przeglądarce chowa wydane jak dotąd).
+  useEffect(() => {
+    if (!hideCompletedOrders && loadedOnlyOpenRef.current) void fetchOrders()
+  }, [hideCompletedOrders, fetchOrders])
 
   const markProductionStageWithProfileInitials = useCallback(
     async (orderId: number, stageKey: string, opts?: { initials?: string }) => {
@@ -3092,6 +3136,7 @@ export function useOrders({
     markProductionStageWithProfileInitials,
     setProductionStageSpecial,
     fetchInternalDoorItemsForVisibleOrders,
+    refreshInternalDoorItems,
     fetchOrders,
     handleFormChange,
     handleCompanySelect,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { isReleaseDateEmpty, orderRouteMark } from '../utils'
 import { cleanCompanyValue } from '../lib/companyMatch'
+import { fetchAllPages } from '../lib/fetchPaged'
 import type { Order } from '../types'
 import type { ToastVariant } from '../types'
 import type React from 'react'
@@ -93,12 +94,18 @@ export function useShipping({
     }
     const [ordersRes, releasedRes, companiesRes] = await Promise.all([
       fetchAllOpen(),
-      supabase
-        .from('orders')
-        .select('*')
-        .gte('release_date', releasedCutoff)
-        .order('release_date', { ascending: false })
-        .limit(1000),
+      // 26.11: wydanych w 14 dni jest już >1000 (w tym 637 RO drzwi wewnętrznych zamkniętych w Optimie) —
+      // .limit(1000) ucinał listę; stronicowanie, anulowane odfiltrowane po stronie serwera
+      fetchAllPages<Order>((from, to) =>
+        supabase
+          .from('orders')
+          .select('*')
+          .gte('release_date', releasedCutoff)
+          .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.eq.false')
+          .order('release_date', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to),
+      ),
       supabase.from('companies').select('name, production_day, route_day'),
     ])
 

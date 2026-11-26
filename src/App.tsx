@@ -745,6 +745,7 @@ function App() {
     markProductionStageWithProfileInitials,
     setProductionStageSpecial,
     fetchInternalDoorItemsForVisibleOrders,
+    refreshInternalDoorItems,
     fetchOrders,
     handleFormChange,
     handleCompanySelect,
@@ -1320,11 +1321,18 @@ function App() {
     }
     // Drzwi wewnętrzne: import z Optimy zmienia zlecenie i podmienia pozycje (kasuje
     // i wstawia na nowo). Pozycje nie mają kanału realtime — po zdarzeniu na orders
-    // dociągamy je dla aktualnej listy (zlecenie scala się niżej, jak w innych zakładkach)
+    // dociągamy je TYLKO dla zmienionych zleceń (26.11: wcześniej dla całej listy, 3,3 tys. wierszy
+    // na każdym komputerze po każdym imporcie); zlecenie scala się niżej, jak w innych zakładkach
     let intDoorItemsDebounce: ReturnType<typeof setTimeout> | null = null
-    const intDoorItemsDebounced = () => {
+    const intDoorChangedIds = new Set<number>()
+    const intDoorItemsDebounced = (orderId: number | undefined) => {
+      if (orderId != null) intDoorChangedIds.add(orderId)
       if (intDoorItemsDebounce) clearTimeout(intDoorItemsDebounce)
-      intDoorItemsDebounce = setTimeout(() => void fetchInternalDoorItemsForVisibleOrders(ordersLatestRef.current, { onlyOpen: true }), 1500)
+      intDoorItemsDebounce = setTimeout(() => {
+        const ids = [...intDoorChangedIds]
+        intDoorChangedIds.clear()
+        void refreshInternalDoorItems(ids)
+      }, 1500)
     }
 
     // Subskrypcja na zmiany w orders
@@ -1348,7 +1356,11 @@ function App() {
             if (needsFull) stationRefetchDebounced()
             return
           }
-          if (activeTab === 'DrzwiWewnetrzne') intDoorItemsDebounced()
+          if (activeTab === 'DrzwiWewnetrzne' && payload.eventType !== 'DELETE') {
+            const changed = payload.new as Order
+            // RO zamknięte w Optimie nie ma pozycji na liście (dociągają się w szczegółach)
+            if (!isOptimaClosed(changed)) intDoorItemsDebounced(changed.id)
+          }
           if (payload.eventType === 'INSERT') {
             setOrders((prev) => {
               if (prev.some((o) => o.id === (payload.new as Order).id)) return prev
@@ -3836,8 +3848,8 @@ function App() {
                 {isFilterPending ? (
                   <span className="orders-count-bar--filtering">Filtrowanie…</span>
                 ) : filteredOrders.length === orders.length
-                  ? <span>Zamówień: <strong>{orders.length}</strong></span>
-                  : <span>Wyświetlane: <strong>{filteredOrders.length}</strong> z <strong>{orders.length}</strong></span>
+                  ? <span>{hideCompletedOrders ? 'Niewydanych zleceń' : 'Zamówień'}: <strong>{orders.length}</strong></span>
+                  : <span>Wyświetlane: <strong>{filteredOrders.length}</strong> z <strong>{orders.length}</strong>{hideCompletedOrders ? ' niewydanych' : ''}</span>
                 }
               </div>
             )}
