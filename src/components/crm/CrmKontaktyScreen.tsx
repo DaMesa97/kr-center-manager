@@ -18,6 +18,7 @@ import CrmTelefon from './CrmTelefon'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, LEJEK_ZAMKNIETE_DNI, lejekPodsumowanie, opisWyniku, ruchWLejku, swiezoZamkniety, wartoscKlienta, type LejekStatus } from '../../lib/crmWynik'
 import Spinner from '../Spinner'
+import { useOnCrmReshow } from './crmActive'
 
 type Props = {
   currentUser: CurrentUser | null
@@ -189,15 +190,19 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
-    const [r, d] = await Promise.all([fetchKontakty(), fetchDuplikaty()])
+    // lista nie czeka na duplikaty (osobny widok, liczony porównaniem wszystkich par klientów)
+    const dupl = fetchDuplikaty()
+    const r = await fetchKontakty()
     setError(r.error)
     if (!r.error) setRows(r.data)
-    if (!d.error) setDuplikaty(d.data)
     setLoading(false)
+    const d = await dupl
+    if (!d.error) setDuplikaty(d.data)
   }, [])
   useEffect(() => {
     void load()
   }, [load])
+  useOnCrmReshow(() => void load(true))
 
   const filtered = useMemo(() => {
     const nq = norm(q.trim())

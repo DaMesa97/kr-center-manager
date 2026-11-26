@@ -10432,3 +10432,6 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
   max-width: 260px;
   font-size: 0.85rem;
 }
+/* CRM: ekrany trzymane w pamięci (CrmView) — slot zachowuje się jak dawny bezpośredni potomek .crm-view */
+.crm-screen-slot { width: 100%; min-width: 0; }
+.crm-screen-slot[hidden] { display: none !important; }

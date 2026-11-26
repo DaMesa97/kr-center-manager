@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: szybsze przejścia (beta.160)</h4>
+        <ul>
+          <li>Powrót z karty klienta do listy (i przełączanie Do zrobienia / Oferty / Zamówienia / Klienci / Maile / Statystyki) jest natychmiastowy — lista zostaje w pamięci z tym samym wyszukiwaniem, filtrem i miejscem przewinięcia, a dane odświeżają się po cichu w tle.</li>
+          <li>Karta klienta ładuje wszystko jednym rzutem zamiast trzech po kolei.</li>
+          <li>Lista klientów nie czeka na sprawdzanie duplikatów; samo sprawdzanie w bazie liczy się ok. 25× szybciej.</li>
+        </ul>
         <h4>Drzwi wewnętrzne z Optimy na prawdziwych danych (beta.159)</h4>
         <ul>
           <li>Lista: kolumna <b>Skrzydła</b> (przy RO z Optimy liczy import — same skrzydła, bez ościeżnic i klamek) i filtr <b>Zawiera: Skrzydła / Tylko ościeżnice</b>.</li>

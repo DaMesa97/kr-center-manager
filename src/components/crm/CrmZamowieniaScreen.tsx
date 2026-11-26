@@ -38,6 +38,7 @@ import { openExternalUrl } from '../../hooks/useAluOrders'
 import { appConfirm } from '../../lib/appDialogs'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
+import { useOnCrmReshow } from './crmActive'
 
 type Props = {
   currentUser: CurrentUser | null
@@ -172,6 +173,7 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
     setLoading(false)
   }, [podglad])
   useEffect(() => { void load() }, [load])
+  useOnCrmReshow(() => void load(true))
 
   const { wiersze, sieroty } = useMemo(() => (panel ? zbuduj(panel) : { wiersze: [], sieroty: [] }), [panel])
   const liczniki = useMemo(() => {

@@ -13,6 +13,7 @@ import { fetchMail, fetchMaile, retryMailAnaliza, type CrmError } from '../../ho
 import { appConfirm } from '../../lib/appDialogs'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
+import { useCrmActive, useOnCrmReshow } from './crmActive'
 
 type Mode = 'handlowiec' | 'pelny'
 type PushToast = (message: string, variant: ToastVariant) => void
@@ -96,14 +97,16 @@ export default function CrmMaileScreen({
   useEffect(() => {
     void load()
   }, [load])
+  useOnCrmReshow(() => void load(true))
+  const visible = useCrmActive()
 
-  // póki coś czeka na analizę — odśwież co 10 s
+  // póki coś czeka na analizę — odśwież co 10 s (tylko na widocznym ekranie)
   const pending = rows.some((m) => m.status_przetwarzania === 'nowy')
   useEffect(() => {
-    if (!pending) return
+    if (!pending || !visible) return
     const t = window.setInterval(() => void load(true), 10_000)
     return () => window.clearInterval(t)
-  }, [pending, load])
+  }, [pending, visible, load])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -271,13 +274,15 @@ export function CrmMailScreen({
   useEffect(() => {
     void load()
   }, [load])
+  useOnCrmReshow(() => void load(true))
+  const visible = useCrmActive()
 
   const pending = mail?.status_przetwarzania === 'nowy'
   useEffect(() => {
-    if (!pending) return
+    if (!pending || !visible) return
     const t = window.setInterval(() => void load(true), 10_000)
     return () => window.clearInterval(t)
-  }, [pending, load])
+  }, [pending, visible, load])
 
   const onRetry = async () => {
     if (!mail) return

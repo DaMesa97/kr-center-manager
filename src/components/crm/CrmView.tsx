@@ -8,7 +8,8 @@
 // liczy funkcja crm-oferta po triggerze na status 'przelicz'; tu tylko odpytujemy
 // co 10 s, póki coś jest w przeliczaniu.
 // =====================================================================
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { CrmActiveContext, useCrmActive, useOnCrmReshow } from './crmActive'
 import { ArrowLeft, Copy, RefreshCw, Phone, Mail, MessageCircle, ExternalLink, Check, UserPlus, FileText, Pencil, Trash2, Merge, Ruler } from 'lucide-react'
 import type { CurrentUser, Order, ToastVariant } from '../../types'
 import {
@@ -315,11 +316,13 @@ function KeyValueTable({ data }: { data: Record<string, unknown> | null | undefi
 
 /** odpytywanie co POLL_MS, gdy `active` (coś się liczy) */
 function usePolling(active: boolean, fn: () => void) {
+  // ekran ukryty w pamięci (CrmView) nie odpytuje bazy — dociągnie dane przy powrocie
+  const visible = useCrmActive()
   useEffect(() => {
-    if (!active) return
+    if (!active || !visible) return
     const id = setInterval(fn, POLL_MS)
     return () => clearInterval(id)
-  }, [active, fn])
+  }, [active, visible, fn])
 }
 
 /** `dokumenty` (brief pkt 22, migracja crm_dokumenty_realtime) tylko na żądanie — gdy ekran poda dla niej filtr */
@@ -412,6 +415,7 @@ function ZadaniaScreen({
   useEffect(() => {
     void load()
   }, [load])
+  useOnCrmReshow(() => void load(true))
 
   const anyComputing = rows.some((r) => r.oferta?.status === 'przelicz')
   const silentReload = useCallback(() => void load(true), [load])
@@ -645,6 +649,7 @@ function OfertyList({ mode, onOpenOferta, onOpenLead }: { mode: CrmMode; onOpenO
   useEffect(() => {
     void load()
   }, [load])
+  useOnCrmReshow(() => void load(true))
 
   const silentReload = useCallback(() => void load(true), [load])
   usePolling(rows.some((r) => r.status === 'przelicz'), silentReload)
@@ -831,6 +836,7 @@ function OfertaScreen({
   useEffect(() => {
     void load()
   }, [load])
+  useOnCrmReshow(() => void load(true))
 
   // w przeliczaniu: odpytuj (awaryjnie), a gdy poprawka urodzi nową wersję — przejdź do niej
   const silentReload = useCallback(() => void load(true), [load])
@@ -2025,7 +2031,16 @@ function LeadScreen({
   const load = useCallback(async (silent = false) => {
     if (goneRef.current) return
     if (!silent) setLoading(true)
-    const { data: l, error: err } = await fetchLead(id)
+    // jedna runda zapytań naraz (wcześniej: lead → 6 zapytań → nazwiska, trzy rundy po kolei)
+    const [{ data: l, error: err }, r, o, z, m, dk, dp] = await Promise.all([
+      fetchLead(id),
+      fetchRozmowy(id),
+      fetchOfertyLeada(id),
+      fetchZdarzenia({ leadId: id }),
+      fetchMaileLeada(id, { zTrescia: true }),
+      fetchDokumenty(id),
+      fetchDuplikatyLeada(id),
+    ])
     if (goneRef.current) return
     setError(err)
     setLead(l)
@@ -2034,21 +2049,25 @@ function LeadScreen({
       return dirty
     })
     if (l) {
-      const [r, o, z, m, dk, dp] = await Promise.all([fetchRozmowy(l.id), fetchOfertyLeada(l.id), fetchZdarzenia({ leadId: l.id }), fetchMaileLeada(l.id, { zTrescia: true }), fetchDokumenty(l.id), fetchDuplikatyLeada(l.id)])
       setRozmowy(r.data)
       setOferty(o.data)
       setZdarzenia(z.data)
       setMaile(m.data)
       if (!dk.error) setDokumenty(dk.data)
       if (!dp.error) setDuplikaty(dp.data)
-      setNames(await fetchProfileNames(z.data.map((e) => e.kto ?? '')))
     }
     setLoading(false)
+    // nazwiska autorów zdarzeń dochodzą po pokazaniu karty
+    if (l) {
+      const names = await fetchProfileNames(z.data.map((e) => e.kto ?? ''))
+      if (!goneRef.current) setNames(names)
+    }
   }, [id])
 
   useEffect(() => {
     void load()
   }, [load])
+  useOnCrmReshow(() => void load(true))
 
   const silentReload = useCallback(() => void load(true), [load])
   const czekaNaOferte = zleconoAt != null && Date.now() - zleconoAt < 120_000
@@ -2905,39 +2924,111 @@ function LeadScreen({
 
 // ---- KORZEŃ ----
 
+/** Ekrany list trzymane w pamięci po pierwszym wejściu (powrót bez ładowania od zera). */
+const KEEP_ALIVE_TOP: ReadonlySet<Screen['kind']> = new Set(['zadania', 'oferty', 'zamowienia', 'kontakty', 'maile', 'statystyki'])
+/** Ile ostatnich ekranów z historii „Wróć” (karta klienta, oferta, mail) trzymać w pamięci. */
+const KEEP_ALIVE_STACK = 4
+const screenKey = (s: Screen): string => ('id' in s ? `${s.kind}:${s.id}` : s.kind)
+
 export default function CrmView({ currentUser, pushToast, mode = 'pelny', onOpenOrder }: Props) {
   const [screen, setScreen] = useState<Screen>({ kind: 'zadania' })
   // historia ekranów (zadania → lead → oferta…): „Wróć” cofa o jeden
-  const [, setStack] = useState<Screen[]>([])
+  const [stack, setStack] = useState<Screen[]>([])
+  const stackRef = useRef(stack)
+  stackRef.current = stack
+  // Tymek 26.11: każde przejście (karta klienta ↔ lista) ładowało wszystko od nowa — ekrany list i ostatnie
+  // ekrany z historii zostają zamontowane (ukryte), a po powrocie dociągają dane po cichu (useOnCrmReshow)
+  const [visitedTop, setVisitedTop] = useState<Screen['kind'][]>(['zadania'])
+  const curKey = screenKey(screen)
+  const curKeyRef = useRef(curKey)
+  curKeyRef.current = curKey
+  const scrollPos = useRef(new Map<string, number>())
+  const remember = useCallback(() => {
+    scrollPos.current.set(curKeyRef.current, window.scrollY)
+  }, [])
 
   const go = useCallback((next: Screen) => {
+    remember()
     setStack((prev) => [...prev, screen])
     setScreen(next)
-  }, [screen])
+  }, [screen, remember])
 
   const back = useCallback(() => {
-    setStack((prev) => {
-      const next = [...prev]
-      const last = next.pop()
-      setScreen(last ?? { kind: 'zadania' })
-      return next
-    })
-  }, [])
+    remember()
+    const prev = stackRef.current
+    setStack(prev.slice(0, -1))
+    setScreen(prev[prev.length - 1] ?? { kind: 'zadania' })
+  }, [remember])
 
   const openOferta = useCallback((id: string) => go({ kind: 'oferta', id }), [go])
   const zastapOferte = useCallback((id: string) => setScreen({ kind: 'oferta', id }), [])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
   const openMail = useCallback((id: string) => go({ kind: 'mail', id }), [go])
   const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia' | 'kontakty' | 'statystyki' | 'zamowienia') => {
+    remember()
     setStack([])
     setScreen({ kind })
   }
+
+  useEffect(() => {
+    if (KEEP_ALIVE_TOP.has(screen.kind)) setVisitedTop((v) => (v.includes(screen.kind) ? v : [...v, screen.kind]))
+  }, [screen.kind])
+
+  // zamontowane ekrany: odwiedzone listy + ostatnie z historii + bieżący (bez dubli — ten sam klucz = ta sama instancja)
+  const alive = useMemo(() => {
+    const out = new Map<string, Screen>()
+    for (const k of visitedTop) out.set(k, { kind: k } as Screen)
+    for (const s of stack.slice(-KEEP_ALIVE_STACK)) out.set(screenKey(s), s)
+    out.set(curKey, screen)
+    return [...out.entries()]
+  }, [visitedTop, stack, screen, curKey])
+
+  // przewinięcie: ekran trzymany w pamięci wraca tam, gdzie był; nowy — od góry
+  const prevAlive = useRef<Set<string>>(new Set())
+  useLayoutEffect(() => {
+    const wasAlive = prevAlive.current.has(curKey)
+    const y = wasAlive ? scrollPos.current.get(curKey) : undefined
+    window.scrollTo(0, y ?? 0)
+  }, [curKey])
+  useEffect(() => {
+    prevAlive.current = new Set(alive.map(([k]) => k))
+  }, [alive])
+
   const topKind =
     screen.kind === 'oferty' || screen.kind === 'poczta' || screen.kind === 'maile' || screen.kind === 'pomoc' || screen.kind === 'ustawienia' || screen.kind === 'kontakty' || screen.kind === 'statystyki' || screen.kind === 'zamowienia'
       ? screen.kind
       : screen.kind === 'mail'
         ? 'maile'
         : 'zadania'
+
+  const renderScreen = (s: Screen): ReactNode => {
+    switch (s.kind) {
+      case 'zadania':
+        return <ZadaniaScreen mode={mode} currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />
+      case 'oferty':
+        return <OfertyList mode={mode} onOpenOferta={openOferta} onOpenLead={openLead} />
+      case 'statystyki':
+        return <CrmStatystykiScreen />
+      case 'zamowienia':
+        return <CrmZamowieniaScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOrder={onOpenOrder} />
+      case 'kontakty':
+        return <CrmKontaktyScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />
+      case 'maile':
+        return <CrmMaileScreen mode={mode} onOpenMail={openMail} onOpenLead={openLead} onOpenOferta={openOferta} />
+      case 'mail':
+        return <CrmMailScreen id={s.id} mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />
+      case 'poczta':
+        return <CrmPocztaScreen currentUser={currentUser} isSuperadmin={mode === 'pelny'} pushToast={pushToast} />
+      case 'pomoc':
+        return <CrmPomocScreen currentUser={currentUser} canEdit={mode === 'pelny'} pushToast={pushToast} />
+      case 'ustawienia':
+        return mode === 'pelny' ? <CrmUstawieniaScreen currentUser={currentUser} pushToast={pushToast} onOpenOferta={openOferta} onOpenLead={openLead} /> : null
+      case 'oferta':
+        return <OfertaScreen id={s.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} onZastapOferte={zastapOferte} />
+      case 'lead':
+        return <LeadScreen id={s.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onDeleted={() => goTop('kontakty')} onOpenOferta={openOferta} onOpenMail={openMail} onOpenLead={openLead} />
+    }
+  }
 
   return (
     <div className={`crm-view crm-view--${mode}`}>
@@ -2983,20 +3074,11 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny', onOpen
         </nav>
         {currentUser && <span className="crm-brand-user">{currentUser.full_name}</span>}
       </div>
-      {screen.kind === 'zadania' && <ZadaniaScreen mode={mode} currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
-      {screen.kind === 'oferty' && <OfertyList mode={mode} onOpenOferta={openOferta} onOpenLead={openLead} />}
-      {screen.kind === 'statystyki' && <CrmStatystykiScreen />}
-      {screen.kind === 'zamowienia' && <CrmZamowieniaScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOrder={onOpenOrder} />}
-      {screen.kind === 'kontakty' && <CrmKontaktyScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />}
-      {screen.kind === 'maile' && <CrmMaileScreen mode={mode} onOpenMail={openMail} onOpenLead={openLead} onOpenOferta={openOferta} />}
-      {screen.kind === 'mail' && <CrmMailScreen id={screen.id} mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} />}
-      {screen.kind === 'poczta' && <CrmPocztaScreen currentUser={currentUser} isSuperadmin={mode === 'pelny'} pushToast={pushToast} />}
-      {screen.kind === 'pomoc' && <CrmPomocScreen currentUser={currentUser} canEdit={mode === 'pelny'} pushToast={pushToast} />}
-      {screen.kind === 'ustawienia' && mode === 'pelny' && <CrmUstawieniaScreen currentUser={currentUser} pushToast={pushToast} onOpenOferta={openOferta} onOpenLead={openLead} />}
-      {screen.kind === 'oferta' && (
-        <OfertaScreen key={screen.id} id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenOferta={openOferta} onZastapOferte={zastapOferte} />
-      )}
-      {screen.kind === 'lead' && <LeadScreen key={screen.id} id={screen.id} mode={mode} currentUser={currentUser} pushToast={pushToast} onBack={back} onDeleted={() => goTop('kontakty')} onOpenOferta={openOferta} onOpenMail={openMail} onOpenLead={openLead} />}
+      {alive.map(([k, s]) => (
+        <div key={k} className="crm-screen-slot" hidden={k !== curKey}>
+          <CrmActiveContext.Provider value={k === curKey}>{renderScreen(s)}</CrmActiveContext.Provider>
+        </div>
+      ))}
     </div>
   )
 }
