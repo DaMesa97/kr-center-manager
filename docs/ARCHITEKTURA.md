@@ -97,6 +97,7 @@ aplikacji, automatyczne wyłącznie przez `orders-intake` (konfigurator).
 | `dimension_map` | Mapowanie wymiarów (szer/wys → wymiary produkcyjne, poszerzenia). |
 | `lead_time_rules` | Czasy realizacji (terminy ostrzeżeń/zaległości). |
 | `companies` | Kontrahenci: dni produkcji/tras. |
+| `interior_item_dict` | Cechy pozycji drzwi wewnętrznych (kod Optimy → grupa modelowa, linia, wykonanie WEW/NSTD, kolor, rozmiar) rozbite z nazwy kartoteki; `reczne` = poprawka kierownika. Statystyki sprzedaży (4f). |
 | `company_aliases` | Zapamiętane dopasowania nazw → kontrahent. Od 20.11 trigger `trg_apply_company_alias` działa przy KAŻDYM INSERT do orders (bot, Excel, API, ręcznie): 1) alias po kluczu `company_key()` (`alias_key`), 2) bez aliasu kontrahent z `companies` o tym samym kluczu (`name_key`) → jego pisownia; oryginał w `extra_fields.company_as_received` (`migrate/firmy_alias_wszystkie_zrodla.sql`). Od 20.11 też statystyki: Statystyki → Firmy → „Porządek nazw firm” (kierownik scala pisownie; `lib/companyStats.ts`: companyKey skleja sam wielkość liter/ogonki/„#”/powtórzone słowo, aliasy resztę; rekordy łączone Titan/Disting Plus liczone raz — isLinkedSecondary). |
 | `warehouse_components` / `warehouse_stock` / `warehouse_movements` | Kartoteka, stany per magazyn, ruchy. `warehouse_stock` ma `reserved_quantity` + `available_quantity` (kolumna GENERATED: fizyczny − zarezerwowane) oraz `min_quantity` (minimum półki, null = nie pilnujemy; §6a). Typy ruchów: `PZ`/`WZ`/`MM`/`ZWR`/`INW`/`ZN` (+ legacy `in`/`out`); ruchy grupowane w dokumenty po `reference`. |
 | `stock_reservations` | Rezerwacje komponentów per zlecenie (model dwustopniowy — sekcja 6). |
@@ -341,6 +342,42 @@ door_accessory) grupuje pozycje w szczegółach (`groupItemsByType`, przy ręczn
 zleceń. Komponenty: `category = 'DRZWI WEWNĘTRZNE'` (`isInternalDoorComponent`), pola door_* mogą być NULL.
 `optima_ro_sync_state.running_until > now()` = „trwa synchronizacja” (`isSyncRunning`). Braki przy wydaniu
 (`internalShortages`) tylko ostrzegają — `issue_internal_door_stock` pozwala zejść poniżej zera.
+
+### 4f. Statystyki sprzedaży — grupy modelowe, trend, braki (od 26.11.2026, Etap 25)
+
+Statystyki → Drzwi wewnętrzne liczą towar, nie komponenty (wcześniej „top SKU” wygrywała osłonka na zawias).
+Wszystko liczy baza — pozycji z Optimy jest ~50 tys., przeglądarka dostaje gotowe agregaty
+(`migrate/statystyki_sprzedazy_wew.sql`, wgrane konektorem jako `statystyki_sprzedazy_wew` + `_poprawki`).
+
+**Słownik cech `interior_item_dict`** (kod Optimy → `grupa`, `model`, `linia`, `wykonanie`, `wzor`, `kolor`, `rozmiar`,
+`strona`, `dodatek`, `rozpoznane`, `reczne`, `parser_version`). Cechy rozbija `interior_item_parse(nazwa, item_type, optima_group)`
+z NAZWY kartoteki, bo `optima_group` z Optimy jest niekonsekwentne, a kartoteki nie mają kolorów. Wzory: skrzydło
+`SKRZYDŁO <WEW|NSTD|BEZPRZYLGOWE|NORMA CZ-SK>* <MODEL [BLACK]> <wzór 01/N204/A102-INOX/STD-01…> <KOLOR> <60–100><L|P> [PRZESUWNE|BIERNA|(szklenie satyna)]`
+(także `DRZWI TECHNIC 01 …`, `DRZWI TECHNICZNE UNI-45 …` → grupa TECHNIC); ościeżnica `BAZA|BELKA <OR1–OR7 (zakres) | ORSn-90 (zakres) | OŚCIEŻNICY PROSTEJ> <KOLOR> <LEWA|PRAWA|szerokość>`,
+`OŚC REGULOWANA <zakres> <KOLOR> <szer><L|P>` (komplet, grupa z zakresu), `LISTWA OPASKOWA / OPASKA CPL / ĆWIERĆWAŁEK <KOLOR> [szerokość]`, `RENOW…`;
+klamka `KLAMKA|ROZETA <MODEL> [KWADRAT|OKRĄGŁY] [KLUCZ|WC|WB] <KOLOR>`; osłonka `… KOLOR <kolor>`; akcesoria = pierwszy wyraz.
+Zasady grup (decyzja z 26.11, do potwierdzenia przez właściciela): **grupa = pierwszy wyraz modelu** (VERONA = VERONA + VERONA BLACK),
+`linia` = BLACK / PLUS / BEZPRZYLGOWE / NORMA CZ-SK, `wykonanie` = WEW (z półki) albo NSTD (na zamówienie; też kod z końcówką NSTD).
+Pokrycie na danych z 26.11: skrzydła 99,4 % sztuk, ościeżnice 99,9 %, klamki/osłonki/akcesoria 100 % (nierozpoznane głównie kod-śmietnik `INNE 350 KPL`).
+`interior_item_dict_refresh()` (woływane przez każde RPC) dopisuje nowe kody i przepisuje wiersze automatyczne, gdy `parser_version` < bieżąca
+(stała w funkcji, teraz 2 — podbić po każdej zmianie regexów). `interior_item_dict_set(p_code, p_grupa, p_kolor, p_rozmiar, p_wykonanie, p_reset)`
+= ręczna poprawka kierownika (`reczne = true`, automat jej nie dotyka; `p_reset` wraca do automatu). Ekran: lista „Nierozpoznane pozycje” → „Przypisz grupę”.
+
+**RPC** (security definer, puste przy braku `current_user_is_manager()`; w aplikacji przez `fetchAllPages` + `.order().range()`, bo > 1000 wierszy):
+`stat_wew_sprzedaz(p_from, p_to)` — sztuki i zlecenia per `item_type × grupa × model × linia × wykonanie × kolor × rozmiar` (po `order_date`, bez anulowanych, otwarte też);
+`stat_wew_miesiace(p_months)` — per miesiąc × typ × grupa × wykonanie (trend liczy aplikacja);
+`stat_wew_braki(p_days, p_prog)` — per kod: otwarte zlecenia (`wew_zlecenie_otwarte(o)` = niewydane, nieanulowane, RO stan ≠ 3/4) z dniami od `order_date` do dziś
+oraz historia: wydane z `p_days` dni, ile z nich czekało > `p_prog` dni, średnia/max; do tego `component_id`, `is_stocked`, stan w magazynie WEWNETRZNE
+(dziś 0 — magazyn bez stanów, żadna kartoteka Optimy nie ma `is_stocked = true`; gdy się pojawią, kolumna „Na magazynie” zacznie pokazywać pokrycie);
+`stat_zew_miesiace(p_category, p_months)` — zewnętrzne/Bastion: miesiąc × wymiar (`system` / `model` / `kolor` = `wing_color`) z `orders`;
+`stat_zew_braki(p_category, p_days)` — wymuszone wydania `WZ` z `[WYMUSZONE brak N]` w notatce ruchu, per komponent: zlecenia, brak szt., pierwsze/ostatnie,
+średnia realizacja tych zleceń vs kategorii, stan/rezerwacje/dostępne z `v_stock_levels`.
+
+**Aplikacja:** `src/lib/salesStats.ts` (ranking, rozkłady, `trendCompare` — okresy 1/3/6 mies., domyślnie bez bieżącego niepełnego miesiąca, ±10 % = stabilne,
+< 20 szt. w obu okresach = „mało danych”, kolejność spada → rośnie → stabilne; kolejność braków = zlecenia × średnie dni; normalizacja numeric→number),
+testy `src/__tests__/salesStats.test.ts`; ekrany `stats/InternalDoorStatsDashboard.tsx` (przepisany, sam ładuje RPC, ustawienia filtrów w localStorage `stats.wew.*`)
+i `stats/CategoryTrendShortages.tsx` (karty Trend + Braki pod `CategoryStatsDashboard` dla STA/Disting/ST/Techniczne/Bastion). `useStats` nie ładuje już
+pozycji drzwi wewnętrznych do statystyk. Zmiana parsera = nowa wersja w `interior_item_dict_refresh` + test pokrycia zapytaniem z sekcji „Pokrycie” (patrz Etap 25 w kontekście).
 
 ## 5. Rekordy łączone (Disting Plus, Titan)
 

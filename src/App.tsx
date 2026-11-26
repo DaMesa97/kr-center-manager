@@ -923,9 +923,8 @@ function App() {
     statsOrders,
     statsComplaints,
     statsLoading,
-    statsInternalDoorItemsLoading,
     fetchStatsData,
-  } = useStats({ pushToast, touchSession, fetchInternalDoorItemsForVisibleOrders })
+  } = useStats({ pushToast, touchSession })
 
   const {
     orderCommentsCounts,
@@ -3604,9 +3603,7 @@ function App() {
           <StatsView
             orders={statsOrders}
             complaints={statsComplaints}
-            internalDoorItems={internalDoorItems}
             loading={statsLoading}
-            internalDoorItemsLoading={statsInternalDoorItemsLoading}
             activeSubTab={activeStatsSubTab}
             onSubTabChange={setActiveStatsSubTab}
             isManager={isManager}

@@ -1,7 +1,8 @@
 import { STATS_SUB_TABS } from '../constants'
 import { CATEGORY_LABELS } from '../constants'
-import type { Complaint, InternalDoorItem, Order, StatsSubTab } from '../types'
+import type { Complaint, Order, StatsSubTab } from '../types'
 import CategoryStatsDashboard from './stats/CategoryStatsDashboard'
+import CategoryTrendShortages from './stats/CategoryTrendShortages'
 import ComplaintsStatsDashboard from './stats/ComplaintsStatsDashboard'
 import CompanyStatsView from './stats/CompanyStatsView'
 import InternalDoorStatsDashboard from './stats/InternalDoorStatsDashboard'
@@ -16,24 +17,22 @@ import { companyCanonizer } from '../lib/companyStats'
 type StatsViewProps = {
   orders: Order[]
   complaints: Complaint[]
-  internalDoorItems: InternalDoorItem[]
   loading: boolean
-  internalDoorItemsLoading: boolean
   activeSubTab: StatsSubTab
   onSubTabChange: (tab: StatsSubTab) => void
-  /** kierownik może scalać pisownie firm (Statystyki → Firmy → Porządek nazw) */
+  /** kierownik może scalać pisownie firm (Statystyki → Firmy → Porządek nazw) i przypisywać grupy nierozpoznanym pozycjom wewnętrznym */
   isManager?: boolean
   currentUserId?: string | null
   /** „Zużycie magazynu" — raport miesięczny, przeniesiony tu z Magazynu (porządki menu, beta.86) */
   monthlyConsumption: ComponentProps<typeof MonthlyConsumptionView>
 }
 
+const PRODUCTION_SUB_TABS = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion']
+
 function StatsView({
   orders,
   complaints,
-  internalDoorItems,
   loading,
-  internalDoorItemsLoading,
   activeSubTab,
   onSubTabChange,
   monthlyConsumption,
@@ -62,8 +61,14 @@ function StatsView({
           </button>
         ))}
       </div>
-      {['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'].includes(activeSubTab) && (
-        <CategoryStatsDashboard category={activeSubTab} orders={orders} loading={loading} canon={canonCompany} />
+      {PRODUCTION_SUB_TABS.includes(activeSubTab) && (
+        <>
+          <CategoryStatsDashboard category={activeSubTab} orders={orders} loading={loading} canon={canonCompany} />
+          {/* Etap 25: trend (systemy / modele / kolory) i braki materiałowe z czasem oczekiwania — liczone w bazie */}
+          <div className="stats-dashboard">
+            <CategoryTrendShortages category={activeSubTab} />
+          </div>
+        </>
       )}
       {activeSubTab === 'Reklamacje' && (
         <ComplaintsStatsDashboard complaints={complaints} loading={loading} canon={canonCompany} />
@@ -80,14 +85,7 @@ function StatsView({
           onRemoveAlias={remove}
         />
       )}
-      {activeSubTab === 'DrzwiWewnetrzne' && (
-        <InternalDoorStatsDashboard
-          orders={orders.filter((o) => o.category === 'DrzwiWewnetrzne')}
-          internalDoorItems={internalDoorItems}
-          loading={loading}
-          itemsLoading={internalDoorItemsLoading}
-        />
-      )}
+      {activeSubTab === 'DrzwiWewnetrzne' && <InternalDoorStatsDashboard isManager={isManager} />}
       {activeSubTab === 'Produktywność' && <ProductivityView />}
       {activeSubTab === 'Czas realizacji' && <LeadTimeStatsView />}
       {activeSubTab === 'Konfigurator' && <ConfiguratorShareView />}

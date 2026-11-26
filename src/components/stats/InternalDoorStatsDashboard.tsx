@@ -1,355 +1,375 @@
-import { useMemo, useState } from 'react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import type { InternalDoorItem, Order } from '../../types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { supabase } from '../../supabaseClient'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
+import { fetchAllPages } from '../../lib/fetchPaged'
+import { localDateStr } from '../../lib/localDates'
+import { appPrompt } from '../../lib/appDialogs'
+import {
+  BRAK,
+  ITEM_TYPE_LABELS,
+  NIEROZPOZNANE,
+  TREND_BADGE,
+  TREND_MODE_LABELS,
+  WYKONANIE_LABELS,
+  distribution,
+  filterRows,
+  formatDays,
+  formatPct,
+  groupName,
+  monthlySeries,
+  monthsEndingAt,
+  normalizeWewBrak,
+  normalizeWewMiesiac,
+  normalizeWewSprzedaz,
+  periodLabel,
+  rankGroups,
+  shortageLabel,
+  sortShortagesHist,
+  sortShortagesNow,
+  trendPeriods,
+  wewTrend,
+  type RankRow,
+  type TrendMode,
+  type TrendRow,
+  type WewBrakRow,
+  type WewMiesiacRow,
+  type WewSprzedazRow,
+  type Wykonanie,
+} from '../../lib/salesStats'
 
-type InternalDoorItemWithComponent = InternalDoorItem & {
-  component_product_category?: string | null
-  component_door_model?: string | null
-  component_door_color?: string | null
-}
+/**
+ * Statystyki → Drzwi wewnętrzne (Etap 25): co się sprzedaje po grupach modelowych, kolorach
+ * i rozmiarach, co spada / rośnie, na co czeka klient. Liczby przychodzą z RPC
+ * stat_wew_sprzedaz / stat_wew_miesiace / stat_wew_braki (migrate/statystyki_sprzedazy_wew.sql),
+ * cechy pozycji ze słownika interior_item_dict (rozbiór nazwy kartoteki Optimy).
+ */
 
 type Props = {
-  orders: Order[]
-  internalDoorItems: InternalDoorItemWithComponent[]
-  loading: boolean
-  itemsLoading: boolean
+  /** kierownik może przypisać grupę nierozpoznanej pozycji (rpc interior_item_dict_set) */
+  isManager?: boolean
 }
 
 const ITEM_FILTERS = [
-  { key: 'all', label: 'Wszystko' },
   { key: 'door_wing', label: 'Skrzydła' },
   { key: 'door_frame', label: 'Ościeżnice' },
   { key: 'door_handle', label: 'Klamki' },
   { key: 'door_hinge_cover', label: 'Osłonki' },
+  { key: 'door_accessory', label: 'Akcesoria' },
+  { key: 'all', label: 'Wszystko' },
 ] as const
 
-function isCancelled(o: Order): boolean {
-  const extra = o.extra_fields as Record<string, unknown> | null | undefined
-  return extra?.cancelled === true
+type ItemFilter = (typeof ITEM_FILTERS)[number]['key']
+type BrakiTab = 'teraz' | 'historia'
+type DictRow = { optima_code: string; optima_name: string | null; item_type: string | null }
+
+const LS = {
+  typ: 'stats.wew.typ',
+  wykonanie: 'stats.wew.wykonanie',
+  okres: 'stats.wew.okres',
+  trend: 'stats.wew.trend',
 }
 
-function isReleased(o: Order): boolean {
-  return Boolean(o.release_date && String(o.release_date).trim())
+function readLs<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const v = localStorage.getItem(key)
+    return v && (allowed as readonly string[]).includes(v) ? (v as T) : fallback
+  } catch {
+    return fallback
+  }
 }
 
-function daysBetween(startRaw: string | null | undefined, endRaw: string | null | undefined): number | null {
-  if (!startRaw || !endRaw) return null
-  const a = new Date(startRaw)
-  const b = new Date(endRaw)
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null
-  const d = (b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24)
-  if (d < 0) return null
-  return d
+function writeLs(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    /* prywatne okno / brak miejsca — ustawienie po prostu nie zostaje */
+  }
 }
 
-function formatPercent(v: number): string {
-  return `${v.toFixed(1)}%`
+const COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4']
+
+function shortName(s: string, max = 26): string {
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s
 }
 
-function catLabel(cat: string): string {
-  if (cat === 'door_wing') return 'Skrzydła'
-  if (cat === 'door_frame') return 'Ościeżnice'
-  if (cat === 'door_handle') return 'Klamki'
-  if (cat === 'door_hinge_cover') return 'Osłonki'
-  return 'Inne'
-}
+export default function InternalDoorStatsDashboard({ isManager = false }: Props) {
+  const [itemFilter, setItemFilter] = useState<ItemFilter>(() => readLs(LS.typ, ITEM_FILTERS.map((f) => f.key), 'door_wing'))
+  const [wykonanie, setWykonanie] = useState<Wykonanie>(() => readLs(LS.wykonanie, ['all', 'WEW', 'NSTD'] as const, 'all'))
+  const [months, setMonths] = useState<number>(() => Number(readLs(LS.okres, ['3', '6', '12', '24'] as const, '12')))
+  const [trendMode, setTrendMode] = useState<TrendMode>(() => readLs(LS.trend, ['1m', '3m', '6m'] as const, '3m'))
+  const [zBiezacym, setZBiezacym] = useState(false)
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [brakiTab, setBrakiTab] = useState<BrakiTab>('teraz')
+  const [brakiDays, setBrakiDays] = useState(180)
+  const [brakiProg, setBrakiProg] = useState(7)
+  const [visibleBraki, setVisibleBraki] = useState(30)
 
-export default function InternalDoorStatsDashboard({ orders, internalDoorItems, loading, itemsLoading }: Props) {
-  const [itemFilter, setItemFilter] = useState<(typeof ITEM_FILTERS)[number]['key']>('all')
-  const [rangeMonths, setRangeMonths] = useState(12)
-  const [visibleSkuRows, setVisibleSkuRows] = useState(50)
+  const [sprzedaz, setSprzedaz] = useState<WewSprzedazRow[]>([])
+  const [miesiace, setMiesiace] = useState<WewMiesiacRow[]>([])
+  const [braki, setBraki] = useState<WewBrakRow[]>([])
+  const [nierozpoznane, setNierozpoznane] = useState<DictRow[]>([])
+  const [loadingSprzedaz, setLoadingSprzedaz] = useState(true)
+  const [loadingMiesiace, setLoadingMiesiace] = useState(true)
+  const [loadingBraki, setLoadingBraki] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const doorOrders = useMemo(
-    () => orders.filter((o) => o.category === 'DrzwiWewnetrzne'),
-    [orders],
-  )
-  const ordersById = useMemo(() => {
-    const m = new Map<number, Order>()
-    doorOrders.forEach((o) => {
-      if (o.id !== undefined) m.set(o.id, o)
-    })
-    return m
-  }, [doorOrders])
-  const itemRows = useMemo(
-    () => internalDoorItems.filter((it) => ordersById.has(it.order_id)),
-    [internalDoorItems, ordersById],
-  )
-  const filteredItems = useMemo(() => {
-    if (itemFilter === 'all') return itemRows
-    return itemRows.filter((it) => (it.component_category ?? it.component_product_category) === itemFilter)
-  }, [itemRows, itemFilter])
-  const releasedFilteredItems = useMemo(
-    () =>
-      filteredItems.filter((it) => {
-        const order = ordersById.get(it.order_id)
-        return order ? isReleased(order) && !isCancelled(order) : false
-      }),
-    [filteredItems, ordersById],
-  )
-  const releasedAllItems = useMemo(
-    () =>
-      itemRows.filter((it) => {
-        const order = ordersById.get(it.order_id)
-        return order ? isReleased(order) && !isCancelled(order) : false
-      }),
-    [itemRows, ordersById],
-  )
+  useEffect(() => writeLs(LS.typ, itemFilter), [itemFilter])
+  useEffect(() => writeLs(LS.wykonanie, wykonanie), [wykonanie])
+  useEffect(() => writeLs(LS.okres, String(months)), [months])
+  useEffect(() => writeLs(LS.trend, trendMode), [trendMode])
 
-  const totalOrders = doorOrders.length
-  const soldItems = useMemo(
-    () => releasedFilteredItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0),
-    [releasedFilteredItems],
-  )
-  const allNonCancelledItems = useMemo(
-    () =>
-      filteredItems.reduce((sum, it) => {
-        const order = ordersById.get(it.order_id)
-        if (!order || isCancelled(order)) return sum
-        return sum + (Number(it.quantity) || 0)
-      }, 0),
-    [filteredItems, ordersById],
-  )
+  const loadSprzedaz = useCallback(async (m: number) => {
+    setLoadingSprzedaz(true)
+    const from = new Date()
+    from.setMonth(from.getMonth() - m)
+    const { data, error: err } = await fetchAllPages<Record<string, unknown>>((a, b) =>
+      supabase
+        .rpc('stat_wew_sprzedaz', { p_from: localDateStr(from), p_to: localDateStr(new Date()) })
+        .order('item_type').order('grupa').order('model').order('linia').order('wykonanie').order('kolor').order('rozmiar')
+        .range(a, b),
+    )
+    setLoadingSprzedaz(false)
+    if (err) {
+      console.error('[Statystyki wewnętrzne] sprzedaż', err)
+      setError(`Nie wczytano sprzedaży: ${err.message}`)
+      setSprzedaz([])
+      return
+    }
+    setSprzedaz((data ?? []).map(normalizeWewSprzedaz))
+  }, [])
 
-  const avgRealization = useMemo(() => {
-    const values = doorOrders
-      .filter((o) => !isCancelled(o) && isReleased(o))
-      .map((o) => daysBetween(o.order_date || (o as { created_at?: string }).created_at, o.release_date ?? null))
-      .filter((v): v is number => v !== null)
-    if (values.length === 0) return null
-    return values.reduce((s, v) => s + v, 0) / values.length
-  }, [doorOrders])
+  const loadMiesiace = useCallback(async () => {
+    setLoadingMiesiace(true)
+    const { data, error: err } = await fetchAllPages<Record<string, unknown>>((a, b) =>
+      supabase.rpc('stat_wew_miesiace', { p_months: 13 }).order('miesiac').order('item_type').order('grupa').order('wykonanie').range(a, b),
+    )
+    setLoadingMiesiace(false)
+    if (err) {
+      console.error('[Statystyki wewnętrzne] miesiące', err)
+      setError(`Nie wczytano trendu: ${err.message}`)
+      setMiesiace([])
+      return
+    }
+    setMiesiace((data ?? []).map(normalizeWewMiesiac))
+  }, [])
 
-  const cancelRate = useMemo(() => {
-    if (doorOrders.length === 0) return 0
-    const cancelled = doorOrders.filter(isCancelled).length
-    return (cancelled / doorOrders.length) * 100
-  }, [doorOrders])
+  const loadBraki = useCallback(async (days: number, prog: number) => {
+    setLoadingBraki(true)
+    const { data, error: err } = await fetchAllPages<Record<string, unknown>>((a, b) =>
+      supabase.rpc('stat_wew_braki', { p_days: days, p_prog: prog }).order('optima_code').range(a, b),
+    )
+    setLoadingBraki(false)
+    if (err) {
+      console.error('[Statystyki wewnętrzne] braki', err)
+      setError(`Nie wczytano braków: ${err.message}`)
+      setBraki([])
+      return
+    }
+    setBraki((data ?? []).map(normalizeWewBrak))
+  }, [])
 
-  const salesByMonth = useMemo(() => {
+  const loadNierozpoznane = useCallback(async () => {
+    const { data, error: err } = await supabase
+      .from('interior_item_dict')
+      .select('optima_code, optima_name, item_type')
+      .eq('rozpoznane', false)
+      .order('optima_code')
+      .limit(300)
+    if (err) {
+      console.error('[Statystyki wewnętrzne] słownik', err)
+      return
+    }
+    setNierozpoznane((data ?? []) as DictRow[])
+  }, [])
+
+  useEffect(() => { void loadSprzedaz(months) }, [months, loadSprzedaz])
+  useEffect(() => { void loadMiesiace() }, [loadMiesiace])
+  useEffect(() => { void loadBraki(brakiDays, brakiProg) }, [brakiDays, brakiProg, loadBraki])
+  useEffect(() => { void loadNierozpoznane() }, [loadNierozpoznane])
+
+  // ── sprzedaż po cechach ──
+  const rows = useMemo(() => filterRows(sprzedaz, itemFilter, wykonanie), [sprzedaz, itemFilter, wykonanie])
+  const ranking = useMemo(() => rankGroups(rows), [rows])
+  const totalSzt = useMemo(() => rows.reduce((s, r) => s + r.szt, 0), [rows])
+  // zlecenia liczone per cecha, więc suma = „ile razy pozycja była w zleceniu”
+  const totalZlecenia = useMemo(() => rows.reduce((s, r) => s + r.zlecenia, 0), [rows])
+  const rozpoznanePct = useMemo(() => {
+    const ok = rows.filter((r) => r.rozpoznane).reduce((s, r) => s + r.szt, 0)
+    return totalSzt > 0 ? (ok / totalSzt) * 100 : 100
+  }, [rows, totalSzt])
+
+  const activeGroup = useMemo(() => {
+    if (selectedGroup && ranking.some((r) => r.nazwa === selectedGroup)) return selectedGroup
+    return null
+  }, [selectedGroup, ranking])
+  const kolory = useMemo(() => distribution(rows, 'kolor', activeGroup), [rows, activeGroup])
+  const rozmiary = useMemo(() => distribution(rows, 'rozmiar', activeGroup), [rows, activeGroup])
+  const linie = useMemo(() => distribution(rows, 'linia', activeGroup), [rows, activeGroup])
+  const wykonania = useMemo(() => distribution(rows, 'wykonanie', activeGroup), [rows, activeGroup])
+
+  const top12 = useMemo(() => ranking.slice(0, 12).map((r) => ({ ...r, krotka: shortName(r.nazwa, 22) })), [ranking])
+
+  // ── w czasie i trend ──
+  const miesiaceFiltr = useMemo(() => filterRows(miesiace, itemFilter, wykonanie), [miesiace, itemFilter, wykonanie])
+  const seria = useMemo(() => {
     const now = new Date()
-    const map = new Map<string, number>()
-    for (let i = rangeMonths - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      map.set(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, 0)
-    }
-    for (const it of releasedFilteredItems) {
-      const order = ordersById.get(it.order_id)
-      if (!order?.release_date) continue
-      const d = new Date(order.release_date)
-      if (Number.isNaN(d.getTime())) continue
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      if (!map.has(key)) continue
-      map.set(key, (map.get(key) ?? 0) + (Number(it.quantity) || 0))
-    }
-    return Array.from(map.entries()).map(([month, qty]) => ({ month, qty }))
-  }, [releasedFilteredItems, ordersById, rangeMonths])
+    const keys = monthsEndingAt(new Date(now.getFullYear(), now.getMonth(), 1), 13)
+    const src = activeGroup ? miesiaceFiltr.filter((r) => groupName(r) === activeGroup) : miesiaceFiltr
+    return monthlySeries(src, keys)
+  }, [miesiaceFiltr, activeGroup])
+  const trend = useMemo(() => wewTrend(miesiaceFiltr, trendMode, new Date(), { zBiezacym }), [miesiaceFiltr, trendMode, zBiezacym])
+  const okresy = useMemo(() => trendPeriods(trendMode, new Date(), zBiezacym), [trendMode, zBiezacym])
+  const trendPodsumowanie = useMemo(() => {
+    const c = { spada: 0, rośnie: 0, stabilne: 0 }
+    for (const t of trend) if (t.kierunek in c) c[t.kierunek as keyof typeof c] += 1
+    return c
+  }, [trend])
 
-  const topSku = useMemo(() => {
-    // pozycje z Optimy bez komponentu liczymy po kodzie Optimy
-    const map = new Map<string, { name: string; qty: number; cat: string }>()
-    for (const it of releasedFilteredItems) {
-      const key = it.component_id != null ? `c:${it.component_id}` : `o:${it.optima_code ?? it.optima_name ?? '?'}`
-      const prev = map.get(key)
-      const qty = Number(it.quantity) || 0
-      if (prev) {
-        prev.qty += qty
-      } else {
-        map.set(key, {
-          name: String(it.component_name ?? it.optima_name ?? `#${key}`),
-          qty,
-          cat: String(it.component_category ?? it.component_product_category ?? ''),
-        })
-      }
+  // ── braki ──
+  const brakiFiltr = useMemo(() => filterRows(braki, itemFilter, wykonanie), [braki, itemFilter, wykonanie])
+  const brakiTeraz = useMemo(() => sortShortagesNow(brakiFiltr), [brakiFiltr])
+  const brakiHist = useMemo(() => sortShortagesHist(brakiFiltr), [brakiFiltr])
+  const brakiRows = brakiTab === 'teraz' ? brakiTeraz : brakiHist
+
+  const assignGroup = useCallback(async (code: string, name: string | null) => {
+    const v = await appPrompt(`Grupa modelowa dla „${name ?? code}” (np. VERONA, OR3, IBERIA):`, { title: 'Przypisz grupę', confirmLabel: 'Zapisz' })
+    if (v == null || !v.trim()) return
+    const { error: err } = await supabase.rpc('interior_item_dict_set', { p_code: code, p_grupa: v.trim() })
+    if (err) {
+      setError(`Nie zapisano grupy: ${err.message}`)
+      return
     }
-    return Array.from(map.entries())
-      .map(([id, x]) => ({ id, ...x }))
-      .sort((a, b) => b.qty - a.qty)
-  }, [releasedFilteredItems])
+    await Promise.all([loadNierozpoznane(), loadSprzedaz(months), loadMiesiace(), loadBraki(brakiDays, brakiProg)])
+  }, [loadNierozpoznane, loadSprzedaz, loadMiesiace, loadBraki, months, brakiDays, brakiProg])
 
-  const top10Sku = useMemo(() => topSku.slice(0, 10).map((r) => ({
-    ...r,
-    shortName: r.name.length > 30 ? `${r.name.slice(0, 30)}...` : r.name,
-  })), [topSku])
+  const rankColumns = useMemo<DataTableColumn<RankRow>[]>(() => [
+    {
+      key: 'nazwa', label: 'Grupa modelowa', sortValue: (r) => r.nazwa,
+      render: (r) => (
+        <button type="button" className="btn-link" onClick={() => setSelectedGroup((g) => (g === r.nazwa ? null : r.nazwa))} title="Pokaż kolory i rozmiary tej grupy">
+          {r.nazwa === NIEROZPOZNANE ? <span style={{ color: '#6b7280' }}>{r.nazwa}</span> : r.nazwa}
+        </button>
+      ),
+    },
+    { key: 'szt', label: 'Sztuki', align: 'right', sortValue: (r) => r.szt, render: (r) => r.szt.toLocaleString('pl-PL') },
+    { key: 'zlecenia', label: 'W zleceniach', align: 'right', sortValue: (r) => r.zlecenia, render: (r) => r.zlecenia.toLocaleString('pl-PL'), title: 'Ile zleceń miało pozycję z tej grupy' },
+    { key: 'udzial', label: 'Udział', align: 'right', sortValue: (r) => r.udzial, render: (r) => `${r.udzial.toFixed(1)} %` },
+  ], [])
 
-  const typeDistribution = useMemo(() => {
-    const source = itemFilter === 'all' ? releasedAllItems : releasedFilteredItems
-    const map = new Map<string, number>()
-    for (const it of source) {
-      const cat = String(it.component_category ?? it.component_product_category ?? '')
-      map.set(cat, (map.get(cat) ?? 0) + (Number(it.quantity) || 0))
-    }
-    return Array.from(map.entries()).map(([name, value]) => ({ name, value, label: catLabel(name) }))
-  }, [itemFilter, releasedAllItems, releasedFilteredItems])
+  const trendColumns = useMemo<DataTableColumn<TrendRow>[]>(() => [
+    { key: 'nazwa', label: 'Grupa modelowa', sortValue: (r) => r.nazwa, render: (r) => r.nazwa },
+    { key: 'poprzednio', label: periodLabel(okresy.poprzednio), align: 'right', sortValue: (r) => r.poprzednio, render: (r) => r.poprzednio.toLocaleString('pl-PL') },
+    { key: 'teraz', label: periodLabel(okresy.teraz), align: 'right', sortValue: (r) => r.teraz, render: (r) => r.teraz.toLocaleString('pl-PL') },
+    { key: 'zmiana', label: 'Zmiana', align: 'right', sortValue: (r) => r.zmianaPct ?? -999, render: (r) => formatPct(r.zmianaPct) },
+    { key: 'kierunek', label: 'Ocena', sortValue: (r) => r.kierunek, render: (r) => <span className={`badge ${TREND_BADGE[r.kierunek]}`}>{r.kierunek}</span> },
+    {
+      key: 'seria', label: 'Miesiące', title: 'Sztuki w kolejnych miesiącach obu okresów',
+      render: (r) => <span style={{ fontVariantNumeric: 'tabular-nums', color: '#6b7280' }}>{r.seria.join(' · ')}</span>,
+    },
+  ], [okresy])
 
-  const topCompanies = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const o of doorOrders) {
-      if (isCancelled(o)) continue
-      const company = String(o.company ?? '').trim() || '(brak)'
-      map.set(company, (map.get(company) ?? 0) + 1)
-    }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10)
-  }, [doorOrders])
-
-  const statusData = useMemo(() => {
-    let inProgress = 0
-    let released = 0
-    let cancelled = 0
-    for (const o of doorOrders) {
-      if (isCancelled(o)) cancelled += 1
-      else if (isReleased(o)) released += 1
-      else inProgress += 1
-    }
-    return [
-      { name: 'W realizacji', value: inProgress, color: '#9ca3af' },
-      { name: 'Wydane', value: released, color: '#16a34a' },
-      { name: 'Anulowane', value: cancelled, color: '#dc2626' },
-    ]
-  }, [doorOrders])
-
-  const modelData = useMemo(() => {
-    if (!(itemFilter === 'all' || itemFilter === 'door_wing')) return []
-    const map = new Map<string, number>()
-    for (const it of releasedAllItems) {
-      const cat = String(it.component_category ?? it.component_product_category ?? '')
-      if (cat !== 'door_wing') continue
-      const model = String(it.component_door_model ?? '').trim() || '(brak)'
-      map.set(model, (map.get(model) ?? 0) + (Number(it.quantity) || 0))
-    }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10)
-  }, [itemFilter, releasedAllItems])
-
-  const colorData = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const it of releasedFilteredItems) {
-      const color = String(it.component_door_color ?? '').trim() || '(brak)'
-      map.set(color, (map.get(color) ?? 0) + (Number(it.quantity) || 0))
-    }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10)
-  }, [releasedFilteredItems])
-
-  const byWeekday = useMemo(() => {
-    const counts = [0, 0, 0, 0, 0, 0, 0]
-    for (const o of doorOrders) {
-      if (isCancelled(o)) continue
-      const raw = o.order_date || (o as { created_at?: string }).created_at
-      if (!raw) continue
-      const d = new Date(raw)
-      if (Number.isNaN(d.getTime())) continue
-      counts[d.getDay()] += 1
-    }
-    return [
-      { name: 'Pn', value: counts[1] },
-      { name: 'Wt', value: counts[2] },
-      { name: 'Śr', value: counts[3] },
-      { name: 'Czw', value: counts[4] },
-      { name: 'Pt', value: counts[5] },
-      { name: 'Sob', value: counts[6] },
-      { name: 'Nd', value: counts[0] },
-    ]
-  }, [doorOrders])
-
-  const totalSoldForShare = useMemo(
-    () => topSku.reduce((sum, r) => sum + r.qty, 0),
-    [topSku],
-  )
-  const visibleSku = useMemo(() => topSku.slice(0, visibleSkuRows), [topSku, visibleSkuRows])
-  const skuColumns = useMemo<DataTableColumn<(typeof topSku)[number]>[]>(
-    () => [
-      { key: 'name', label: 'Pozycja', sortValue: (row) => row.name, render: (row) => row.name },
+  const brakiColumns = useMemo<DataTableColumn<WewBrakRow>[]>(() => {
+    const base: DataTableColumn<WewBrakRow>[] = [
       {
-        key: 'cat',
-        label: 'Kategoria',
-        sortValue: (row) => catLabel(row.cat),
-        render: (row) => <span className="component-category-badge">{catLabel(row.cat)}</span>,
+        key: 'pozycja', label: 'Pozycja', sortValue: (r) => shortageLabel(r),
+        render: (r) => (
+          <span title={r.optima_name ?? r.optima_code}>
+            {shortageLabel(r)}
+            {r.wykonanie === 'NSTD' && <span className="badge badge-neutral" style={{ marginLeft: 6 }}>na zamówienie</span>}
+          </span>
+        ),
       },
-      { key: 'qty', label: 'Sprzedane sztuki', sortValue: (row) => row.qty, render: (row) => row.qty },
-      {
-        key: 'share',
-        label: '% udziału',
-        sortValue: (row) => row.qty,
-        render: (row) =>
-          totalSoldForShare > 0 ? `${((row.qty / totalSoldForShare) * 100).toFixed(1)}%` : '0%',
-      },
-      { key: 'stock', label: 'Aktywny stock', render: () => '—' },
-    ],
-    [totalSoldForShare],
-  )
+      { key: 'typ', label: 'Typ', sortValue: (r) => r.item_type ?? '', render: (r) => ITEM_TYPE_LABELS[r.item_type ?? 'inne'] ?? r.item_type ?? '—' },
+    ]
+    if (brakiTab === 'teraz') {
+      base.push(
+        { key: 'otw', label: 'Otwarte zlecenia', align: 'right', sortValue: (r) => r.otwarte_zlecenia, render: (r) => r.otwarte_zlecenia },
+        { key: 'szt', label: 'Sztuki', align: 'right', sortValue: (r) => r.otwarte_szt, render: (r) => r.otwarte_szt },
+        { key: 'sr', label: 'Czeka średnio', align: 'right', sortValue: (r) => r.otwarte_sr_dni ?? 0, render: (r) => formatDays(r.otwarte_sr_dni) },
+        { key: 'max', label: 'Najdłużej', align: 'right', sortValue: (r) => r.otwarte_max_dni ?? 0, render: (r) => formatDays(r.otwarte_max_dni) },
+        { key: 'od', label: 'Najstarsze zlecenie', sortValue: (r) => r.otwarte_najstarsze ?? '', render: (r) => r.otwarte_najstarsze ?? '—' },
+      )
+    } else {
+      base.push(
+        { key: 'hz', label: 'Zleceń', align: 'right', sortValue: (r) => r.hist_zlecenia, render: (r) => r.hist_zlecenia, title: 'Wydane zlecenia z tą pozycją w wybranym okresie' },
+        { key: 'hc', label: `Czekały > ${brakiProg} dni`, align: 'right', sortValue: (r) => r.hist_czekaly, render: (r) => <b>{r.hist_czekaly}</b> },
+        { key: 'hp', label: '% zleceń', align: 'right', sortValue: (r) => (r.hist_zlecenia ? r.hist_czekaly / r.hist_zlecenia : 0), render: (r) => (r.hist_zlecenia ? `${Math.round((r.hist_czekaly / r.hist_zlecenia) * 100)} %` : '—') },
+        { key: 'hs', label: 'Czekały średnio', align: 'right', sortValue: (r) => r.hist_sr_dni ?? 0, render: (r) => formatDays(r.hist_sr_dni) },
+        { key: 'hm', label: 'Najdłużej', align: 'right', sortValue: (r) => r.hist_max_dni ?? 0, render: (r) => formatDays(r.hist_max_dni) },
+      )
+    }
+    base.push({
+      key: 'mag', label: 'Na magazynie', title: 'Pole „Na magazynie” komponentu i stan w magazynie wewnętrznym',
+      sortValue: (r) => (r.is_stocked ? 1 : 0),
+      render: (r) => (r.component_id == null ? '—' : r.is_stocked ? `TAK · stan ${r.stan ?? 0}` : 'NIE (kartoteka w tle)'),
+    })
+    return base
+  }, [brakiTab, brakiProg])
 
-  if (loading || itemsLoading) {
+  if (loadingSprzedaz && sprzedaz.length === 0 && !error) {
     return <div className="stats-dashboard"><Spinner center label="Ładowanie…" /></div>
   }
 
-  if (doorOrders.length === 0) {
-    return (
-      <div className="stats-dashboard">
-        <div className="stats-grid-full">
-          <div className="stats-card">
-            Brak danych dla tej kategorii. Pierwsze zamówienia drzwi wewnętrznych pojawią się tutaj po ich wprowadzeniu.
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const grupaTytul = activeGroup ? `— ${activeGroup}` : '— wszystkie grupy'
+  const typLabel = ITEM_FILTERS.find((f) => f.key === itemFilter)?.label ?? ''
 
   return (
     <div className="stats-dashboard">
-      <div className="alerts-filter-pills" style={{ marginBottom: 12 }}>
-        {ITEM_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            className={`alerts-filter-pill ${itemFilter === f.key ? 'alerts-filter-pill--active' : ''}`}
-            onClick={() => setItemFilter(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
+      {error && <div className="stats-card" style={{ color: '#b3261e', marginBottom: 12 }}>{error}</div>}
+
+      <div className="stats-card-header" style={{ gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div className="alerts-filter-pills" style={{ margin: 0 }}>
+          {ITEM_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              className={`alerts-filter-pill ${itemFilter === f.key ? 'alerts-filter-pill--active' : ''}`}
+              onClick={() => { setItemFilter(f.key); setSelectedGroup(null) }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <select className="day-filter" value={wykonanie} onChange={(e) => setWykonanie(e.target.value as Wykonanie)} title="Skrzydła WEW trzymamy na półce, NSTD są na zamówienie">
+          {(Object.keys(WYKONANIE_LABELS) as Wykonanie[]).map((k) => <option key={k} value={k}>{WYKONANIE_LABELS[k]}</option>)}
+        </select>
+        <select className="day-filter" value={months} onChange={(e) => setMonths(Number(e.target.value))} title="Okres sprzedaży (po dacie zlecenia, bez anulowanych)">
+          <option value={3}>ostatnie 3 miesiące</option>
+          <option value={6}>ostatnie 6 miesięcy</option>
+          <option value={12}>ostatnie 12 miesięcy</option>
+          <option value={24}>ostatnie 24 miesiące</option>
+        </select>
+        {loadingSprzedaz && <Spinner label="" />}
       </div>
 
       <div className="stats-grid-full">
         <div className="stats-card">
           <div className="stats-kpi-row">
             <div className="stats-kpi">
-              <div className="stats-kpi-value">{totalOrders}</div>
-              <div className="stats-kpi-label">Zamówienia</div>
+              <div className="stats-kpi-value">{totalSzt.toLocaleString('pl-PL')}</div>
+              <div className="stats-kpi-label">{typLabel} — sztuki w okresie</div>
             </div>
             <div className="stats-kpi">
-              <div className="stats-kpi-value">{soldItems}</div>
-              <div className="stats-kpi-label">Pozycje sprzedane</div>
-              <div className="stats-kpi-label">(wszystkie statusy: {allNonCancelledItems})</div>
+              <div className="stats-kpi-value">{ranking.filter((r) => r.nazwa !== NIEROZPOZNANE).length}</div>
+              <div className="stats-kpi-label">grup modelowych</div>
             </div>
             <div className="stats-kpi">
-              <div className="stats-kpi-value">{avgRealization != null ? `${avgRealization.toFixed(1)} dnia` : '—'}</div>
-              <div className="stats-kpi-label">Średni czas realizacji</div>
+              <div className="stats-kpi-value">{totalZlecenia.toLocaleString('pl-PL')}</div>
+              <div className="stats-kpi-label">pozycji w zleceniach</div>
             </div>
             <div className="stats-kpi">
-              <div className="stats-kpi-value">{formatPercent(cancelRate)}</div>
-              <div className="stats-kpi-label">Współczynnik anulowań</div>
+              <div className="stats-kpi-value">{rozpoznanePct.toFixed(1)} %</div>
+              <div className="stats-kpi-label">sztuk z rozpoznaną grupą</div>
+            </div>
+            <div className="stats-kpi">
+              <div className="stats-kpi-value" style={{ color: trendPodsumowanie.spada ? '#b3261e' : undefined }}>{trendPodsumowanie.spada}</div>
+              <div className="stats-kpi-label">grup spada ({TREND_MODE_LABELS[trendMode]})</div>
+            </div>
+            <div className="stats-kpi">
+              <div className="stats-kpi-value">{brakiTeraz.length}</div>
+              <div className="stats-kpi-label">pozycji, na które klient teraz czeka</div>
             </div>
           </div>
         </div>
@@ -357,146 +377,203 @@ export default function InternalDoorStatsDashboard({ orders, internalDoorItems, 
 
       <div className="stats-grid">
         <div className="stats-card">
-          <div className="stats-card-header">
-            <h3>Sprzedaż w czasie</h3>
-            <select className="day-filter" value={rangeMonths} onChange={(e) => setRangeMonths(Number(e.target.value))}>
-              <option value={3}>3 miesiące</option>
-              <option value={6}>6 miesięcy</option>
-              <option value={12}>12 miesięcy</option>
-              <option value={24}>24 miesiące</option>
-            </select>
-          </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={salesByMonth}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="qty" name="Sztuki" stroke="#3b82f6" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="stats-card">
-          <h3>Top 10 SKU</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={top10Sku} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis type="category" dataKey="shortName" width={180} />
-              <Tooltip />
-              <Bar dataKey="qty" name="Sztuki" fill="#10b981" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="stats-card">
-          <h3>Rozkład per typ pozycji</h3>
-          {itemFilter !== 'all' && (
-            <div style={{ color: '#6b7280', marginBottom: 8 }}>
-              Filtr aktywny: pokazuje tylko {ITEM_FILTERS.find((f) => f.key === itemFilter)?.label}
-            </div>
-          )}
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={typeDistribution} dataKey="value" nameKey="label" cx="50%" cy="50%" outerRadius={100} label>
-                {typeDistribution.map((entry, idx) => (
-                  <Cell key={`${entry.name}-${idx}`} fill={['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'][idx % 4]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="stats-card">
-          <h3>Top 10 firm</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={topCompanies} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis type="category" dataKey="name" width={160} />
-              <Tooltip />
-              <Bar dataKey="value" name="Zamówienia" fill="#06b6d4" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="stats-card">
-          <h3>Status zamówień</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                {statusData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="stats-card">
-          <h3>{itemFilter === 'all' || itemFilter === 'door_wing' ? 'Rozkład per model skrzydła' : 'Rozkład per model'}</h3>
-          {itemFilter !== 'all' && itemFilter !== 'door_wing' ? (
-            <div style={{ color: '#6b7280' }}>Wykres dostępny dla filtra „Wszystko” lub „Skrzydła”.</div>
+          <h3>Co się sprzedaje — grupy modelowe</h3>
+          {ranking.length === 0 ? (
+            <p style={{ color: '#6b7280' }}>Brak sprzedaży dla wybranego filtra.</p>
           ) : (
+            <>
+              <ResponsiveContainer width="100%" height={Math.max(220, top12.length * 26)}>
+                <BarChart data={top12} layout="vertical" margin={{ left: 8, right: 24 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="krotka" width={150} />
+                  <Tooltip formatter={(v) => [Number(v).toLocaleString('pl-PL'), 'Sztuki']} />
+                  <Bar dataKey="szt" name="Sztuki" fill={COLORS[0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <DataTable rows={ranking} rowKey={(r) => r.nazwa} columns={rankColumns} />
+              <p className="help-note" style={{ marginTop: 8 }}>Kliknij grupę, żeby zobaczyć jej kolory, rozmiary i sprzedaż w czasie. Grupa = model bez „BLACK” (VERONA = VERONA + VERONA BLACK); linia jest osobno.</p>
+            </>
+          )}
+        </div>
+
+        <div className="stats-card">
+          <div className="stats-card-header">
+            <h3>Sprzedaż w czasie {grupaTytul}</h3>
+            {activeGroup && <button type="button" className="btn btn-sm btn-secondary" onClick={() => setSelectedGroup(null)}>Wszystkie grupy</button>}
+          </div>
+          {loadingMiesiace ? <Spinner center label="Ładowanie…" /> : (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={modelData} layout="vertical">
+              <LineChart data={seria}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis type="category" dataKey="name" width={160} />
-                <Tooltip />
-                <Bar dataKey="value" name="Sztuki" fill="#8b5cf6" />
-              </BarChart>
+                <XAxis dataKey="etykieta" />
+                <YAxis />
+                <Tooltip formatter={(v) => [Number(v).toLocaleString('pl-PL'), 'Sztuki']} />
+                <Line type="monotone" dataKey="szt" name="Sztuki" stroke={COLORS[0]} strokeWidth={2} />
+              </LineChart>
             </ResponsiveContainer>
           )}
+          <p className="help-note">Po dacie zlecenia, bez anulowanych; bieżący miesiąc jest niepełny.</p>
         </div>
 
         <div className="stats-card">
-          <h3>Rozkład per kolor</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={colorData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis type="category" dataKey="name" width={160} />
-              <Tooltip />
-              <Bar dataKey="value" name="Sztuki" fill="#ec4899" />
-            </BarChart>
-          </ResponsiveContainer>
+          <h3>Kolory {grupaTytul}</h3>
+          <DistributionChart rows={kolory} color={COLORS[4]} />
         </div>
 
         <div className="stats-card">
-          <h3>Zamówienia per dzień tygodnia</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={byWeekday}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" name="Zamówienia" fill="#0ea5e9" />
-            </BarChart>
-          </ResponsiveContainer>
+          <h3>Rozmiary {grupaTytul}</h3>
+          <DistributionChart rows={rozmiary} color={COLORS[2]} horizontal />
+          {(itemFilter === 'door_wing' || itemFilter === 'all') && (
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 8 }}>
+              <MiniList title="Linie" rows={linie} />
+              <MiniList title="Wykonanie" rows={wykonania} labels={{ WEW: 'z półki (WEW)', NSTD: 'na zamówienie (NSTD)' }} />
+            </div>
+          )}
         </div>
       </div>
 
       <div className="stats-grid-full">
         <div className="stats-card">
-          <h3>Najpopularniejsze SKU</h3>
-          {topSku.length === 0 ? (
-            <p style={{ color: '#6b7280' }}>Brak sprzedanych pozycji dla wybranego filtra.</p>
+          <div className="stats-card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
+            <h3>Trend: co spada, co rośnie</h3>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <select className="day-filter" value={trendMode} onChange={(e) => setTrendMode(e.target.value as TrendMode)}>
+                {(Object.keys(TREND_MODE_LABELS) as TrendMode[]).map((k) => <option key={k} value={k}>{TREND_MODE_LABELS[k]}</option>)}
+              </select>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '0.9rem' }}>
+                <input type="checkbox" checked={zBiezacym} onChange={(e) => setZBiezacym(e.target.checked)} />
+                licz też bieżący (niepełny) miesiąc
+              </label>
+            </div>
+          </div>
+          <p className="help-note">
+            Porównanie: <b>{periodLabel(okresy.poprzednio)}</b> → <b>{periodLabel(okresy.teraz)}</b>. Zmiana w granicach ±10 % = stabilne; poniżej 20 sztuk w obu okresach = mało danych.
+            {' '}Spada: {trendPodsumowanie.spada}, rośnie: {trendPodsumowanie.rośnie}, stabilne: {trendPodsumowanie.stabilne}.
+          </p>
+          {loadingMiesiace ? <Spinner center label="Ładowanie…" /> : trend.length === 0 ? (
+            <p style={{ color: '#6b7280' }}>Brak danych w porównywanych okresach.</p>
+          ) : (
+            <DataTable rows={trend} rowKey={(r) => r.nazwa} columns={trendColumns} />
+          )}
+        </div>
+      </div>
+
+      <div className="stats-grid-full">
+        <div className="stats-card">
+          <div className="stats-card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
+            <h3>Braki, na które czeka klient</h3>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="alerts-filter-pills" style={{ margin: 0 }}>
+                <button type="button" className={`alerts-filter-pill ${brakiTab === 'teraz' ? 'alerts-filter-pill--active' : ''}`} onClick={() => { setBrakiTab('teraz'); setVisibleBraki(30) }}>
+                  Teraz czekają ({brakiTeraz.length})
+                </button>
+                <button type="button" className={`alerts-filter-pill ${brakiTab === 'historia' ? 'alerts-filter-pill--active' : ''}`} onClick={() => { setBrakiTab('historia'); setVisibleBraki(30) }}>
+                  Czekały w przeszłości ({brakiHist.length})
+                </button>
+              </div>
+              <select className="day-filter" value={brakiDays} onChange={(e) => setBrakiDays(Number(e.target.value))} title="Okres historii">
+                <option value={90}>ostatnie 90 dni</option>
+                <option value={180}>ostatnie 180 dni</option>
+                <option value={365}>ostatni rok</option>
+              </select>
+              <select className="day-filter" value={brakiProg} onChange={(e) => setBrakiProg(Number(e.target.value))} title="Od ilu dni liczymy, że klient czekał (mediana realizacji RO to 3 dni)">
+                <option value={5}>czekał &gt; 5 dni</option>
+                <option value={7}>czekał &gt; 7 dni</option>
+                <option value={14}>czekał &gt; 14 dni</option>
+              </select>
+            </div>
+          </div>
+          <p className="help-note">
+            {brakiTab === 'teraz'
+              ? 'Pozycje w otwartych zleceniach (niewydane, nieanulowane, RO otwarte w Optimie) — dni liczone od daty zlecenia do dziś. Kolejność: najwięcej zleceń × najdłużej czekają.'
+              : `Wydane zlecenia z ostatnich ${brakiDays} dni, w których pozycja czekała dłużej niż ${brakiProg} dni od zlecenia do wydania. Kolejność: ile razy czekała × ile średnio dni.`}
+            {' '}Magazyn wewnętrzny nie ma jeszcze stanów ani komponentów „Na magazynie = TAK” — gdy się pojawią, kolumna „Na magazynie” pokaże pokrycie.
+          </p>
+          {loadingBraki ? <Spinner center label="Ładowanie…" /> : brakiRows.length === 0 ? (
+            <p style={{ color: '#6b7280' }}>Nic nie czeka dla wybranego filtra.</p>
           ) : (
             <>
-              <DataTable rows={visibleSku} rowKey={(row) => row.id} columns={skuColumns} />
-              {visibleSkuRows < topSku.length && (
-                <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => setVisibleSkuRows((v) => v + 50)}>
-                  Pokaż więcej
+              <DataTable rows={brakiRows.slice(0, visibleBraki)} rowKey={(r) => r.optima_code} columns={brakiColumns} />
+              {visibleBraki < brakiRows.length && (
+                <button type="button" className="btn btn-sm btn-primary" style={{ marginTop: 10 }} onClick={() => setVisibleBraki((v) => v + 30)}>
+                  Pokaż więcej ({brakiRows.length - visibleBraki})
                 </button>
               )}
             </>
           )}
         </div>
       </div>
+
+      {nierozpoznane.length > 0 && (
+        <div className="stats-grid-full">
+          <div className="stats-card">
+            <h3>Nierozpoznane pozycje ({nierozpoznane.length})</h3>
+            <p className="help-note">
+              Nazwa kartoteki nie pasuje do wzoru „SKRZYDŁO … MODEL wzór KOLOR rozmiar” — liczą się jako „{NIEROZPOZNANE}”.
+              {isManager ? ' Kliknij „Przypisz grupę”, żeby wpisać grupę ręcznie (ręczny wpis wygrywa z automatem).' : ' Grupę może przypisać kierownik.'}
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 18, columns: 2, columnGap: 24 }}>
+              {nierozpoznane.slice(0, 60).map((d) => (
+                <li key={d.optima_code} style={{ marginBottom: 4, breakInside: 'avoid' }}>
+                  <span title={d.optima_code}>{d.optima_name ?? d.optima_code}</span>
+                  {d.item_type && <span className="badge badge-neutral" style={{ marginLeft: 6 }}>{ITEM_TYPE_LABELS[d.item_type] ?? d.item_type}</span>}
+                  {isManager && (
+                    <button type="button" className="btn-link" style={{ marginLeft: 6 }} onClick={() => void assignGroup(d.optima_code, d.optima_name)}>Przypisz grupę</button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {nierozpoznane.length > 60 && <p className="help-note">…i {nierozpoznane.length - 60} więcej.</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DistributionChart({ rows, color, horizontal = false }: { rows: RankRow[]; color: string; horizontal?: boolean }) {
+  if (rows.length === 0) return <p style={{ color: '#6b7280' }}>Brak danych.</p>
+  const data = rows.slice(0, 15).map((r) => ({ ...r, krotka: shortName(r.nazwa === BRAK ? '(brak)' : r.nazwa, 22) }))
+  const tip = (v: unknown, _n: unknown, p: { payload?: RankRow }) =>
+    [`${Number(v).toLocaleString('pl-PL')} (${(p.payload?.udzial ?? 0).toFixed(1)} %)`, 'Sztuki'] as [string, string]
+  if (horizontal) {
+    return (
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="krotka" />
+          <YAxis />
+          <Tooltip formatter={tip} />
+          <Bar dataKey="szt" name="Sztuki" fill={color} />
+        </BarChart>
+      </ResponsiveContainer>
+    )
+  }
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(200, data.length * 26)}>
+      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 24 }}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis type="number" />
+        <YAxis type="category" dataKey="krotka" width={150} />
+        <Tooltip formatter={tip} />
+        <Bar dataKey="szt" name="Sztuki" fill={color} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+function MiniList({ title, rows, labels = {} }: { title: string; rows: RankRow[]; labels?: Record<string, string> }) {
+  if (rows.length === 0) return null
+  return (
+    <div style={{ minWidth: 180 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{title}</div>
+      {rows.map((r) => (
+        <div key={r.nazwa} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: '0.9rem' }}>
+          <span>{labels[r.nazwa] ?? r.nazwa}</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.szt.toLocaleString('pl-PL')} · {r.udzial.toFixed(0)} %</span>
+        </div>
+      ))}
     </div>
   )
 }

@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Statystyki: co się sprzedaje, co spada, na co czeka klient (beta.168)</h4>
+        <ul>
+          <li><b>Statystyki → Drzwi wewnętrzne</b> liczą teraz towar, nie komponenty: <b>grupy modelowe</b> (VERONA, CLASSIC, MALEO…; grupa = model bez „BLACK”, linia BLACK / bezprzylgowe / norma czeska osobno), w grupie <b>kolory i rozmiary</b> (kliknij grupę), filtr typu (skrzydła, ościeżnice, klamki, osłonki, akcesoria) i wykonania (<b>WEW = z półki</b>, <b>NSTD = na zamówienie</b>), okres 3–24 miesiące. Cechy pozycji program czyta z nazwy kartoteki Optimy (słownik w bazie, rozpoznane 99 % sztuk); nierozpoznane pozycje są na dole listy, kierownik może przypisać im grupę ręcznie.</li>
+          <li><b>Trend: co spada, co rośnie</b> — porównanie okresów (miesiąc do miesiąca, 3 vs 3, 6 vs 6 miesięcy; domyślnie bez bieżącego, niepełnego miesiąca). Zmiana ponad ±10 % = <span className="badge badge-danger">spada</span> / <span className="badge badge-success">rośnie</span>, w środku <span className="badge badge-neutral">stabilne</span>, poniżej 20 sztuk w obu okresach „mało danych”.</li>
+          <li><b>Braki, na które czeka klient</b> — dwa widoki: <b>Teraz czekają</b> (pozycje w otwartych zleceniach, dni od daty zlecenia do dziś) i <b>Czekały w przeszłości</b> (wydane zlecenia z ostatnich 90–365 dni, w których pozycja czekała dłużej niż 5 / 7 / 14 dni; mediana realizacji RO to 3 dni). Kolejność: najczęściej × najdłużej. Kolumna „Na magazynie” pokaże pokrycie, gdy komponenty dostaną TAK i stany po inwentaryzacji.</li>
+          <li><b>STA, Disting, ST, Techniczne, Bastion</b> — pod dotychczasowym pulpitem dwie nowe karty: <b>Trend</b> po systemach / modelach / kolorach skrzydła (ten sam podział spada / rośnie / stabilne) i <b>Braki materiałowe</b> = wymuszone wydania z magazynu („[WYMUSZONE brak N]”): komponent, ile zleceń, ile brakowało, kiedy ostatnio, średnia realizacja tych zleceń vs całej kategorii, stan / rezerwacje / dostępne.</li>
+          <li>Liczby liczy baza (funkcje <code>stat_wew_*</code>, <code>stat_zew_*</code>), więc zakładka Statystyki nie ściąga już 50 tys. pozycji drzwi wewnętrznych do przeglądarki.</li>
+        </ul>
         <h4>Magazyn wewnętrzne: „na magazynie” albo kartoteka w tle (beta.167)</h4>
         <ul>
           <li>Komponent ma pole <b>Na magazynie</b>: TAK = trzymamy na półce (inwentaryzacja, wydania zdejmują stan), NIE = kartoteka w tle — towar na zamówienie, bez stanu. Kartoteki z Optimy mają NIE.</li>
@@ -645,7 +653,7 @@ const SECTIONS: Section[] = [
       <>
         <ul>
           <li><b>Pulpit</b> — szybki przegląd dnia dla kierownika: liczby, zaległe, skróty.</li>
-          <li><b>Statystyki</b> (Analizy) — produkcja wg kategorii (wykresy statusów, trendy), reklamacje (co i dlaczego reklamowane), firmy (jedna firma pod lupą: zlecenia, reklamacje, czas realizacji, co zamawia), drzwi wewnętrzne, produktywność, czasy realizacji, zużycie magazynu (miesięczne zejścia per komponent).</li>
+          <li><b>Statystyki</b> (Analizy) — produkcja wg kategorii (wykresy statusów, trendy po systemach / modelach / kolorach, braki materiałowe z czasem realizacji), reklamacje (co i dlaczego reklamowane), firmy (jedna firma pod lupą: zlecenia, reklamacje, czas realizacji, co zamawia), drzwi wewnętrzne (grupy modelowe, kolory i rozmiary, trend spada / rośnie, braki, na które czeka klient), produktywność, czasy realizacji, zużycie magazynu (miesięczne zejścia per komponent).</li>
           <li><b>Audyt</b> (Analizy) — pełna historia zmian: kto, kiedy, co zmienił.</li>
           <li>Wykres statusu pokazuje sumę drzwi w środku, procenty na wycinkach i legendę z wartościami.</li>
         </ul>

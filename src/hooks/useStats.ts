@@ -6,7 +6,6 @@ import type { ToastVariant } from '../types'
 type UseStatsParams = {
   pushToast: (msg: string, variant: ToastVariant) => void
   touchSession: () => void
-  fetchInternalDoorItemsForVisibleOrders: (orders: Order[]) => Promise<void>
 }
 
 const PAGE = 1000
@@ -25,18 +24,19 @@ async function fetchAllRows(table: 'orders' | 'complaints'): Promise<{ data: unk
   }
 }
 
-export function useStats({ touchSession, fetchInternalDoorItemsForVisibleOrders }: UseStatsParams) {
+export function useStats({ touchSession }: UseStatsParams) {
   const [activeStatsSubTab, setActiveStatsSubTab] = useState<StatsSubTab>('STA')
   const [statsOrders, setStatsOrders] = useState<Order[]>([])
   const [statsComplaints, setStatsComplaints] = useState<Complaint[]>([])
   const [statsLoading, setStatsLoading] = useState(false)
-  const [statsInternalDoorItemsLoading, setStatsInternalDoorItemsLoading] = useState(false)
 
   const fetchStatsData = useCallback(async () => {
     touchSession()
     setStatsLoading(true)
     // PostgREST ucina wynik do 1000 wierszy (max_rows) — .limit(50000) dawało
     // 1000 najnowszych, czyli statystyki z ostatnich ~3 tygodni. Porcjami po 1000.
+    // Pozycje drzwi wewnętrznych (50 tys. wierszy) nie są już ładowane do przeglądarki —
+    // Statystyki → Drzwi wewnętrzne liczą się w bazie (rpc stat_wew_*, Etap 25).
     const [ordersRes, complaintsRes] = await Promise.all([fetchAllRows('orders'), fetchAllRows('complaints')])
     setStatsLoading(false)
     if (ordersRes.error) {
@@ -49,15 +49,7 @@ export function useStats({ touchSession, fetchInternalDoorItemsForVisibleOrders 
     } else {
       setStatsComplaints((complaintsRes.data || []) as Complaint[])
     }
-    const loadedOrders = (ordersRes.data || []) as Order[]
-    const internalDoorOrders = loadedOrders.filter((o) => o.category === 'DrzwiWewnetrzne')
-    setStatsInternalDoorItemsLoading(true)
-    try {
-      await fetchInternalDoorItemsForVisibleOrders(internalDoorOrders)
-    } finally {
-      setStatsInternalDoorItemsLoading(false)
-    }
-  }, [fetchInternalDoorItemsForVisibleOrders, touchSession])
+  }, [touchSession])
 
   return {
     activeStatsSubTab,
@@ -68,8 +60,6 @@ export function useStats({ touchSession, fetchInternalDoorItemsForVisibleOrders 
     setStatsComplaints,
     statsLoading,
     setStatsLoading,
-    statsInternalDoorItemsLoading,
-    setStatsInternalDoorItemsLoading,
     fetchStatsData,
   }
 }
