@@ -10379,3 +10379,56 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 .inventory-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 4px; font-size: 0.85rem; }
 .inventory-pager-buttons { display: inline-flex; gap: 6px; }
 .inventory-component-attrs { display: block; font-size: 0.78rem; color: var(--color-text-muted); }
+
+/* Drzwi wewnętrzne z Optimy: trwa synchronizacja, grupy pozycji wg typu, braki */
+.optima-sync-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: #e3f2fd;
+  color: #1565c0;
+  white-space: nowrap;
+}
+.optima-items-group-row td {
+  background: var(--color-bg-subtle, #f5f6f8);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding-top: 8px;
+  padding-bottom: 6px;
+}
+.optima-items-group-total {
+  margin-left: 8px;
+  font-weight: 500;
+  color: #546e7a;
+}
+.optima-stock-short {
+  color: #c62828;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.optima-stock-ok {
+  color: #2e7d32;
+  white-space: nowrap;
+}
+.optima-shortage-box {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff3e0;
+  border: 1px solid #ffcc80;
+  color: #8d4b00;
+  font-size: 0.88rem;
+}
+.optima-items-table td.optima-items-wrap {
+  white-space: normal;
+  min-width: 180px;
+}
+.optima-items-table td.optima-items-notes {
+  min-width: 160px;
+  max-width: 260px;
+  font-size: 0.85rem;
+}

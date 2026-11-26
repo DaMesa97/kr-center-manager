@@ -3,7 +3,9 @@
 //
 // Import robi edge function optima-ro-import (pg_cron co godzinę) z dwóch baz
 // Optimy: KR Center i MR Profil. Jedno RO = jedno zlecenie (category
-// 'DrzwiWewnetrzne', source 'optima_ro'). Przy każdej zmianie RO import
+// 'DrzwiWewnetrzne', source 'optima_ro') — tylko gdy RO ma choć jedno skrzydło
+// albo ościeżnicę drzwi wewnętrznych (same TECHNIC i Bastion — nie).
+// orders.quantity = liczba skrzydeł; pozycje mają item_type. Przy każdej zmianie RO import
 // NADPISUJE pola z OPTIMA_OWNED_FIELDS i wszystkie pozycje (kasuje i wstawia
 // na nowo — id pozycji się zmieniają, nie trzymać referencji do nich).
 // Pól produkcyjnych (release_date, etapy, wysyłka, reszta extra_fields) nie rusza.
@@ -27,6 +29,71 @@ export const OPTIMA_OWNED_FIELDS = [
 ] as const
 
 export const OPTIMA_READONLY_HINT = 'Zmieniaj w Optimie, synchronizacja co godzinę'
+
+// ---------------------------------------------------------------------
+// Typy pozycji (order_internal_door_items.item_type z importu; przy ręcznych
+// — kategoria komponentu magazynu)
+// ---------------------------------------------------------------------
+
+export const ITEM_TYPE_GROUPS: Array<{ key: string; label: string }> = [
+  { key: 'door_wing', label: 'Skrzydła' },
+  { key: 'door_frame', label: 'Ościeżnice i opaski' },
+  { key: 'door_handle', label: 'Klamki' },
+  { key: 'door_hinge_cover', label: 'Osłonki' },
+  { key: 'door_accessory', label: 'Akcesoria' },
+]
+
+type TypedItem = Pick<InternalDoorItem, 'item_type' | 'component_category' | 'quantity' | 'unit' | 'component_id'>
+
+export function itemTypeOf(it: Pick<InternalDoorItem, 'item_type' | 'component_category'>): string {
+  return String(it.item_type || it.component_category || '').trim() || 'other'
+}
+
+/** „7 szt. · 4 kpl” — suma ilości osobno dla każdej jednostki (listwy idą w kpl). */
+export function qtyByUnit(items: Array<Pick<InternalDoorItem, 'quantity' | 'unit'>>): string {
+  const byUnit = new Map<string, number>()
+  for (const it of items) {
+    const u = String(it.unit || 'szt').replace(/\.$/, '').trim() || 'szt'
+    byUnit.set(u, (byUnit.get(u) ?? 0) + (Number(it.quantity) || 0))
+  }
+  return [...byUnit].map(([u, n]) => `${n} ${u === 'szt' ? 'szt.' : u}`).join(' · ')
+}
+
+/** Pozycje w grupach wg typu, w stałej kolejności; nieznany typ na końcu jako „Pozostałe”. */
+export function groupItemsByType<T extends TypedItem>(items: T[]): Array<{ key: string; label: string; items: T[]; total: string }> {
+  const by = new Map<string, T[]>()
+  for (const it of items) {
+    const k = itemTypeOf(it)
+    by.set(k, [...(by.get(k) ?? []), it])
+  }
+  const known = ITEM_TYPE_GROUPS.filter((g) => by.has(g.key))
+  const rest = [...by.keys()].filter((k) => !ITEM_TYPE_GROUPS.some((g) => g.key === k))
+  return [
+    ...known.map((g) => ({ ...g, items: by.get(g.key)!, total: qtyByUnit(by.get(g.key)!) })),
+    ...(rest.length
+      ? [{ key: 'other', label: 'Pozostałe', items: rest.flatMap((k) => by.get(k)!), total: qtyByUnit(rest.flatMap((k) => by.get(k)!)) }]
+      : []),
+  ]
+}
+
+export type ItemsSummary = { unmapped: number; wings: number; frames: number }
+
+export function summarizeItems(items: TypedItem[]): ItemsSummary {
+  const s: ItemsSummary = { unmapped: 0, wings: 0, frames: 0 }
+  for (const it of items) {
+    if (it.component_id == null) s.unmapped += 1
+    const t = itemTypeOf(it)
+    if (t === 'door_wing') s.wings += Number(it.quantity) || 0
+    else if (t === 'door_frame') s.frames += Number(it.quantity) || 0
+  }
+  return s
+}
+
+/** Liczba skrzydeł: przy RO z Optimy orders.quantity (import liczy tylko skrzydła), przy ręcznych — z pozycji. */
+export function wingCount(o: Pick<Order, 'source' | 'quantity'>, summary: ItemsSummary | null | undefined): number {
+  if (isOptimaOrder(o)) return Number(o.quantity) || 0
+  return summary?.wings ?? 0
+}
 
 export const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s)
 
@@ -131,24 +198,29 @@ export type IntDoorFilter = {
   baza: 'all' | OptimaBaza
   zrodlo: 'all' | 'optima' | 'manual'
   bezKomponentu: boolean
+  /** zawiera: skrzydła / same ościeżnice (bez skrzydeł) */
+  zawartosc: 'all' | 'wings' | 'frames_only'
 }
 
-export const INT_DOOR_FILTER_DEFAULT: IntDoorFilter = { baza: 'all', zrodlo: 'all', bezKomponentu: false }
+export const INT_DOOR_FILTER_DEFAULT: IntDoorFilter = { baza: 'all', zrodlo: 'all', bezKomponentu: false, zawartosc: 'all' }
 
 export function isIntDoorFilterActive(f: IntDoorFilter): boolean {
-  return f.baza !== 'all' || f.zrodlo !== 'all' || f.bezKomponentu
+  return f.baza !== 'all' || f.zrodlo !== 'all' || f.bezKomponentu || f.zawartosc !== 'all'
 }
 
 export function matchesIntDoorFilter(
-  o: Pick<Order, 'source' | 'source_metadata'>,
+  o: Pick<Order, 'source' | 'source_metadata' | 'quantity'>,
   f: IntDoorFilter,
-  unmappedCount: number,
+  summary: ItemsSummary | null | undefined,
 ): boolean {
+  const unmappedCount = summary?.unmapped ?? 0
   const optima = isOptimaOrder(o)
   if (f.zrodlo === 'optima' && !optima) return false
   if (f.zrodlo === 'manual' && optima) return false
   if (f.baza !== 'all' && optimaBaza(o) !== f.baza) return false
   if (f.bezKomponentu && unmappedCount === 0) return false
+  if (f.zawartosc === 'wings' && wingCount(o, summary) === 0) return false
+  if (f.zawartosc === 'frames_only' && (wingCount(o, summary) > 0 || (summary?.frames ?? 0) === 0)) return false
   return true
 }
 
@@ -236,6 +308,13 @@ export type OptimaSyncState = {
   last_u_date: string | null
   last_run_at: string | null
   last_result: OptimaSyncResult | null
+  /** blokada przebiegu importu (optima_sync_lock) — trwa, dopóki > now() */
+  running_until?: string | null
+}
+
+export function isSyncRunning(s: Pick<OptimaSyncState, 'running_until'> | null | undefined, now: number = Date.now()): boolean {
+  const t = s?.running_until ? Date.parse(s.running_until) : NaN
+  return Number.isFinite(t) && t > now
 }
 
 export const OPTIMA_SYNC_COUNTERS: Array<{ key: string; label: string }> = [

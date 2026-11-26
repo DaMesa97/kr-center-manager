@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import DeleteConfirmDialog from './DeleteConfirmDialog'
@@ -10,6 +10,7 @@ import {
   OPTIMA_READONLY_HINT,
   cancelledReason,
   formatOptimaDateTime,
+  groupItemsByType,
   isOptimaOrder,
   lowerFirst,
   optimaBaza,
@@ -17,6 +18,7 @@ import {
   recipientAddress,
   unmappedItems,
 } from '../lib/optimaRo'
+import { INTERNAL_WAREHOUSE_ID, internalShortages, type Shortage } from '../lib/internalWarehouse'
 import type { InternalDoorItem, Order, ToastVariant, WarehouseComponent } from '../types'
 
 type DetailsUser = {
@@ -89,6 +91,43 @@ function InternalDoorOrderDetailsModal({
       : 'order-status-badge--in-progress'
 
   const componentById = useMemo(() => new Map(components.map((c) => [c.id, c])), [components])
+  const groups = useMemo(() => groupItemsByType(items), [items])
+
+  // Stan magazynu wewnętrznego dla komponentów zlecenia + to, co już zeszło (WZ − ZWR)
+  const [stockInfo, setStockInfo] = useState<{ stock: Map<number, number>; issued: Array<{ component_id: number; movement_type: string; quantity: number }> } | null>(null)
+  const componentIds = useMemo(
+    () => [...new Set(items.map((it) => it.component_id).filter((id): id is number => id != null))],
+    [items],
+  )
+  const loadStock = useCallback(async () => {
+    if (!fromOptima || !order.id || componentIds.length === 0) {
+      setStockInfo(null)
+      return
+    }
+    const [st, mv] = await Promise.all([
+      supabase.from('warehouse_stock').select('component_id, quantity').eq('warehouse_id', INTERNAL_WAREHOUSE_ID).in('component_id', componentIds),
+      supabase.from('warehouse_movements').select('component_id, movement_type, quantity').eq('order_id', order.id).in('movement_type', ['WZ', 'ZWR']),
+    ])
+    if (st.error || mv.error) {
+      console.error('[drzwi wewnętrzne] stan magazynu dla zlecenia', st.error ?? mv.error)
+      setStockInfo(null)
+      return
+    }
+    setStockInfo({
+      stock: new Map((st.data ?? []).map((r) => [Number(r.component_id), Number(r.quantity) || 0])),
+      issued: (mv.data ?? []) as Array<{ component_id: number; movement_type: string; quantity: number }>,
+    })
+  }, [fromOptima, order.id, componentIds])
+  useEffect(() => {
+    if (open) void loadStock()
+  }, [open, loadStock])
+  const shortages = useMemo<Map<number, Shortage>>(
+    () => (stockInfo ? internalShortages(items, stockInfo.stock, stockInfo.issued) : new Map()),
+    [items, stockInfo],
+  )
+  const shortList = [...shortages.values()].filter((s) => s.missing > 0)
+  const codeOf = (componentId: number) =>
+    items.find((it) => it.component_id === componentId)?.optima_code || componentById.get(componentId)?.code || `#${componentId}`
 
   const formatItemMeta = (item: InternalDoorItem) => {
     const itemData = item as InternalDoorItem & {
@@ -146,12 +185,20 @@ function InternalDoorOrderDetailsModal({
           .join(', ')}). Powiąż kody, żeby zeszły ze stanu.`
       : ''
 
+  const shortageWarning =
+    fromOptima && shortList.length > 0
+      ? `\n\nBrak na stanie magazynu wewnętrznego (${shortList.length} poz.): ${shortList
+          .slice(0, 3)
+          .map((s) => `${codeOf(s.componentId)} — potrzeba ${s.toIssue}, stan ${s.stock}`)
+          .join('; ')}${shortList.length > 3 ? ` i ${shortList.length - 3} innych (kolumna STAN)` : ''}. Wydanie zejdzie poniżej zera — zrób przyjęcie albo inwentaryzację.`
+      : ''
+
   const requestRelease = () => {
     setConfirmState({
       title: 'Wydaj zamówienie',
       confirmLabel: 'Wydaj',
       message: fromOptima
-        ? `Wydać zlecenie ${order.order_number} dla ${order.company}? Pozycje z komponentem zejdą z magazynu wewnętrznego.${skippedWarning}`
+        ? `Wydać zlecenie ${order.order_number} dla ${order.company}? Pozycje z komponentem zejdą z magazynu wewnętrznego.${shortageWarning}${skippedWarning}`
         : `Czy na pewno wydać zamówienie #${order.order_number} dla firmy ${order.company}?`,
       run: async () => {
         // Ręczne zlecenia schodzą z magazynu przy zapisie; z Optimy — dopiero tu
@@ -173,10 +220,11 @@ function InternalDoorOrderDetailsModal({
     setConfirmState({
       title: 'Dolicz wydanie z magazynu',
       confirmLabel: 'Dolicz',
-      message: `Rozliczyć magazyn dla ${order.order_number} jeszcze raz? Zejdą pozycje powiązane po wydaniu (i korekty ilości z Optimy).${skippedWarning}`,
+      message: `Rozliczyć magazyn dla ${order.order_number} jeszcze raz? Zejdą pozycje powiązane po wydaniu (i korekty ilości z Optimy).${shortageWarning}${skippedWarning}`,
       run: async () => {
         if (!(await issueStock())) return
         pushToast('Magazyn rozliczony', 'success')
+        await loadStock()
         await onAfterAction()
       },
     })
@@ -285,7 +333,7 @@ function InternalDoorOrderDetailsModal({
                 <dd>{order.order_date ? formatOptimaDateTime(order.order_date) : '—'}</dd>
                 <dt>Odbiorca</dt>
                 <dd>{address || '—'}</dd>
-                <dt>Sztuk razem</dt>
+                <dt>Skrzydła</dt>
                 <dd>{order.quantity ?? '—'}</dd>
                 <dt>Wprowadził</dt>
                 <dd>{order.entered_by || '—'}</dd>
@@ -331,51 +379,85 @@ function InternalDoorOrderDetailsModal({
                     <tr>
                       <th>KOD OPTIMY</th>
                       <th>NAZWA</th>
-                      <th>GRUPA</th>
-                      <th>ILOŚĆ</th>
+                      <th style={{ textAlign: 'right' }}>ILOŚĆ</th>
+                      <th style={{ textAlign: 'right' }} title="Stan w magazynie wewnętrznym; „brak” = mniej, niż trzeba jeszcze wydać do tego zlecenia">
+                        STAN
+                      </th>
                       <th>OPIS</th>
-                      <th>KOMPONENT MAGAZYNU</th>
+                      <th>KOMPONENT</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((item) => {
-                      const comp = item.component_id != null ? componentById.get(item.component_id) : undefined
-                      const unmapped = item.component_id == null
-                      return (
-                        <tr key={`${item.optima_element_id ?? item.id}`} className={unmapped ? 'optima-item--unmapped' : undefined}>
-                          <td><span className="optima-code">{item.optima_code || '—'}</span></td>
-                          <td>{item.optima_name || '—'}</td>
-                          <td>{item.optima_group || '—'}</td>
-                          <td style={{ whiteSpace: 'nowrap' }}>
-                            {item.quantity} {item.unit || 'szt.'}
-                          </td>
-                          <td>{item.notes || '—'}</td>
-                          <td>
-                            {unmapped ? (
-                              <div className="optima-item-link">
-                                <span className="optima-unmapped-badge">⚠ brak komponentu</span>
-                                {canMapCodes && item.optima_code && (
-                                  <button type="button" className="btn btn-sm btn-primary" onClick={() => setLinkItem(item)}>
-                                    Powiąż z komponentem
-                                  </button>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="optima-item-link">
-                                <span title={formatItemMeta(item)}>{comp?.name ?? item.component_name ?? `#${item.component_id}`}</span>
-                                {canMapCodes && item.optima_code && (
-                                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setLinkItem(item)} title="Zmień powiązanie tego kodu (dla wszystkich pozycji z tym kodem)">
-                                    zmień
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
+                    {groups.flatMap((g) => [
+                      <tr key={`g-${g.key}`} className="optima-items-group-row">
+                        <td colSpan={6}>
+                          {g.label}
+                          <span className="optima-items-group-total">{g.total}</span>
+                        </td>
+                      </tr>,
+                      ...g.items.map((item) => {
+                        const comp = item.component_id != null ? componentById.get(item.component_id) : undefined
+                        const unmapped = item.component_id == null
+                        const compName = comp?.name ?? item.component_name ?? ''
+                        const sameName = !!compName && compName.trim() === String(item.optima_name ?? '').trim()
+                        const sh = item.component_id != null ? shortages.get(item.component_id) : undefined
+                        const st = item.component_id != null ? (stockInfo?.stock.get(item.component_id) ?? 0) : 0
+                        return (
+                          <tr key={`${item.optima_element_id ?? item.id}`} className={unmapped ? 'optima-item--unmapped' : undefined}>
+                            <td title={item.optima_group ? `Grupa w Optimie: ${item.optima_group}` : undefined}>
+                              <span className="optima-code">{item.optima_code || '—'}</span>
+                            </td>
+                            <td className="optima-items-wrap">{item.optima_name || '—'}</td>
+                            <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                              {item.quantity} {item.unit || 'szt.'}
+                            </td>
+                            <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                              {unmapped || !stockInfo ? (
+                                <span className="muted">—</span>
+                              ) : sh && sh.missing > 0 ? (
+                                <span className="optima-stock-short" title={`Do wydania ${sh.toIssue}, na stanie ${sh.stock}`}>
+                                  {st} · brak {sh.missing}
+                                </span>
+                              ) : (
+                                <span className={sh && sh.toIssue > 0 ? 'optima-stock-ok' : 'muted'}>{st}</span>
+                              )}
+                            </td>
+                            <td className="optima-items-wrap optima-items-notes">{item.notes || '—'}</td>
+                            <td>
+                              {unmapped ? (
+                                <div className="optima-item-link">
+                                  <span className="optima-unmapped-badge">⚠ brak komponentu</span>
+                                  {canMapCodes && item.optima_code && (
+                                    <button type="button" className="btn btn-sm btn-primary" onClick={() => setLinkItem(item)}>
+                                      Powiąż z komponentem
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="optima-item-link">
+                                  <span className={sameName ? 'optima-stock-ok' : 'optima-items-wrap'} title={[compName, formatItemMeta(item)].filter(Boolean).join(' — ')}>
+                                    {sameName ? '✓ powiązany' : compName || `#${item.component_id}`}
+                                  </span>
+                                  {canMapCodes && item.optima_code && (
+                                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => setLinkItem(item)} title="Zmień powiązanie tego kodu (dla wszystkich pozycji z tym kodem)">
+                                      zmień
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      }),
+                    ])}
                   </tbody>
                 </table>
+                {isInProgress && shortList.length > 0 && (
+                  <div className="optima-shortage-box">
+                    Brak na stanie magazynu wewnętrznego: {shortList.length} poz. (brakuje łącznie {shortList.reduce((n, x) => n + x.missing, 0)}).
+                    {' '}Wydanie zejdzie poniżej zera — najpierw przyjęcie albo inwentaryzacja.
+                  </div>
+                )}
                 {missing.length > 0 && !canMapCodes && (
                   <p className="muted">Kody bez komponentu powiąże kierownik albo magazynier (Magazyn → Komponenty → Kody Optimy).</p>
                 )}

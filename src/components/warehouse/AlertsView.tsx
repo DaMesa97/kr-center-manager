@@ -5,6 +5,7 @@ import { fetchAllPages } from '../../lib/fetchPaged'
 import type { AlertThresholds, StockAlert } from '../../types'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
+import { isDoorCategory } from '../../lib/internalWarehouse'
 
 type Props = {
   isManager: boolean
@@ -152,9 +153,7 @@ function AlertsView({ isManager }: Props) {
         result = result.filter((a) => a.product_category === 'raw' || a.product_category == null)
       } else if (categoryFilter === 'doors_internal') {
         result = result.filter((a) =>
-          ['door_wing', 'door_frame', 'door_handle', 'door_hinge_cover'].includes(
-            a.product_category ?? '',
-          ),
+          isDoorCategory(a.product_category),
         )
       }
     }
@@ -180,7 +179,7 @@ function AlertsView({ isManager }: Props) {
       raw: skuCount(alertsAfterLevelFilter.filter((a) => a.product_category === 'raw' || a.product_category == null)),
       doors_internal: skuCount(
         alertsAfterLevelFilter.filter((a) =>
-          ['door_wing', 'door_frame', 'door_handle', 'door_hinge_cover'].includes(a.product_category ?? ''),
+          isDoorCategory(a.product_category),
         ),
       ),
     }),

@@ -335,6 +335,13 @@ spoza `raw` (stan 0) — bez zmian w bazie; `InventoryView` ma filtry, strony po
 Wewnętrzne (`InternalStockView`): rezerwacja = suma pozycji otwartych zleceń (niewydane, nieanulowane) minus netto WZ−ZWR
 tego zlecenia (ręczne schodzą przy zapisie, z Optimy przy „Wydane” — bez odejmowania ręczne liczyłyby się podwójnie).
 
+Dane z importu (beta.159): `order_internal_door_items.item_type` (door_wing / door_frame / door_handle / door_hinge_cover /
+door_accessory) grupuje pozycje w szczegółach (`groupItemsByType`, przy ręcznych typ z kategorii komponentu);
+`orders.quantity` w RO = liczba skrzydeł (`wingCount`); RO bez skrzydła i ościeżnicy (same TECHNIC, Bastion) nie tworzą
+zleceń. Komponenty: `category = 'DRZWI WEWNĘTRZNE'` (`isInternalDoorComponent`), pola door_* mogą być NULL.
+`optima_ro_sync_state.running_until > now()` = „trwa synchronizacja” (`isSyncRunning`). Braki przy wydaniu
+(`internalShortages`) tylko ostrzegają — `issue_internal_door_stock` pozwala zejść poniżej zera.
+
 ## 5. Rekordy łączone (Disting Plus, Titan)
 
 Rekordy łączone to **osobne wiersze** w `orders` spięte `linked_order_id`

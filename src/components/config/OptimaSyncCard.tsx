@@ -1,5 +1,5 @@
 import { useOptimaSync } from '../../hooks/useOptimaSync'
-import { OPTIMA_BAZA_LABEL, OPTIMA_SYNC_COUNTERS, syncErrors, type OptimaBaza } from '../../lib/optimaRo'
+import { OPTIMA_BAZA_LABEL, OPTIMA_SYNC_COUNTERS, isSyncRunning, syncErrors, type OptimaBaza } from '../../lib/optimaRo'
 import Spinner from '../Spinner'
 import type { ToastVariant } from '../../types'
 
@@ -54,6 +54,11 @@ export default function OptimaSyncCard({ canSync, pushToast }: Props) {
                   <span className={`optima-badge optima-badge--${s.baza === 'MR' ? 'mr' : 'kr'}`}>
                     {OPTIMA_BAZA_LABEL[s.baza as OptimaBaza] ?? s.baza}
                   </span>
+                  {isSyncRunning(s) && (
+                    <span className="optima-sync-running" title={`Blokada przebiegu do ${fmt(s.running_until ?? null)}`}>
+                      ⟳ trwa synchronizacja
+                    </span>
+                  )}
                   {canSync && (
                     <button
                       type="button"

@@ -89,7 +89,7 @@ import BastionExtrasPanel from './components/BastionExtrasPanel'
 import { useBastionExtras } from './hooks/useBastionExtras'
 import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
 import InternalDoorFiltersBar from './components/InternalDoorFiltersBar'
-import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, matchesIntDoorFilter, type IntDoorFilter } from './lib/optimaRo'
+import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, matchesIntDoorFilter, summarizeItems, type IntDoorFilter, type ItemsSummary } from './lib/optimaRo'
 import { isOptimaImportedComponent } from './lib/internalWarehouse'
 import AluOrdersTable from './components/AluOrdersTable'
 import AluOrderDetailsModal from './components/AluOrderDetailsModal'
@@ -1673,17 +1673,17 @@ function App() {
     const useWykonawca = wykonawcaFilter.length > 0 && (activeTab === 'STA' || activeTab === 'Disting')
     const titanOnly = bastionTitanOnly && activeTab === 'Bastion'
     const intDoor = activeTab === 'DrzwiWewnetrzne'
-    const unmappedByOrder = new Map<number, number>()
-    if (intDoor && intDoorFilter.bezKomponentu) {
-      for (const it of internalDoorItems) {
-        if (it.component_id == null) unmappedByOrder.set(it.order_id, (unmappedByOrder.get(it.order_id) ?? 0) + 1)
-      }
+    const summaryByOrder = new Map<number, ItemsSummary>()
+    if (intDoor && (intDoorFilter.bezKomponentu || intDoorFilter.zawartosc !== 'all')) {
+      const byOrder = new Map<number, typeof internalDoorItems>()
+      for (const it of internalDoorItems) byOrder.set(it.order_id, [...(byOrder.get(it.order_id) ?? []), it])
+      for (const [id, its] of byOrder) summaryByOrder.set(id, summarizeItems(its))
     }
     return categoryFilteredOrders.filter((order) => {
       if (titanOnly && !isTitanOrderRow(order)) return false
       if (intDoor) {
         // filtr źródła bot/ręczne nie jest tu pokazany — nie może działać po cichu
-        return matchesIntDoorFilter(order, intDoorFilter, unmappedByOrder.get(order.id ?? -1) ?? 0)
+        return matchesIntDoorFilter(order, intDoorFilter, summaryByOrder.get(order.id ?? -1))
       }
       if (sourceFilter !== 'all') {
         if (sourceFilter === 'manual' && order.source === 'bot') return false

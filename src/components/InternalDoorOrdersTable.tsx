@@ -1,6 +1,15 @@
 import { useMemo, type MutableRefObject } from 'react'
 import DataTable, { type DataTableColumn } from './DataTable'
-import { OPTIMA_BAZA_LABEL, cancelledReason, formatOptimaDateTime, isOptimaOrder, isOrderCancelled, optimaBaza } from '../lib/optimaRo'
+import {
+  OPTIMA_BAZA_LABEL,
+  cancelledReason,
+  formatOptimaDateTime,
+  isOptimaOrder,
+  isOrderCancelled,
+  optimaBaza,
+  summarizeItems,
+  wingCount,
+} from '../lib/optimaRo'
 import type { Order, InternalDoorItem } from '../types'
 
 type Props = {
@@ -57,6 +66,7 @@ function InternalDoorOrdersTable({ orders, items, onShowDetails, tableWrapperRef
   const columns = useMemo<DataTableColumn<Order>[]>(() => {
     const itemsOf = (o: Order) => (o.id !== undefined ? (itemsByOrder.get(o.id) ?? []) : [])
     const unmappedOf = (o: Order) => itemsOf(o).filter((it) => it.component_id == null).length
+    const wingsOf = (o: Order) => wingCount(o, summarizeItems(itemsOf(o)))
     return [
       {
         key: 'nr',
@@ -89,19 +99,21 @@ function InternalDoorOrdersTable({ orders, items, onShowDetails, tableWrapperRef
         render: (o) => (o.order_date ? formatOptimaDateTime(o.order_date) : '—'),
       },
       {
-        key: 'items',
-        label: 'POZYCJE',
+        key: 'wings',
+        label: 'SKRZYDŁA',
         className: 'col-order-text',
-        sortValue: (o) => itemsOf(o).length,
+        align: 'right',
+        title: 'Liczba skrzydeł (przy RO z Optimy liczy import); 0 = same ościeżnice / akcesoria',
+        sortValue: (o) => wingsOf(o),
+        tdTitle: (o) => {
+          const n = itemsOf(o).length
+          return n > 0 ? `${n} poz. w zleceniu` : undefined
+        },
         render: (o) => {
-          const orderItems = itemsOf(o)
-          const totalQty = orderItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
-          return (
-            <span className="order-items-count">
-              {orderItems.length} poz.
-              {orderItems.length > 0 && <span className="order-items-total">({totalQty} szt.)</span>}
-            </span>
-          )
+          const n = wingsOf(o)
+          if (n > 0) return <strong>{n}</strong>
+          const s = summarizeItems(itemsOf(o))
+          return <span className="muted">{s.frames > 0 ? 'ościeżnice' : '—'}</span>
         },
       },
       {

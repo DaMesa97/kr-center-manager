@@ -262,6 +262,8 @@ export type InternalDoorItem = {
   optima_group?: string | null
   optima_element_id?: number | null
   unit?: string | null
+  /** typ pozycji z Optimy: door_wing / door_frame / door_handle / door_hinge_cover / door_accessory (przy ręcznych NULL) */
+  item_type?: string | null
   component_name?: string | null
   component_category?: string | null
 }

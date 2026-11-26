@@ -6,6 +6,8 @@ import type { ToastVariant } from '../types'
  * Stan importu RO z Optimy (optima_ro_sync_state) + „Synchronizuj teraz".
  * Import działa asynchronicznie — wynik pojawia się po 1–2 min, więc po
  * uruchomieniu odpytujemy stan co 20 s przez ~3 min (do zmiany last_run_at).
+ * W tle odświeża stan co minutę (2 wiersze), żeby „trwa synchronizacja”
+ * (running_until > now()) znikało samo.
  */
 export function useOptimaSync(pushToast: (message: string, variant: ToastVariant) => void, onImported?: () => void) {
   const [states, setStates] = useState<OptimaSyncState[]>([])
@@ -30,7 +32,11 @@ export function useOptimaSync(pushToast: (message: string, variant: ToastVariant
 
   useEffect(() => {
     void load()
+    const bg = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') void load()
+    }, 60_000)
     return () => {
+      clearInterval(bg)
       if (pollRef.current) clearInterval(pollRef.current)
     }
   }, [load])

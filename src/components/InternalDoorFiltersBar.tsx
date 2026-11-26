@@ -4,6 +4,7 @@ import {
   OPTIMA_BAZA_LABEL,
   formatOptimaDateTime,
   isIntDoorFilterActive,
+  isSyncRunning,
   syncErrors,
   type IntDoorFilter,
   type OptimaBaza,
@@ -21,10 +22,11 @@ type Props = {
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-/** Filtry zakładki Drzwi wewnętrzne (baza / źródło / bez komponentu) + stan importu z Optimy. */
+/** Filtry zakładki Drzwi wewnętrzne (źródło / baza / zawiera / bez komponentu) + stan importu z Optimy. */
 export default function InternalDoorFiltersBar({ filter, onChange, unmappedOrders, canSync, onImported, pushToast }: Props) {
   const { states, running, runNow } = useOptimaSync(pushToast, onImported)
   const errorCount = states.reduce((n, s) => n + syncErrors(s).length, 0)
+  const syncing = states.filter((s) => isSyncRunning(s))
 
   return (
     <div className="int-door-filters">
@@ -47,6 +49,18 @@ export default function InternalDoorFiltersBar({ filter, onChange, unmappedOrder
           {(Object.keys(OPTIMA_BAZA_LABEL) as OptimaBaza[]).map((b) => (
             <option key={b} value={b}>{OPTIMA_BAZA_LABEL[b]}</option>
           ))}
+        </select>
+      </label>
+      <label className="int-door-filter">
+        <span>Zawiera</span>
+        <select
+          value={filter.zawartosc}
+          onChange={(e) => onChange({ ...filter, zawartosc: e.target.value as IntDoorFilter['zawartosc'] })}
+          title="Skrzydła = zlecenia z co najmniej jednym skrzydłem; tylko ościeżnice = bez skrzydeł, z ościeżnicą"
+        >
+          <option value="all">Wszystko</option>
+          <option value="wings">Skrzydła</option>
+          <option value="frames_only">Tylko ościeżnice</option>
         </select>
       </label>
       <label className="orders-filter-checkbox" title="Zlecenia z pozycjami, których kodu z Optimy nie powiązano z komponentem magazynu">
@@ -75,6 +89,11 @@ export default function InternalDoorFiltersBar({ filter, onChange, unmappedOrder
               {OPTIMA_BAZA_LABEL[s.baza as OptimaBaza] ?? s.baza} {s.last_run_at ? formatOptimaDateTime(new Date(s.last_run_at).toLocaleString('sv-SE')) : '—'}
             </span>
           ))
+        )}
+        {syncing.length > 0 && (
+          <span className="optima-sync-running" title={`Import w toku: ${syncing.map((s) => OPTIMA_BAZA_LABEL[s.baza as OptimaBaza] ?? s.baza).join(', ')}`}>
+            ⟳ trwa synchronizacja
+          </span>
         )}
         {errorCount > 0 && (
           <span className="optima-unmapped-badge" title="Szczegóły: Ustawienia → Integracje → Optima → Drzwi wewnętrzne">

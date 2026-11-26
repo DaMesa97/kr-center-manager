@@ -7,7 +7,7 @@ import {
   INTERNAL_WAREHOUSE_ID,
   distinctValues,
   internalReservations,
-  isDoorComponent,
+  isInternalDoorComponent,
   matchesDoorFilter,
   type DoorFilter,
   type IssuedMovement,
@@ -115,7 +115,7 @@ export default function InternalStockView({ components, onShowHistory, pushToast
 
   const rows = useMemo<Row[]>(() => {
     return components
-      .filter(isDoorComponent)
+      .filter((c) => isInternalDoorComponent(c) && (c.is_active || (stock.get(c.id) ?? 0) !== 0))
       .map((c) => {
         const s = stock.get(c.id) ?? 0
         const r = reserved.get(c.id) ?? 0

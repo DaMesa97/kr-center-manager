@@ -14,6 +14,7 @@ import type { ConsumptionHistoryPoint, ForecastRun, Supplier, WarehouseComponent
 import SeasonalFactorsEditor from './SeasonalFactorsEditor'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
+import { isDoorCategory } from '../../lib/internalWarehouse'
 
 type Props = {
   components: WarehouseComponent[]
@@ -212,9 +213,7 @@ export default function ForecastView({ components, suppliers = [], isManager }: 
       all: activeComponents.length,
       raw: activeComponents.filter((c) => c.product_category === 'raw' || c.product_category == null).length,
       doors_internal: activeComponents.filter((c) =>
-        ['door_wing', 'door_frame', 'door_handle', 'door_hinge_cover'].includes(
-          c.product_category ?? '',
-        ),
+        isDoorCategory(c.product_category),
       ).length,
     }),
     [activeComponents],
@@ -241,9 +240,7 @@ export default function ForecastView({ components, suppliers = [], isManager }: 
       result = result.filter((c) =>
         categoryFilter === 'raw'
           ? c.product_category === 'raw' || c.product_category == null
-          : ['door_wing', 'door_frame', 'door_handle', 'door_hinge_cover'].includes(
-              c.product_category ?? '',
-            ),
+          : isDoorCategory(c.product_category),
       )
     }
     const q = searchTerm.trim().toLowerCase()

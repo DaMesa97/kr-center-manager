@@ -10,11 +10,24 @@ export const INTERNAL_WAREHOUSE_ID = 3
 
 export const OPTIMA_IMPORT_NOTE_PREFIX = 'Import z kartotek Optimy'
 
+/** warehouse_components.category, którą import kartotek nadaje komponentom drzwi wewnętrznych */
+export const INTERNAL_DOOR_GROUP = 'DRZWI WEWNĘTRZNE'
+
 /** Kategorie komponentów drzwi wewnętrznych (product_category LIKE 'door_%'). */
 export const DOOR_CATEGORIES = ['door_wing', 'door_frame', 'door_handle', 'door_hinge_cover', 'door_accessory'] as const
 
+/** product_category drzwi wewnętrznych — także door_accessory (zamki, wkładki…) i każda przyszła door_*. */
+export function isDoorCategory(category: string | null | undefined): boolean {
+  return String(category ?? '').startsWith('door_')
+}
+
 export function isDoorComponent(c: Pick<WarehouseComponent, 'product_category'>): boolean {
-  return String(c.product_category ?? '').startsWith('door_')
+  return isDoorCategory(c.product_category)
+}
+
+/** Komponent magazynu wewnętrznego: product_category door_* albo grupa „DRZWI WEWNĘTRZNE” z importu. */
+export function isInternalDoorComponent(c: Pick<WarehouseComponent, 'product_category' | 'category'>): boolean {
+  return isDoorCategory(c.product_category) || String(c.category ?? '').trim().toUpperCase() === INTERNAL_DOOR_GROUP
 }
 
 /** Komponent z importu kartotek Optimy — kod to klucz powiązania, nie zmieniamy go i nie usuwamy. */
@@ -88,6 +101,37 @@ export type IssuedMovement = { order_id: number; component_id: number; movement_
  * zapisie, z Optimy — przy „Wydane"; bez odejmowania ręczne liczyłyby się
  * podwójnie (raz w stanie, raz w rezerwacji).
  */
+export type Shortage = { componentId: number; toIssue: number; stock: number; missing: number }
+
+/**
+ * Braki przy wydaniu jednego zlecenia: dla każdego komponentu ile jeszcze
+ * trzeba wydać (pozycje − netto WZ−ZWR tego zlecenia) wobec stanu magazynu
+ * wewnętrznego. missing > 0 = stan zejdzie poniżej zera.
+ */
+export function internalShortages(
+  items: Array<{ component_id: number | null; quantity: number }>,
+  stock: Map<number, number>,
+  issued: Array<{ component_id: number; movement_type: string; quantity: number }>,
+): Map<number, Shortage> {
+  const need = new Map<number, number>()
+  for (const it of items) {
+    if (it.component_id == null) continue
+    need.set(it.component_id, (need.get(it.component_id) ?? 0) + (Number(it.quantity) || 0))
+  }
+  const done = new Map<number, number>()
+  for (const m of issued) {
+    const sign = m.movement_type === 'WZ' ? 1 : m.movement_type === 'ZWR' ? -1 : 0
+    if (sign) done.set(m.component_id, (done.get(m.component_id) ?? 0) + sign * (Number(m.quantity) || 0))
+  }
+  const out = new Map<number, Shortage>()
+  for (const [id, qty] of need) {
+    const toIssue = Math.max(0, qty - Math.max(0, done.get(id) ?? 0))
+    const st = stock.get(id) ?? 0
+    out.set(id, { componentId: id, toIssue, stock: st, missing: Math.max(0, toIssue - Math.max(0, st)) })
+  }
+  return out
+}
+
 export function internalReservations(items: OpenItem[], movements: IssuedMovement[]): Map<number, number> {
   const key = (o: number, c: number) => `${o}:${c}`
   const needed = new Map<string, number>()

@@ -10,6 +10,7 @@ import type {
 } from '../../types'
 import Spinner from '../Spinner'
 import { computeReorder, type ReorderStatus } from '../../lib/reorder'
+import { isDoorCategory } from '../../lib/internalWarehouse'
 
 type Row = {
   component: WarehouseComponent
@@ -45,7 +46,7 @@ type Props = {
 }
 
 function isDoorsInternal(category: string | null | undefined): boolean {
-  return ['door_wing', 'door_frame', 'door_handle', 'door_hinge_cover'].includes(category ?? '')
+  return isDoorCategory(category)
 }
 
 function getCategoryFilterLabel(filter: 'all' | 'raw' | 'doors_internal'): string {

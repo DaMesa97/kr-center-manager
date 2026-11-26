@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Drzwi wewnętrzne z Optimy na prawdziwych danych (beta.159)</h4>
+        <ul>
+          <li>Lista: kolumna <b>Skrzydła</b> (przy RO z Optimy liczy import — same skrzydła, bez ościeżnic i klamek) i filtr <b>Zawiera: Skrzydła / Tylko ościeżnice</b>.</li>
+          <li>Szczegóły zlecenia: pozycje w grupach <b>Skrzydła · Ościeżnice i opaski · Klamki · Osłonki · Akcesoria</b> z sumą przy każdej grupie (listwy w kpl liczone osobno).</li>
+          <li>Kolumna <b>Stan</b> przy pozycjach: stan magazynu wewnętrznego i <b>brak</b>, gdy jest mniej, niż trzeba wydać. „✓ Wydane” pokazuje braki przed potwierdzeniem — wydanie i tak przejdzie, ale stan zejdzie poniżej zera.</li>
+          <li>Pasek Optimy i Ustawienia → Integracje: „⟳ trwa synchronizacja”, gdy import właśnie działa.</li>
+          <li>Akcesoria (zamki, wkładki, tulejki, kratki) liczą się do drzwi wewnętrznych także w Alertach, Prognozie i Zamawianiu.</li>
+        </ul>
         <h4>Magazyn wewnętrzne: kartoteki z Optimy, inwentaryzacja otwarcia, rezerwacje (beta.158)</h4>
         <ul>
           <li>Komponenty drzwi wewnętrznych zakłada import kartotek Optimy (kod jak w Optimie, więc pozycje RO podpinają się same). Nowa kategoria <b>Akcesoria</b> (zamki, wkładki, skrócenia). Takiego komponentu nie da się usunąć — przycisk „Dezaktywuj” chowa go z list; w edycji zmieniasz tylko logistykę (dostawca, palety, minimum), kod, nazwa i cechy są z Optimy.</li>

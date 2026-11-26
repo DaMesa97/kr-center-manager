@@ -5,10 +5,15 @@ import {
   cancelledReason,
   canMapOptimaCodes,
   formatOptimaDateTime,
+  groupItemsByType,
   groupUnmappedCodes,
   isIntDoorFilterActive,
   isOptimaOrder,
+  isSyncRunning,
   matchesIntDoorFilter,
+  qtyByUnit,
+  summarizeItems,
+  wingCount,
   optimaBaza,
   recipientAddress,
   syncErrors,
@@ -73,26 +78,79 @@ describe('zlecenia z Optimy', () => {
 })
 
 describe('filtry listy drzwi wewnętrznych', () => {
+  const none = { unmapped: 0, wings: 0, frames: 0 }
   it('źródło, baza, bez komponentu', () => {
     const f = INT_DOOR_FILTER_DEFAULT
     expect(isIntDoorFilterActive(f)).toBe(false)
-    expect(matchesIntDoorFilter(manual, f, 0)).toBe(true)
-    expect(matchesIntDoorFilter(manual, { ...f, zrodlo: 'optima' }, 0)).toBe(false)
-    expect(matchesIntDoorFilter(ro('KR:1'), { ...f, zrodlo: 'manual' }, 0)).toBe(false)
-    expect(matchesIntDoorFilter(ro('KR:1'), { ...f, baza: 'MR' }, 0)).toBe(false)
-    expect(matchesIntDoorFilter(ro('MR:1'), { ...f, baza: 'MR' }, 0)).toBe(true)
-    expect(matchesIntDoorFilter(manual, { ...f, baza: 'KR' }, 0)).toBe(false)
-    expect(matchesIntDoorFilter(ro('KR:1'), { ...f, bezKomponentu: true }, 0)).toBe(false)
-    expect(matchesIntDoorFilter(ro('KR:1'), { ...f, bezKomponentu: true }, 2)).toBe(true)
+    expect(matchesIntDoorFilter(manual, f, none)).toBe(true)
+    expect(matchesIntDoorFilter(manual, { ...f, zrodlo: 'optima' }, none)).toBe(false)
+    expect(matchesIntDoorFilter(ro('KR:1'), { ...f, zrodlo: 'manual' }, none)).toBe(false)
+    expect(matchesIntDoorFilter(ro('KR:1'), { ...f, baza: 'MR' }, none)).toBe(false)
+    expect(matchesIntDoorFilter(ro('MR:1'), { ...f, baza: 'MR' }, none)).toBe(true)
+    expect(matchesIntDoorFilter(manual, { ...f, baza: 'KR' }, none)).toBe(false)
+    expect(matchesIntDoorFilter(ro('KR:1'), { ...f, bezKomponentu: true }, none)).toBe(false)
+    expect(matchesIntDoorFilter(ro('KR:1'), { ...f, bezKomponentu: true }, { ...none, unmapped: 2 })).toBe(true)
+  })
+
+  it('zawiera: skrzydła (RO — z orders.quantity) / tylko ościeżnice', () => {
+    const f = { ...INT_DOOR_FILTER_DEFAULT, zawartosc: 'wings' as const }
+    const g = { ...INT_DOOR_FILTER_DEFAULT, zawartosc: 'frames_only' as const }
+    expect(isIntDoorFilterActive(f)).toBe(true)
+    const ro4 = ro('KR:679231', { quantity: 4 })
+    const roFrames = ro('KR:2', { quantity: 0 })
+    expect(matchesIntDoorFilter(ro4, f, { ...none, frames: 7 })).toBe(true)
+    expect(matchesIntDoorFilter(ro4, g, { ...none, frames: 7 })).toBe(false)
+    expect(matchesIntDoorFilter(roFrames, f, { ...none, frames: 2 })).toBe(false)
+    expect(matchesIntDoorFilter(roFrames, g, { ...none, frames: 2 })).toBe(true)
+    expect(matchesIntDoorFilter(roFrames, g, none)).toBe(false)
+    // ręczne: skrzydła z pozycji
+    expect(matchesIntDoorFilter(manual, f, { ...none, wings: 1 })).toBe(true)
+    expect(wingCount(ro4, { ...none, wings: 99 })).toBe(4)
+    expect(wingCount(manual, { ...none, wings: 3 })).toBe(3)
+  })
+})
+
+describe('pozycje wg typu (ZLEC/1861/11/2026)', () => {
+  const its = [
+    item({ item_type: 'door_wing', quantity: 1, unit: 'szt', component_id: 597 }),
+    item({ item_type: 'door_frame', quantity: 1, unit: 'szt', component_id: 593 }),
+    item({ item_type: 'door_frame', quantity: 1, unit: 'szt', component_id: 862 }),
+    item({ item_type: 'door_wing', quantity: 3, unit: 'szt', component_id: 863 }),
+    item({ item_type: 'door_frame', quantity: 3, unit: 'szt', component_id: 864 }),
+    item({ item_type: 'door_frame', quantity: 3, unit: 'szt', component_id: 594 }),
+    item({ item_type: 'door_frame', quantity: 4, unit: 'kpl', component_id: 865 }),
+    item({ item_type: 'door_handle', quantity: 4, unit: 'szt', component_id: 779 }),
+    item({ item_type: 'door_handle', quantity: 3, unit: 'szt', component_id: 547 }),
+    item({ item_type: 'door_handle', quantity: 1, unit: 'szt', component_id: 548 }),
+  ]
+  it('grupy w stałej kolejności z sumą sztuk (listwy w kpl osobno)', () => {
+    const g = groupItemsByType(its)
+    expect(g.map((x) => [x.label, x.items.length, x.total])).toEqual([
+      ['Skrzydła', 2, '4 szt.'],
+      ['Ościeżnice i opaski', 5, '8 szt. · 4 kpl'],
+      ['Klamki', 3, '8 szt.'],
+    ])
+    expect(summarizeItems(its)).toEqual({ unmapped: 0, wings: 4, frames: 12 })
+  })
+  it('ręczne bez item_type — typ z kategorii komponentu, nieznany → Pozostałe', () => {
+    const g = groupItemsByType([item({ component_category: 'door_hinge_cover', quantity: 2 }), item({ quantity: 1, unit: 'szt.' })])
+    expect(g.map((x) => [x.label, x.total])).toEqual([['Osłonki', '2 szt.'], ['Pozostałe', '1 szt.']])
+    expect(qtyByUnit([])).toBe('')
+  })
+  it('trwa synchronizacja, gdy running_until > teraz', () => {
+    const now = Date.parse('2026-11-26T12:00:00Z')
+    expect(isSyncRunning({ running_until: '2026-11-26T12:01:00Z' }, now)).toBe(true)
+    expect(isSyncRunning({ running_until: '2026-11-26T11:59:00Z' }, now)).toBe(false)
+    expect(isSyncRunning({ running_until: null }, now)).toBe(false)
   })
 })
 
 describe('kody bez komponentu', () => {
   it('pozycje bez komponentu i grupowanie po kodzie (wystąpienia, zlecenia, przykładowa nazwa)', () => {
     const rows = [
-      item({ order_id: 1, optima_code: 'DW-RIV-80L', optima_name: 'Rivoli 80 L biały', optima_group: 'Skrzydła' }),
-      item({ order_id: 2, optima_code: 'DW-RIV-80L', optima_name: 'Rivoli 80 L biały' }),
-      item({ order_id: 2, optima_code: 'DW-RIV-80L' }),
+      item({ order_id: 1, optima_code: 'DW-VER-80L', optima_name: 'Verona 80 L biały', optima_group: 'Skrzydła' }),
+      item({ order_id: 2, optima_code: 'DW-VER-80L', optima_name: 'Verona 80 L biały' }),
+      item({ order_id: 2, optima_code: 'DW-VER-80L' }),
       item({ order_id: 3, optima_code: 'KL-01', optima_name: 'Klamka' }),
       item({ order_id: 3, optima_code: '  ' }),
       item({ order_id: 4, optima_code: 'OS-1', component_id: 7 }),
@@ -100,7 +158,7 @@ describe('kody bez komponentu', () => {
     expect(unmappedItems(rows)).toHaveLength(5)
     const g = groupUnmappedCodes(unmappedItems(rows))
     expect(g).toEqual([
-      { code: 'DW-RIV-80L', count: 3, orders: 2, sampleName: 'Rivoli 80 L biały', group: 'Skrzydła' },
+      { code: 'DW-VER-80L', count: 3, orders: 2, sampleName: 'Verona 80 L biały', group: 'Skrzydła' },
       { code: 'KL-01', count: 1, orders: 1, sampleName: 'Klamka', group: '' },
     ])
   })
@@ -110,15 +168,15 @@ describe('wyszukiwarka komponentów', () => {
   const c = (id: number, p: Partial<WarehouseComponent>) =>
     ({ id, code: null, name: '', unit: 'szt', is_active: true, product_category: 'door_wing', ...p }) as WarehouseComponent
   const list = [
-    c(1, { name: 'Skrzydło', code: 'SKR-RIV-80', door_model: 'Rivoli', door_size: '80', door_direction: 'L', door_color: 'Biały' }),
+    c(1, { name: 'Skrzydło', code: 'SKR-VER-80', door_model: 'Verona', door_size: '80', door_direction: 'L', door_color: 'Biały' }),
     c(2, { name: 'Klamka Łuk', code: 'KL-LUK', product_category: 'door_handle', door_color: 'Czarna' }),
     c(3, { name: 'Wkręt', product_category: 'raw' }),
-    c(4, { name: 'Stare skrzydło Rivoli', is_active: false }),
+    c(4, { name: 'Stare skrzydło Verona', is_active: false }),
   ]
   it('każde słowo musi pasować, bez ogonków, tylko aktywne, surowce na końcu', () => {
-    expect(searchComponents(list, 'rivoli 80').map((x) => x.id)).toEqual([1])
+    expect(searchComponents(list, 'verona 80').map((x) => x.id)).toEqual([1])
     expect(searchComponents(list, 'luk').map((x) => x.id)).toEqual([2])
-    expect(searchComponents(list, 'skr-riv').map((x) => x.id)).toEqual([1])
+    expect(searchComponents(list, 'skr-ver').map((x) => x.id)).toEqual([1])
     expect(searchComponents(list, '').map((x) => x.id)).toEqual([2, 1, 3])
   })
 })

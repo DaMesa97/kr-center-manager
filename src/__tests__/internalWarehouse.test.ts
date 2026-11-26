@@ -5,6 +5,8 @@ import {
   distinctValues,
   internalDoorComponents,
   internalReservations,
+  internalShortages,
+  isInternalDoorComponent,
   isOptimaImportedComponent,
   matchesDoorFilter,
 } from '../lib/internalWarehouse'
@@ -22,7 +24,7 @@ describe('komponenty magazynu wewnętrznego', () => {
 
   it('do powiązań tylko aktywne drzwi wewnętrzne, bez surowców i bez Bastiona', () => {
     const list = [
-      c(1, { name: 'Skrzydło Rivoli' }),
+      c(1, { name: 'Skrzydło Verona' }),
       c(2, { name: 'Wkładka 30/35', product_category: 'door_accessory' }),
       c(3, { name: 'Zawias', product_category: 'raw' }),
       c(4, { name: 'BASTION Interior skrzydło' }),
@@ -33,22 +35,59 @@ describe('komponenty magazynu wewnętrznego', () => {
 })
 
 describe('filtry spisu i stanów', () => {
-  const rivoli = { code: 'SKR-RIV-80L', name: 'Skrzydło Rivoli', product_category: 'door_wing', door_model: 'Rivoli', door_color: 'Dąb złoty', door_size: '80', door_direction: 'L' }
+  const verona = { code: 'SKR-VER-80L', name: 'Skrzydło Verona', product_category: 'door_wing', door_model: 'Verona', door_color: 'Dąb złoty', door_size: '80', door_direction: 'L' }
   it('wyszukiwarka po kodzie, modelu, kolorze, rozmiarze — bez ogonków, każde słowo', () => {
-    expect(matchesDoorFilter(rivoli, { ...DOOR_FILTER_EMPTY, q: 'rivoli 80' })).toBe(true)
-    expect(matchesDoorFilter(rivoli, { ...DOOR_FILTER_EMPTY, q: 'dab zloty' })).toBe(true)
-    expect(matchesDoorFilter(rivoli, { ...DOOR_FILTER_EMPTY, q: 'skr-riv' })).toBe(true)
-    expect(matchesDoorFilter(rivoli, { ...DOOR_FILTER_EMPTY, q: 'rivoli 90' })).toBe(false)
+    expect(matchesDoorFilter(verona, { ...DOOR_FILTER_EMPTY, q: 'verona 80' })).toBe(true)
+    expect(matchesDoorFilter(verona, { ...DOOR_FILTER_EMPTY, q: 'dab zloty' })).toBe(true)
+    expect(matchesDoorFilter(verona, { ...DOOR_FILTER_EMPTY, q: 'skr-ver' })).toBe(true)
+    expect(matchesDoorFilter(verona, { ...DOOR_FILTER_EMPTY, q: 'verona 90' })).toBe(false)
   })
   it('kategoria, model, kolor', () => {
-    expect(matchesDoorFilter(rivoli, { ...DOOR_FILTER_EMPTY, category: 'door_frame' })).toBe(false)
-    expect(matchesDoorFilter(rivoli, { ...DOOR_FILTER_EMPTY, model: 'Rivoli', color: 'Dąb złoty' })).toBe(true)
-    expect(matchesDoorFilter(rivoli, { ...DOOR_FILTER_EMPTY, color: 'Biały' })).toBe(false)
+    expect(matchesDoorFilter(verona, { ...DOOR_FILTER_EMPTY, category: 'door_frame' })).toBe(false)
+    expect(matchesDoorFilter(verona, { ...DOOR_FILTER_EMPTY, model: 'Verona', color: 'Dąb złoty' })).toBe(true)
+    expect(matchesDoorFilter(verona, { ...DOOR_FILTER_EMPTY, color: 'Biały' })).toBe(false)
   })
   it('listy modeli / kolorów z zakresu kategorii', () => {
-    const rows = [rivoli, { ...rivoli, door_model: 'Maleo' }, { product_category: 'door_frame', door_model: 'OR-2', door_color: 'Biały' }]
-    expect(distinctValues(rows, 'door_model')).toEqual(['Maleo', 'OR-2', 'Rivoli'])
-    expect(distinctValues(rows, 'door_model', 'door_wing')).toEqual(['Maleo', 'Rivoli'])
+    const rows = [verona, { ...verona, door_model: 'Maleo' }, { product_category: 'door_frame', door_model: 'OR-2', door_color: 'Biały' }]
+    expect(distinctValues(rows, 'door_model')).toEqual(['Maleo', 'OR-2', 'Verona'])
+    expect(distinctValues(rows, 'door_model', 'door_wing')).toEqual(['Maleo', 'Verona'])
+  })
+})
+
+describe('braki przy wydaniu zlecenia', () => {
+  it('przy stanie 0 brak = cała ilość do wydania; po częściowym WZ tylko reszta', () => {
+    const items = [
+      { component_id: 863, quantity: 3 },
+      { component_id: 597, quantity: 1 },
+      { component_id: null, quantity: 2 },
+    ]
+    const s = internalShortages(items, new Map([[597, 5]]), [{ component_id: 863, movement_type: 'WZ', quantity: 1 }])
+    expect(s.get(863)).toEqual({ componentId: 863, toIssue: 2, stock: 0, missing: 2 })
+    expect(s.get(597)).toEqual({ componentId: 597, toIssue: 1, stock: 5, missing: 0 })
+    expect(s.size).toBe(2)
+  })
+  it('ujemny stan liczy się jak 0', () => {
+    expect(internalShortages([{ component_id: 1, quantity: 2 }], new Map([[1, -3]]), []).get(1)?.missing).toBe(2)
+  })
+})
+
+describe('niepełne pola door_* z importu', () => {
+  it('ościeżnica bez modelu i koloru — szukana po kodzie i nazwie, filtr kategorii działa', () => {
+    const frame = { code: 'BAZA OŚC PR KASZMIR PRO PRAWA', name: 'BAZA OŚCIEŻNICY PROSTEJ KASZMIR PRO PRAWA', product_category: 'door_frame', door_model: null, door_color: null, door_size: null, door_direction: null }
+    expect(matchesDoorFilter(frame, { ...DOOR_FILTER_EMPTY, q: 'kaszmir prawa' })).toBe(true)
+    expect(matchesDoorFilter(frame, { ...DOOR_FILTER_EMPTY, q: 'osc pr' })).toBe(true)
+    expect(matchesDoorFilter(frame, { ...DOOR_FILTER_EMPTY, q: 'oscieznicy' })).toBe(true)
+    expect(matchesDoorFilter(frame, { ...DOOR_FILTER_EMPTY, category: 'door_frame' })).toBe(true)
+    expect(matchesDoorFilter(frame, { ...DOOR_FILTER_EMPTY, model: 'MODERNA BLACK 02' })).toBe(false)
+    expect(distinctValues([frame], 'door_model')).toEqual([])
+  })
+  it('grupa DRZWI WEWNĘTRZNE z importu też należy do magazynu wewnętrznego', () => {
+    expect(isInternalDoorComponent({ product_category: 'raw', category: 'DRZWI WEWNĘTRZNE' })).toBe(true)
+    expect(isInternalDoorComponent({ product_category: 'door_accessory', category: null })).toBe(true)
+    expect(isInternalDoorComponent({ product_category: 'raw', category: 'PROFILE' })).toBe(false)
+  })
+  it('akcesoria (door_accessory) to też drzwi wewnętrzne', () => {
+    expect(internalDoorComponents([c(9, { name: 'ZAMEK WC', product_category: 'door_accessory' })]).map((x) => x.id)).toEqual([9])
   })
 })
 
