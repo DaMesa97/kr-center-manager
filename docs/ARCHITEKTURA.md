@@ -360,10 +360,10 @@ Zasady grup (decyzja z 26.11, do potwierdzenia przez właściciela): **grupa = p
 `linia` = BLACK / PLUS / BEZPRZYLGOWE / NORMA CZ-SK, `wykonanie` = WEW (z półki) albo NSTD (na zamówienie; też kod z końcówką NSTD).
 Pokrycie na danych z 26.11: skrzydła 99,4 % sztuk, ościeżnice 99,9 %, klamki/osłonki/akcesoria 100 % (nierozpoznane głównie kod-śmietnik `INNE 350 KPL`).
 Kolumna `pomijane` (v3): pozycja nie jest drzwiami wewnętrznymi i RPC `stat_wew_*` ją pomijają — automat ustawia ją dla nazw z wyrazem BOLD (skrzydła Bastion,
-także „SYSTEM RENOWACJI … BOLD”), „DRZWI ZEW…” i „…BASTION…”; kierownik może oznaczyć inne („To nie wewnętrzne” = `interior_item_dict_set(p_code, p_pomijane => true)`).
+także „SYSTEM RENOWACJI … BOLD”), „DRZWI ZEW…”, „…BASTION…”, a od v4 także „OPASKA CPL…” i klamki THEO / HAGA / FORESTA / NEGRO / KR CENTER (decyzja właściciela 26.11); kierownik może oznaczyć inne („To nie wewnętrzne” = `interior_item_dict_set(p_code, p_pomijane => true)`).
 Decyzja właściciela 26.11: BOLD to Bastion, nie grupa wewnętrzna; BLACK = wersja w grupie; UNI-45 i TECHNIC 01 = grupa TECHNIC z liniami `UNI-45` / `TECHNIC 01`; CLASSIC i CLASSICO to osobne modele (dopasowanie po całym wyrazie).
 `interior_item_dict_refresh()` (woływane przez każde RPC) dopisuje nowe kody i przepisuje wiersze automatyczne, gdy `parser_version` < bieżąca
-(stała w funkcji, teraz 3 — podbić po każdej zmianie regexów). `interior_item_dict_set(p_code, p_grupa, p_kolor, p_rozmiar, p_wykonanie, p_reset)`
+(stała w funkcji, teraz 4 — podbić po każdej zmianie regexów). `interior_item_dict_set(p_code, p_grupa, p_kolor, p_rozmiar, p_wykonanie, p_reset)`
 = ręczna poprawka kierownika (`reczne = true`, automat jej nie dotyka; `p_reset` wraca do automatu). Ekran: lista „Nierozpoznane pozycje” → „Przypisz grupę”.
 
 **RPC** (security definer, puste przy braku `current_user_is_manager()`; w aplikacji przez `fetchAllPages` + `.order().range()`, bo > 1000 wierszy):

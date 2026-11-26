@@ -70,6 +70,8 @@ begin
   n := regexp_replace(n, '\s+', ' ', 'g');
   -- nie drzwi wewnętrzne: skrzydła i akcesoria BOLD (Bastion), drzwi zewnętrzne wpisane w RO
   if n ~ '(^| )BOLD( |$)' or n like 'DRZWI ZEW%' or n like '%BASTION%' then pomijane := true; end if;
+  -- v4 (właściciel 26.11): opaski CPL i klamki do drzwi zewnętrznych (THEO, HAGA, FORESTA/NEGRO, KR CENTER) też nie są wewnętrzne
+  if n like 'OPASKA CPL%' or n like '%KR CENTER%' or n ~ '(^| )(THEO|HAGA|FORESTA|NEGRO)( |/|$)' then pomijane := true; end if;
 
   if p_type = 'door_wing' then
     -- dodatki z końca nazwy
@@ -200,7 +202,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_version constant integer := 3;
+  v_version constant integer := 4;
   v_n integer := 0;
 begin
   with codes as (
