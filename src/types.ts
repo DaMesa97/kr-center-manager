@@ -932,6 +932,7 @@ export type WarehouseSubTab =
   | 'Zamawianie'
   | 'Inwentaryzacja'
   | 'Kody Optimy'
+  | 'Wewnętrzne'
 
 export type InventorySession = {
   id: number
@@ -955,6 +956,12 @@ export type InventoryLine = {
   component_name?: string
   component_unit?: string
   component_code?: string | null
+  // drzwi wewnętrzne (magazyn wewnętrzne, tysiące pozycji z kartotek Optimy) — filtry spisu
+  component_category?: string | null
+  component_door_model?: string | null
+  component_door_color?: string | null
+  component_door_size?: string | null
+  component_door_direction?: string | null
 }
 
 export type ShoppingListItem = {
@@ -1064,7 +1071,8 @@ export type WarehouseComponent = {
   target_stock_level?: number | null
   notes?: string | null
   is_active: boolean
-  product_category: 'raw' | 'door_wing' | 'door_frame' | 'door_handle' | 'door_hinge_cover'
+  /** door_accessory = pozostałe drzwi wewnętrzne z kartotek Optimy (zamki, wkładki, skrócenia…) */
+  product_category: 'raw' | 'door_wing' | 'door_frame' | 'door_handle' | 'door_hinge_cover' | 'door_accessory'
   door_model?: string | null
   door_size?: string | null
   door_direction?: 'L' | 'P' | null

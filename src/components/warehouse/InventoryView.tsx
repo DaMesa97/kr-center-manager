@@ -8,6 +8,14 @@ import type { CurrentUser, InventoryLine, InventorySession, ToastVariant, Wareho
 import { isManagerRole } from '../../lib/permissions'
 import { fetchAllPages } from '../../lib/fetchPaged'
 import { inventoryReview, parseCountInput } from '../../lib/inventory'
+import { DOOR_FILTER_EMPTY, distinctValues, matchesDoorFilter, type DoorFilter } from '../../lib/internalWarehouse'
+import { PRODUCT_CATEGORY_LABELS } from '../../constants'
+
+/** pozycji spisu na stronę — magazyn wewnętrzne ma kilka tysięcy komponentów z kartotek Optimy */
+const INV_PAGE = 100
+
+type LinesView = DoorFilter & { onlyCounted: boolean; page: number }
+const LINES_VIEW_EMPTY: LinesView = { ...DOOR_FILTER_EMPTY, onlyCounted: false, page: 0 }
 
 type Props = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -29,7 +37,7 @@ async function fetchLines(sessionId: number): Promise<LinesResult> {
   const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) =>
     supabase
       .from('inventory_lines')
-      .select('id, session_id, component_id, system_qty, counted_qty, notes, warehouse_components ( name, unit, code )')
+      .select('id, session_id, component_id, system_qty, counted_qty, notes, warehouse_components ( name, unit, code, product_category, door_model, door_color, door_size, door_direction )')
       .eq('session_id', sessionId)
       .order('id', { ascending: true })
       .range(from, to),
@@ -38,7 +46,10 @@ async function fetchLines(sessionId: number): Promise<LinesResult> {
   return {
     error: null,
     lines: data.map((l) => {
-      const wc = l.warehouse_components as { name?: string; unit?: string; code?: string | null } | null
+      const wc = l.warehouse_components as {
+        name?: string; unit?: string; code?: string | null; product_category?: string | null
+        door_model?: string | null; door_color?: string | null; door_size?: string | null; door_direction?: string | null
+      } | null
       return {
         id: l.id as number,
         session_id: l.session_id as number,
@@ -49,6 +60,11 @@ async function fetchLines(sessionId: number): Promise<LinesResult> {
         component_name: wc?.name ?? `#${String(l.component_id)}`,
         component_unit: wc?.unit ?? '',
         component_code: wc?.code ?? null,
+        component_category: wc?.product_category ?? null,
+        component_door_model: wc?.door_model ?? null,
+        component_door_color: wc?.door_color ?? null,
+        component_door_size: wc?.door_size ?? null,
+        component_door_direction: wc?.door_direction ?? null,
       }
     }),
   }
@@ -69,6 +85,14 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
   const [addComponentId, setAddComponentId] = useState<Record<number, string>>({}) // session_id -> component_id
   const [adding, setAdding] = useState<number | null>(null) // session_id
   const [closeReview, setCloseReview] = useState<SessionWithLines | null>(null)
+  // wyszukiwarka / filtry / strona — osobno dla każdej otwartej sesji
+  const [linesView, setLinesView] = useState<Record<number, LinesView>>({})
+  const viewOf = (sessionId: number) => linesView[sessionId] ?? LINES_VIEW_EMPTY
+  const patchView = (sessionId: number, patch: Partial<LinesView>) =>
+    setLinesView((prev) => ({ ...prev, [sessionId]: { ...(prev[sessionId] ?? LINES_VIEW_EMPTY), ...patch } }))
+  // Enter na ostatniej pozycji strony → następna strona, kursor na pierwszą pozycję
+  const pendingFocus = useRef<number | null>(null)
+  const pageCountRef = useRef<Record<number, number>>({})
 
   const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
   // Zapisy w locie (per pozycja, łańcuchowane — kolejne wpisy tej samej pozycji nie wyprzedzają się)
@@ -346,6 +370,35 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
   // łatwo zgubić, który komponent się wpisuje
   const [activeLineId, setActiveLineId] = useState<number | null>(null)
 
+  const lineNo = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const sd of openSessions) sd.lines.forEach((l, i) => m.set(l.id, i + 1))
+    return m
+  }, [openSessions])
+
+  useEffect(() => {
+    if (pendingFocus.current == null) return
+    const sessionId = pendingFocus.current
+    pendingFocus.current = null
+    document.querySelector<HTMLInputElement>(`input[data-inv-session="${sessionId}"]`)?.focus()
+  })
+
+  // Enter = następna pozycja (szybkie wpisywanie z kartki); na końcu strony — kolejna strona
+  const focusNextCount = (sessionId: number, current: HTMLInputElement) => {
+    const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(`input[data-inv-session="${sessionId}"]`))
+    const idx = inputs.indexOf(current)
+    if (idx >= 0 && idx < inputs.length - 1) {
+      inputs[idx + 1].focus()
+      inputs[idx + 1].select()
+      return
+    }
+    const v = viewOf(sessionId)
+    if (v.page < (pageCountRef.current[sessionId] ?? 1) - 1) {
+      pendingFocus.current = sessionId
+      patchView(sessionId, { page: v.page + 1 })
+    }
+  }
+
   const lineColumns = useMemo((): DataTableColumn<InventoryLine>[] => [
     {
       key: 'lp',
@@ -353,7 +406,7 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
       align: 'center',
       thStyle: { width: '3rem' },
       tdStyle: { color: '#94a3b8', fontSize: '0.8rem' },
-      render: (_line, i) => i + 1,
+      render: (line) => lineNo.get(line.id) ?? '',
     },
     {
       key: 'name',
@@ -362,6 +415,11 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
         <div className="inventory-component-name">
           {line.component_name}
           {line.component_code && <span className="inventory-component-code">{line.component_code}</span>}
+          {(line.component_door_model || line.component_door_color || line.component_door_size) && (
+            <span className="inventory-component-attrs">
+              {[line.component_door_model, line.component_door_color, line.component_door_size, line.component_door_direction].filter(Boolean).join(' · ')}
+            </span>
+          )}
         </div>
       ),
     },
@@ -389,6 +447,12 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
             min={0}
             step="0.001"
             placeholder="—"
+            data-inv-session={line.session_id}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return
+              e.preventDefault()
+              focusNextCount(line.session_id, e.currentTarget)
+            }}
             onChange={(e) => handleCountChange(line.id, e.target.value)}
             onFocus={() => setActiveLineId(line.id)}
             onBlur={() => setActiveLineId((cur) => (cur === line.id ? null : cur))}
@@ -401,7 +465,7 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
       ),
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [draftCounts, saving, failed])
+  ], [draftCounts, saving, failed, lineNo])
 
   const historyColumns = useMemo((): DataTableColumn<PastSession>[] => [
     { key: 'warehouse', label: 'Magazyn', render: (s) => <strong>{s.warehouse_name}</strong> },
@@ -487,13 +551,59 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
                   </span>
                 </div>
 
-                <DataTable
-                  rows={sd.lines}
-                  rowKey={(line) => line.id}
-                  columns={lineColumns}
-                  className="inventory-table"
-                  rowClassName={(line) => (line.id === activeLineId ? 'inventory-row--active' : undefined)}
+                <InventoryLinesFilters
+                  lines={sd.lines}
+                  view={viewOf(sd.session.id)}
+                  onChange={(patch) => patchView(sd.session.id, { ...patch, page: 0 })}
                 />
+                {(() => {
+                  const v = viewOf(sd.session.id)
+                  const shown = sd.lines.filter((l) => {
+                    if (v.onlyCounted) {
+                      const p = parseCountInput(draftCounts[l.id] ?? '')
+                      if (!p.ok || p.value == null || p.value <= 0) return false
+                    }
+                    return matchesDoorFilter(
+                      {
+                        code: l.component_code, name: l.component_name, product_category: l.component_category,
+                        door_model: l.component_door_model, door_color: l.component_door_color,
+                        door_size: l.component_door_size, door_direction: l.component_door_direction,
+                      },
+                      v,
+                    )
+                  })
+                  const pageCount = Math.max(1, Math.ceil(shown.length / INV_PAGE))
+                  pageCountRef.current[sd.session.id] = pageCount
+                  const page = Math.min(v.page, pageCount - 1)
+                  const pageRows = shown.slice(page * INV_PAGE, (page + 1) * INV_PAGE)
+                  return (
+                    <>
+                      <DataTable
+                        rows={pageRows}
+                        rowKey={(line) => line.id}
+                        columns={lineColumns}
+                        className="inventory-table"
+                        emptyText={sd.lines.length === 0 ? 'Brak pozycji w spisie' : 'Brak pozycji dla wybranych filtrów'}
+                        rowClassName={(line) => (line.id === activeLineId ? 'inventory-row--active' : undefined)}
+                      />
+                      <div className="inventory-pager">
+                        <span className="muted">
+                          {shown.length === sd.lines.length ? `${shown.length} pozycji` : `${shown.length} z ${sd.lines.length} pozycji`}
+                          {pageCount > 1 && ` · strona ${page + 1} z ${pageCount}`}
+                          {' · Enter = następna pozycja'}
+                        </span>
+                        {pageCount > 1 && (
+                          <span className="inventory-pager-buttons">
+                            <button type="button" className="btn btn-sm btn-secondary" disabled={page === 0} onClick={() => patchView(sd.session.id, { page: 0 })}>«</button>
+                            <button type="button" className="btn btn-sm btn-secondary" disabled={page === 0} onClick={() => patchView(sd.session.id, { page: page - 1 })}>‹ Poprzednia</button>
+                            <button type="button" className="btn btn-sm btn-secondary" disabled={page >= pageCount - 1} onClick={() => patchView(sd.session.id, { page: page + 1 })}>Następna ›</button>
+                            <button type="button" className="btn btn-sm btn-secondary" disabled={page >= pageCount - 1} onClick={() => patchView(sd.session.id, { page: pageCount - 1 })}>»</button>
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  )
+                })()}
 
                 {/* Dopisanie pozycji spoza listy (towar znaleziony na półce, nowy komponent) */}
                 {addable.length > 0 && (
@@ -657,6 +767,72 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
           </div>,
           document.body,
         )}
+    </div>
+  )
+}
+
+/** Wyszukiwarka i filtry spisu (kod, nazwa, model, kolor, rozmiar; kategoria / model / kolor; tylko z ilością > 0). */
+function InventoryLinesFilters({
+  lines,
+  view,
+  onChange,
+}: {
+  lines: InventoryLine[]
+  view: LinesView
+  onChange: (patch: Partial<LinesView>) => void
+}) {
+  const attrs = useMemo(
+    () =>
+      lines.map((l) => ({
+        product_category: l.component_category,
+        door_model: l.component_door_model,
+        door_color: l.component_door_color,
+      })),
+    [lines],
+  )
+  const categories = useMemo(
+    () => [...new Set(lines.map((l) => l.component_category).filter((c): c is string => !!c))].sort(),
+    [lines],
+  )
+  const models = useMemo(() => distinctValues(attrs, 'door_model', view.category), [attrs, view.category])
+  const colors = useMemo(() => distinctValues(attrs, 'door_color', view.category), [attrs, view.category])
+  return (
+    <div className="inventory-filters">
+      <input
+        type="text"
+        className="search-input"
+        placeholder="Szukaj: kod, nazwa, model, kolor, rozmiar…"
+        value={view.q}
+        onChange={(e) => onChange({ q: e.target.value })}
+      />
+      {categories.length > 1 && (
+        <select value={view.category} onChange={(e) => onChange({ category: e.target.value, model: '', color: '' })} title="Kategoria">
+          <option value="">Wszystkie kategorie</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>{PRODUCT_CATEGORY_LABELS[c] ?? c}</option>
+          ))}
+        </select>
+      )}
+      {models.length > 0 && (
+        <select value={view.model} onChange={(e) => onChange({ model: e.target.value })} title="Model">
+          <option value="">Wszystkie modele</option>
+          {models.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+      )}
+      {colors.length > 0 && (
+        <select value={view.color} onChange={(e) => onChange({ color: e.target.value })} title="Kolor">
+          <option value="">Wszystkie kolory</option>
+          {colors.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      )}
+      <label className="orders-filter-checkbox">
+        <input type="checkbox" checked={view.onlyCounted} onChange={(e) => onChange({ onlyCounted: e.target.checked })} />
+        <span>Tylko z ilością &gt; 0</span>
+      </label>
     </div>
   )
 }

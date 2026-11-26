@@ -90,6 +90,7 @@ import { useBastionExtras } from './hooks/useBastionExtras'
 import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
 import InternalDoorFiltersBar from './components/InternalDoorFiltersBar'
 import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, matchesIntDoorFilter, type IntDoorFilter } from './lib/optimaRo'
+import { isOptimaImportedComponent } from './lib/internalWarehouse'
 import AluOrdersTable from './components/AluOrdersTable'
 import AluOrderDetailsModal from './components/AluOrderDetailsModal'
 import AluImportModal, { type AluImportOpts } from './components/AluImportModal'
@@ -1962,6 +1963,18 @@ function App() {
   const handleDeleteWarehouseComponent = useCallback(
     async (id: number) => {
       touchSession()
+      // Komponent z kartotek Optimy: kod = klucz powiązania z RO — nie usuwamy, tylko is_active = false
+      const target = warehouseComponents.find((c) => c.id === id)
+      if (isOptimaImportedComponent(target)) {
+        const { error: deactErr } = await supabase.from('warehouse_components').update({ is_active: false }).eq('id', id)
+        if (deactErr) {
+          pushToast(`Nie dezaktywowano komponentu: ${deactErr.message}`, 'error')
+          return
+        }
+        pushToast('Komponent z kartotek Optimy dezaktywowany (nie usunięty)', 'success')
+        await fetchWarehouseComponents()
+        return
+      }
       // Komponent z aktywnymi rezerwacjami nie znika — usunięcie półek
       // gubiło licznik reserved_quantity (rezerwacje w stock_reservations
       // dalej istnieją i "Dostępne" kłamało)
@@ -2047,7 +2060,7 @@ function App() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pushToast, fetchWarehouseComponents, fetchWarehouseStock, isWarehouseDataTab],
+    [pushToast, fetchWarehouseComponents, fetchWarehouseStock, isWarehouseDataTab, warehouseComponents],
   )
 
   const usesStructuredOrderForm =

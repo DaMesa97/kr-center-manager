@@ -6,6 +6,8 @@ import type { ConfigOptionRecord, Supplier, WarehouseComponent } from '../../typ
 import { supabase } from '../../supabaseClient'
 import SearchableConfigSelect from '../SearchableConfigSelect'
 import SkuLogisticsFields from './SkuLogisticsFields'
+import { isOptimaImportedComponent } from '../../lib/internalWarehouse'
+import { PRODUCT_CATEGORY_LABELS } from '../../constants'
 
 type Mode = 'add' | 'edit'
 
@@ -15,6 +17,7 @@ type DoorCategory =
   | 'door_frame_adjustable'
   | 'door_handle'
   | 'door_hinge_cover'
+  | 'door_accessory'
 
 type Props = {
   open: boolean
@@ -58,6 +61,8 @@ function FinishedDoorComponentFormModal({
   const [color, setColor] = useState('')
   const [handleColor, setHandleColor] = useState('')
   const [hingeCoverColor, setHingeCoverColor] = useState('')
+  // akcesoria (zamki, wkładki, skrócenia…) nie mają cech do złożenia nazwy — nazwa wpisana ręcznie
+  const [accessoryName, setAccessoryName] = useState('')
   const [code, setCode] = useState('')
   const [unit, setUnit] = useState('szt')
   const [supplierId, setSupplierId] = useState<number | null>(null)
@@ -67,7 +72,10 @@ function FinishedDoorComponentFormModal({
   const [minStockLevel, setMinStockLevel] = useState<number | ''>('')
   const [targetStockLevel, setTargetStockLevel] = useState<number | ''>('')
   const [saving, setSaving] = useState(false)
-  const { requestClose } = useUnsavedGuard({ productCategory, wingModel, handleModel, size, frameCode, handleShield, direction, color, handleColor, hingeCoverColor, code, unit, supplierId, unitsPerPallet, palletsPerFullTir, orderMultiple, minStockLevel, targetStockLevel }, onClose, { enabled: !saving, escape: open, resetKey: open })
+  // Komponent z kartotek Optimy: kod = klucz powiązania z RO, nazwa i cechy z Optimy —
+  // tu edytuje się tylko logistykę (dostawca, palety, minimum)
+  const imported = mode === 'edit' && isOptimaImportedComponent(initialComponent)
+  const { requestClose } = useUnsavedGuard({ accessoryName, productCategory, wingModel, handleModel, size, frameCode, handleShield, direction, color, handleColor, hingeCoverColor, code, unit, supplierId, unitsPerPallet, palletsPerFullTir, orderMultiple, minStockLevel, targetStockLevel }, onClose, { enabled: !saving, escape: open, resetKey: open })
 
   const wingModelOptions = useMemo(
     () =>
@@ -146,6 +154,7 @@ function FinishedDoorComponentFormModal({
       setColor(initialComponent.door_color ?? '')
       setHandleColor(initialComponent.door_color ?? '')
       setHingeCoverColor(initialComponent.door_color ?? '')
+      setAccessoryName(initialComponent.name ?? '')
       setCode(initialComponent.code ?? '')
       setUnit(initialComponent.unit ?? 'szt')
       setSupplierId(initialComponent.supplier_id ?? null)
@@ -165,6 +174,7 @@ function FinishedDoorComponentFormModal({
       setColor('')
       setHandleColor('')
       setHingeCoverColor('')
+      setAccessoryName('')
       setCode('')
       setUnit('szt')
       setSupplierId(null)
@@ -195,10 +205,39 @@ function FinishedDoorComponentFormModal({
     if (productCategory === 'door_hinge_cover') {
       return ['Osłonka', hingeCoverColor].filter(Boolean).join(' ')
     }
+    if (productCategory === 'door_accessory') return accessoryName.trim()
     return ''
-  }, [productCategory, wingModel, color, size, direction, frameCode, handleModel, handleColor, handleShield, hingeCoverColor])
+  }, [productCategory, wingModel, color, size, direction, frameCode, handleModel, handleColor, handleShield, hingeCoverColor, accessoryName])
 
   const handleSave = async () => {
+    if (imported && initialComponent) {
+      // tylko logistyka — kod, nazwa i cechy zostają z Optimy (import je nadpisuje)
+      setSaving(true)
+      const { error } = await supabase
+        .from('warehouse_components')
+        .update({
+          unit,
+          supplier_id: supplierId,
+          units_per_pallet: unitsPerPallet === '' ? null : Number(unitsPerPallet),
+          pallets_per_full_tir: palletsPerFullTir === '' ? null : Number(palletsPerFullTir),
+          order_multiple: orderMultiple === '' ? null : Number(orderMultiple),
+          min_stock_level: minStockLevel === '' ? null : Number(minStockLevel),
+          target_stock_level: targetStockLevel === '' ? null : Number(targetStockLevel),
+        })
+        .eq('id', initialComponent.id)
+      setSaving(false)
+      if (error) {
+        void appAlert(`Błąd: ${error.message}`)
+        return
+      }
+      onSaved()
+      onClose()
+      return
+    }
+    if (productCategory === 'door_accessory' && !accessoryName.trim()) {
+      void appAlert('Akcesorium wymaga nazwy.')
+      return
+    }
     if (productCategory === 'door_wing' && (!wingModel || !color || !size || !direction)) {
       void appAlert('Skrzydło wymaga: model, kolor, rozmiar i kierunek.')
       return
@@ -326,13 +365,26 @@ function FinishedDoorComponentFormModal({
     <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => void requestClose()}>
       <div className="order-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 600 }}>
         <div className="order-modal-header">
-          <h2>{mode === 'add' ? 'Dodaj drzwi wewnętrzne' : 'Edytuj pozycję'}</h2>
+          <h2>{mode === 'add' ? 'Dodaj drzwi wewnętrzne' : imported ? 'Komponent z Optimy — logistyka' : 'Edytuj pozycję'}</h2>
           <button type="button" className="btn btn-icon btn-ghost" onClick={() => void requestClose()}>
             ×
           </button>
         </div>
 
         <div className="order-form-grid order-form-grid--sta">
+          {imported && initialComponent ? (
+            <div className="order-field-full order-field-full--keep optima-readonly" title="Zmieniaj w Optimie — import kartotek nadpisuje kod, nazwę i cechy">
+              <div className="optima-readonly-hint">🔒 Komponent z kartotek Optimy — kod, nazwa i cechy przychodzą z Optimy (kod łączy pozycje RO z magazynem). Tu zmieniasz tylko logistykę.</div>
+              <dl className="optima-readonly-grid">
+                <dt>Kod</dt><dd><span className="optima-code">{initialComponent.code || '—'}</span></dd>
+                <dt>Nazwa</dt><dd>{initialComponent.name}</dd>
+                <dt>Kategoria</dt><dd>{PRODUCT_CATEGORY_LABELS[initialComponent.product_category] ?? initialComponent.product_category}</dd>
+                <dt>Model / kolor</dt><dd>{[initialComponent.door_model, initialComponent.door_color].filter(Boolean).join(' · ') || '—'}</dd>
+                <dt>Rozmiar / kierunek</dt><dd>{[initialComponent.door_size, initialComponent.door_direction].filter(Boolean).join(' · ') || '—'}</dd>
+              </dl>
+            </div>
+          ) : (
+          <>
           <label className="order-field-full">
             <span className="order-field-label-text">Typ pozycji</span>
             <select
@@ -345,8 +397,15 @@ function FinishedDoorComponentFormModal({
               <option value="door_frame_adjustable">Ościeżnica regulowana</option>
               <option value="door_handle">Klamka</option>
               <option value="door_hinge_cover">Osłonka na zawias</option>
+              <option value="door_accessory">Akcesorium (zamek, wkładka, skrócenie…)</option>
             </select>
           </label>
+          {productCategory === 'door_accessory' && (
+            <label className="order-field-full">
+              <span className="order-field-label-text">Nazwa</span>
+              <input type="text" value={accessoryName} onChange={(e) => setAccessoryName(e.target.value)} placeholder="np. Wkładka patentowa 30/35" />
+            </label>
+          )}
           {productCategory === 'door_wing' && (
             <>
               <SearchableConfigSelect
@@ -493,6 +552,9 @@ function FinishedDoorComponentFormModal({
           <div className="order-field-full" style={{ background: '#f9fafb', padding: 8, borderRadius: 4 }}>
             <strong>Nazwa:</strong> {generatedName || '(brak)'}
           </div>
+
+          </>
+          )}
 
           <SkuLogisticsFields
             supplierId={supplierId}

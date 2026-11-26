@@ -326,6 +326,15 @@ Powiązanie kodu: `mapOptimaCode` → rpc `optima_map_component(p_code, p_compon
 wszystkich pozycji z kodem). Bez tej funkcji w bazie aplikacja robi upsert + update z klienta — to działa tylko dla
 kierowników, bo UPDATE na `order_internal_door_items` (polityka `oidi_modify_mgr_seller`) nie obejmuje magazyniera.
 
+Magazyn wewnętrzne (beta.158, `src/lib/internalWarehouse.ts`): komponenty `product_category LIKE 'door_%'` (nowa wartość
+`door_accessory`; CHECK dokłada import albo `migrate/door_accessory_category.sql`, warunkowo) zakłada import kartotek Optimy
+z `notes = 'Import z kartotek Optimy (…)'` — takich nie usuwamy (App.handleDeleteWarehouseComponent → `is_active = false`), a
+formularz drzwi edytuje tylko logistykę. Bastion nigdy nie jest „drzwiami wewnętrznymi” (`internalDoorComponents` wycina surowce
+i nazwy z BASTION). Inwentaryzacja otwarcia: `open_inventory_session` dla magazynu WEW* bierze wszystkie aktywne komponenty
+spoza `raw` (stan 0) — bez zmian w bazie; `InventoryView` ma filtry, strony po 100 i Enter → następna pozycja. Stany →
+Wewnętrzne (`InternalStockView`): rezerwacja = suma pozycji otwartych zleceń (niewydane, nieanulowane) minus netto WZ−ZWR
+tego zlecenia (ręczne schodzą przy zapisie, z Optimy przy „Wydane” — bez odejmowania ręczne liczyłyby się podwójnie).
+
 ## 5. Rekordy łączone (Disting Plus, Titan)
 
 Rekordy łączone to **osobne wiersze** w `orders` spięte `linked_order_id`

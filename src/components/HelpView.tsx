@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Magazyn wewnętrzne: kartoteki z Optimy, inwentaryzacja otwarcia, rezerwacje (beta.158)</h4>
+        <ul>
+          <li>Komponenty drzwi wewnętrznych zakłada import kartotek Optimy (kod jak w Optimie, więc pozycje RO podpinają się same). Nowa kategoria <b>Akcesoria</b> (zamki, wkładki, skrócenia). Takiego komponentu nie da się usunąć — przycisk „Dezaktywuj” chowa go z list; w edycji zmieniasz tylko logistykę (dostawca, palety, minimum), kod, nazwa i cechy są z Optimy.</li>
+          <li><b>Inwentaryzacja</b> przy kilku tysiącach pozycji: wyszukiwarka (kod, nazwa, model, kolor, rozmiar), filtry kategorii / modelu / koloru, strony po 100, <b>Enter = następna pozycja</b> (na końcu strony przechodzi na kolejną) i „Tylko z ilością &gt; 0”. Inwentaryzację otwarcia magazynu wewnętrznego otwierasz jak dotąd — spis bierze wszystkie aktywne drzwi wewnętrzne ze stanem 0; zatwierdzenie tworzy korekty INW.</li>
+          <li><b>Magazyn → Stany → Wewnętrzne</b>: drzwi wewnętrzne z tymi samymi filtrami, kolumny <b>Rezerwacje</b> (pozycje otwartych zleceń, które jeszcze nie zeszły ze stanu) i <b>Dostępne</b> = stan − rezerwacje.</li>
+          <li>Bastion (także Bastion Interior) nie należy do drzwi wewnętrznych — nie ma go w wyszukiwarce „Powiąż z komponentem”.</li>
+        </ul>
         <h4>Drzwi wewnętrzne z Optimy (beta.157)</h4>
         <ul>
           <li>Rezerwacje odbiorcy (RO) z pozycjami drzwi wewnętrznych z baz <b>KR Center</b> i <b>MR Profil</b> same wpadają do zakładki Drzwi wewnętrzne (import co godzinę). Lista ma kolumny: nr RO, źródło (plakietka bazy albo „Ręczne”), firma, nr zamówienia klienta, data RO, pozycje, <b>bez komponentu</b> i status; nowe filtry: źródło, baza, „Tylko bez komponentu”. RO anulowane w Optimie są wyszarzone (powód w dymku) i domyślnie ukryte — pokazuje je „Pokaż anulowane”.</li>

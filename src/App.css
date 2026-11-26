@@ -10371,3 +10371,11 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 .internal-door-details-body { padding: 0 1.5rem 8px; }
 .component-picker-body { padding: 14px 1.5rem 0; }
 .order-modal > .optima-readonly-hint { padding: 10px 24px 0; margin: 0; }
+
+/* ===== Magazyn wewnętrzne: spis i stany (tysiące pozycji z kartotek Optimy) ===== */
+.inventory-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0; }
+.inventory-filters .search-input { flex: 1 1 260px; min-width: 220px; }
+.inventory-filters select { max-width: 240px; }
+.inventory-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 4px; font-size: 0.85rem; }
+.inventory-pager-buttons { display: inline-flex; gap: 6px; }
+.inventory-component-attrs { display: block; font-size: 0.78rem; color: var(--color-text-muted); }

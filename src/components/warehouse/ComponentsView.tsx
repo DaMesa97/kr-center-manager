@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { createPortal } from 'react-dom'
 import { Activity } from 'lucide-react'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
+import { isOptimaImportedComponent } from '../../lib/internalWarehouse'
 import type {
   SmartRopRow,
   Supplier,
@@ -134,6 +135,7 @@ function ComponentsView({
       door_frame: components.filter((c) => c.product_category === 'door_frame').length,
       door_handle: components.filter((c) => c.product_category === 'door_handle').length,
       door_hinge_cover: components.filter((c) => c.product_category === 'door_hinge_cover').length,
+      door_accessory: components.filter((c) => c.product_category === 'door_accessory').length,
     }),
     [components],
   )
@@ -165,7 +167,9 @@ function ComponentsView({
       return (
         c.name.toLowerCase().includes(q) ||
         (c.code ?? '').toLowerCase().includes(q) ||
-        (c.category ?? '').toLowerCase().includes(q)
+        (c.category ?? '').toLowerCase().includes(q) ||
+        // drzwi wewnętrzne (kilka tysięcy z kartotek Optimy): model, kolor, rozmiar
+        [c.door_model, c.door_color, c.door_size].some((v) => (v ?? '').toLowerCase().includes(q))
       )
     })
   }, [components, categoryFilter, search, supplierFilter])
@@ -214,9 +218,13 @@ function ComponentsView({
   }, [saving])
 
   const handleDeleteRow = useCallback(
-    async (id: number) => {
-      if (!(await appConfirm('Czy na pewno chcesz usunąć ten komponent?'))) return
-      await onDelete(id)
+    async (row: WarehouseComponent) => {
+      // komponent z kartotek Optimy: kod jest kluczem powiązania — tylko dezaktywacja (App.handleDeleteWarehouseComponent)
+      const msg = isOptimaImportedComponent(row)
+        ? `„${row.name}” pochodzi z kartotek Optimy — nie usuwamy go, tylko dezaktywujemy (zniknie z list, kod zostaje). Dezaktywować?`
+        : 'Czy na pewno chcesz usunąć ten komponent?'
+      if (!(await appConfirm(msg))) return
+      await onDelete(row.id)
     },
     [onDelete],
   )
@@ -442,8 +450,13 @@ function ComponentsView({
               <button type="button" className="btn btn-sm btn-primary" onClick={() => handleEdit(row)}>
                 Edytuj
               </button>
-              <button type="button" className="btn btn-sm btn-danger" onClick={() => void handleDeleteRow(row.id)}>
-                Usuń
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                onClick={() => void handleDeleteRow(row)}
+                title={isOptimaImportedComponent(row) ? 'Komponent z kartotek Optimy — tylko dezaktywacja' : undefined}
+              >
+                {isOptimaImportedComponent(row) ? 'Dezaktywuj' : 'Usuń'}
               </button>
             </>
           )}
@@ -525,6 +538,7 @@ function ComponentsView({
               { key: 'door_frame', label: 'Ościeżnice wewnętrzne' },
               { key: 'door_handle', label: 'Klamki' },
               { key: 'door_hinge_cover', label: 'Osłonki na zawias' },
+              { key: 'door_accessory', label: 'Akcesoria drzwi wewn.' },
             ]
               .filter((p) => (counts[p.key as keyof typeof counts] as number) > 0)
               .map((p) => (

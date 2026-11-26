@@ -36,6 +36,7 @@ import ReorderDashboardView from './warehouse/ReorderDashboardView'
 import PurchaseOrdersView from './warehouse/PurchaseOrdersView'
 import InventoryView from './warehouse/InventoryView'
 import OptimaCodesView from './warehouse/OptimaCodesView'
+import InternalStockView from './warehouse/InternalStockView'
 import { canMapOptimaCodes } from '../lib/optimaRo'
 
 type WarehouseViewProps = {
@@ -262,6 +263,8 @@ function WarehouseView({
           pushToast={pushToast}
           onStockChanged={onRefreshStock}
         />
+      ) : activeSubTab === 'Wewnętrzne' ? (
+        <InternalStockView components={components} onShowHistory={onShowHistory} pushToast={pushToast} />
       ) : activeSubTab === 'Rezerwacje' ? (
         <ReservationsView
           reservations={stockReservations}

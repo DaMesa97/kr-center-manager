@@ -3,6 +3,7 @@ import { supabase } from '../../supabaseClient'
 import { fetchAllPages } from '../../lib/fetchPaged'
 import { componentLabel } from '../../lib/componentLabel'
 import { groupUnmappedCodes, mapOptimaCode, type OptimaMapRow } from '../../lib/optimaRo'
+import { internalDoorComponents } from '../../lib/internalWarehouse'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import ComponentPickerDialog from '../ComponentPickerDialog'
 import OptimaCodeLinkDialog from '../OptimaCodeLinkDialog'
@@ -70,6 +71,8 @@ export default function OptimaCodesView({ components, canEdit, pushToast }: Prop
   }, [load])
 
   const componentById = useMemo(() => new Map(components.map((c) => [c.id, c])), [components])
+  // do wyboru tylko drzwi wewnętrzne — bez surowców i bez Bastiona (osobny produkt)
+  const doorComponents = useMemo(() => internalDoorComponents(components), [components])
 
   const unmapped = useMemo(() => groupUnmappedCodes(items.filter((r) => r.component_id == null)), [items])
 
@@ -303,7 +306,7 @@ export default function OptimaCodesView({ components, canEdit, pushToast }: Prop
               <div>Wybór trafia na listę — zapisujesz przyciskiem „Zapisz powiązania”.</div>
             </div>
           }
-          components={components}
+          components={doorComponents}
           initialQuery={
             picker.codes.length === 1
               ? String(unmapped.find((u) => u.code === picker.codes[0])?.sampleName ?? '').split(/\s+/).filter((w) => w.length > 2).slice(0, 2).join(' ')

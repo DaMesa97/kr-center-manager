@@ -102,7 +102,7 @@ export const WAREHOUSE_TABS = ['Stany', 'Komponenty', 'Dokumenty', 'Zamawianie',
 export type WarehouseTab = (typeof WAREHOUSE_TABS)[number]
 
 export const WAREHOUSE_TAB_SUBTABS: Record<WarehouseTab, readonly WarehouseSubTab[]> = {
-  Stany: ['Stany', 'Rezerwacje', 'Ruchy'],
+  Stany: ['Stany', 'Wewnętrzne', 'Rezerwacje', 'Ruchy'],
   Komponenty: ['Komponenty', 'Receptury', 'Kody Optimy'],
   Dokumenty: ['Przyjęcia', 'Przesunięcia'],
   Zamawianie: ['Zamawianie', 'Alerty', 'Prognozy', 'Zamówienia'],
@@ -157,6 +157,7 @@ export const WAREHOUSE_SUB_TABS: WarehouseSubTab[] = [
   'Zamawianie',
   'Inwentaryzacja',
   'Kody Optimy',
+  'Wewnętrzne',
 ]
 
 export const PRODUCT_CATEGORY_LABELS: Record<string, string> = {
@@ -165,6 +166,7 @@ export const PRODUCT_CATEGORY_LABELS: Record<string, string> = {
   door_frame: 'Ościeżnica wewnętrzna',
   door_handle: 'Klamka',
   door_hinge_cover: 'Osłonka na zawias',
+  door_accessory: 'Akcesorium drzwi wewn.',
 }
 
 export const PRODUCT_CATEGORY_FILTER_LABELS: Record<string, string> = {
@@ -173,6 +175,7 @@ export const PRODUCT_CATEGORY_FILTER_LABELS: Record<string, string> = {
   door_frame: 'Ościeżnice wewnętrzne',
   door_handle: 'Klamki',
   door_hinge_cover: 'Osłonki na zawias',
+  door_accessory: 'Akcesoria (zamki, wkładki, skrócenia)',
 }
 
 export const INITIAL_PZ_FORM: PzFormState = {
