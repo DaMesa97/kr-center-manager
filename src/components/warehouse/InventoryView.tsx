@@ -8,7 +8,7 @@ import type { CurrentUser, InventoryLine, InventorySession, ToastVariant, Wareho
 import { isManagerRole } from '../../lib/permissions'
 import { fetchAllPages } from '../../lib/fetchPaged'
 import { inventoryReview, parseCountInput } from '../../lib/inventory'
-import { DOOR_FILTER_EMPTY, distinctValues, matchesDoorFilter, type DoorFilter } from '../../lib/internalWarehouse'
+import { DOOR_FILTER_EMPTY, distinctValues, matchesDoorFilter, sortInventoryLines, type DoorFilter } from '../../lib/internalWarehouse'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
 
 /** pozycji spisu na stronę — magazyn wewnętrzne ma kilka tysięcy komponentów z kartotek Optimy */
@@ -37,7 +37,7 @@ async function fetchLines(sessionId: number): Promise<LinesResult> {
   const { data, error } = await fetchAllPages<Record<string, unknown>>((from, to) =>
     supabase
       .from('inventory_lines')
-      .select('id, session_id, component_id, system_qty, counted_qty, notes, warehouse_components ( name, unit, code, product_category, door_model, door_color, door_size, door_direction )')
+      .select('id, session_id, component_id, system_qty, counted_qty, notes, warehouse_components ( name, unit, code, product_category, door_model, door_color, door_size, door_direction, is_stocked )')
       .eq('session_id', sessionId)
       .order('id', { ascending: true })
       .range(from, to),
@@ -45,10 +45,11 @@ async function fetchLines(sessionId: number): Promise<LinesResult> {
   if (error) return { lines: [], error: error.message }
   return {
     error: null,
-    lines: data.map((l) => {
+    lines: sortInventoryLines(data.map((l) => {
       const wc = l.warehouse_components as {
         name?: string; unit?: string; code?: string | null; product_category?: string | null
         door_model?: string | null; door_color?: string | null; door_size?: string | null; door_direction?: string | null
+        is_stocked?: boolean | null
       } | null
       return {
         id: l.id as number,
@@ -65,8 +66,12 @@ async function fetchLines(sessionId: number): Promise<LinesResult> {
         component_door_color: wc?.door_color ?? null,
         component_door_size: wc?.door_size ?? null,
         component_door_direction: wc?.door_direction ?? null,
+        component_is_stocked: wc ? wc.is_stocked !== false : true,
       }
-    }),
+    })
+      // kartoteki w tle (is_stocked = false) nie idą do spisu — chyba że ktoś już je policzył
+      .filter((l) => l.component_is_stocked || l.counted_qty != null)),
+    // magazyn wewnętrzny: skrzydła, ościeżnice, klamki, akcesoria, osłonki — w grupie po nazwie
   }
 }
 

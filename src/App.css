@@ -10448,3 +10448,13 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 .int-door-pick-check:disabled { cursor: default; }
 .int-door-item--picked td:not(.int-door-pick-col), .internal-door-details-item.int-door-item--picked .internal-door-details-item-main { opacity: 0.6; }
 .internal-door-details-item .int-door-pick-col { display: flex; align-items: center; justify-content: center; }
+/* Magazyn: is_stocked — trzymamy na magazynie / kartoteka w tle */
+.stocked-switch { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.stocked-badge { display: inline-block; min-width: 34px; text-align: center; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+.stocked-badge--yes { background: #e8f5e9; color: #2e7d32; }
+.stocked-badge--no { background: #eceff1; color: #546e7a; }
+.stocked-toggle { border: 0; background: transparent; padding: 0; cursor: pointer; font-size: 0.75rem; color: #546e7a; display: inline-flex; align-items: center; gap: 4px; }
+.stocked-toggle:disabled { cursor: default; opacity: 0.6; }
+.optima-ordered-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: #eceff1; color: #546e7a; white-space: nowrap; }
+.optima-status-note { font-size: 0.8rem; color: #607d8b; font-style: italic; }
+.stocked-field-options { display: flex; flex-wrap: wrap; gap: 6px 16px; }

@@ -3333,6 +3333,7 @@ function App() {
           }}
           configOptions={internalDoorConfigOptions}
           suppliers={suppliers}
+          canSetStocked={userCanPick}
         />
 
         {componentHistoryModal.open && componentHistoryModal.component && (
@@ -3734,6 +3735,7 @@ function App() {
         ) : isWarehouseTab ? (
           <WarehouseView
             isManager={isManager}
+            onComponentsChanged={() => fetchWarehouseComponents()}
             activeSubTab={activeWarehouseSubTab}
             onSubTabChange={setActiveWarehouseSubTab}
             subTabs={WAREHOUSE_TAB_SUBTABS[activeTab as WarehouseTab]}

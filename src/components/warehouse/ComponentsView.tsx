@@ -4,9 +4,12 @@ import { createPortal } from 'react-dom'
 import { Activity } from 'lucide-react'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
 import { isOptimaImportedComponent } from '../../lib/internalWarehouse'
+import { isStocked, setComponentsStocked } from '../../lib/warehouseStocked'
+import BackgroundComponentsPanel from './BackgroundComponentsPanel'
 import type {
   SmartRopRow,
   Supplier,
+  ToastVariant,
   Warehouse,
   WarehouseComponent,
   WarehouseComponentCreateInput,
@@ -53,6 +56,11 @@ type ComponentsViewProps = {
   smartRopData?: SmartRopRow[]
   editRequestComponent?: WarehouseComponent | null
   onEditRequestHandled?: () => void
+  /** przestawianie „na magazynie” (kierownik, magazyn — rpc set_components_stocked) */
+  canSetStocked?: boolean
+  /** po zmianie is_stocked — odśwież komponenty (lista ładuje tylko trzymane na magazynie) */
+  onComponentsChanged?: () => void | Promise<void>
+  pushToast?: (message: string, variant: ToastVariant) => void
 }
 
 type ModalMode = 'create' | 'edit'
@@ -89,7 +97,34 @@ function ComponentsView({
   smartRopData = [],
   editRequestComponent,
   onEditRequestHandled,
+  canSetStocked = false,
+  onComponentsChanged,
+  pushToast,
 }: ComponentsViewProps) {
+  // is_stocked (26.11): na co dzień lista = trzymane na magazynie; „kartoteki w tle” stronami z serwera
+  const [showBackground, setShowBackground] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [stockBusy, setStockBusy] = useState(false)
+  const toast = useCallback((m: string, v: ToastVariant) => (pushToast ? pushToast(m, v) : void appAlert(m)), [pushToast])
+  const changeStocked = useCallback(
+    async (ids: number[], stocked: boolean) => {
+      if (ids.length === 0) return
+      if (!stocked && !(await appConfirm(`Ustawić ${ids.length === 1 ? 'ten komponent' : `${ids.length} komponentów`} jako kartotekę w tle (towar na zamówienie)? Zniknie z listy, inwentaryzacji i wydań — stan nie będzie schodził.`))) return
+      setStockBusy(true)
+      try {
+        const n = await setComponentsStocked(ids, stocked)
+        toast(stocked ? `Na magazynie: ${n}` : `Kartoteki w tle: ${n} — znajdziesz je pod „Pokaż kartoteki w tle”`, 'success')
+        setSelectedIds(new Set())
+        await onComponentsChanged?.()
+      } catch (e) {
+        toast(`Nie zmieniono „na magazynie”: ${e instanceof Error ? e.message : String(e)}`, 'error')
+      } finally {
+        setStockBusy(false)
+      }
+    },
+    [onComponentsChanged, toast],
+  )
+
   const smartById = useMemo(() => new Map(smartRopData.map((r) => [r.component_id, r])), [smartRopData])
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<ModalMode>('create')
@@ -343,6 +378,31 @@ function ComponentsView({
     const dash = (v: string | null | undefined) => v ?? '—'
 
     const cols: DataTableColumn<WarehouseComponent>[] = [
+      ...(canSetStocked
+        ? [
+            {
+              key: 'sel',
+              label: '',
+              title: 'Zaznacz do akcji masowej „Ustaw: kartoteka w tle”',
+              stopRowClick: true,
+              render: (row: WarehouseComponent) => (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(row.id)}
+                  onChange={(e) =>
+                    setSelectedIds((prev) => {
+                      const n = new Set(prev)
+                      if (e.target.checked) n.add(row.id)
+                      else n.delete(row.id)
+                      return n
+                    })
+                  }
+                  aria-label={`Zaznacz ${row.name}`}
+                />
+              ),
+            } as DataTableColumn<WarehouseComponent>,
+          ]
+        : []),
       col('name', 'NAZWA', (c) => c.name, (c) => c.name),
       { ...col('code', 'KOD', (c) => c.code, (c) => c.code ?? '—'), stackUnder: 'name' },
       col(
@@ -428,6 +488,21 @@ function ComponentsView({
         )
       }),
     )
+    cols.push({
+      key: 'stocked',
+      label: 'NA MAGAZYNIE',
+      title: 'TAK = trzymamy na magazynie (inwentaryzacja, wydania zdejmują stan); NIE = kartoteka w tle, towar na zamówienie',
+      sortValue: (c) => (isStocked(c) ? 1 : 0),
+      stopRowClick: true,
+      render: (row) =>
+        canSetStocked ? (
+          <button type="button" className="stocked-toggle" disabled={stockBusy} onClick={() => void changeStocked([row.id], !isStocked(row))} title={isStocked(row) ? 'Przestaw na: kartoteka w tle' : 'Przestaw na: trzymamy na magazynie'}>
+            <span className={`stocked-badge ${isStocked(row) ? 'stocked-badge--yes' : 'stocked-badge--no'}`}>{isStocked(row) ? 'TAK' : 'NIE'}</span>
+          </button>
+        ) : (
+          <span className={`stocked-badge ${isStocked(row) ? 'stocked-badge--yes' : 'stocked-badge--no'}`}>{isStocked(row) ? 'TAK' : 'NIE'}</span>
+        ),
+    })
     if (categoryFilter === 'all' || categoryFilter === 'raw' || categoryFilter.startsWith('cat:')) {
       cols.push({ ...col('notes', 'UWAGI', (c) => c.notes, (row) => (row.notes?.trim() ? row.notes : '—')), stackUnder: 'name' })
     }
@@ -464,7 +539,7 @@ function ComponentsView({
       ),
     })
     return cols
-  }, [categoryFilter, suppliersById, smartById, isManager, onShowHistory, handleEdit, handleDeleteRow])
+  }, [categoryFilter, suppliersById, smartById, isManager, onShowHistory, handleEdit, handleDeleteRow, canSetStocked, selectedIds, stockBusy, changeStocked])
 
   useEffect(() => {
     if (!editRequestComponent) return
@@ -507,7 +582,23 @@ function ComponentsView({
           </div>
         </div>
       )}
-      {loading ? (
+      <div className="stocked-switch">
+        <label className="orders-filter-checkbox" title="Kartoteki z Optimy i inne komponenty, których nie trzymamy na magazynie (towar na zamówienie)">
+          <input type="checkbox" checked={showBackground} onChange={(e) => { setShowBackground(e.target.checked); setSelectedIds(new Set()) }} />
+          <span>Pokaż kartoteki w tle (nie na magazynie)</span>
+        </label>
+        {!showBackground && canSetStocked && selectedIds.size > 0 && (
+          <>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={stockBusy} onClick={() => void changeStocked([...selectedIds], false)}>
+              Ustaw: kartoteka w tle ({selectedIds.size})
+            </button>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setSelectedIds(new Set())}>Odznacz</button>
+          </>
+        )}
+      </div>
+      {showBackground ? (
+        <BackgroundComponentsPanel canEdit={canSetStocked} pushToast={toast} onChanged={async () => { await onComponentsChanged?.() }} />
+      ) : loading ? (
         <Spinner center label="Ładowanie komponentów…" />
       ) : (
         <div>

@@ -9,6 +9,7 @@ import ComponentPickerDialog from '../ComponentPickerDialog'
 import OptimaCodeLinkDialog from '../OptimaCodeLinkDialog'
 import Spinner from '../Spinner'
 import type { InternalDoorItem, ToastVariant, WarehouseComponent } from '../../types'
+import { searchDoorComponentsRemote } from '../../lib/warehouseStocked'
 
 type Props = {
   components: WarehouseComponent[]
@@ -39,6 +40,8 @@ export default function OptimaCodesView({ components, canEdit, pushToast }: Prop
   const [picker, setPicker] = useState<{ codes: string[] } | null>(null)
   const [editCode, setEditCode] = useState<{ code: string; name: string; group: string; currentId: number | null } | null>(null)
   const [saving, setSaving] = useState(false)
+  /** komponenty spoza listy aplikacji (kartoteki w tle, is_stocked = false) — do nazw w powiązaniach */
+  const [extra, setExtra] = useState<WarehouseComponent[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -66,11 +69,29 @@ export default function OptimaCodesView({ components, canEdit, pushToast }: Prop
     setMapRows(mp.data)
   }, [pushToast])
 
+  // powiązania z kartotekami w tle: dociągnij ich kod i nazwę (lista aplikacji ma tylko trzymane na magazynie)
+  useEffect(() => {
+    const known = new Set([...components, ...extra].map((c) => c.id))
+    const missing = [...new Set(mapRows.map((m) => m.component_id))].filter((id) => !known.has(id))
+    if (missing.length === 0) return
+    let alive = true
+    void (async () => {
+      const got: WarehouseComponent[] = []
+      for (let i = 0; i < missing.length; i += 150) {
+        const { data } = await supabase.from('warehouse_components').select('*').in('id', missing.slice(i, i + 150))
+        got.push(...((data ?? []) as WarehouseComponent[]))
+      }
+      if (alive && got.length > 0) setExtra((prev) => [...prev, ...got.filter((g) => !prev.some((x) => x.id === g.id))])
+    })()
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapRows, components])
+
   useEffect(() => {
     void load()
   }, [load])
 
-  const componentById = useMemo(() => new Map(components.map((c) => [c.id, c])), [components])
+  const componentById = useMemo(() => new Map([...extra, ...components].map((c) => [c.id, c])), [components, extra])
   // do wyboru tylko drzwi wewnętrzne — bez surowców i bez Bastiona (osobny produkt)
   const doorComponents = useMemo(() => internalDoorComponents(components), [components])
 
@@ -307,6 +328,7 @@ export default function OptimaCodesView({ components, canEdit, pushToast }: Prop
             </div>
           }
           components={doorComponents}
+          remoteSearch={searchDoorComponentsRemote}
           initialQuery={
             picker.codes.length === 1
               ? String(unmapped.find((u) => u.code === picker.codes[0])?.sampleName ?? '').split(/\s+/).filter((w) => w.length > 2).slice(0, 2).join(' ')
@@ -315,6 +337,7 @@ export default function OptimaCodesView({ components, canEdit, pushToast }: Prop
           currentId={picker.codes.length === 1 ? drafts[picker.codes[0]] ?? null : null}
           confirmLabel="Wybierz"
           onPick={(c) => {
+            setExtra((prev) => (prev.some((x) => x.id === c.id) ? prev : [...prev, c]))
             setDrafts((prev) => ({ ...prev, ...Object.fromEntries(picker.codes.map((code) => [code, c.id])) }))
             setPicker(null)
           }}

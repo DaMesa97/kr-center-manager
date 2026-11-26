@@ -147,15 +147,34 @@ export function optimaState(o: Pick<Order, 'source' | 'source_metadata'> | null 
 
 export const OPTIMA_CLOSED_STATES = [3, 4] as const
 
-export function isOptimaClosed(o: Pick<Order, 'source' | 'source_metadata'> | null | undefined): boolean {
+/** Import zamknął / anulował zlecenie wg statusu RO (extra_fields.closed_by = 'optima_ro'). */
+export function closedByOptima(o: Pick<Order, 'extra_fields'> | null | undefined): boolean {
+  const e = o?.extra_fields
+  return !!e && typeof e === 'object' && (e as Record<string, unknown>).closed_by === OPTIMA_SOURCE
+}
+
+export function isOptimaClosed(o: Pick<Order, 'source' | 'source_metadata'> & Partial<Pick<Order, 'extra_fields' | 'release_date'>> | null | undefined): boolean {
+  if (!o || !isOptimaOrder(o)) return false
+  if (closedByOptima(o) && o.release_date && String(o.release_date).trim()) return true
   const s = optimaState(o)
   return s != null && (OPTIMA_CLOSED_STATES as readonly number[]).includes(s)
 }
 
 /** Etykieta zamkniętego RO; null = otwarte (albo zlecenie ręczne). */
-export function optimaClosedLabel(o: Pick<Order, 'source' | 'source_metadata'> | null | undefined): string | null {
+export function optimaClosedLabel(o: Pick<Order, 'source' | 'source_metadata'> & Partial<Pick<Order, 'extra_fields' | 'release_date'>> | null | undefined): string | null {
+  if (!isOptimaClosed(o)) return null
   const s = optimaState(o)
-  return s === 3 ? 'Zrealizowane w Optimie' : s === 4 ? 'Zamknięte w Optimie' : null
+  return s === 4 ? 'Zamknięte w Optimie' : 'Zrealizowane w Optimie'
+}
+
+/** Mała adnotacja w szczegółach: status przyszedł z Optimy (import), nie z ręcznego zamknięcia. */
+export function optimaStatusNote(o: Pick<Order, 'source' | 'source_metadata' | 'extra_fields' | 'release_date'> | null | undefined): string | null {
+  if (!o || !isOptimaOrder(o)) return null
+  const e = (o.extra_fields && typeof o.extra_fields === 'object' ? o.extra_fields : {}) as Record<string, unknown>
+  if (e.cancelled === true && (closedByOptima(o) || /optim/i.test(String(e.cancelled_reason ?? '')))) return 'anulowane wg Optimy'
+  if (closedByOptima(o) && o.release_date && String(o.release_date).trim()) return 'zamknięte wg Optimy (RO zrealizowane)'
+  if (isOptimaClosed(o)) return 'zamknięte wg Optimy'
+  return null
 }
 
 export function optimaMeta(o: Pick<Order, 'source' | 'source_metadata'> | null | undefined): OptimaMeta | null {
@@ -237,13 +256,14 @@ export function isIntDoorFilterActive(f: IntDoorFilter): boolean {
 }
 
 export function matchesIntDoorFilter(
-  o: Pick<Order, 'source' | 'source_metadata' | 'quantity'>,
+  o: Pick<Order, 'source' | 'source_metadata' | 'quantity'> & Partial<Pick<Order, 'extra_fields' | 'release_date'>>,
   f: IntDoorFilter,
   summary: ItemsSummary | null | undefined,
 ): boolean {
   const unmappedCount = summary?.unmapped ?? 0
   const optima = isOptimaOrder(o)
-  if (!f.zamkniete && isOptimaClosed(o)) return false
+  // anulowane rządzi ogólny filtr „Pokaż anulowane” — tu ukrywamy tylko zrealizowane / zamknięte
+  if (!f.zamkniete && isOptimaClosed(o) && !isOrderCancelled(o)) return false
   if (f.zrodlo === 'optima' && !optima) return false
   if (f.zrodlo === 'manual' && optima) return false
   if (f.baza !== 'all' && optimaBaza(o) !== f.baza) return false

@@ -2,6 +2,8 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import type { TDocumentDefinitions } from 'pdfmake/interfaces'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { InventoryLine, InventorySession } from '../types'
+import { PRODUCT_CATEGORY_LABELS } from '../constants'
+import { groupInventoryLines } from '../lib/internalWarehouse'
 
 type PdfMakeRuntime = typeof pdfMake & {
   vfs?: Record<string, string>
@@ -36,8 +38,24 @@ export function generateInventorySheet(
       { text: 'J.m.', style: 'tableHeader', alignment: 'center' },
       { text: 'Ilość rzeczywista', style: 'tableHeader', alignment: 'center' },
     ],
-    ...lines.map((line, i) => [
-      { text: String(i + 1), alignment: 'center', fontSize: 9 },
+    ...(() => {
+      // magazyn wewnętrzny: grupy wg kategorii (skrzydła, ościeżnice, klamki…), w grupie po nazwie
+      let lp = 0
+      return groupInventoryLines(lines).flatMap((g) => [
+        ...(g.key
+          ? [[
+              { text: `${PRODUCT_CATEGORY_LABELS[g.key] ?? g.key} (${g.lines.length})`, colSpan: 5, bold: true, fontSize: 9, fillColor: '#eeeeee', margin: [0, 2, 0, 2] },
+              {}, {}, {}, {},
+            ]]
+          : []),
+        ...g.lines.map((line) => rowFor(line, ++lp)),
+      ])
+    })(),
+  ]
+
+  function rowFor(line: InventoryLine, i: number): unknown[] {
+    return [
+      { text: String(i), alignment: 'center', fontSize: 9 },
       { text: line.component_code ?? '', fontSize: 8, bold: true },
       { text: line.component_name ?? `#${line.component_id}`, fontSize: 9 },
       { text: line.component_unit ?? '', alignment: 'center', fontSize: 9 },
@@ -46,8 +64,8 @@ export function generateInventorySheet(
         alignment: 'center',
         fontSize: 9,
       },
-    ]),
-  ]
+    ]
+  }
 
   const docDefinition: TDocumentDefinitions = {
     pageSize: 'A4',

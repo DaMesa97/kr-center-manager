@@ -2,6 +2,7 @@ import { useState } from 'react'
 import ComponentPickerDialog from './ComponentPickerDialog'
 import { mapOptimaCode } from '../lib/optimaRo'
 import { internalDoorComponents } from '../lib/internalWarehouse'
+import { searchDoorComponentsRemote } from '../lib/warehouseStocked'
 import type { ToastVariant, WarehouseComponent } from '../types'
 
 type Props = {
@@ -63,6 +64,7 @@ export default function OptimaCodeLinkDialog({ code, name, group, components, cu
       }
       // tylko drzwi wewnętrzne — bez surowców i bez Bastiona (osobny produkt)
       components={internalDoorComponents(components)}
+      remoteSearch={searchDoorComponentsRemote}
       initialQuery={initialQuery}
       currentId={currentId}
       busy={busy}

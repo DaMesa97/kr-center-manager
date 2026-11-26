@@ -142,7 +142,7 @@ type UseOrdersParams = {
 
 /** Pozycje drzwi wewnętrznych z atrybutami komponentu (lista, szczegóły, otwarcie z ruchu magazynowego). */
 const INT_DOOR_ITEMS_SELECT =
-  '*, warehouse_components(name, product_category, door_model, door_size, door_direction, door_color, door_frame_type, door_frame_code, door_handle_shield)'
+  '*, warehouse_components(name, product_category, door_model, door_size, door_direction, door_color, door_frame_type, door_frame_code, door_handle_shield, is_stocked)'
 
 function mapIntDoorItemRow(row: Record<string, unknown>): InternalDoorItem {
   const wc = row.warehouse_components as
@@ -156,6 +156,7 @@ function mapIntDoorItemRow(row: Record<string, unknown>): InternalDoorItem {
         door_frame_type?: string | null
         door_frame_code?: string | null
         door_handle_shield?: string | null
+        is_stocked?: boolean | null
       }
     | undefined
     | null
@@ -170,6 +171,7 @@ function mapIntDoorItemRow(row: Record<string, unknown>): InternalDoorItem {
     component_door_frame_type: wc?.door_frame_type ?? null,
     component_door_frame_code: wc?.door_frame_code ?? null,
     component_door_handle_shield: wc?.door_handle_shield ?? null,
+    component_is_stocked: wc ? wc.is_stocked !== false : null,
   } as InternalDoorItem
 }
 

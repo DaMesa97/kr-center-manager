@@ -266,6 +266,8 @@ export type InternalDoorItem = {
   item_type?: string | null
   component_name?: string | null
   component_category?: string | null
+  /** warehouse_components.is_stocked komponentu pozycji (false = na zamówienie, bez stanu) */
+  component_is_stocked?: boolean | null
 }
 
 export type ProfileDepartment = 'all' | 'bastion' | 'stalowe' | 'magazyn'
@@ -948,6 +950,8 @@ export type InventorySession = {
 }
 
 export type InventoryLine = {
+  /** warehouse_components.is_stocked (false = kartoteka w tle — poza spisem) */
+  component_is_stocked?: boolean
   id: number
   session_id: number
   component_id: number
@@ -1082,6 +1086,8 @@ export type WarehouseComponent = {
   door_frame_type?: 'simple' | 'adjustable' | null
   door_frame_code?: string | null
   door_handle_shield?: string | null
+  /** true = trzymamy na magazynie (inwentaryzacja, wydania zdejmują stan); false = kartoteka w tle / na zamówienie */
+  is_stocked?: boolean
 }
 
 export type WarehouseComponentCreateInput = {

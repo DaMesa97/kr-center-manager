@@ -140,6 +140,8 @@ export function useWarehouse({
         .from('warehouse_components')
         .select('*')
         .eq('is_active', true)
+        // tylko trzymane na magazynie — kartoteki w tle (~2,5 tys. z Optimy) stronami w BackgroundComponentsPanel
+        .eq('is_stocked', true)
         .order('code')
         .order('id')
         .range(from, from + PAGE - 1)

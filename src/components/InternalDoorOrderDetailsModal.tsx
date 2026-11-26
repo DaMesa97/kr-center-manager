@@ -16,6 +16,7 @@ import {
   optimaBaza,
   optimaClosedLabel,
   optimaMeta,
+  optimaStatusNote,
   recipientAddress,
   unmappedItems,
 } from '../lib/optimaRo'
@@ -93,7 +94,7 @@ function InternalDoorOrderDetailsModal({
 
   const cancelledInfo = useMemo(() => cancelledReason(order), [order])
 
-  const statusLabel = isCancelled ? (fromOptima ? 'Anulowane w Optimie' : 'Anulowane') : isReleased ? 'Wydane' : closedInOptima ?? 'W realizacji'
+  const statusLabel = isCancelled ? (fromOptima ? 'Anulowane w Optimie' : 'Anulowane') : closedInOptima ?? (isReleased ? 'Wydane' : 'W realizacji')
   const statusClass = isCancelled
     ? 'order-status-badge--cancelled'
     : isReleased || closedInOptima
@@ -105,9 +106,11 @@ function InternalDoorOrderDetailsModal({
 
   // Stan magazynu wewnętrznego dla komponentów zlecenia + to, co już zeszło (WZ − ZWR)
   const [stockInfo, setStockInfo] = useState<{ stock: Map<number, number>; issued: Array<{ component_id: number; movement_type: string; quantity: number }> } | null>(null)
+  // kartoteki w tle (is_stocked = false) to towar na zamówienie — bez stanu i bez braków
+  const stockedItems = useMemo(() => items.filter((it) => it.component_is_stocked !== false), [items])
   const componentIds = useMemo(
-    () => [...new Set(items.map((it) => it.component_id).filter((id): id is number => id != null))],
-    [items],
+    () => [...new Set(stockedItems.map((it) => it.component_id).filter((id): id is number => id != null))],
+    [stockedItems],
   )
   const loadStock = useCallback(async () => {
     if (!fromOptima || !order.id || componentIds.length === 0 || closedInOptima) {
@@ -132,8 +135,8 @@ function InternalDoorOrderDetailsModal({
     if (open) void loadStock()
   }, [open, loadStock])
   const shortages = useMemo<Map<number, Shortage>>(
-    () => (stockInfo ? internalShortages(items, stockInfo.stock, stockInfo.issued) : new Map()),
-    [items, stockInfo],
+    () => (stockInfo ? internalShortages(stockedItems, stockInfo.stock, stockInfo.issued) : new Map()),
+    [stockedItems, stockInfo],
   )
   const shortList = [...shortages.values()].filter((s) => s.missing > 0)
   const codeOf = (componentId: number) =>
@@ -342,6 +345,11 @@ function InternalDoorOrderDetailsModal({
           {isCancelled && (
             <div className="internal-door-details-meta-info">{cancelledInfo || 'Anulowane'}</div>
           )}
+          {optimaStatusNote(order) && (
+            <div className="optima-status-note" title="Status przychodzi z Optimy przy imporcie co godzinę. Ręczne zamknięcie w programie import zostawia.">
+              {optimaStatusNote(order)}
+            </div>
+          )}
           {isReleased && <div className="internal-door-details-meta-info">Wydano {order.release_date}</div>}
 
           {fromOptima && (
@@ -464,7 +472,11 @@ function InternalDoorOrderDetailsModal({
                               {item.quantity} {item.unit || 'szt.'}
                             </td>
                             <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
-                              {unmapped || !stockInfo ? (
+                              {item.component_is_stocked === false ? (
+                                <span className="optima-ordered-badge" title="Kartoteka w tle — towar na zamówienie, nie trzymamy go na magazynie; wydanie nie zdejmuje stanu">
+                                  na zamówienie
+                                </span>
+                              ) : unmapped || !stockInfo ? (
                                 <span className="muted">—</span>
                               ) : sh && sh.missing > 0 ? (
                                 <span className="optima-stock-short" title={`Do wydania ${sh.toIssue}, na stanie ${sh.stock}`}>
@@ -562,7 +574,7 @@ function InternalDoorOrderDetailsModal({
                 ✓ Wydane
               </button>
             )}
-            {fromOptima && isReleased && !isCancelled && canRelease && (
+            {fromOptima && isReleased && !isCancelled && !closedInOptima && canRelease && (
               <button type="button" className="btn btn-secondary" onClick={requestReissue} title="Zdejmuje ze stanu pozycje powiązane po wydaniu albo zmienione w Optimie (rozlicza różnicę)">
                 Dolicz wydanie z magazynu
               </button>

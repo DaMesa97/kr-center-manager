@@ -88,6 +88,40 @@ export function distinctValues(rows: DoorAttrs[], key: 'door_model' | 'door_colo
 }
 
 // ---------------------------------------------------------------------
+// Spis z natury magazynu wewnętrznego: grupy wg product_category, w grupie po nazwie
+// ---------------------------------------------------------------------
+
+export const INVENTORY_GROUP_ORDER = ['door_wing', 'door_frame', 'door_handle', 'door_accessory', 'door_hinge_cover'] as const
+
+type SpisLine = { component_category?: string | null; component_name?: string | null }
+
+const groupRank = (cat: string | null | undefined) => {
+  const i = (INVENTORY_GROUP_ORDER as readonly string[]).indexOf(String(cat ?? ''))
+  return i < 0 ? INVENTORY_GROUP_ORDER.length : i
+}
+
+/** Spis z drzwiami wewnętrznymi: kategoria (skrzydła, ościeżnice, klamki, akcesoria, osłonki), potem nazwa. Surowce bez zmian. */
+export function sortInventoryLines<T extends SpisLine>(lines: T[]): T[] {
+  if (!lines.some((l) => isDoorCategory(l.component_category))) return lines
+  return [...lines].sort(
+    (a, b) => groupRank(a.component_category) - groupRank(b.component_category) || String(a.component_name ?? '').localeCompare(String(b.component_name ?? ''), 'pl'),
+  )
+}
+
+/** Grupy do wydruku (po sortInventoryLines); surowce = jedna grupa bez nagłówka (key ''). */
+export function groupInventoryLines<T extends SpisLine>(lines: T[]): Array<{ key: string; lines: T[] }> {
+  if (!lines.some((l) => isDoorCategory(l.component_category))) return [{ key: '', lines }]
+  const out: Array<{ key: string; lines: T[] }> = []
+  for (const l of sortInventoryLines(lines)) {
+    const key = String(l.component_category ?? '')
+    const last = out[out.length - 1]
+    if (last && last.key === key) last.lines.push(l)
+    else out.push({ key, lines: [l] })
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------
 // Rezerwacje z otwartych zleceń
 // ---------------------------------------------------------------------
 

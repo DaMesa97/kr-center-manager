@@ -18,6 +18,8 @@ type Props = {
   /** opcjonalnie: „Usuń powiązanie" */
   onClear?: () => void
   onClose: () => void
+  /** dociągnij z bazy to, czego nie ma w components (np. kartoteki w tle, is_stocked = false) */
+  remoteSearch?: (query: string) => Promise<WarehouseComponent[]>
 }
 
 /** Wyszukiwarka komponentów magazynu (kod / nazwa / model / kolor) w oknie. */
@@ -32,6 +34,7 @@ export default function ComponentPickerDialog({
   onPick,
   onClear,
   onClose,
+  remoteSearch,
 }: Props) {
   const [query, setQuery] = useState(initialQuery)
   const [selectedId, setSelectedId] = useState<number | null>(currentId)
@@ -50,8 +53,27 @@ export default function ComponentPickerDialog({
     return () => window.removeEventListener('keydown', onKey)
   }, [busy, onClose])
 
-  const hits = useMemo(() => searchComponents(components, query), [components, query])
-  const selected = components.find((c) => c.id === selectedId) ?? null
+  const [remote, setRemote] = useState<WarehouseComponent[]>([])
+  useEffect(() => {
+    if (!remoteSearch || query.trim().length < 2) {
+      setRemote([])
+      return
+    }
+    let alive = true
+    const t = setTimeout(() => {
+      remoteSearch(query)
+        .then((r) => { if (alive) setRemote(r) })
+        .catch((e) => console.error('[komponenty] szukanie w bazie', e))
+    }, 300)
+    return () => { alive = false; clearTimeout(t) }
+  }, [query, remoteSearch])
+  const pool = useMemo(() => {
+    if (remote.length === 0) return components
+    const ids = new Set(components.map((c) => c.id))
+    return [...components, ...remote.filter((c) => !ids.has(c.id))]
+  }, [components, remote])
+  const hits = useMemo(() => searchComponents(pool, query), [pool, query])
+  const selected = pool.find((c) => c.id === selectedId) ?? null
 
   return createPortal(
     <div className="modal-overlay" onClick={() => !busy && onClose()}>
@@ -91,7 +113,10 @@ export default function ComponentPickerDialog({
               >
                 <span className="component-picker-code">{c.code || '—'}</span>
                 <span className="component-picker-name">{componentLabel(c)}</span>
-                <span className="component-picker-cat">{PRODUCT_CATEGORY_LABELS[c.product_category] ?? c.product_category}</span>
+                <span className="component-picker-cat">
+                  {PRODUCT_CATEGORY_LABELS[c.product_category] ?? c.product_category}
+                  {c.is_stocked === false && <span className="muted" title="Kartoteka w tle — towar na zamówienie, bez stanu"> · w tle</span>}
+                </span>
               </button>
             ))
           )}

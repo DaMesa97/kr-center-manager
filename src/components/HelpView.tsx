@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Magazyn wewnętrzne: „na magazynie” albo kartoteka w tle (beta.167)</h4>
+        <ul>
+          <li>Komponent ma pole <b>Na magazynie</b>: TAK = trzymamy na półce (inwentaryzacja, wydania zdejmują stan), NIE = kartoteka w tle — towar na zamówienie, bez stanu. Kartoteki z Optimy mają NIE.</li>
+          <li>Magazyn → Komponenty pokazuje tylko TAK. „Pokaż kartoteki w tle” — reszta stronami z wyszukiwarką. TAK/NIE klikasz w wierszu, w karcie komponentu albo hurtem (zaznacz kilka → „Ustaw: …”). Przestawiają kierownicy i magazyn.</li>
+          <li>Inwentaryzacja magazynu wewnętrznego i kartka PDF: tylko TAK, w grupach Skrzydła · Ościeżnice · Klamki · Akcesoria · Osłonki, w grupie po nazwie.</li>
+          <li>W zleceniu pozycja z kartoteki w tle ma szary znaczek „na zamówienie” (nie brak). Status RO przychodzi z Optimy co godzinę — przy zleceniu widać „zamknięte / anulowane wg Optimy”.</li>
+        </ul>
         <h4>Telefon: przygotowanie do pakowania (beta.166)</h4>
         <ul>
           <li>W wersji na telefon (osobna strona mobile — na razie bez hostingu): <b>Zlecenia → Wewn.</b> → zlecenie → lista pozycji z dużymi polami do odznaczania (grupy jak na komputerze, „Zaznacz / Odznacz wszystkie”, kto i kiedy). Na liście zleceń widać „przygotowano 3/7” albo „✓ przygotowane”.</li>

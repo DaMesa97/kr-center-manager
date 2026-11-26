@@ -38,6 +38,7 @@ import InventoryView from './warehouse/InventoryView'
 import OptimaCodesView from './warehouse/OptimaCodesView'
 import InternalStockView from './warehouse/InternalStockView'
 import { canMapOptimaCodes } from '../lib/optimaRo'
+import { canSetStocked } from '../lib/warehouseStocked'
 
 type WarehouseViewProps = {
   isManager: boolean
@@ -112,6 +113,8 @@ type WarehouseViewProps = {
   purchaseOrdersLoading: boolean
   companySettings: CompanySettings | null
   currentUser: CurrentUser | null
+  /** po zmianie „na magazynie” (is_stocked) — odśwież komponenty */
+  onComponentsChanged?: () => void | Promise<void>
   onShowPurchaseOrderDetails: (po: PurchaseOrder) => void
   pushToast: (msg: string, type: ToastVariant) => void
 }
@@ -186,6 +189,7 @@ function WarehouseView({
   purchaseOrdersLoading,
   companySettings,
   currentUser,
+  onComponentsChanged,
   onShowPurchaseOrderDetails,
   pushToast,
 }: WarehouseViewProps) {
@@ -244,6 +248,9 @@ function WarehouseView({
           smartRopData={smartRopData}
           editRequestComponent={editRequestComponent}
           onEditRequestHandled={onEditRequestHandled}
+          canSetStocked={canSetStocked({ role: String(currentUser?.role ?? ''), department: currentUser?.department ?? null }, isManager)}
+          onComponentsChanged={onComponentsChanged}
+          pushToast={pushToast}
         />
       ) : activeSubTab === 'Stany' ? (
         <StockView

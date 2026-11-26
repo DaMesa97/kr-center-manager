@@ -8,6 +8,7 @@ import SearchableConfigSelect from '../SearchableConfigSelect'
 import SkuLogisticsFields from './SkuLogisticsFields'
 import { isOptimaImportedComponent } from '../../lib/internalWarehouse'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
+import { isStocked, setComponentsStocked } from '../../lib/warehouseStocked'
 
 type Mode = 'add' | 'edit'
 
@@ -27,6 +28,8 @@ type Props = {
   onSaved: () => void
   configOptions: ConfigOptionRecord[]
   suppliers: Supplier[]
+  /** przełącznik „trzymamy na magazynie” (is_stocked) — kierownik, magazyn */
+  canSetStocked?: boolean
 }
 
 function slugifyCodePart(input: string): string {
@@ -50,8 +53,24 @@ function FinishedDoorComponentFormModal({
   onSaved,
   configOptions,
   suppliers,
+  canSetStocked = false,
 }: Props) {
   const [productCategory, setProductCategory] = useState<DoorCategory>('door_wing')
+  const [stocked, setStocked] = useState(true)
+  useEffect(() => {
+    if (open) setStocked(isStocked(initialComponent))
+  }, [open, initialComponent])
+  /** zmiana „na magazynie” osobnym rpc (magazynier nie ma zapisu całej kartoteki) */
+  const applyStocked = async (): Promise<boolean> => {
+    if (mode !== 'edit' || !initialComponent || !canSetStocked || stocked === isStocked(initialComponent)) return true
+    try {
+      await setComponentsStocked([initialComponent.id], stocked)
+      return true
+    } catch (e) {
+      void appAlert(`Nie zmieniono „na magazynie”: ${e instanceof Error ? e.message : String(e)}`)
+      return false
+    }
+  }
   const [wingModel, setWingModel] = useState('')
   const [handleModel, setHandleModel] = useState('')
   const [size, setSize] = useState('')
@@ -225,11 +244,14 @@ function FinishedDoorComponentFormModal({
           target_stock_level: targetStockLevel === '' ? null : Number(targetStockLevel),
         })
         .eq('id', initialComponent.id)
-      setSaving(false)
       if (error) {
+        setSaving(false)
         void appAlert(`Błąd: ${error.message}`)
         return
       }
+      const ok = await applyStocked()
+      setSaving(false)
+      if (!ok) return
       onSaved()
       onClose()
       return
@@ -354,7 +376,9 @@ function FinishedDoorComponentFormModal({
       }
     }
 
+    const ok = await applyStocked()
     setSaving(false)
+    if (!ok) return
     onSaved()
     onClose()
   }
@@ -372,6 +396,15 @@ function FinishedDoorComponentFormModal({
         </div>
 
         <div className="order-form-grid order-form-grid--sta">
+          {mode === 'edit' && initialComponent && (
+            <label className="order-field-full order-field-full--keep stocked-field" title="TAK = trzymamy na magazynie (inwentaryzacja, wydania zdejmują stan). NIE = kartoteka w tle, towar na zamówienie.">
+              <span className="order-field-label-text">Na magazynie</span>
+              <span className="stocked-field-options">
+                <label className="orders-filter-checkbox"><input type="radio" name="stocked" checked={stocked} disabled={!canSetStocked} onChange={() => setStocked(true)} /> <span>TAK — trzymamy na magazynie</span></label>
+                <label className="orders-filter-checkbox"><input type="radio" name="stocked" checked={!stocked} disabled={!canSetStocked} onChange={() => setStocked(false)} /> <span>NIE — kartoteka w tle (na zamówienie)</span></label>
+              </span>
+            </label>
+          )}
           {imported && initialComponent ? (
             <div className="order-field-full order-field-full--keep optima-readonly" title="Zmieniaj w Optimie — import kartotek nadpisuje kod, nazwę i cechy">
               <div className="optima-readonly-hint">🔒 Komponent z kartotek Optimy — kod, nazwa i cechy przychodzą z Optimy (kod łączy pozycje RO z magazynem). Tu zmieniasz tylko logistykę.</div>
