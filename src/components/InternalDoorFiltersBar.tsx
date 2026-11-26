@@ -16,6 +16,8 @@ type Props = {
   onChange: (f: IntDoorFilter) => void
   /** zleceń bez komponentu na bieżącej liście (przed filtrem „bez komponentu") */
   unmappedOrders: number
+  /** RO zrealizowanych / zamkniętych w Optimie (stan 3–4) na liście */
+  closedOrders: number
   /** „Synchronizuj teraz" — tylko kierownicy (current_user_is_manager) */
   canSync: boolean
   onImported: () => void
@@ -23,7 +25,7 @@ type Props = {
 }
 
 /** Filtry zakładki Drzwi wewnętrzne (źródło / baza / zawiera / bez komponentu) + stan importu z Optimy. */
-export default function InternalDoorFiltersBar({ filter, onChange, unmappedOrders, canSync, onImported, pushToast }: Props) {
+export default function InternalDoorFiltersBar({ filter, onChange, unmappedOrders, closedOrders, canSync, onImported, pushToast }: Props) {
   const { states, running, runNow } = useOptimaSync(pushToast, onImported)
   const errorCount = states.reduce((n, s) => n + syncErrors(s).length, 0)
   const syncing = states.filter((s) => isSyncRunning(s))
@@ -71,6 +73,15 @@ export default function InternalDoorFiltersBar({ filter, onChange, unmappedOrder
         />
         <span>
           Tylko bez komponentu{unmappedOrders > 0 && <span className="optima-unmapped-badge" style={{ marginLeft: 6 }}>{unmappedOrders}</span>}
+        </span>
+      </label>
+      <label
+        className="orders-filter-checkbox"
+        title="RO, które w Optimie mają stan Zrealizowane (3) albo Zamknięte (4) — nie rezerwują magazynu; domyślnie ukryte"
+      >
+        <input type="checkbox" checked={filter.zamkniete} onChange={(e) => onChange({ ...filter, zamkniete: e.target.checked })} />
+        <span>
+          Pokaż zrealizowane w Optimie{closedOrders > 0 && <span className="muted"> ({closedOrders})</span>}
         </span>
       </label>
       {isIntDoorFilterActive(filter) && (

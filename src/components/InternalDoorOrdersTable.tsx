@@ -7,6 +7,7 @@ import {
   isOptimaOrder,
   isOrderCancelled,
   optimaBaza,
+  optimaClosedLabel,
   summarizeItems,
   wingCount,
 } from '../lib/optimaRo'
@@ -19,22 +20,25 @@ type Props = {
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
 }
 
-type Status = 'cancelled' | 'released' | 'in_progress'
+type Status = 'cancelled' | 'released' | 'in_progress' | 'optima_closed'
 
 const STATUS_LABEL: Record<Status, string> = {
   cancelled: 'Anulowane',
   released: 'Wydane',
   in_progress: 'W realizacji',
+  optima_closed: 'Zrealizowane w Optimie',
 }
 
 const STATUS_BADGE: Record<Status, string> = {
   cancelled: 'order-status-badge--cancelled',
   released: 'order-status-badge--released',
   in_progress: 'order-status-badge--in-progress',
+  optima_closed: 'order-status-badge--released',
 }
 
 function orderStatus(o: Order): Status {
   if (isOrderCancelled(o)) return 'cancelled'
+  if (optimaClosedLabel(o)) return 'optima_closed'
   return o.release_date && String(o.release_date).trim() ? 'released' : 'in_progress'
 }
 
@@ -143,7 +147,7 @@ function InternalDoorOrdersTable({ orders, items, onShowDetails, tableWrapperRef
           const status = orderStatus(o)
           return (
             <span className={`order-status-badge ${STATUS_BADGE[status]}`}>
-              {status === 'cancelled' && isOptimaOrder(o) ? 'Anulowane w Optimie' : STATUS_LABEL[status]}
+              {status === 'cancelled' && isOptimaOrder(o) ? 'Anulowane w Optimie' : status === 'optima_closed' ? optimaClosedLabel(o) : STATUS_LABEL[status]}
               {status === 'released' && o.release_date ? ` ${formatOptimaDateTime(String(o.release_date))}` : ''}
             </span>
           )

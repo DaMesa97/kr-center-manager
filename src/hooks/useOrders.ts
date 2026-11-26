@@ -68,6 +68,7 @@ import type {
 } from '../types'
 import type React from 'react'
 import type { StockReleaseRow } from './useMyStation'
+import { isOptimaClosed } from '../lib/optimaRo'
 
 /** Dialog braków przy wydaniu z tabeli zamówień / oznaczeniu wydania */
 export type StageReleaseShortageState = {
@@ -137,6 +138,39 @@ type UseOrdersParams = {
   setDeleteConfirm: (v: DeleteConfirmState | null) => void
   setActiveTab: React.Dispatch<React.SetStateAction<(typeof TABS)[number]>>
   setActiveSubTab: React.Dispatch<React.SetStateAction<SubTab>>
+}
+
+/** Pozycje drzwi wewnętrznych z atrybutami komponentu (lista, szczegóły, otwarcie z ruchu magazynowego). */
+const INT_DOOR_ITEMS_SELECT =
+  '*, warehouse_components(name, product_category, door_model, door_size, door_direction, door_color, door_frame_type, door_frame_code, door_handle_shield)'
+
+function mapIntDoorItemRow(row: Record<string, unknown>): InternalDoorItem {
+  const wc = row.warehouse_components as
+    | {
+        name?: string | null
+        product_category?: string | null
+        door_model?: string | null
+        door_size?: string | null
+        door_direction?: string | null
+        door_color?: string | null
+        door_frame_type?: string | null
+        door_frame_code?: string | null
+        door_handle_shield?: string | null
+      }
+    | undefined
+    | null
+  return {
+    ...(row as unknown as InternalDoorItem),
+    component_name: wc?.name ?? null,
+    component_category: wc?.product_category ?? null,
+    component_door_model: wc?.door_model ?? null,
+    component_door_size: wc?.door_size ?? null,
+    component_door_direction: wc?.door_direction ?? null,
+    component_door_color: wc?.door_color ?? null,
+    component_door_frame_type: wc?.door_frame_type ?? null,
+    component_door_frame_code: wc?.door_frame_code ?? null,
+    component_door_handle_shield: wc?.door_handle_shield ?? null,
+  } as InternalDoorItem
 }
 
 export function useOrders({
@@ -478,16 +512,22 @@ export function useOrders({
     [pushToast, touchSession],
   )
 
-  const fetchInternalDoorItemsForVisibleOrders = useCallback(async (visibleOrders: Order[]) => {
+  // id zlecenia otwartego w szczegółach — jego pozycje zostają przy odświeżaniu listy
+  const intDoorDetailsIdRef = useRef<number | null>(null)
+
+  const fetchInternalDoorItemsForVisibleOrders = useCallback(async (visibleOrders: Order[], opts: { onlyOpen?: boolean } = {}) => {
+    // Zakładka Drzwi wewnętrzne (onlyOpen): RO zrealizowane / zamknięte w Optimie (tysiące z importu
+    // całego roku) nie potrzebują pozycji na liście — dociągają się przy otwarciu szczegółów
     const orderIds = visibleOrders
+      .filter((order) => !opts.onlyOpen || !isOptimaClosed(order))
       .map((order) => order.id)
       .filter((id): id is number => id !== undefined)
+    const keepFor = intDoorDetailsIdRef.current
     if (orderIds.length === 0) {
-      setInternalDoorItems([])
+      setInternalDoorItems((prev) => (keepFor == null ? [] : prev.filter((it) => it.order_id === keepFor)))
       return
     }
-    // Zlecenia z Optimy (setki RO) — porcje po 150 id (długość URL) i każda
-    // porcja stronicowana (PostgREST ucina odpowiedź do 1000 wierszy)
+    // porcje po 150 id (długość URL) i każda porcja stronicowana (PostgREST ucina odpowiedź do 1000 wierszy)
     const CHUNK = 150
     const itemsData: Array<Record<string, unknown>> = []
     let itemsError: { message: string } | null = null
@@ -496,9 +536,7 @@ export function useOrders({
       const res = await fetchAllPages<Record<string, unknown>>((from, to) =>
         supabase
           .from('order_internal_door_items')
-          .select(
-            '*, warehouse_components(name, product_category, door_model, door_size, door_direction, door_color, door_frame_type, door_frame_code, door_handle_shield)',
-          )
+          .select(INT_DOOR_ITEMS_SELECT)
           .in('order_id', ids)
           .order('id')
           .range(from, to),
@@ -511,34 +549,20 @@ export function useOrders({
       setInternalDoorItems([])
       return
     }
-    const mapped = ((itemsData ?? []) as Array<Record<string, unknown>>).map((row) => {
-      const warehouseComponent = row.warehouse_components as
-        | {
-            name?: string | null
-            product_category?: string | null
-            door_model?: string | null
-            door_size?: string | null
-            door_direction?: string | null
-            door_color?: string | null
-            door_frame_type?: string | null
-            door_frame_code?: string | null
-            door_handle_shield?: string | null
-          }
-        | undefined
-      return {
-        ...(row as unknown as InternalDoorItem),
-        component_name: warehouseComponent?.name ?? null,
-        component_category: warehouseComponent?.product_category ?? null,
-        component_door_model: warehouseComponent?.door_model ?? null,
-        component_door_size: warehouseComponent?.door_size ?? null,
-        component_door_direction: warehouseComponent?.door_direction ?? null,
-        component_door_color: warehouseComponent?.door_color ?? null,
-        component_door_frame_type: warehouseComponent?.door_frame_type ?? null,
-        component_door_frame_code: warehouseComponent?.door_frame_code ?? null,
-        component_door_handle_shield: warehouseComponent?.door_handle_shield ?? null,
-      }
-    })
-    setInternalDoorItems(mapped)
+    const mapped = itemsData.map(mapIntDoorItemRow)
+    const fetched = new Set(orderIds)
+    setInternalDoorItems((prev) => (keepFor != null && !fetched.has(keepFor) ? [...mapped, ...prev.filter((it) => it.order_id === keepFor)] : mapped))
+  }, [])
+
+  /** Pozycje jednego zlecenia (szczegóły RO zamkniętego w Optimie — lista ich nie ładuje). */
+  const ensureInternalDoorItems = useCallback(async (orderId: number) => {
+    const { data, error } = await supabase.from('order_internal_door_items').select(INT_DOOR_ITEMS_SELECT).eq('order_id', orderId).order('id')
+    if (error) {
+      console.error('[drzwi wewnętrzne] pozycje zlecenia', orderId, error)
+      return
+    }
+    const mapped = ((data ?? []) as Array<Record<string, unknown>>).map(mapIntDoorItemRow)
+    setInternalDoorItems((prev) => [...prev.filter((it) => it.order_id !== orderId), ...mapped])
   }, [])
 
   const fetchOrders = useCallback(async () => {
@@ -595,7 +619,7 @@ export function useOrders({
       setOrders(loaded)
 
       if (activeTab === 'DrzwiWewnetrzne') {
-        await fetchInternalDoorItemsForVisibleOrders(loaded)
+        await fetchInternalDoorItemsForVisibleOrders(loaded, { onlyOpen: true })
       } else {
         setInternalDoorItems([])
       }
@@ -2245,10 +2269,13 @@ export function useOrders({
   }
 
   const openInternalDoorDetails = useCallback((order: Order) => {
+    intDoorDetailsIdRef.current = order.id ?? null
     setInternalDoorDetailsModal({ open: true, order })
-  }, [])
+    if (order.id != null && isOptimaClosed(order)) void ensureInternalDoorItems(order.id)
+  }, [ensureInternalDoorItems])
 
   const closeInternalDoorDetails = () => {
+    intDoorDetailsIdRef.current = null
     setInternalDoorDetailsModal({ open: false, order: null })
   }
 
@@ -2834,38 +2861,10 @@ export function useOrders({
       if (category === 'DrzwiWewnetrzne') {
         const { data: itemsData, error: itemsError } = await supabase
           .from('order_internal_door_items')
-          .select(
-            '*, warehouse_components(name, product_category, door_model, door_size, door_direction, door_color, door_frame_type, door_frame_code, door_handle_shield)',
-          )
+          .select(INT_DOOR_ITEMS_SELECT)
           .eq('order_id', movement.order_id)
         if (!itemsError) {
-          const mapped = ((itemsData ?? []) as Array<Record<string, unknown>>).map((row) => {
-            const warehouseComponent = row.warehouse_components as
-              | {
-                  name?: string | null
-                  product_category?: string | null
-                  door_model?: string | null
-                  door_size?: string | null
-                  door_direction?: string | null
-                  door_color?: string | null
-                  door_frame_type?: string | null
-                  door_frame_code?: string | null
-                  door_handle_shield?: string | null
-                }
-              | undefined
-            return {
-              ...(row as unknown as InternalDoorItem),
-              component_name: warehouseComponent?.name ?? null,
-              component_category: warehouseComponent?.product_category ?? null,
-              component_door_model: warehouseComponent?.door_model ?? null,
-              component_door_size: warehouseComponent?.door_size ?? null,
-              component_door_direction: warehouseComponent?.door_direction ?? null,
-              component_door_color: warehouseComponent?.door_color ?? null,
-              component_door_frame_type: warehouseComponent?.door_frame_type ?? null,
-              component_door_frame_code: warehouseComponent?.door_frame_code ?? null,
-              component_door_handle_shield: warehouseComponent?.door_handle_shield ?? null,
-            } as InternalDoorItem
-          })
+          const mapped = ((itemsData ?? []) as Array<Record<string, unknown>>).map(mapIntDoorItemRow)
           setInternalDoorItems(mapped)
         }
         openInternalDoorDetails(order)

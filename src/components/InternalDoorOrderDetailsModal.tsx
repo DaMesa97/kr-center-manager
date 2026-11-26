@@ -14,6 +14,7 @@ import {
   isOptimaOrder,
   lowerFirst,
   optimaBaza,
+  optimaClosedLabel,
   optimaMeta,
   recipientAddress,
   unmappedItems,
@@ -74,7 +75,9 @@ function InternalDoorOrderDetailsModal({
       (order.extra_fields as Record<string, unknown>).cancelled === true,
   )
   const isReleased = Boolean(order.release_date && String(order.release_date).trim())
-  const isInProgress = !isCancelled && !isReleased
+  // RO zrealizowane / zamknięte w Optimie: bez wydania z magazynu (historia sprzed magazynu w programie)
+  const closedInOptima = optimaClosedLabel(order)
+  const isInProgress = !isCancelled && !isReleased && !closedInOptima
   const isManager = isManagerRole(currentUser.role)
   const canRelease =
     isManager ||
@@ -83,10 +86,10 @@ function InternalDoorOrderDetailsModal({
 
   const cancelledInfo = useMemo(() => cancelledReason(order), [order])
 
-  const statusLabel = isCancelled ? (fromOptima ? 'Anulowane w Optimie' : 'Anulowane') : isReleased ? 'Wydane' : 'W realizacji'
+  const statusLabel = isCancelled ? (fromOptima ? 'Anulowane w Optimie' : 'Anulowane') : isReleased ? 'Wydane' : closedInOptima ?? 'W realizacji'
   const statusClass = isCancelled
     ? 'order-status-badge--cancelled'
-    : isReleased
+    : isReleased || closedInOptima
       ? 'order-status-badge--released'
       : 'order-status-badge--in-progress'
 
@@ -100,7 +103,7 @@ function InternalDoorOrderDetailsModal({
     [items],
   )
   const loadStock = useCallback(async () => {
-    if (!fromOptima || !order.id || componentIds.length === 0) {
+    if (!fromOptima || !order.id || componentIds.length === 0 || closedInOptima) {
       setStockInfo(null)
       return
     }
@@ -117,7 +120,7 @@ function InternalDoorOrderDetailsModal({
       stock: new Map((st.data ?? []).map((r) => [Number(r.component_id), Number(r.quantity) || 0])),
       issued: (mv.data ?? []) as Array<{ component_id: number; movement_type: string; quantity: number }>,
     })
-  }, [fromOptima, order.id, componentIds])
+  }, [fromOptima, order.id, componentIds, closedInOptima])
   useEffect(() => {
     if (open) void loadStock()
   }, [open, loadStock])

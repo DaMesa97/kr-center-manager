@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Drzwi wewnętrzne: tylko otwarte RO z Optimy (beta.161)</h4>
+        <ul>
+          <li>Import ściągnął RO z całego roku. Te, które w Optimie są <b>zrealizowane</b> (stan 3) albo <b>zamknięte</b> (stan 4), mają taki status w programie, są domyślnie ukryte (przełącznik „Pokaż zrealizowane w Optimie”) i <b>nie rezerwują</b> magazynu wewnętrznego. Nie ma przy nich „✓ Wydane”.</li>
+          <li>Lista ładuje pozycje tylko otwartych zleceń — szczegóły zamkniętego RO dociągają je przy otwarciu. Zakładka i odświeżanie podczas importu dużo mniej obciążają bazę.</li>
+        </ul>
         <h4>CRM: szybsze przejścia (beta.160)</h4>
         <ul>
           <li>Powrót z karty klienta do listy (i przełączanie Do zrobienia / Oferty / Zamówienia / Klienci / Maile / Statystyki) jest natychmiastowy — lista zostaje w pamięci z tym samym wyszukiwaniem, filtrem i miejscem przewinięcia, a dane odświeżają się po cichu w tle.</li>

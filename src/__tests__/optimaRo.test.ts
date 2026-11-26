@@ -8,6 +8,7 @@ import {
   groupItemsByType,
   groupUnmappedCodes,
   isIntDoorFilterActive,
+  isOptimaClosed,
   isOptimaOrder,
   isSyncRunning,
   matchesIntDoorFilter,
@@ -15,6 +16,8 @@ import {
   summarizeItems,
   wingCount,
   optimaBaza,
+  optimaClosedLabel,
+  optimaState,
   recipientAddress,
   syncErrors,
   unmappedItems,
@@ -107,6 +110,31 @@ describe('filtry listy drzwi wewnętrznych', () => {
     expect(matchesIntDoorFilter(manual, f, { ...none, wings: 1 })).toBe(true)
     expect(wingCount(ro4, { ...none, wings: 99 })).toBe(4)
     expect(wingCount(manual, { ...none, wings: 3 })).toBe(3)
+  })
+})
+
+describe('stan RO w Optimie', () => {
+  const st = (state: unknown) => ({ source: 'optima_ro', source_metadata: { optima_key: 'KR:1', state } }) as unknown as Order
+  it('3 = zrealizowane, 4 = zamknięte, 0–2 otwarte; ręczne nie mają stanu', () => {
+    expect(optimaState(st(3))).toBe(3)
+    expect(isOptimaClosed(st(3))).toBe(true)
+    expect(isOptimaClosed(st(4))).toBe(true)
+    expect(isOptimaClosed(st(0))).toBe(false)
+    expect(isOptimaClosed(st(2))).toBe(false)
+    expect(isOptimaClosed(st(null))).toBe(false)
+    expect(isOptimaClosed(manual)).toBe(false)
+    expect(optimaClosedLabel(st(3))).toBe('Zrealizowane w Optimie')
+    expect(optimaClosedLabel(st(4))).toBe('Zamknięte w Optimie')
+    expect(optimaClosedLabel(st(1))).toBeNull()
+    // PostgREST ->> oddaje tekst
+    expect(isOptimaClosed(st('3'))).toBe(true)
+  })
+  it('lista domyślnie bez zamkniętych; „Pokaż zrealizowane” je pokazuje', () => {
+    const none = { unmapped: 0, wings: 0, frames: 0 }
+    expect(matchesIntDoorFilter(st(3), INT_DOOR_FILTER_DEFAULT, none)).toBe(false)
+    expect(matchesIntDoorFilter(st(0), INT_DOOR_FILTER_DEFAULT, none)).toBe(true)
+    expect(matchesIntDoorFilter(st(3), { ...INT_DOOR_FILTER_DEFAULT, zamkniete: true }, none)).toBe(true)
+    expect(matchesIntDoorFilter(manual, INT_DOOR_FILTER_DEFAULT, none)).toBe(true)
   })
 })
 

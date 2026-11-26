@@ -89,7 +89,7 @@ import BastionExtrasPanel from './components/BastionExtrasPanel'
 import { useBastionExtras } from './hooks/useBastionExtras'
 import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
 import InternalDoorFiltersBar from './components/InternalDoorFiltersBar'
-import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, matchesIntDoorFilter, summarizeItems, type IntDoorFilter, type ItemsSummary } from './lib/optimaRo'
+import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, isOptimaClosed, matchesIntDoorFilter, summarizeItems, type IntDoorFilter, type ItemsSummary } from './lib/optimaRo'
 import { isOptimaImportedComponent } from './lib/internalWarehouse'
 import AluOrdersTable from './components/AluOrdersTable'
 import AluOrderDetailsModal from './components/AluOrderDetailsModal'
@@ -1323,7 +1323,7 @@ function App() {
     let intDoorItemsDebounce: ReturnType<typeof setTimeout> | null = null
     const intDoorItemsDebounced = () => {
       if (intDoorItemsDebounce) clearTimeout(intDoorItemsDebounce)
-      intDoorItemsDebounce = setTimeout(() => void fetchInternalDoorItemsForVisibleOrders(ordersLatestRef.current), 1500)
+      intDoorItemsDebounce = setTimeout(() => void fetchInternalDoorItemsForVisibleOrders(ordersLatestRef.current, { onlyOpen: true }), 1500)
     }
 
     // Subskrypcja na zmiany w orders
@@ -1704,6 +1704,12 @@ function App() {
     const withUnmapped = new Set(internalDoorItems.filter((it) => it.component_id == null).map((it) => it.order_id))
     return categoryFilteredOrders.filter((o) => o.id !== undefined && withUnmapped.has(o.id)).length
   }, [activeTab, internalDoorItems, categoryFilteredOrders])
+
+  // RO zrealizowane / zamknięte w Optimie na liście (licznik przy „Pokaż zrealizowane”)
+  const intDoorClosedOrders = useMemo(
+    () => (activeTab === 'DrzwiWewnetrzne' ? categoryFilteredOrders.filter(isOptimaClosed).length : 0),
+    [activeTab, categoryFilteredOrders],
+  )
 
   const sourceFilterCounts = useMemo(
     () => ({
@@ -4048,6 +4054,7 @@ function App() {
                       filter={intDoorFilter}
                       onChange={(f) => startFilterTransition(() => setIntDoorFilter(f))}
                       unmappedOrders={intDoorUnmappedOrders}
+                      closedOrders={intDoorClosedOrders}
                       canSync={isManager}
                       onImported={() => void fetchOrders()}
                       pushToast={pushToast}

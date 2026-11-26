@@ -132,6 +132,32 @@ export function isOptimaOrder(o: Pick<Order, 'source'> | null | undefined): bool
   return o?.source === OPTIMA_SOURCE
 }
 
+/**
+ * Stan rezerwacji odbiorcy w Optimie (source_metadata.state). Z danych 26.11 (7,7 tys. RO):
+ * 0 = niezatwierdzone (bufor, status 1), 1 = potwierdzone, 2 = w realizacji (częściowo),
+ * 3 = zrealizowane (większość, także z tego samego dnia), 4 = zamknięte (stare, zamykane po miesiącach).
+ * 3 i 4 to zlecenia zamknięte: nie rezerwują magazynu i domyślnie nie ma ich na liście.
+ */
+export function optimaState(o: Pick<Order, 'source' | 'source_metadata'> | null | undefined): number | null {
+  if (!o || !isOptimaOrder(o)) return null
+  const m = o.source_metadata as { state?: unknown } | null | undefined
+  const n = Number(m?.state)
+  return m?.state == null || !Number.isFinite(n) ? null : n
+}
+
+export const OPTIMA_CLOSED_STATES = [3, 4] as const
+
+export function isOptimaClosed(o: Pick<Order, 'source' | 'source_metadata'> | null | undefined): boolean {
+  const s = optimaState(o)
+  return s != null && (OPTIMA_CLOSED_STATES as readonly number[]).includes(s)
+}
+
+/** Etykieta zamkniętego RO; null = otwarte (albo zlecenie ręczne). */
+export function optimaClosedLabel(o: Pick<Order, 'source' | 'source_metadata'> | null | undefined): string | null {
+  const s = optimaState(o)
+  return s === 3 ? 'Zrealizowane w Optimie' : s === 4 ? 'Zamknięte w Optimie' : null
+}
+
 export function optimaMeta(o: Pick<Order, 'source' | 'source_metadata'> | null | undefined): OptimaMeta | null {
   if (!o || !isOptimaOrder(o)) return null
   const m = o.source_metadata
@@ -200,12 +226,14 @@ export type IntDoorFilter = {
   bezKomponentu: boolean
   /** zawiera: skrzydła / same ościeżnice (bez skrzydeł) */
   zawartosc: 'all' | 'wings' | 'frames_only'
+  /** pokaż też RO zrealizowane / zamknięte w Optimie (stan 3–4) — domyślnie tylko otwarte */
+  zamkniete: boolean
 }
 
-export const INT_DOOR_FILTER_DEFAULT: IntDoorFilter = { baza: 'all', zrodlo: 'all', bezKomponentu: false, zawartosc: 'all' }
+export const INT_DOOR_FILTER_DEFAULT: IntDoorFilter = { baza: 'all', zrodlo: 'all', bezKomponentu: false, zawartosc: 'all', zamkniete: false }
 
 export function isIntDoorFilterActive(f: IntDoorFilter): boolean {
-  return f.baza !== 'all' || f.zrodlo !== 'all' || f.bezKomponentu || f.zawartosc !== 'all'
+  return f.baza !== 'all' || f.zrodlo !== 'all' || f.bezKomponentu || f.zawartosc !== 'all' || f.zamkniete
 }
 
 export function matchesIntDoorFilter(
@@ -215,6 +243,7 @@ export function matchesIntDoorFilter(
 ): boolean {
   const unmappedCount = summary?.unmapped ?? 0
   const optima = isOptimaOrder(o)
+  if (!f.zamkniete && isOptimaClosed(o)) return false
   if (f.zrodlo === 'optima' && !optima) return false
   if (f.zrodlo === 'manual' && optima) return false
   if (f.baza !== 'all' && optimaBaza(o) !== f.baza) return false

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 import { fetchAllPages } from '../../lib/fetchPaged'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
+import { isOptimaClosed } from '../../lib/optimaRo'
 import {
   DOOR_FILTER_EMPTY,
   INTERNAL_WAREHOUSE_ID,
@@ -57,17 +58,21 @@ export default function InternalStockView({ components, onShowHistory, pushToast
       if (st.error) throw new Error(st.error.message)
 
       // otwarte = niewydane i nieanulowane zlecenia drzwi wewnętrznych (ręczne i z Optimy)
-      const ord = await fetchAllPages<{ id: number; extra_fields: Record<string, unknown> | null }>((from, to) =>
+      // RO zrealizowane / zamknięte w Optimie (stan 3–4) nie rezerwują — tylko otwarte
+      const ord = await fetchAllPages<{ id: number; extra_fields: Record<string, unknown> | null; source: string | null; optima_state: string | null }>((from, to) =>
         supabase
           .from('orders')
-          .select('id, extra_fields')
+          .select('id, extra_fields, source, optima_state:source_metadata->>state')
           .eq('category', 'DrzwiWewnetrzne')
           .is('release_date', null)
           .order('id')
           .range(from, to),
       )
       if (ord.error) throw new Error(ord.error.message)
-      const ids = ord.data.filter((o) => o.extra_fields?.cancelled !== true).map((o) => o.id)
+      const ids = ord.data
+        .filter((o) => o.extra_fields?.cancelled !== true)
+        .filter((o) => !isOptimaClosed({ source: o.source ?? undefined, source_metadata: { state: o.optima_state } } as Parameters<typeof isOptimaClosed>[0]))
+        .map((o) => o.id)
 
       const items: OpenItem[] = []
       const moves: IssuedMovement[] = []
@@ -179,7 +184,7 @@ export default function InternalStockView({ components, onShowHistory, pushToast
   return (
     <div className="internal-stock-view">
       <p className="muted" style={{ marginTop: 0 }}>
-        Magazyn wewnętrzne — drzwi wewnętrzne. Rezerwacje = pozycje otwartych zleceń ({openOrders}), które jeszcze nie zeszły ze stanu;
+        Magazyn wewnętrzne — drzwi wewnętrzne. Rezerwacje = pozycje otwartych zleceń ({openOrders}; bez RO zrealizowanych i zamkniętych w Optimie), które jeszcze nie zeszły ze stanu;
         dostępne = stan − rezerwacje. Pozycje bez komponentu (kod z Optimy niepowiązany) nie rezerwują niczego.
       </p>
       <div className="inventory-filters">
