@@ -39,6 +39,11 @@ create table if not exists public.interior_item_dict (
 );
 comment on table public.interior_item_dict is 'Cechy pozycji drzwi wewnętrznych rozbite z nazwy kartoteki Optimy (statystyki sprzedaży); reczne = poprawka kierownika, nie nadpisywać.';
 
+-- v3 (26.11 w nocy, właściciel: „BOLD to Bastion – nie pokazujemy w statystykach wewnętrznych”):
+-- pomijane = pozycja nie jest drzwiami wewnętrznymi (BOLD / Bastion, „DRZWI ZEW…”); RPC stat_wew_* ją pomijają.
+alter table public.interior_item_dict add column if not exists pomijane boolean not null default false;
+drop function if exists public.interior_item_parse(text, text, text);
+
 alter table public.interior_item_dict enable row level security;
 drop policy if exists iid_select on public.interior_item_dict;
 create policy iid_select on public.interior_item_dict for select to authenticated using (true);
@@ -48,7 +53,7 @@ grant select on public.interior_item_dict to authenticated, service_role;
 -- Rozbiór nazwy kartoteki. p_group = optima_group (kolor klamek/osłonek, gdy nazwa go nie ma).
 -- ---------------------------------------------------------------------
 create or replace function public.interior_item_parse(p_name text, p_type text, p_group text default null)
-returns table (grupa text, model text, linia text, wykonanie text, wzor text, kolor text, rozmiar text, strona text, dodatek text, rozpoznane boolean)
+returns table (grupa text, model text, linia text, wykonanie text, wzor text, kolor text, rozmiar text, strona text, dodatek text, rozpoznane boolean, pomijane boolean)
 language plpgsql
 immutable
 as $$
@@ -60,9 +65,11 @@ declare
   sz integer;
 begin
   grupa := null; model := null; linia := null; wykonanie := null; wzor := null; kolor := null;
-  rozmiar := null; strona := null; dodatek := null; rozpoznane := false;
+  rozmiar := null; strona := null; dodatek := null; rozpoznane := false; pomijane := false;
   if n = '' then return next; return; end if;
   n := regexp_replace(n, '\s+', ' ', 'g');
+  -- nie drzwi wewnętrzne: skrzydła i akcesoria BOLD (Bastion), drzwi zewnętrzne wpisane w RO
+  if n ~ '(^| )BOLD( |$)' or n like 'DRZWI ZEW%' or n like '%BASTION%' then pomijane := true; end if;
 
   if p_type = 'door_wing' then
     -- dodatki z końca nazwy
@@ -106,6 +113,7 @@ begin
       case when 'NORMA CZ-SK' = any(flags) then 'NORMA CZ-SK' end)), '');
     grupa := split_part(model, ' ', 1);
     wzor := m[2];
+    if grupa = 'TECHNIC' then linia := case when wzor = 'UNI-45' then 'UNI-45' else 'TECHNIC 01' end; end if;
     kolor := m[3];
     rozmiar := m[4];
     strona := m[5];
@@ -134,7 +142,7 @@ begin
     if m is not null then
       grupa := case when m[1] like 'TUNEL%' then 'TUNEL'
                     else case m[2] when '80' then 'OR1' when '100' then 'OR2' when '140' then 'OR3' when '180' then 'OR4'
-                                   when '220' then 'OR5' when '260' then 'OR6' when '300' then 'OR7' else 'OR' end end;
+                                   when '220' then 'OR5' when '260' then 'OR6' when '300' then 'OR7' when '340' then 'OR8' else 'OR INNE' end end;
       model := grupa || ' (' || m[2] || '-' || m[3] || ')';
       wzor := 'KOMPLET'; kolor := m[4]; rozmiar := m[5]; strona := m[6];
       rozpoznane := true; return next; return;
@@ -192,7 +200,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_version constant integer := 2;
+  v_version constant integer := 3;
   v_n integer := 0;
 begin
   with codes as (
@@ -211,14 +219,14 @@ begin
     cross join lateral public.interior_item_parse(coalesce(c.optima_name, c.optima_code), c.item_type, c.optima_group) p
   )
   insert into public.interior_item_dict as d
-    (optima_code, optima_name, item_type, grupa, model, linia, wykonanie, wzor, kolor, rozmiar, strona, dodatek, rozpoznane, parser_version, updated_at)
-  select optima_code, optima_name, item_type, grupa, model, linia, wykonanie, wzor, kolor, rozmiar, strona, dodatek, rozpoznane, v_version, now()
+    (optima_code, optima_name, item_type, grupa, model, linia, wykonanie, wzor, kolor, rozmiar, strona, dodatek, rozpoznane, pomijane, parser_version, updated_at)
+  select optima_code, optima_name, item_type, grupa, model, linia, wykonanie, wzor, kolor, rozmiar, strona, dodatek, rozpoznane, pomijane, v_version, now()
   from parsed
   on conflict (optima_code) do update set
     optima_name = excluded.optima_name, item_type = excluded.item_type,
     grupa = excluded.grupa, model = excluded.model, linia = excluded.linia, wykonanie = excluded.wykonanie,
     wzor = excluded.wzor, kolor = excluded.kolor, rozmiar = excluded.rozmiar, strona = excluded.strona,
-    dodatek = excluded.dodatek, rozpoznane = excluded.rozpoznane, parser_version = excluded.parser_version, updated_at = now()
+    dodatek = excluded.dodatek, rozpoznane = excluded.rozpoznane, pomijane = excluded.pomijane, parser_version = excluded.parser_version, updated_at = now()
   where d.reczne = false;
   get diagnostics v_n = row_count;
   return v_n;
@@ -230,7 +238,7 @@ grant execute on function public.interior_item_dict_refresh() to authenticated, 
 -- Ręczna poprawka kierownika (puste pole = zostaw jak jest; p_reset = wróć do automatu).
 create or replace function public.interior_item_dict_set(
   p_code text, p_grupa text default null, p_kolor text default null, p_rozmiar text default null,
-  p_wykonanie text default null, p_reset boolean default false)
+  p_wykonanie text default null, p_reset boolean default false, p_pomijane boolean default null)
 returns setof public.interior_item_dict
 language plpgsql
 security definer
@@ -250,14 +258,17 @@ begin
       rozmiar = coalesce(nullif(trim(p_rozmiar), ''), rozmiar),
       wykonanie = coalesce(nullif(upper(trim(p_wykonanie)), ''), wykonanie),
       model = case when nullif(trim(p_grupa), '') is not null and (model is null or rozpoznane = false) then upper(trim(p_grupa)) else model end,
-      rozpoznane = true, reczne = true, updated_at = now(), updated_by = auth.uid()
+      pomijane = coalesce(p_pomijane, pomijane),
+      rozpoznane = case when p_pomijane is not null and p_grupa is null then rozpoznane else true end,
+      reczne = true, updated_at = now(), updated_by = auth.uid()
     where optima_code = p_code;
   end if;
   return query select * from public.interior_item_dict where optima_code = p_code;
 end;
 $$;
-revoke all on function public.interior_item_dict_set(text, text, text, text, text, boolean) from public, anon;
-grant execute on function public.interior_item_dict_set(text, text, text, text, text, boolean) to authenticated, service_role;
+drop function if exists public.interior_item_dict_set(text, text, text, text, text, boolean);
+revoke all on function public.interior_item_dict_set(text, text, text, text, text, boolean, boolean) from public, anon;
+grant execute on function public.interior_item_dict_set(text, text, text, text, text, boolean, boolean) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------
 -- Otwarte zlecenie drzwi wewnętrznych = niewydane, nieanulowane, RO w Optimie w stanie 0/1/2.
@@ -299,6 +310,7 @@ begin
     where o.category = 'DrzwiWewnetrzne'
       and o.order_date >= p_from and o.order_date <= coalesce(p_to, current_date)
       and coalesce(o.extra_fields->>'cancelled', '') <> 'true'
+      and coalesce(d.pomijane, false) = false
     group by 1, 2, 3, 4, 5, 6, 7, 8;
 end;
 $$;
@@ -329,6 +341,7 @@ begin
     where o.category = 'DrzwiWewnetrzne'
       and o.order_date >= (date_trunc('month', now()) - make_interval(months => greatest(coalesce(p_months, 13), 1) - 1))::date
       and coalesce(o.extra_fields->>'cancelled', '') <> 'true'
+      and coalesce(d.pomijane, false) = false
     group by 1, 2, 3, 4;
 end;
 $$;
@@ -398,7 +411,8 @@ begin
          or wc.code = k.optima_code
       order by (wc.code = k.optima_code) limit 1
     ) c on true
-    where coalesce(a.zlecenia, 0) > 0 or coalesce(h.czekaly, 0) > 0;
+    where (coalesce(a.zlecenia, 0) > 0 or coalesce(h.czekaly, 0) > 0)
+      and coalesce(d.pomijane, false) = false;
 end;
 $$;
 revoke all on function public.stat_wew_braki(integer, integer) from public, anon;

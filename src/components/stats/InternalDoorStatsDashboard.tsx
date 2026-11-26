@@ -62,7 +62,7 @@ const ITEM_FILTERS = [
 
 type ItemFilter = (typeof ITEM_FILTERS)[number]['key']
 type BrakiTab = 'teraz' | 'historia'
-type DictRow = { optima_code: string; optima_name: string | null; item_type: string | null }
+type DictRow = { optima_code: string; optima_name: string | null; item_type: string | null; pomijane?: boolean }
 
 const LS = {
   typ: 'stats.wew.typ',
@@ -173,8 +173,9 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
   const loadNierozpoznane = useCallback(async () => {
     const { data, error: err } = await supabase
       .from('interior_item_dict')
-      .select('optima_code, optima_name, item_type')
+      .select('optima_code, optima_name, item_type, pomijane')
       .eq('rozpoznane', false)
+      .eq('pomijane', false)
       .order('optima_code')
       .limit(300)
     if (err) {
@@ -233,6 +234,11 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
   const brakiHist = useMemo(() => sortShortagesHist(brakiFiltr), [brakiFiltr])
   const brakiRows = brakiTab === 'teraz' ? brakiTeraz : brakiHist
 
+  const reloadAll = useCallback(
+    () => Promise.all([loadNierozpoznane(), loadSprzedaz(months), loadMiesiace(), loadBraki(brakiDays, brakiProg)]),
+    [loadNierozpoznane, loadSprzedaz, loadMiesiace, loadBraki, months, brakiDays, brakiProg],
+  )
+
   const assignGroup = useCallback(async (code: string, name: string | null) => {
     const v = await appPrompt(`Grupa modelowa dla „${name ?? code}” (np. VERONA, OR3, IBERIA):`, { title: 'Przypisz grupę', confirmLabel: 'Zapisz' })
     if (v == null || !v.trim()) return
@@ -241,8 +247,18 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
       setError(`Nie zapisano grupy: ${err.message}`)
       return
     }
-    await Promise.all([loadNierozpoznane(), loadSprzedaz(months), loadMiesiace(), loadBraki(brakiDays, brakiProg)])
-  }, [loadNierozpoznane, loadSprzedaz, loadMiesiace, loadBraki, months, brakiDays, brakiProg])
+    await reloadAll()
+  }, [reloadAll])
+
+  // „To nie drzwi wewnętrzne” (np. kartoteka Bastion w RO) — pozycja znika ze wszystkich liczb w tej zakładce
+  const excludeItem = useCallback(async (code: string) => {
+    const { error: err } = await supabase.rpc('interior_item_dict_set', { p_code: code, p_pomijane: true })
+    if (err) {
+      setError(`Nie oznaczono pozycji: ${err.message}`)
+      return
+    }
+    await reloadAll()
+  }, [reloadAll])
 
   const rankColumns = useMemo<DataTableColumn<RankRow>[]>(() => [
     {
@@ -392,7 +408,7 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
                 </BarChart>
               </ResponsiveContainer>
               <DataTable rows={ranking} rowKey={(r) => r.nazwa} columns={rankColumns} />
-              <p className="help-note" style={{ marginTop: 8 }}>Kliknij grupę, żeby zobaczyć jej kolory, rozmiary i sprzedaż w czasie. Grupa = model bez „BLACK” (VERONA = VERONA + VERONA BLACK); linia jest osobno.</p>
+              <p className="help-note" style={{ marginTop: 8 }}>Kliknij grupę, żeby zobaczyć jej kolory, rozmiary i sprzedaż w czasie. Grupa = model bez „BLACK” (VERONA = VERONA + VERONA BLACK); linia jest osobno. Kartoteki BOLD (to Bastion) i inne oznaczone „to nie wewnętrzne” są pominięte.</p>
             </>
           )}
         </div>
@@ -519,7 +535,10 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
                   <span title={d.optima_code}>{d.optima_name ?? d.optima_code}</span>
                   {d.item_type && <span className="badge badge-neutral" style={{ marginLeft: 6 }}>{ITEM_TYPE_LABELS[d.item_type] ?? d.item_type}</span>}
                   {isManager && (
-                    <button type="button" className="btn-link" style={{ marginLeft: 6 }} onClick={() => void assignGroup(d.optima_code, d.optima_name)}>Przypisz grupę</button>
+                    <>
+                      <button type="button" className="btn-link" style={{ marginLeft: 6 }} onClick={() => void assignGroup(d.optima_code, d.optima_name)}>Przypisz grupę</button>
+                      <button type="button" className="btn-link" style={{ marginLeft: 6 }} title="Pozycja nie jest drzwiami wewnętrznymi (np. Bastion) — znika z tej zakładki" onClick={() => void excludeItem(d.optima_code)}>To nie wewnętrzne</button>
+                    </>
                   )}
                 </li>
               ))}
