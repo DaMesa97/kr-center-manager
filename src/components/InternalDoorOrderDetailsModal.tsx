@@ -20,6 +20,7 @@ import {
   unmappedItems,
 } from '../lib/optimaRo'
 import { INTERNAL_WAREHOUSE_ID, internalShortages, type Shortage } from '../lib/internalWarehouse'
+import { pickKey, pickProgress, type OrderPick } from '../lib/orderPicks'
 import type { InternalDoorItem, Order, ToastVariant, WarehouseComponent } from '../types'
 
 type DetailsUser = {
@@ -38,6 +39,10 @@ type Props = {
   components: WarehouseComponent[]
   /** zapis do optima_component_map (rola z polityki ocm_write) */
   canMapCodes: boolean
+  /** pozycje przygotowane przez magazyn do pakowania (line_key → odznaczenie) */
+  picks?: Map<string, OrderPick>
+  /** odznacz / cofnij linie (kierownik, magazyn); brak = tylko podgląd */
+  onTogglePick?: (lineKeys: string[], picked: boolean) => void
   onClose: () => void
   onEdit: (order: Order) => void
   onAfterAction: () => void | Promise<void>
@@ -51,6 +56,8 @@ function InternalDoorOrderDetailsModal({
   currentUser,
   components,
   canMapCodes,
+  picks,
+  onTogglePick,
   onClose,
   onEdit,
   onAfterAction,
@@ -279,6 +286,24 @@ function InternalDoorOrderDetailsModal({
     })
   }
 
+  const renderPick = (item: InternalDoorItem) => {
+    const k = pickKey(item)
+    const p = picks?.get(k)
+    const editable = Boolean(onTogglePick) && isInProgress
+    const who = p ? `Przygotował${p.picked_initials ? ` ${p.picked_initials}` : 'o'} ${new Date(p.picked_at).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''
+    return (
+      <input
+        type="checkbox"
+        className="int-door-pick-check"
+        checked={Boolean(p)}
+        disabled={!editable}
+        onChange={(e) => onTogglePick?.([k], e.target.checked)}
+        title={p ? who : editable ? 'Odznacz, gdy pozycja jest przygotowana do pakowania' : 'Nieprzygotowane'}
+        aria-label={`Przygotowane: ${item.optima_name || item.component_name || 'pozycja'}`}
+      />
+    )
+  }
+
   if (!open) return null
 
   const wentylacja = String((order as unknown as Record<string, unknown>).wentylacja ?? '').trim()
@@ -365,8 +390,30 @@ function InternalDoorOrderDetailsModal({
           )}
 
           <div className="internal-door-details-section">
-            <h4>
+            <h4 className="int-door-items-head">
               Pozycje
+              {(() => {
+                const pr = pickProgress(items, picks)
+                if (pr.total === 0) return null
+                const editable = Boolean(onTogglePick) && isInProgress
+                return (
+                  <span className="int-door-pick-summary">
+                    <span className={pr.complete ? 'int-door-pick-badge int-door-pick-badge--done' : 'int-door-pick-badge'} title="Pozycje przygotowane przez magazyn do pakowania">
+                      {pr.complete ? '✓ przygotowane do pakowania' : `przygotowano ${pr.done}/${pr.total}`}
+                    </span>
+                    {editable && !pr.complete && (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => onTogglePick!(items.map(pickKey).filter((k) => !picks?.has(k)), true)}>
+                        Zaznacz wszystkie
+                      </button>
+                    )}
+                    {editable && pr.done > 0 && (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => onTogglePick!(items.map(pickKey).filter((k) => picks?.has(k)), false)}>
+                        Odznacz wszystkie
+                      </button>
+                    )}
+                  </span>
+                )
+              })()}
               {fromOptima && missing.length > 0 && (
                 <span className="optima-unmapped-badge" style={{ marginLeft: 8 }}>
                   ⚠ bez komponentu: {missing.length}
@@ -380,6 +427,7 @@ function InternalDoorOrderDetailsModal({
                 <table className="orders-table optima-items-table">
                   <thead>
                     <tr>
+                      <th className="int-door-pick-col" title="Przygotowane do pakowania (magazyn odznacza pozycje)">✓</th>
                       <th>KOD OPTIMY</th>
                       <th>NAZWA</th>
                       <th style={{ textAlign: 'right' }}>ILOŚĆ</th>
@@ -393,7 +441,7 @@ function InternalDoorOrderDetailsModal({
                   <tbody>
                     {groups.flatMap((g) => [
                       <tr key={`g-${g.key}`} className="optima-items-group-row">
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           {g.label}
                           <span className="optima-items-group-total">{g.total}</span>
                         </td>
@@ -406,7 +454,8 @@ function InternalDoorOrderDetailsModal({
                         const sh = item.component_id != null ? shortages.get(item.component_id) : undefined
                         const st = item.component_id != null ? (stockInfo?.stock.get(item.component_id) ?? 0) : 0
                         return (
-                          <tr key={`${item.optima_element_id ?? item.id}`} className={unmapped ? 'optima-item--unmapped' : undefined}>
+                          <tr key={`${item.optima_element_id ?? item.id}`} className={[unmapped ? 'optima-item--unmapped' : '', picks?.has(pickKey(item)) ? 'int-door-item--picked' : ''].filter(Boolean).join(' ') || undefined}>
+                            <td className="int-door-pick-col">{renderPick(item)}</td>
                             <td title={item.optima_group ? `Grupa w Optimie: ${item.optima_group}` : undefined}>
                               <span className="optima-code">{item.optima_code || '—'}</span>
                             </td>
@@ -467,7 +516,8 @@ function InternalDoorOrderDetailsModal({
               </div>
             ) : (
               items.map((item) => (
-                <div key={item.id} className="internal-door-details-item">
+                <div key={item.id} className={`internal-door-details-item${picks?.has(pickKey(item)) ? ' int-door-item--picked' : ''}`}>
+                  <div className="int-door-pick-col">{renderPick(item)}</div>
                   <div className="internal-door-details-item-main">
                     <div className="internal-door-details-item-name">{item.component_name ?? 'Komponent'}</div>
                     <div className="internal-door-details-item-meta">{formatItemMeta(item)}</div>

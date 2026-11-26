@@ -10438,3 +10438,13 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 /* CRM: wyszarzony przycisk z podpowiedzią (title na otoczce — wyłączony przycisk nie łapie najechania) */
 .crm-btn-locked { display: inline-flex; cursor: help; }
 .crm-btn-locked > .btn:disabled { pointer-events: none; }
+/* Drzwi wewnętrzne: przygotowanie do pakowania (order_item_picks) */
+.int-door-items-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.int-door-pick-summary { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; }
+.int-door-pick-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; background: #fff3e0; color: #8d4b00; white-space: nowrap; }
+.int-door-pick-badge--done { background: #e8f5e9; color: #2e7d32; }
+.int-door-pick-col { width: 34px; text-align: center; }
+.int-door-pick-check { width: 18px; height: 18px; cursor: pointer; accent-color: #2e7d32; }
+.int-door-pick-check:disabled { cursor: default; }
+.int-door-item--picked td:not(.int-door-pick-col), .internal-door-details-item.int-door-item--picked .internal-door-details-item-main { opacity: 0.6; }
+.internal-door-details-item .int-door-pick-col { display: flex; align-items: center; justify-content: center; }

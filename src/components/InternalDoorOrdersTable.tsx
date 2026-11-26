@@ -12,10 +12,13 @@ import {
   wingCount,
 } from '../lib/optimaRo'
 import type { Order, InternalDoorItem } from '../types'
+import { pickProgress, type PicksByOrder } from '../lib/orderPicks'
 
 type Props = {
   orders: Order[]
   items: InternalDoorItem[]
+  /** przygotowane do pakowania (order_item_picks) */
+  picks?: PicksByOrder
   onShowDetails: (o: Order) => void
   tableWrapperRef: MutableRefObject<HTMLDivElement | null>
 }
@@ -56,7 +59,7 @@ export function OptimaSourceBadge({ order }: { order: Order }) {
   )
 }
 
-function InternalDoorOrdersTable({ orders, items, onShowDetails, tableWrapperRef }: Props) {
+function InternalDoorOrdersTable({ orders, items, picks, onShowDetails, tableWrapperRef }: Props) {
   const itemsByOrder = useMemo(() => {
     const map = new Map<number, InternalDoorItem[]>()
     items.forEach((it) => {
@@ -121,6 +124,25 @@ function InternalDoorOrdersTable({ orders, items, onShowDetails, tableWrapperRef
         },
       },
       {
+        key: 'picked',
+        label: 'PRZYGOTOWANIE',
+        className: 'col-order-text',
+        title: 'Pozycje przygotowane przez magazyn do pakowania',
+        sortValue: (o) => {
+          const pr = pickProgress(itemsOf(o), o.id != null ? picks?.get(o.id) : undefined)
+          return pr.total ? pr.done / pr.total : -1
+        },
+        render: (o) => {
+          const pr = pickProgress(itemsOf(o), o.id != null ? picks?.get(o.id) : undefined)
+          if (pr.total === 0 || pr.done === 0) return <span className="muted">—</span>
+          return pr.complete ? (
+            <span className="int-door-pick-badge int-door-pick-badge--done">✓ komplet</span>
+          ) : (
+            <span className="int-door-pick-badge">{pr.done}/{pr.total}</span>
+          )
+        },
+      },
+      {
         key: 'unmapped',
         label: 'BEZ KOMPONENTU',
         className: 'col-order-text',
@@ -155,7 +177,7 @@ function InternalDoorOrdersTable({ orders, items, onShowDetails, tableWrapperRef
       },
       { key: 'notes', label: 'UWAGI', className: 'col-order-text col-notes', sortValue: (o) => o.notes, render: (o) => o.notes || '—' },
     ]
-  }, [itemsByOrder])
+  }, [itemsByOrder, picks])
 
   return (
     <DataTable

@@ -89,6 +89,8 @@ import BastionExtrasPanel from './components/BastionExtrasPanel'
 import { useBastionExtras } from './hooks/useBastionExtras'
 import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
 import InternalDoorFiltersBar from './components/InternalDoorFiltersBar'
+import { useOrderPicks } from './hooks/useOrderPicks'
+import { canPick } from './lib/orderPicks'
 import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, isOptimaClosed, matchesIntDoorFilter, summarizeItems, type IntDoorFilter, type ItemsSummary } from './lib/optimaRo'
 import { isOptimaImportedComponent } from './lib/internalWarehouse'
 import AluOrdersTable from './components/AluOrdersTable'
@@ -1705,6 +1707,11 @@ function App() {
     return categoryFilteredOrders.filter((o) => o.id !== undefined && withUnmapped.has(o.id)).length
   }, [activeTab, internalDoorItems, categoryFilteredOrders])
 
+  // Przygotowanie do pakowania (order_item_picks) — dla zleceń z wczytanymi pozycjami
+  const intDoorPickOrderIds = useMemo(() => [...new Set(internalDoorItems.map((it) => it.order_id))], [internalDoorItems])
+  const { picks: intDoorPicks, toggle: toggleIntDoorPick } = useOrderPicks(intDoorPickOrderIds, activeTab === 'DrzwiWewnetrzne', pushToast)
+  const userCanPick = canPick({ role: String(currentUser?.role ?? ''), department: currentUser?.department ?? null }, isManager)
+
   // RO zrealizowane / zamknięte w Optimie na liście (licznik przy „Pokaż zrealizowane”)
   const intDoorClosedOrders = useMemo(
     () => (activeTab === 'DrzwiWewnetrzne' ? categoryFilteredOrders.filter(isOptimaClosed).length : 0),
@@ -3014,6 +3021,12 @@ function App() {
           }}
           components={warehouseComponents}
           canMapCodes={canMapOptimaCodes(currentUser?.role)}
+          picks={intDoorPicks.get(internalDoorDetailsModal.order.id ?? -1)}
+          onTogglePick={
+            userCanPick && internalDoorDetailsModal.order.id != null
+              ? (keys, picked) => void toggleIntDoorPick(internalDoorDetailsModal.order!.id!, keys, picked, currentUser?.initials ?? '')
+              : undefined
+          }
           onClose={closeInternalDoorDetails}
           onEdit={(order) => {
             closeInternalDoorDetails()
@@ -4062,6 +4075,7 @@ function App() {
                     <InternalDoorOrdersTable
                       orders={filteredOrders}
                       items={internalDoorItems}
+                      picks={intDoorPicks}
                       onShowDetails={openInternalDoorDetails}
                       tableWrapperRef={ordersTableWrapperRef}
                     />

@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Drzwi wewnętrzne: przygotowanie do pakowania (beta.165)</h4>
+        <ul>
+          <li>W szczegółach zlecenia przy każdej pozycji jest checkbox <b>„przygotowane”</b> — magazyn odznacza drzwi, ościeżnice, klamki… przygotowane do pakowania (jest też „Zaznacz wszystkie”). Po najechaniu widać, kto i kiedy odznaczył.</li>
+          <li>Na liście kolumna <b>Przygotowanie</b>: np. 6/10 albo „✓ komplet”. Biuro widzi zmiany na żywo.</li>
+          <li>Odznaczają kierownicy i magazyn (magazynier, pracownik działu magazyn); pozostali widzą tylko podgląd. Odznaczenia przeżywają zmianę RO w Optimie (liczą się po linii RO).</li>
+        </ul>
         <h4>Statystyki: udział konfiguratora bez Technicznych i Drzwi wewnętrznych (beta.164)</h4>
         <ul>
           <li>Statystyki → Konfigurator i „% z konfiguratora” w Statystyki → Firmy liczą tylko kategorie, które konfigurator wysyła — Techniczne i Drzwi wewnętrzne nie zaniżają już udziału.</li>
