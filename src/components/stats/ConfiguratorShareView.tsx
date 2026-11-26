@@ -11,11 +11,13 @@ import {
 import { supabase } from '../../supabaseClient'
 import { fetchAllPages } from '../../lib/fetchPaged'
 import { CATEGORY_LABELS } from '../../constants'
+import { KONFIGURATOR_POZA } from '../../lib/companyStats'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 
 /** Cel firmy: połowa zleceń z konfiguratora do końca 2027 */
 export const KONFIGURATOR_CEL_PROC = 50
+
 
 type Row = { r_month: string; r_category: string; r_total: number; r_konfigurator: number }
 
@@ -57,12 +59,14 @@ export default function ConfiguratorShareView() {
       return
     }
     setRows(
-      (data ?? []).map((r) => ({
+      (data ?? [])
+        .filter((r) => !(KONFIGURATOR_POZA as readonly string[]).includes(String(r.r_category ?? '')))
+        .map((r) => ({
         r_month: String(r.r_month ?? '').slice(0, 7),
         r_category: String(r.r_category ?? ''),
         r_total: Number(r.r_total) || 0,
         r_konfigurator: Number(r.r_konfigurator) || 0,
-      })),
+        })),
     )
   }, [])
 
@@ -160,7 +164,7 @@ export default function ConfiguratorShareView() {
         </label>
         {!loading && (
           <span className="leadtime-total">
-            Zleceń w okresie: <strong>{totals.total.toLocaleString('pl-PL')}</strong>, z konfiguratora <strong>{totals.bot.toLocaleString('pl-PL')}</strong> ({fmtPct(totals.procent)}). Bez anulowanych, po dacie zamówienia.
+            Zleceń w okresie: <strong>{totals.total.toLocaleString('pl-PL')}</strong>, z konfiguratora <strong>{totals.bot.toLocaleString('pl-PL')}</strong> ({fmtPct(totals.procent)}). Bez anulowanych, po dacie zamówienia; bez Technicznych i Drzwi wewnętrznych (nie idą z konfiguratora).
           </span>
         )}
       </div>

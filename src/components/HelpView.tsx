@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Statystyki: udział konfiguratora bez Technicznych i Drzwi wewnętrznych (beta.164)</h4>
+        <ul>
+          <li>Statystyki → Konfigurator i „% z konfiguratora” w Statystyki → Firmy liczą tylko kategorie, które konfigurator wysyła — Techniczne i Drzwi wewnętrzne nie zaniżają już udziału.</li>
+        </ul>
         <h4>CRM: przycisk „Umowa” zawsze widoczny (beta.163)</h4>
         <ul>
           <li>Na karcie klienta przyciski <b>Umowa</b> i <b>Protokół odbioru</b> są zawsze widoczne. Gdy jeszcze nie można ich użyć, są wyszarzone, a po najechaniu mówią, co zrobić (np. najpierw „Oferta z montażem”, poczekać aż się policzy, oferta bez montażu nie wystarczy, protokół robi się do umowy).</li>

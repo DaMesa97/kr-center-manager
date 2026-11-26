@@ -114,6 +114,18 @@ describe('companyStats — porządek nazw firm (Tymek 20.11)', () => {
     expect(canon('NIEZNANA')).toBe('NIEZNANA')
   })
 
+  it('% z konfiguratora bez Technicznych i Drzwi wewnętrznych (konfigurator ich nie wysyła)', () => {
+    const orders = [
+      order({ company: 'PO DRZWI', order_date: '2026-11-10', category: 'STA', source: 'bot' }),
+      order({ company: 'PO DRZWI', order_date: '2026-11-11', category: 'STA', source: 'manual' }),
+      order({ company: 'PO DRZWI', order_date: '2026-11-12', category: 'Techniczne', source: 'manual' }),
+      order({ company: 'PO DRZWI', order_date: '2026-11-13', category: 'DrzwiWewnetrzne', source: 'optima_ro' }),
+    ]
+    const s = computeCompanyStats(orders, [], ['PO DRZWI'], 12, NOW)
+    expect(s.fromConfigurator).toBe(1)
+    expect(s.configuratorEligible).toBe(2)
+  })
+
   it('computeCompanyStats z aliasem liczy warianty razem', () => {
     const orders = [
       order({ company: 'PO DRZWI', order_date: '2026-11-01', quantity: 2 }),

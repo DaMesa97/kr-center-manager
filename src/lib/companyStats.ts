@@ -12,6 +12,9 @@
 import type { Complaint, Order } from '../types'
 import { isReleaseDateEmpty } from '../utils'
 
+/** Kategorie, których konfigurator nie wysyła (Tymek 26.11) — poza udziałem „z konfiguratora” */
+export const KONFIGURATOR_POZA = ['Techniczne', 'DrzwiWewnetrzne'] as const
+
 /** 0 = cały okres */
 export type CompanyPeriodMonths = 0 | 3 | 6 | 12 | 24
 
@@ -215,6 +218,8 @@ export type CompanyStats = {
   open: number
   released: number
   fromConfigurator: number
+  /** zleceń w kategoriach, które konfigurator wysyła (bez Technicznych i Drzwi wewnętrznych) — mianownik % z konfiguratora */
+  configuratorEligible: number
   complaints: number
   /** reklamacje na 100 zleceń (null, gdy brak zleceń) */
   complaintsPer100: number | null
@@ -259,6 +264,7 @@ export function computeCompanyStats(
   let open = 0
   let released = 0
   let fromConfigurator = 0
+  let configuratorEligible = 0
   const leadDays: number[] = []
   let lastOrderDate: string | null = null
   const byCategory = new Map<string, number>()
@@ -292,6 +298,7 @@ export function computeCompanyStats(
       }
     }
     if (o.source === 'bot') fromConfigurator += 1
+    if (!(KONFIGURATOR_POZA as readonly string[]).includes(String(o.category ?? ''))) configuratorEligible += 1
     const d = String(o.order_date || (o as { created_at?: string }).created_at || '').slice(0, 10)
     if (d && (!lastOrderDate || d > lastOrderDate)) lastOrderDate = d
     const cat = String(o.category || '(brak)')
@@ -330,6 +337,7 @@ export function computeCompanyStats(
     open,
     released,
     fromConfigurator,
+    configuratorEligible,
     complaints: complaints.length,
     complaintsPer100: orders.length ? Math.round((complaints.length / orders.length) * 1000) / 10 : null,
     avgDays: avg,

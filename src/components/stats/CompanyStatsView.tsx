@@ -231,8 +231,8 @@ export default function CompanyStatsView({ orders, complaints, loading, aliases,
                 <div className="stats-kpi-label">dni średnio{stats.medianDays != null ? ` (mediana ${stats.medianDays})` : ''}</div>
               </div>
               <div className="stats-kpi">
-                <div className="stats-kpi-value">{stats.orders ? Math.round((stats.fromConfigurator / stats.orders) * 100) : 0}%</div>
-                <div className="stats-kpi-label">z konfiguratora</div>
+                <div className="stats-kpi-value">{stats.configuratorEligible ? Math.round((stats.fromConfigurator / stats.configuratorEligible) * 100) : 0}%</div>
+                <div className="stats-kpi-label" title="Bez Technicznych i Drzwi wewnętrznych — nie idą z konfiguratora">z konfiguratora</div>
               </div>
             </div>
           )}
