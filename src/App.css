@@ -10435,3 +10435,6 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 /* CRM: ekrany trzymane w pamięci (CrmView) — slot zachowuje się jak dawny bezpośredni potomek .crm-view */
 .crm-screen-slot { width: 100%; min-width: 0; }
 .crm-screen-slot[hidden] { display: none !important; }
+/* CRM: wyszarzony przycisk z podpowiedzią (title na otoczce — wyłączony przycisk nie łapie najechania) */
+.crm-btn-locked { display: inline-flex; cursor: help; }
+.crm-btn-locked > .btn:disabled { pointer-events: none; }

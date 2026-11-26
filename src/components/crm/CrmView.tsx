@@ -102,6 +102,7 @@ import { KROKI_OFERTY, brakDoboruOferty, krokOferty, pytaniaOferty, tekstOdpowie
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
+import { PROTOKOL_ZABLOKOWANY, ofertyDoUmowy as wybierzOfertyDoUmowy, umowaZablokowanaPowod, umowyKlienta } from '../../lib/crmUmowa'
 import CrmPolaczPanel from './CrmPolaczPanel'
 import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
 import CrmMaileScreen, { CrmMailScreen } from './CrmMaileScreen'
@@ -2822,20 +2823,21 @@ function LeadScreen({
           </div>
         )}
         {(() => {
-          const ofertyDoUmowy = oferty.filter((o) => o.rodzaj === 'oficjalna' && o.z_montazem !== false && o.brutto != null && o.numer && o.plik_pdf && (o.status === 'do_sprawdzenia' || o.status === 'wyslana'))
-          const umowy = dokumenty.filter((d) => d.rodzaj === 'umowa' && d.status !== 'anulowana')
+          const ofertyDoUmowy = wybierzOfertyDoUmowy(oferty)
+          const umowy = umowyKlienta(dokumenty)
+          // przyciski zawsze widoczne; zablokowane = wyszarzone z podpowiedzią, co zrobić (Tymek 26.11)
+          const umowaPowod = umowaZablokowanaPowod(oferty)
           return (
             <>
               {!dokForm && (
                 <div className="crm-mail-actions">
                   <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: 'karta_pomiarowa' }) }} title={CRM_DOKUMENT_RODZAJ.karta_pomiarowa.title}><FileText size={14} /> Karta pomiarowa</button>
-                  {ofertyDoUmowy.length > 0 && (
-                    <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: 'umowa' }) }} title={CRM_DOKUMENT_RODZAJ.umowa.title}><FileText size={14} /> Umowa</button>
-                  )}
-                  {umowy.length > 0 && (
-                    <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: 'protokol' }) }} title={CRM_DOKUMENT_RODZAJ.protokol.title}><FileText size={14} /> Protokół odbioru</button>
-                  )}
-                  {ofertyDoUmowy.length === 0 && <span className="crm-muted">umowa wymaga policzonej oferty oficjalnej z montażem</span>}
+                  <span className={umowaPowod ? 'crm-btn-locked' : undefined} title={umowaPowod ?? CRM_DOKUMENT_RODZAJ.umowa.title}>
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={saving || Boolean(umowaPowod)} aria-label={umowaPowod ? `Umowa — ${umowaPowod}` : undefined} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: 'umowa' }) }}><FileText size={14} /> Umowa</button>
+                  </span>
+                  <span className={umowy.length === 0 ? 'crm-btn-locked' : undefined} title={umowy.length === 0 ? PROTOKOL_ZABLOKOWANY : CRM_DOKUMENT_RODZAJ.protokol.title}>
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={saving || umowy.length === 0} aria-label={umowy.length === 0 ? `Protokół odbioru — ${PROTOKOL_ZABLOKOWANY}` : undefined} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: 'protokol' }) }}><FileText size={14} /> Protokół odbioru</button>
+                  </span>
                 </div>
               )}
               {dokForm && (

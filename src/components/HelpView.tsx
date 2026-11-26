@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: przycisk „Umowa” zawsze widoczny (beta.163)</h4>
+        <ul>
+          <li>Na karcie klienta przyciski <b>Umowa</b> i <b>Protokół odbioru</b> są zawsze widoczne. Gdy jeszcze nie można ich użyć, są wyszarzone, a po najechaniu mówią, co zrobić (np. najpierw „Oferta z montażem”, poczekać aż się policzy, oferta bez montażu nie wystarczy, protokół robi się do umowy).</li>
+          <li>Umowę można zrobić także z oferty <b>Zaakceptowanej</b> (np. po oznaczeniu klienta jako „Zamówił”) — wcześniej przycisk wtedy znikał.</li>
+        </ul>
         <h4>Drzwi wewnętrzne: tylko otwarte RO z Optimy (beta.161)</h4>
         <ul>
           <li>Import ściągnął RO z całego roku. Te, które w Optimie są <b>zrealizowane</b> (stan 3) albo <b>zamknięte</b> (stan 4), mają taki status w programie, są domyślnie ukryte (przełącznik „Pokaż zrealizowane w Optimie”) i <b>nie rezerwują</b> magazynu wewnętrznego. Nie ma przy nich „✓ Wydane”.</li>
