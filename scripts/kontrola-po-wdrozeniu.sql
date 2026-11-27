@@ -1,7 +1,7 @@
 -- Kontrola po wdrożeniu migracji z 27.11.2026 (testy 27.11, runda 3).
--- Tylko odczyt. Uruchom w SQL Editor po wgraniu WSZYSTKICH migracji 20261127221000…20261127234500.
+-- Tylko odczyt. Uruchom w SQL Editor po wgraniu WSZYSTKICH migracji 20261127221000…20261127235100.
 -- Wynik: lista braków. PUSTY wynik = wszystko na miejscu.
--- (Znaczniki funkcji z próby generalnej r5 + znaczniki z plików 20261127234000…234500.)
+-- (Znaczniki funkcji z próby generalnej r5 + znaczniki z plików 20261127234000…235100.)
 with znaczniki(fn, marker, minimum) as (
   values
     ('public.sync_complaints_from_excel(jsonb,text,text,boolean)', 'jsonb_object_agg(e.k, e.v)', 2),
@@ -52,7 +52,13 @@ with znaczniki(fn, marker, minimum) as (
     -- 20261127234400: #ND na wydanym
     ('public.update_order_stage(bigint,text,text)', 'testy 27.11 (runda 3), wydane', 1),
     -- 20261127234500: konta CRM tylko superadmin
-    ('public.protect_superadmin_role()', 'testy 27.11 (runda 3), CRM', 1)
+    ('public.protect_superadmin_role()', 'testy 27.11 (runda 3), CRM', 1),
+    -- 20261127235000: wydane zlecenie bez nowych rezerwacji (runda 6)
+    ('public.reserve_stock_for_order(bigint)', 'testy 27.11 (runda 6), wydane', 1),
+    ('public.restore_order_reservations__impl(bigint)', 'testy 27.11 (runda 6), wydane', 1),
+    -- 20261127235100: #ND na anulowanym (runda 6) — gdyby 233000 poszło PO 235100, tu wyjdzie brak
+    ('public.restore_stage_reservations__impl(bigint,text)', 'testy 27.11 (runda 6), anulowane', 1),
+    ('public.cancel_stage_reservations__impl(bigint,text)', 'testy 27.11 (runda 6), anulowane', 1)
 ),
 funkcje as (
   select z.fn, z.marker, z.minimum, to_regprocedure(z.fn) as foid from znaczniki z
