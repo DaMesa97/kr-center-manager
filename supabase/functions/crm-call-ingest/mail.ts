@@ -112,7 +112,27 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
   let ofertaId: string | null = null
   const sprzedazowa = a.typ === 'zapytanie' || a.typ === 'klient'
   if (sprzedazowa || a.typ === 'reklamacja') {
-    const l = lead ?? await nowyLead(db, email, a.nazwa || mail.od_nazwa, mail.id, mail.kanal === 'formularz' ? 'formularz' : 'mail')
+    // testy 27.11 (2. seria, KRYTYCZNY): nieznany adres, ale numer z podpisu maila należy do klienta, który już dzwonił —
+    // mail trafia do tego klienta (adres dopisany do inne_kontakty), zamiast zakładać drugiego (3 takie pary w 7 dni)
+    let lPoTel: Lead | null = null
+    if (!lead) {
+      const telPodpis = normalizujTelefon(a.telefon)
+      if (telPodpis) {
+        const { data: wl } = await db.from('leady').select('id').eq('telefon', telPodpis).maybeSingle()
+        if (wl) lPoTel = await leadPoId(db, wl.id)
+        if (lPoTel) {
+          await zdarzenie(db, { lead_id: lPoTel.id, mail_id: mail.id, typ: 'dopasowano', opis: `Mail z adresu ${email} dopisany do tego klienta (ten sam numer telefonu w podpisie maila).`, dane: { powod: 'telefon_z_podpisu', email, telefon: telPodpis } })
+          const { data: ik } = await db.from('leady').select('email, inne_kontakty').eq('id', lPoTel.id).single()
+          if (ik?.email && String(ik.email).toLowerCase() !== email.toLowerCase()) {
+            const lista = Array.isArray(ik.inne_kontakty) ? ik.inne_kontakty as Array<{ email?: string }> : []
+            if (!lista.some((x) => String(x?.email ?? '').toLowerCase() === email.toLowerCase())) {
+              await db.from('leady').update({ inne_kontakty: [...lista, { email, zrodlo: 'mail', dodano: new Date().toISOString() }] }).eq('id', lPoTel.id)
+            }
+          }
+        }
+      }
+    }
+    const l = lead ?? lPoTel ?? await nowyLead(db, email, a.nazwa || mail.od_nazwa, mail.id, mail.kanal === 'formularz' ? 'formularz' : 'mail')
     leadId = l.id
     const akcja = a.typ === 'reklamacja' ? 'reklamacja' : (a.nastepna_akcja === 'brak' ? null : a.nastepna_akcja)
     const zmiany: Record<string, unknown> = {

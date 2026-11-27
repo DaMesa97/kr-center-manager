@@ -44,10 +44,14 @@ export function normalizujTelefon(x: unknown): string | null {
   if (x === null || x === undefined) return null
   let s = String(x).trim().toLowerCase()
   if (!s || /anonym|unknown|private|restricted|zastrze|hidden|withheld/.test(s)) return null
+  // testy 27.11 (2. seria): podpis maila z dwoma numerami („601 234 567, 602 345 678”) sklejał się w 18 cyfr —
+  // bierzemy pierwszy numer z listy
+  s = s.split(/[,;/]|\s(?:i|lub|or|albo)\s/)[0].trim()
   s = s.replace(/[^\d+]/g, '')
   if (s.startsWith('00')) s = '+' + s.slice(2)
   const cyfry = s.replace(/\D/g, '')
-  if (cyfry.length < 7) return null
+  // E.164 ma najwyżej 15 cyfr (dłuższe = sklejone numery); minimum 7 jak dotąd — ta sama funkcja obsługuje Ringostat
+  if (cyfry.length < 7 || cyfry.length > 15) return null
   if (s.startsWith('+')) return '+' + cyfry
   if (cyfry.length === 9) return '+48' + cyfry                 // polski numer bez prefiksu
   if (cyfry.length === 11 && cyfry.startsWith('48')) return '+' + cyfry
