@@ -20,7 +20,7 @@ describe('humanizeErrorText — techniczne błędy po ludzku', () => {
   it('zachowuje polską dalszą część komunikatu po błędzie', () => {
     expect(
       humanizeErrorText('Nie zapisano daty zamówienia szyb: Failed to fetch. PDF NIE został wygenerowany — spróbuj ponownie.'),
-    ).toBe('Nie zapisano daty zamówienia szyb: brak połączenia z serwerem — sprawdź internet. PDF NIE został wygenerowany — spróbuj ponownie.')
+    ).toBe('Nie zapisano daty zamówienia szyb: brak połączenia z serwerem — sprawdź internet (jeśli to był zapis, mógł się udać: odśwież listę, zanim spróbujesz ponownie). PDF NIE został wygenerowany — spróbuj ponownie.')
   })
 
   it('pole NOT NULL z nazwą kolumny, timeout', () => {

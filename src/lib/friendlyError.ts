@@ -50,7 +50,8 @@ const RULES: Rule[] = [
   { re: /JWT expired|invalid JWT|jwt malformed/i, text: () => 'sesja wygasła — zaloguj się ponownie' },
   {
     re: /Failed to fetch|NetworkError|Load failed|fetch failed|ERR_INTERNET_DISCONNECTED|network request failed/i,
-    text: () => 'brak połączenia z serwerem — sprawdź internet',
+    // testy 27.11 (runda 3): odpowiedź mogła zginąć PO zapisie na serwerze — ponowienie dawało drugi dokument
+    text: () => 'brak połączenia z serwerem — sprawdź internet (jeśli to był zapis, mógł się udać: odśwież listę, zanim spróbujesz ponownie)',
   },
   {
     re: /too many requests|rate limit/i,
