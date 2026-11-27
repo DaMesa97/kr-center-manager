@@ -261,3 +261,11 @@
 .crm-kl-late { color: var(--crm-late); font-weight: 600; font-size: 0.78rem; }
 .crm-kl-dzis { color: var(--crm-text); font-weight: 600; font-size: 0.78rem; }
 .crm-kl-oferta { font-weight: 600; white-space: nowrap; }
+
+/* Zamówienia */
+.crm-zam-filtry-prawe { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.crm-view .crm-zam-szukaj { min-width: 260px; }
+.crm-zam-kwota { align-items: flex-end; }
+.crm-zam-sieroty { display: block; }
+.crm-zam-sieroty summary { cursor: pointer; }
+.crm-zam-sieroty ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 0.86rem; }

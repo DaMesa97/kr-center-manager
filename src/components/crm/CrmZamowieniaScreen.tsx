@@ -80,13 +80,16 @@ const FILTRY: Array<{ id: Filtr; label: string }> = [
   { id: 'uwaga', label: 'Wymagają uwagi' },
   { id: 'brak', label: 'Brak zlecenia' },
   { id: 'prod', label: 'W produkcji' },
-  { id: 'gotowe', label: 'Gotowe' },
+  { id: 'gotowe', label: 'Gotowe do wysyłki' },
   { id: 'list', label: 'Przygotowane do wysyłki' },
   { id: 'wyslane', label: 'Wysłane' },
   { id: 'reklamacja', label: 'Reklamacje' },
   { id: 'bez_produkcji', label: 'Bez produkcji' },
   { id: 'anulowane', label: 'Anulowane' },
 ]
+
+/** v3: cztery główne zakładki, reszta w „Więcej…” (makieta: 10 zakładek naraz było nieczytelne) */
+const FILTRY_GLOWNE: Filtr[] = ['wszystkie', 'uwaga', 'prod', 'gotowe']
 
 function pasujeFiltr(w: Wiersz, f: Filtr): boolean {
   switch (f) {
@@ -237,56 +240,72 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
     void load(true)
   }
 
+  // v3 (makieta „Zamówienia”, 27.11): 5 kolumn — zamówienie (klient + numer), co zamówił, kwota, gdzie jest (stan + jedno zdanie), termin.
+  // Status sklepu, zlecenia KR i list przewozowy są w karcie zamówienia (klik w wiersz).
   const kolumny = useMemo<DataTableColumn<Wiersz>[]>(() => [
     {
       key: 'nr', label: 'Zamówienie', sortValue: (w) => w.z.data_zlozenia ?? '',
       render: (w) => (
-        <span className="crm-zam-nr">
-          <b>{w.z.bl_id}</b>
-          <span className="crm-muted">{fmtDateTime(w.z.data_zlozenia)}</span>
-          {w.uwagi.length > 0 && <span className="crm-zam-uwaga-txt" title={w.uwagi.join('\n')}>{w.uwagi[0]}{w.uwagi.length > 1 ? ` (+${w.uwagi.length - 1})` : ''}</span>}
+        <span className="crm-of-klient">
+          <b>{w.z.klient || w.z.firma || '—'}</b>
+          <span className="crm-muted">#{w.z.bl_id} · {fmtDateTime(w.z.data_zlozenia)}{w.z.miasto ? ` · ${w.z.miasto}` : ''}</span>
         </span>
       ),
-    },
-    {
-      key: 'klient', label: 'Klient', sortValue: (w) => w.z.klient ?? '',
-      render: (w) => (<span className="crm-zam-nr">{w.z.klient || w.z.firma || '—'}<span className="crm-muted">{[w.z.miasto, w.z.dostawa_metoda].filter(Boolean).join(' · ')}</span></span>),
     },
     {
       key: 'co', label: 'Co zamówił',
       render: (w) => (
         <span className="crm-zam-pozycje">
-          {w.z.pozycje.slice(0, 3).map((p, i) => <span key={i} title={p.atrybuty ?? undefined}>{p.nazwa}{p.ilosc > 1 ? ` ×${p.ilosc}` : ''}</span>)}
-          {w.z.pozycje.length > 3 && <span className="crm-muted">+{w.z.pozycje.length - 3} poz.</span>}
+          {w.z.pozycje.slice(0, 2).map((p, i) => <span key={i} title={p.atrybuty ?? undefined}>{p.nazwa}{p.ilosc > 1 ? ` ×${p.ilosc}` : ''}</span>)}
+          {w.z.pozycje.length > 2 && <span className="crm-muted">+{w.z.pozycje.length - 2} poz.</span>}
         </span>
       ),
     },
     {
       key: 'kwota', label: 'Kwota', align: 'right', sortValue: (w) => w.z.kwota ?? 0,
-      render: (w) => (<span className="crm-zam-nr">{fmtPln(w.z.kwota)}{!w.z.pobranie && (w.z.oplacone ?? 0) + 0.5 < (w.z.kwota ?? 0) && <span className="crm-text-bad">{(w.z.oplacone ?? 0) > 0 ? `wpłacono ${fmtPln(w.z.oplacone)}` : 'nieopłacone'}</span>}{w.z.pobranie && <span className="crm-muted">pobranie</span>}</span>),
-    },
-    { key: 'bl', label: 'Status w sklepie', sortValue: (w) => w.status ?? '', render: (w) => (w.status ? <span className="crm-status crm-status--muted">{w.status}</span> : '—') },
-    {
-      key: 'stan', label: 'Produkcja', sortValue: (w) => w.stan,
-      render: (w) => { const s = STAN_ZAMOWIENIA[w.stan]; return <span className={`crm-status ${s.cls}`} title={s.title}>{s.label}</span> },
+      render: (w) => (<span className="crm-of-klient crm-zam-kwota"><b>{fmtPln(w.z.kwota)}</b>{!w.z.pobranie && (w.z.oplacone ?? 0) + 0.5 < (w.z.kwota ?? 0) && <span className="crm-kl-late">{(w.z.oplacone ?? 0) > 0 ? `wpłacono ${fmtPln(w.z.oplacone)}` : 'nieopłacone'}</span>}{w.z.pobranie && <span className="crm-muted">pobranie</span>}</span>),
     },
     {
-      key: 'kr', label: 'Zlecenia KR',
-      render: (w) => (w.zlecenia.length ? <span className="crm-zam-krs">{w.zlecenia.map(({ o }) => <ChipZlecenia key={o.id} o={o} />)}</span> : <span className="crm-muted">—</span>),
+      key: 'stan', label: 'Gdzie jest', sortValue: (w) => w.stan,
+      render: (w) => {
+        const s = STAN_ZAMOWIENIA[w.stan]
+        const wys = STAN_WYSYLKI[w.wysylka]
+        return (
+          <span className="crm-of-klient">
+            <span><span className={`crm-status ${s.cls}`} title={s.title}>{s.label}</span></span>
+            {w.uwagi.length > 0
+              ? <span className="crm-kl-late" title={w.uwagi.join('\n')}>{w.uwagi[0]}{w.uwagi.length > 1 ? ` (+${w.uwagi.length - 1})` : ''}</span>
+              : w.wysylka !== 'brak'
+                ? <span className="crm-muted" title={`${wys.title}${w.z.paczka_nr ? ` · ${w.z.paczka_nr}` : ''}`}>{wys.label}</span>
+                : w.zlecenia.length ? <span className="crm-muted">{w.zlecenia.map(({ o }) => `${o.category} ${o.order_number}`).join(', ')}</span> : null}
+          </span>
+        )
+      },
     },
-    {
-      key: 'wysylka', label: 'Wysyłka', sortValue: (w) => w.wysylka,
-      render: (w) => { const s = STAN_WYSYLKI[w.wysylka]; return w.wysylka === 'brak' ? <span className="crm-muted">—</span> : <span className={`crm-status ${s.cls}`} title={`${s.title}${w.z.paczka_nr ? ` · ${w.z.paczka_nr}` : ''}`}>{s.label}</span> },
-    },
-    { key: 'termin', label: 'Termin', sortValue: (w) => w.termin, render: (w) => w.termin },
+    { key: 'termin', label: 'Termin', sortValue: (w) => w.termin, render: (w) => <span className="crm-muted">{w.termin}</span> },
   ], [])
 
   if (loading && !panel) return <div className="crm-screen"><Spinner /></div>
   if (error) return <div className="crm-screen"><section><p className="crm-text-bad">{error.message}</p></section></div>
 
-  const uwagiLista = wiersze.filter((w) => w.uwagi.length > 0)
   return (
     <div className="crm-screen crm-zam">
+      <div className="crm-head">
+        <div className="crm-head-tekst">
+          <h2>Zamówienia ze sklepu</h2>
+          <span className="crm-head-sub">
+            Z Baselinkera, z tym, gdzie są na produkcji w KR Center
+            {ust.bl_sync_ostatni_at ? ` · pobrane ${fmtDateTime(ust.bl_sync_ostatni_at)}` : ' · jeszcze nie pobierano'}
+            {ust.bl_sync_od ? ` · od ${fmtDate(ust.bl_sync_od)}` : ''}
+          </span>
+        </div>
+        <div className="crm-head-akcje">
+          <button type="button" className="btn btn-secondary" disabled={busy || !tokenOk} onClick={() => void odswiez()} title="Pobierz zamówienia z Baselinkera teraz (automat robi to co 15 min)">
+            {busy ? <Spinner inline size={14} /> : null} Pobierz teraz
+          </button>
+        </div>
+      </div>
+
       {!tokenOk && (
         <section className="crm-zam-alert">
           Synchronizacja z Baselinkerem czeka na token API. Właściciel wpisuje go w <b>Ustawienia → Baselinker</b>; zamówienia pojawią się po pierwszym pobraniu.
@@ -296,37 +315,30 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
         <section className="crm-zam-alert crm-zam-alert--bad">Ostatnie pobranie z Baselinkera nie wyszło: {ust.bl_sync_ostatni_blad}</section>
       )}
 
-      <div className="crm-toolbar">
-        <div className="crm-chipy" role="tablist" aria-label="Filtr zamówień">
-          {FILTRY.map((f) => (
-            <button key={f.id} type="button" role="tab" aria-selected={filtr === f.id} className={`crm-chip${filtr === f.id ? ' crm-chip--on' : ''}`} onClick={() => setFiltr(f.id)}>
-              {f.label} <span className="crm-chip-n">{liczniki[f.id]}</span>
-            </button>
-          ))}
+      <div className="crm-filtry">
+        <div className="crm-seg" role="group" aria-label="Które zamówienia">
+          {FILTRY_GLOWNE.map((id) => {
+            const f = FILTRY.find((x) => x.id === id)!
+            return (
+              <button key={id} type="button" className={`crm-seg-btn${filtr === id ? ' crm-seg-btn--on' : ''}`} aria-pressed={filtr === id} onClick={() => setFiltr(id)}>
+                {f.label} <span className="crm-seg-n">{liczniki[id]}</span>
+              </button>
+            )
+          })}
         </div>
-        <input type="search" className="crm-zam-szukaj" placeholder="Szukaj: nr BL, nazwisko, mail, telefon, nr zlecenia KR, RO…" value={szukaj} onChange={(e) => setSzukaj(e.target.value)} aria-label="Szukaj zamówienia" />
-        <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !tokenOk} onClick={() => void odswiez()} title="Pobierz zamówienia z Baselinkera teraz (automat robi to co 15 min)">
-          {busy ? <Spinner inline size={14} /> : null} Odśwież z Baselinkera
-        </button>
-        <span className="crm-toolbar-hint">
-          {ust.bl_sync_ostatni_at ? `pobrane ${fmtDateTime(ust.bl_sync_ostatni_at)}` : 'jeszcze nie pobierano'}
-          {ust.bl_sync_od ? ` · zamówienia od ${fmtDate(ust.bl_sync_od)}` : ''}
-        </span>
+        <div className="crm-zam-filtry-prawe">
+          <select value={FILTRY_GLOWNE.includes(filtr) ? '' : filtr} onChange={(e) => setFiltr((e.target.value || 'wszystkie') as Filtr)} aria-label="Pozostałe filtry">
+            <option value="">Więcej…</option>
+            {FILTRY.filter((f) => !FILTRY_GLOWNE.includes(f.id)).map((f) => <option key={f.id} value={f.id}>{f.label} ({liczniki[f.id]})</option>)}
+          </select>
+          <input type="search" className="crm-zam-szukaj" placeholder="Szukaj: nr BL, nazwisko, mail, telefon, zlecenie KR, RO" value={szukaj} onChange={(e) => setSzukaj(e.target.value)} aria-label="Szukaj zamówienia" />
+        </div>
       </div>
 
-      {/* 25.11 (Tymek: „lista ostrzegawcza z dupy, nie widać zamówień”): jeden pasek zamiast listy — powody są w wierszach
-          (filtr „Wymagają uwagi”), zlecenia KR bez pary zwinięte */}
-      {(uwagiLista.length > 0 || sieroty.length > 0) && (
-        <div className="crm-zam-uwagi-bar">
-          {uwagiLista.length > 0 && (
-            <button type="button" className={`crm-chip crm-zam-uwagi-chip${filtr === 'uwaga' ? ' crm-chip--on' : ''}`} onClick={() => setFiltr(filtr === 'uwaga' ? 'wszystkie' : 'uwaga')} title="Pokaż tylko zamówienia z uwagą (powód w wierszu)">
-              {uwagiLista.length} {uwagiLista.length === 1 ? 'zamówienie wymaga' : uwagiLista.length < 5 ? 'zamówienia wymagają' : 'zamówień wymaga'} uwagi
-            </button>
-          )}
-          {sieroty.length > 0 && (
-            <details className="crm-zam-sieroty">
-              <summary>{sieroty.length} otwartych zleceń KR Po Drzwi bez pary w sklepie</summary>
-              <ul>
+      {sieroty.length > 0 && (
+        <details className="crm-baner crm-baner--warn crm-zam-sieroty">
+          <summary><b>{sieroty.length} otwartych zleceń KR Po Drzwi</b> bez pary w sklepie — rozwiń, żeby powiązać</summary>
+          <ul>
             {sieroty.map((o) => (
               <li key={`o${o.id}`}>
                 zlecenie KR <b>{o.category} {o.order_number}</b> „{o.client_order_number || 'bez numeru klienta'}” ({fmtDate(o.order_date)}){' '}
@@ -337,10 +349,8 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
                 {onOpenOrder && <> · <button type="button" className="crm-link" onClick={() => onOpenOrder(o)}>otwórz zlecenie</button></>}
               </li>
             ))}
-              </ul>
-            </details>
-          )}
-        </div>
+          </ul>
+        </details>
       )}
 
       <DataTable
