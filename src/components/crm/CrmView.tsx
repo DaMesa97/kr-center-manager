@@ -91,7 +91,8 @@ import { appConfirm } from '../../lib/appDialogs'
 /** runda 4: dozwolone zmiany statusu dokumentu CRM (podpisanej/anulowanej nie cofamy; „Wysłana” tylko dla umowy). */
 function dozwoloneStatusyDokumentu(d: { status: string; rodzaj: string }): string[] {
   if (d.status === 'anulowana') return []
-  if (d.status === 'podpisana') return ['anulowana']
+  // podpisanej też nie anulujemy (trigger w bazie, migracja 233500) — odstąpienie od umowy: do decyzji właściciela
+  if (d.status === 'podpisana') return []
   const wszystkie = d.rodzaj === 'umowa' ? ['projekt', 'wyslana', 'podpisana', 'anulowana'] : ['blankiet', 'projekt', 'podpisana', 'anulowana']
   return wszystkie.filter((k) => k !== d.status)
 }
@@ -2990,7 +2991,7 @@ function LeadScreen({
                       )}
                       <span className="crm-muted"> · {fmtDate(d.created_at)}{szczegol ? ` · ${szczegol}` : ''}</span>
                       <span className={`crm-status ${st.cls}`}>{st.label}</span>
-                      <select className="crm-dok-status" value={d.status} onChange={(e) => void handleDokumentStatus(d, e.target.value)} disabled={saving || d.status === 'anulowana'} aria-label={`Status: ${label}`} title="Status zmieniasz ręcznie: umowa → Wysłana po Autenti, Podpisana po podpisie; karta/protokół → Podpisana po skanie">
+                      <select className="crm-dok-status" value={d.status} onChange={(e) => void handleDokumentStatus(d, e.target.value)} disabled={saving || d.status === 'anulowana' || d.status === 'podpisana'} aria-label={`Status: ${label}`} title="Status zmieniasz ręcznie: umowa → Wysłana po Autenti, Podpisana po podpisie; karta/protokół → Podpisana po skanie">
                         {Object.entries(CRM_DOKUMENT_STATUS).filter(([k]) => k === d.status || dozwoloneStatusyDokumentu(d).includes(k)).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                       </select>
                       {d.status !== 'podpisana' && d.status !== 'anulowana' && (
