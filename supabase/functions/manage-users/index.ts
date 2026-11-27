@@ -55,7 +55,8 @@ serve(async (req) => {
     // wszystkie kategorie mieszczą się w jego kategoriach. Profil zakłada
     // klient; pilnują tego polityki profiles_insert/update w bazie.
     // Superadmin (CRM Po Drzwi, 14.11.2026) ma przy zarządzaniu kontami prawa admina;
-    // dodatkowo tylko on rusza konta innych superadminów (superadminDenyReason).
+    // dodatkowo tylko on rusza konta innych superadminów i kont z dostępem do CRM
+    // (superadminDenyReason).
     const callerRole = String(profile?.role ?? '')
     const isAdmin = ['manager', 'admin', 'superadmin'].includes(callerRole)
     const isSuperadmin = callerRole === 'superadmin'
@@ -88,12 +89,24 @@ serve(async (req) => {
     // Konto superadministratora: dezaktywacja (ban) i reset hasła idą kluczem
     // service_role poza RLS, więc baza ich nie zablokuje — pilnuje tego funkcja.
     // Usunięcie profilu blokuje też trigger trg_protect_superadmin_role.
+    // Testy 27.11 (runda 3): tak samo chronione jest konto z dostępem do CRM Po Drzwi
+    // (wiersz w crm.dostep) — to osobna firma, dostęp nadaje tylko superadmin, a admin
+    // KR Center resetem hasła mógłby zalogować się jako handlowiec.
     const superadminDenyReason = async (user_id: string): Promise<string | null> => {
       if (isSuperadmin) return null
       const { data: target } = await supabaseAdmin.from('profiles').select('role').eq('id', user_id).maybeSingle()
-      return String(target?.role ?? '') === 'superadmin'
-        ? 'Kontem superadministratora zarządza tylko superadministrator'
-        : null
+      if (String(target?.role ?? '') === 'superadmin') {
+        return 'Kontem superadministratora zarządza tylko superadministrator'
+      }
+      const { data: crmRow, error: crmErr } = await supabaseAdmin
+        .schema('crm')
+        .from('dostep')
+        .select('user_id')
+        .eq('user_id', user_id)
+        .maybeSingle()
+      // nie wiemy, czy konto ma dostęp do CRM — bezpieczniej odmówić
+      if (crmErr) return 'Nie udało się sprawdzić dostępu do CRM Po Drzwi — spróbuj ponownie'
+      return crmRow ? 'Kontem z dostępem do CRM Po Drzwi zarządza tylko superadministrator' : null
     }
     const deny = (reason: string) =>
       new Response(JSON.stringify({ error: reason }), {

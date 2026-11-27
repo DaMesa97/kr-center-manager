@@ -18,23 +18,46 @@ type FakeOpts = {
   deleteError?: { message: string } | null
   /** profile kont docelowych (po id) — do ochrony superadmina (maybeSingle) */
   targets?: Record<string, { role: string; categories?: string[] }>
+  /** konta z wpisem w crm.dostep (dostęp do CRM Po Drzwi) */
+  crmUsers?: string[]
+  /** błąd odczytu crm.dostep (np. chwilowa awaria) */
+  crmError?: { message: string } | null
 }
 
 function makeFakeSupabase(opts: FakeOpts) {
-  const { callerId = 'caller-1', role = 'admin', createdUserId = 'new-user-1', deleteError = null, targets = {} } = opts
+  const {
+    callerId = 'caller-1',
+    role = 'admin',
+    createdUserId = 'new-user-1',
+    deleteError = null,
+    targets = {},
+    crmUsers = [],
+    crmError = null,
+  } = opts
   const calls = { created: [] as unknown[], deleted: [] as string[], updated: [] as string[] }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const builder: any = {}
-  let lastEq: string | null = null
-  builder.select = () => builder
-  builder.eq = (_col: string, v: string) => {
-    lastEq = v
+  const makeBuilder = (schema: string, table: string): any => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const builder: any = {}
+    let lastEq: string | null = null
+    builder.select = () => builder
+    builder.eq = (_col: string, v: string) => {
+      lastEq = v
+      return builder
+    }
+    builder.single = async () => ({ data: { role }, error: null })
+    builder.maybeSingle = async () => {
+      if (schema === 'crm' && table === 'dostep') {
+        if (crmError) return { data: null, error: crmError }
+        return { data: lastEq && crmUsers.includes(lastEq) ? { user_id: lastEq } : null, error: null }
+      }
+      return { data: lastEq && targets[lastEq] ? targets[lastEq] : null, error: null }
+    }
     return builder
   }
-  builder.single = async () => ({ data: { role }, error: null })
-  builder.maybeSingle = async () => ({ data: lastEq && targets[lastEq] ? targets[lastEq] : null, error: null })
   const supabase = {
-    from: () => builder,
+    from: (table: string) => makeBuilder('public', table),
+    schema: (schema: string) => ({ from: (table: string) => makeBuilder(schema, table) }),
     auth: {
       getUser: async () =>
         callerId
@@ -169,5 +192,41 @@ describe('manage-users — superadmin i CRM Po Drzwi', () => {
     expect((await handler()(post({ action: 'deactivate', user_id: 'sa-2' }))).status).toBe(200)
     expect((await handler()(post({ action: 'reset_password', user_id: 'sa-2', password: 'nowehaslo' }))).status).toBe(200)
     expect(calls.updated).toEqual(['sa-2', 'sa-2'])
+  })
+})
+
+// Testy 27.11 (runda 3): konto z dostępem do CRM Po Drzwi (crm.dostep) — jak superadmin.
+describe('manage-users — konta z dostępem do CRM Po Drzwi', () => {
+  it('admin nie resetuje hasła, nie dezaktywuje i nie usuwa konta z wpisem w crm.dostep → 403', async () => {
+    const targets = { 'h-1': { role: 'obsluga_klienta' } }
+    const { supabase, calls } = makeFakeSupabase({ role: 'admin', targets, crmUsers: ['h-1'] })
+    __setSupabaseClient(supabase)
+    for (const body of [
+      { action: 'reset_password', user_id: 'h-1', password: 'nowehaslo' },
+      { action: 'deactivate', user_id: 'h-1' },
+      { action: 'reactivate', user_id: 'h-1' },
+      { action: 'delete', user_id: 'h-1' },
+    ]) {
+      const res = await handler()(post(body))
+      expect(res.status, body.action).toBe(403)
+      expect(((await res.json()) as { error: string }).error).toMatch(/CRM Po Drzwi/)
+    }
+    expect(calls.updated).toEqual([])
+    expect(calls.deleted).toEqual([])
+  })
+
+  it('superadmin zarządza kontem z dostępem do CRM', async () => {
+    const { supabase, calls } = makeFakeSupabase({ role: 'superadmin', crmUsers: ['h-1'] })
+    __setSupabaseClient(supabase)
+    expect((await handler()(post({ action: 'reset_password', user_id: 'h-1', password: 'nowehaslo' }))).status).toBe(200)
+    expect((await handler()(post({ action: 'deactivate', user_id: 'h-1' }))).status).toBe(200)
+    expect(calls.updated).toEqual(['h-1', 'h-1'])
+  })
+
+  it('błąd odczytu crm.dostep → odmowa (nie zgadujemy)', async () => {
+    const { supabase, calls } = makeFakeSupabase({ role: 'admin', crmError: { message: 'timeout' } })
+    __setSupabaseClient(supabase)
+    expect((await handler()(post({ action: 'reset_password', user_id: 'x-1', password: 'nowehaslo' }))).status).toBe(403)
+    expect(calls.updated).toEqual([])
   })
 })
