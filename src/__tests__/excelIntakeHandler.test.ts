@@ -447,3 +447,73 @@ describe('orders-excel-intake — handler HTTP', () => {
     expect(body.summary).toMatchObject({ received: 1, created: 1 })
   })
 })
+
+// Testy 27.11 (runda 3): wiersz z Excela z tym samym klientem i nr zamówienia co bot,
+// ale INNYM towarem / wykonawcą znikał po cichu jako duplicate_bot (45 dni: 5 przypadków).
+describe('orders-excel-intake — bliźniak z bota z innym towarem → Weryfikacja', () => {
+  const DIST_ROW = {
+    'Nazwa firmy': 'FIRMA X', System: 'DISTING', 'Numer zlecenia': '3913', 'Numer zamówienia': 'ZAM/77/2026',
+    Model: 'TORINO 13', 'Szerokość': '80N', 'Ilość': '1', Typ: 'CD',
+  }
+  const botRow = (over: Record<string, unknown> = {}) => ({
+    id: 16433, order_number: '16433', company: 'FIRMA X', client_order_number: 'ZAM/77/2026',
+    model: 'TORINO 13', width: '80N', quantity: 1, extra_fields: { wykonawca: 'Center' }, ...over,
+  })
+  const base = { id: 21, order_number: '3913', category: 'Disting', system: 'DISTING', extra_fields: {}, linked_order_id: null }
+
+  it('inna szerokość niż u bota → wstawione z needs_review i ostrzeżeniem z numerem bota', async () => {
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: [], error: null }, // dedup po numerze: brak
+        { data: [botRow({ width: '90E' })], error: null }, // findBotTwin
+        { data: base, error: null }, // insert
+        { data: base, error: null }, // partner check
+        { data: base, error: null }, // titan check
+      ],
+      VALID_KEY_RPCS,
+    )
+    __setSupabaseClient(supabase)
+    const res = await handler()(post([DIST_ROW]))
+    const body = (await res.json()) as { summary: Record<string, number>; results: Array<Record<string, unknown>> }
+    expect(body.summary).toMatchObject({ received: 1, created: 1, bot_duplicates: 0 })
+    expect(body.results[0]).toMatchObject({ status: 'created', needs_review: true, bot_order_number: '16433' })
+    expect(calls.inserted).toHaveLength(1)
+    const ef = (calls.inserted[0][0] as { extra_fields: Record<string, unknown> }).extra_fields
+    expect(ef.needs_review).toBe(true)
+    expect((ef.warnings as string[])[0]).toContain('zlecenia z bota nr 16433')
+    expect((ef.warnings as string[])[0]).toContain('szerokość 80N ≠ 90E')
+    expect(ef.bot_twin_diff).toMatchObject({ bot_order_id: 16433 })
+  })
+
+  it('inny wykonawca / ilość → Weryfikacja; wszystko zgodne → duplicate_bot jak dotąd', async () => {
+    const run = async (bot: Record<string, unknown>, queueTail: unknown[]) => {
+      const { supabase, calls } = makeFakeSupabase([{ data: [], error: null }, { data: [bot], error: null }, ...queueTail], VALID_KEY_RPCS)
+      __setSupabaseClient(supabase)
+      const body = (await (await handler()(post([DIST_ROW]))).json()) as { results: Array<Record<string, unknown>> }
+      return { r: body.results[0], calls }
+    }
+    const tail = [{ data: base, error: null }, { data: base, error: null }, { data: base, error: null }]
+    const wyk = await run(botRow({ extra_fields: { wykonawca: 'Profil' } }), tail)
+    expect(wyk.r).toMatchObject({ status: 'created', needs_review: true })
+    expect((wyk.r.bot_diffs as string[]).join()).toContain('wykonawca Center ≠ Profil')
+    const qty = await run(botRow({ quantity: 3 }), tail)
+    expect((qty.r.bot_diffs as string[]).join()).toContain('ilość 1 ≠ 3')
+    const same = await run(botRow(), [])
+    expect(same.r).toMatchObject({ status: 'duplicate_bot', bot_order_number: '16433' })
+    expect(same.calls.inserted).toHaveLength(0)
+  })
+
+  it('kilka zleceń bota z tym numerem klienta — jedno zgodne wystarcza do duplicate_bot', async () => {
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: [], error: null },
+        { data: [botRow({ id: 1, order_number: '1', width: '90E' }), botRow({ id: 2, order_number: '2' })], error: null },
+      ],
+      VALID_KEY_RPCS,
+    )
+    __setSupabaseClient(supabase)
+    const body = (await (await handler()(post([DIST_ROW]))).json()) as { results: Array<Record<string, unknown>> }
+    expect(body.results[0]).toMatchObject({ status: 'duplicate_bot', bot_order_id: 2 })
+    expect(calls.inserted).toHaveLength(0)
+  })
+})

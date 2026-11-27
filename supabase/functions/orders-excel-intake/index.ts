@@ -273,7 +273,9 @@ export const mapExcelRow = (row: Record<string, unknown>): Record<string, unknow
 // Gałąź Make dopisuje zamówienia konfiguratora TAKŻE do Excela (arkusz musi
 // je mieć — pracują z niego handlowcy), więc to samo zamówienie wchodziłoby
 // do bazy drugi raz przy imporcie. Wiersz pomijamy, gdy istnieje świeże
-// zlecenie z bota o tym samym numerze zamówienia klienta + firmie + kategorii.
+// zlecenie z bota o tym samym numerze zamówienia klienta + firmie + kategorii
+// i zgodnym towarze (model, szerokość, ilość, wykonawca); przy różnicach wiersz
+// wchodzi z needs_review do Weryfikacji (testy 27.11, runda 3).
 
 // Numer klienta nadający się do porównania: min. 3 znaki i choć jedna
 // litera/cyfra (odpada '-', '—', puste)
@@ -317,10 +319,34 @@ const sameProduct = (a: Record<string, unknown>, b: Record<string, unknown>): bo
 const CONTENT_TWIN_WINDOW_MS = 6 * 3600 * 1000
 const PRODUCT_COLUMNS = 'id, order_number, company, client_order_number, model, width, height, wing_color, direction, quantity'
 
+// Testy 27.11 (runda 3): ta sama firma + numer zamówienia klienta to za mało, by
+// po cichu pominąć wiersz z Excela — 45 dni: 5 przypadków z innym towarem albo
+// wykonawcą (np. Disting 80N vs bot 90E; STA 2+1+1 vs bot ilość 3). Zasada
+// właściciela bez zmian: przy dublu zostaje wersja z bota — ale gdy model,
+// szerokość, ilość albo wykonawca się różnią, wiersz wchodzi do Weryfikacji.
+// Zwraca listę różnic (pusta = zgodne → pomijamy jak dotąd).
+export const botTwinDiffs = (bot: Record<string, unknown>, excel: Record<string, unknown>): string[] => {
+  const n = (v: unknown) => String(v ?? '').trim().toUpperCase()
+  const show = (v: unknown) => String(v ?? '').trim() || '(puste)'
+  const diffs: string[] = []
+  if (n(excel.model) !== n(bot.model)) diffs.push(`model ${show(excel.model)} ≠ ${show(bot.model)}`)
+  if (n(excel.width) !== n(bot.width)) diffs.push(`szerokość ${show(excel.width)} ≠ ${show(bot.width)}`)
+  const qe = Number(excel.quantity) || 1
+  const qb = Number(bot.quantity) || 1
+  if (qe !== qb) diffs.push(`ilość ${qe} ≠ ${qb}`)
+  const wyk = (o: Record<string, unknown>) => {
+    const ef = o.extra_fields && typeof o.extra_fields === 'object' ? (o.extra_fields as Record<string, unknown>) : {}
+    return String(ef.wykonawca ?? '').trim()
+  }
+  // wykonawca porównywany tylko, gdy znany po obu stronach
+  if (wyk(excel) && wyk(bot) && n(wyk(excel)) !== n(wyk(bot))) diffs.push(`wykonawca ${wyk(excel)} ≠ ${wyk(bot)}`)
+  return diffs
+}
+
 const findBotTwin = async (
   supabase: any,
   payload: Record<string, unknown>,
-): Promise<{ id: number; order_number: string } | null> => {
+): Promise<{ id: number; order_number: string; diffs: string[] } | null> => {
   const clientNo = String(payload.client_order_number ?? '').trim().toUpperCase()
   const company = String(payload.company ?? '').trim().toUpperCase()
   if (!company) return null
@@ -329,19 +355,24 @@ const findBotTwin = async (
     const since = new Date(Date.now() - BOT_TWIN_WINDOW_DAYS * 86400 * 1000).toISOString()
     const { data } = await supabase
       .from('orders')
-      .select('id, order_number, company, client_order_number')
+      .select('id, order_number, company, client_order_number, model, width, quantity, extra_fields')
       .eq('category', String(payload.category ?? ''))
       .eq('source', 'bot')
       .gte('created_at', since)
+    // wszystkie zlecenia z bota z tym numerem klienta — wystarczy, że jedno jest zgodne
+    let firstDiff: { id: number; order_number: string; diffs: string[] } | null = null
     for (const row of (data ?? []) as Array<Record<string, unknown>>) {
       if (
         companiesMatch(row.company, company) &&
         String(row.client_order_number ?? '').trim().toUpperCase() === clientNo
       ) {
-        return { id: Number(row.id), order_number: String(row.order_number ?? '') }
+        const diffs = botTwinDiffs(row, payload)
+        const twin = { id: Number(row.id), order_number: String(row.order_number ?? ''), diffs }
+        if (diffs.length === 0) return twin
+        if (!firstDiff) firstDiff = twin
       }
     }
-    return null
+    return firstDiff
   }
 
   // Numer klienta nieporównywalny → bliźniak z bota po treści w wąskim oknie
@@ -354,7 +385,7 @@ const findBotTwin = async (
     .gte('created_at', since)
   for (const row of (data ?? []) as Array<Record<string, unknown>>) {
     if (companiesMatch(row.company, company) && sameProduct(row, payload)) {
-      return { id: Number(row.id), order_number: String(row.order_number ?? '') }
+      return { id: Number(row.id), order_number: String(row.order_number ?? ''), diffs: [] }
     }
   }
   return null
@@ -568,12 +599,28 @@ serve(async (req) => {
 
       // Dedup krzyżowy: to zamówienie weszło już z konfiguratora przez API
       const botTwin = await findBotTwin(supabase, payload)
-      if (botTwin) {
+      if (botTwin && botTwin.diffs.length === 0) {
         results.push({
           index: i, status: 'duplicate_bot', order_number: orderNumber, category,
           bot_order_id: botTwin.id, bot_order_number: botTwin.order_number,
         })
         continue
+      }
+      // Testy 27.11 (runda 3): ten sam klient i numer zamówienia, ale inny towar /
+      // wykonawca → nie znika po cichu: wstawiamy z flagą do Weryfikacji
+      // (tak jak przy konflikcie numeru), decyzja należy do człowieka.
+      if (botTwin) {
+        const ef = (payload.extra_fields as Record<string, unknown>) ?? {}
+        const prevWarnings = Array.isArray(ef.warnings) ? (ef.warnings as string[]) : []
+        payload.extra_fields = {
+          ...ef,
+          needs_review: true,
+          warnings: [
+            ...prevWarnings,
+            `Różni się od zlecenia z bota nr ${botTwin.order_number} (ta sama firma i nr zamówienia klienta): ${botTwin.diffs.join(', ')} — sprawdź, czy to nie dubel`,
+          ],
+          bot_twin_diff: { bot_order_id: botTwin.id, bot_order_number: botTwin.order_number, diffs: botTwin.diffs },
+        }
       }
 
       // Kolizja w chwili zapisu (równoległy wiersz zajął numer) — nowy numer
@@ -603,7 +650,10 @@ serve(async (req) => {
       // rezerwacja magazynowa (nogi rezerwują się w helperach)
       await reserveStock(supabase, Number(inserted.id))
 
-      results.push({ index: i, status: 'created', order_id: inserted.id, order_number: inserted.order_number, category: inserted.category })
+      results.push({
+        index: i, status: 'created', order_id: inserted.id, order_number: inserted.order_number, category: inserted.category,
+        ...(botTwin ? { needs_review: true, bot_order_id: botTwin.id, bot_order_number: botTwin.order_number, bot_diffs: botTwin.diffs } : {}),
+      })
     }
 
     const created = results.filter((r) => r.status === 'created').length
