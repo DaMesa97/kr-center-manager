@@ -274,3 +274,8 @@
 .crm-ml-kier { color: var(--crm-muted); font-weight: 700; }
 .crm-ml-temat { max-width: 640px; }
 .crm-view .crm-mail-summary { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Statystyki */
+.crm-view .crm-stat-card summary { cursor: pointer; font-weight: 600; }
+.crm-view .crm-stat-card h4 { margin-bottom: 8px; }
+.crm-view .crm-stat-pasek > span { background: var(--crm-accent); }

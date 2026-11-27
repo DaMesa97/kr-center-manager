@@ -68,25 +68,25 @@ export default function CrmStatystykiScreen() {
 
   return (
     <div className="crm-screen crm-stat">
-      <div className="crm-toolbar">
-        <div className="crm-chipy" role="group" aria-label="Okres">
+      {/* v3 (makieta „Statystyki”, 27.11): nagłówek, okres w szarej pigułce, 4 kafelki zamiast 7 */}
+      <div className="crm-head">
+        <div className="crm-head-tekst">
+          <h2>Statystyki</h2>
+          <span className="crm-head-sub">Wszyscy klienci, także zamknięci i schowani w lejku · po dacie wyniku</span>
+        </div>
+        <div className="crm-seg" role="group" aria-label="Okres">
           {OKRESY.map((o) => (
-            <button key={o.key} type="button" className={`crm-chip${okres === o.key ? ' crm-chip--on' : ''}`} aria-pressed={okres === o.key} onClick={() => setOkres(o.key)}>{o.label}</button>
+            <button key={o.key} type="button" className={`crm-seg-btn${okres === o.key ? ' crm-seg-btn--on' : ''}`} aria-pressed={okres === o.key} onClick={() => setOkres(o.key)}>{o.label}</button>
           ))}
         </div>
-        <span className="crm-toolbar-hint">Wszyscy klienci, także zamknięci i schowani w lejku.</span>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()}>Odśwież</button>
       </div>
       {error && <p className="crm-text-bad">{error.message}</p>}
 
-      <div className="crm-stat-kpi">
-        <div className="crm-kpi"><span className="crm-kpi-label">Nowi klienci</span><b>{s.kpi.nowi}</b></div>
-        <div className="crm-kpi"><span className="crm-kpi-label">Wysłane oferty</span><b>{s.kpi.wyslane.n} · {fmtPln(s.kpi.wyslane.suma)}</b></div>
-        <div className="crm-kpi crm-kpi--won"><span className="crm-kpi-label">Zamówili</span><b>{s.kpi.zamowili.n} · {fmtPln(s.kpi.zamowili.suma)}</b></div>
-        <div className="crm-kpi"><span className="crm-kpi-label">Przegrani</span><b>{s.kpi.przegrani}</b></div>
-        <div className="crm-kpi"><span className="crm-kpi-label" title="Zamówili / (zamówili + przegrani), po dacie wyniku">Skuteczność</span><b>{fmtProc(s.kpi.skutecznosc)}</b></div>
-        <div className="crm-kpi"><span className="crm-kpi-label">Średnie zamówienie</span><b>{fmtPln(s.kpi.srWartosc)}</b></div>
-        <div className="crm-kpi"><span className="crm-kpi-label" title="Od pierwszego kontaktu do „Zamówił”">Śr. czas do zamówienia</span><b>{s.kpi.srDniDoZamowienia == null ? '—' : `${s.kpi.srDniDoZamowienia} dni`}</b></div>
+      <div className="crm-kafle">
+        <div className="crm-kafel"><span>Nowi klienci</span><b>{s.kpi.nowi}</b></div>
+        <div className="crm-kafel"><span>Wysłane oferty</span><b>{s.kpi.wyslane.n}</b><span>za {fmtPln(s.kpi.wyslane.suma)}</span></div>
+        <div className="crm-kafel"><span>Zamówili</span><b className="crm-kafel--ok">{s.kpi.zamowili.n}</b><span>za {fmtPln(s.kpi.zamowili.suma)} · średnio {fmtPln(s.kpi.srWartosc)}</span></div>
+        <div className="crm-kafel" title="Zamówili / (zamówili + przegrani), po dacie wyniku"><span>Skuteczność</span><b>{fmtProc(s.kpi.skutecznosc)}</b><span>przegrani {s.kpi.przegrani}{s.kpi.srDniDoZamowienia == null ? '' : ` · śr. ${s.kpi.srDniDoZamowienia} dni do zamówienia`}</span></div>
       </div>
 
       <div className="crm-stat-wykresy">
@@ -99,9 +99,9 @@ export default function CrmStatystykiScreen() {
               <YAxis allowDecimals={false} fontSize={12} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="nowi" name="Nowi" fill="#94a3b8" />
-              <Bar dataKey="zamowili" name="Zamówili" fill="#059669" />
-              <Bar dataKey="przegrani" name="Przegrani" fill="#dc2626" />
+              <Bar dataKey="nowi" name="Nowi" fill="#c9d7fb" />
+              <Bar dataKey="zamowili" name="Zamówili" fill="#2457d6" />
+              <Bar dataKey="przegrani" name="Przegrani" fill="#b0b8c4" />
             </BarChart>
           </ResponsiveContainer>
         </section>
@@ -114,15 +114,15 @@ export default function CrmStatystykiScreen() {
               <YAxis fontSize={12} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)} tys.` : String(v))} />
               <Tooltip formatter={(v) => fmtPln(typeof v === 'number' ? v : Number(v ?? 0))} />
               <Legend />
-              <Bar dataKey="wyslaneSuma" name="Wysłane oferty" fill="#93c5fd" />
-              <Bar dataKey="wartosc" name="Zamówienia" fill="#059669" />
+              <Bar dataKey="wyslaneSuma" name="Wysłane oferty" fill="#c9d7fb" />
+              <Bar dataKey="wartosc" name="Zamówienia" fill="#2457d6" />
             </BarChart>
           </ResponsiveContainer>
         </section>
       </div>
 
-      <section className="crm-k2-card crm-stat-card">
-        <h4>Miesiące</h4>
+      <details className="crm-karta crm-stat-card">
+        <summary>Tabela miesięcy (nowi, oferty, zamówienia, przegrani)</summary>
         <div className="crm-stat-scroll">
           <table className="crm-stat-tabela">
             <thead>
@@ -143,7 +143,7 @@ export default function CrmStatystykiScreen() {
             </tbody>
           </table>
         </div>
-      </section>
+      </details>
 
       <p className="crm-muted crm-stat-uwaga">Pochodzenie i kategorie liczą klientów, którzy przyszli w wybranym okresie, i ilu z nich już zamówiło albo przegrało.</p>
       <div className="crm-stat-wykresy">
