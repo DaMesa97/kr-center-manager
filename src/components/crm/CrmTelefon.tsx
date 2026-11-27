@@ -7,15 +7,7 @@
 // Smart Phone dzwoni od razu, przypadkowy klik = przypadkowy telefon do klienta).
 // =====================================================================
 import { useState } from 'react'
-import { Check, Copy, Phone } from 'lucide-react'
-import { openExternalUrl } from '../../hooks/useAluOrders'
-import { appConfirm } from '../../lib/appDialogs'
-
-/** `tel:` tylko z cyframi i plusem — tyle przepuszcza bramka w Electronie */
-function telHref(telefon: string): string | null {
-  const t = telefon.replace(/[\s\-().]/g, '')
-  return /^\+?\d{6,15}$/.test(t) ? `tel:${t}` : null
-}
+import { telHref, zadzwonDo } from '../../lib/crmTelefon'
 
 type Props = {
   telefon: string | null | undefined
@@ -32,12 +24,7 @@ export default function CrmTelefon({ telefon, nazwa, compact = false, className 
   const t = (telefon ?? '').trim()
   if (!t) return null
   const href = telHref(t)
-  const zadzwon = async () => {
-    if (!href) return
-    const kto = (nazwa ?? '').trim()
-    const ok = await appConfirm(kto ? `Zadzwonić do ${kto} (${t})? Ringostat Smart Phone wybierze numer od razu.` : `Zadzwonić pod ${t}? Ringostat Smart Phone wybierze numer od razu.`, { title: 'Zadzwonić?', confirmLabel: 'Zadzwoń', tone: 'success' })
-    if (ok) void openExternalUrl(href)
-  }
+  const zadzwon = () => void zadzwonDo(t, nazwa)
   const kopiuj = async () => {
     try {
       await navigator.clipboard.writeText(t)
@@ -58,17 +45,17 @@ export default function CrmTelefon({ telefon, nazwa, compact = false, className 
         void zadzwon()
       }}
     >
-      {compact ? null : <Phone size={13} />} {t}
+      {t}
     </a>
   ) : (
-    <span className={`crm-copy-value${className ? ` ${className}` : ''}`}>{compact ? null : <Phone size={13} />} {t}</span>
+    <span className={`crm-copy-value${className ? ` ${className}` : ''}`}>{t}</span>
   )
   if (compact) return link
   return (
     <span className="crm-tel-wrap">
       {link}
       <button type="button" className="crm-icon-btn crm-tel-kopiuj" onClick={() => void kopiuj()} title="Kopiuj numer" aria-label="Kopiuj numer">
-        {skopiowano ? <Check size={12} /> : <Copy size={12} />}
+        {skopiowano ? 'skopiowano' : 'kopiuj'}
       </button>
     </span>
   )

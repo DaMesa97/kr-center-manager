@@ -56,3 +56,31 @@ export function zadaniePoCo(opis: string | null | undefined, hint?: string | nul
   }
   return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t
 }
+
+/** v3 (27.11): rodzaj zadania małym tekstem w wierszu zamiast ikony */
+export const ZADANIE_RODZAJ_KROTKO: Record<ZadanieRodzaj, string> = {
+  telefon: 'Telefon',
+  oferta: 'Oferta',
+  wizyta: 'Pomiar / montaż',
+}
+
+const DNI_KROTKO = ['nd', 'pon', 'wt', 'śr', 'czw', 'pt', 'sob']
+
+/**
+ * Termin w pierwszej kolumnie „Do zrobienia”: dziś → „dziś”, zaległe → „25.11”, później → „jutro” albo „sob 28.11”.
+ * `iso` = RRRR-MM-DD (albo z czasem), `dzis` = RRRR-MM-DD (domyślnie dzisiejsza data lokalna).
+ */
+export function terminZadania(iso: string | null | undefined, grupa: string, dzis: string = new Date().toLocaleDateString('sv-SE')): string {
+  if (!iso) return 'bez terminu'
+  const d = String(iso).slice(0, 10)
+  if (grupa === 'dzis' || d === dzis) return 'dziś'
+  const [r, m, dd] = d.split('-').map(Number)
+  if (!r || !m || !dd) return d
+  const krotko = `${String(dd).padStart(2, '0')}.${String(m).padStart(2, '0')}`
+  if (grupa === 'zalegle') return krotko
+  const jutro = new Date(`${dzis}T12:00:00`)
+  jutro.setDate(jutro.getDate() + 1)
+  if (d === jutro.toLocaleDateString('sv-SE')) return 'jutro'
+  const dzien = new Date(r, m - 1, dd).getDay()
+  return `${DNI_KROTKO[dzien]} ${krotko}`
+}

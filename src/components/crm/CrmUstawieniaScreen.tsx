@@ -8,7 +8,6 @@
 //    właściciel zamienia to w zasadę.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, Save, X, Pencil, Trash2, RefreshCw, Send, ArrowUp, ArrowDown } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import { CRM_ALERT_KEYS, CRM_UST_OFERTY_AUTO, CRM_DZIEN_WOLNY_RODZAJ, CRM_FIRMA_KEYS, CRM_LOGO_PATH, CRM_UST_SZKIC_HANDLOWIEC, CRM_ZASADA_GRUPA, licznikLabel, type CrmDzienWolny, type CrmLicznik, type CrmPoprawkaRow, type CrmSkrzynka, type CrmUstawienie, type CrmZasada } from '../../types/crm'
 import {
@@ -150,7 +149,7 @@ function ZasadySection({ currentUser, pushToast }: Pick<Props, 'currentUser' | '
                 <div className="crm-screen-sub">{CRM_ZASADA_GRUPA[g].hint}</div>
               </div>
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !!edit} onClick={() => setEdit({ id: null, grupa: g, tresc: '' })}>
-                <Plus size={14} /> Dodaj zasadę
+                Dodaj zasadę
               </button>
             </div>
             {edit && edit.grupa === g && edit.id === null && (
@@ -169,10 +168,10 @@ function ZasadySection({ currentUser, pushToast }: Pick<Props, 'currentUser' | '
                       </label>
                       <span className="crm-zasada-text">{z.tresc}</span>
                       <span className="crm-zasada-btns">
-                        <button type="button" className="crm-link" disabled={busy || i === 0} onClick={() => void move(z, -1)} title="Wyżej"><ArrowUp size={13} /></button>
-                        <button type="button" className="crm-link" disabled={busy || i === items.length - 1} onClick={() => void move(z, 1)} title="Niżej"><ArrowDown size={13} /></button>
-                        <button type="button" className="crm-link" disabled={busy || !!edit} onClick={() => setEdit({ id: z.id, grupa: z.grupa, tresc: z.tresc })} title="Edytuj"><Pencil size={13} /></button>
-                        <button type="button" className="crm-link" disabled={busy} onClick={() => void onDelete(z)} title="Usuń"><Trash2 size={13} /></button>
+                        <button type="button" className="crm-link" disabled={busy || i === 0} onClick={() => void move(z, -1)} title="Wyżej">↑</button>
+                        <button type="button" className="crm-link" disabled={busy || i === items.length - 1} onClick={() => void move(z, 1)} title="Niżej">↓</button>
+                        <button type="button" className="crm-link" disabled={busy || !!edit} onClick={() => setEdit({ id: z.id, grupa: z.grupa, tresc: z.tresc })} title="Edytuj">Edytuj</button>
+                        <button type="button" className="crm-link" disabled={busy} onClick={() => void onDelete(z)} title="Usuń">Usuń</button>
                       </span>
                     </>
                   )}
@@ -191,8 +190,8 @@ function ZasadaEditor({ value, onChange, onSave, onCancel, busy }: { value: stri
     <div className="crm-zasada-editor">
       <textarea className="crm-fix-textarea" rows={2} value={value} onChange={(e) => onChange(e.target.value)} placeholder="np. Kolor skrzydła nieustalony: przyjmij Antracyt gładki." autoFocus disabled={busy} />
       <div className="crm-poczta-actions">
-        <button type="button" className="btn btn-sm btn-primary" onClick={onSave} disabled={busy}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz</button>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel} disabled={busy}><X size={14} /> Anuluj</button>
+        <button type="button" className="btn btn-sm btn-primary" onClick={onSave} disabled={busy}>{busy ? <Spinner inline size={14} /> : null} Zapisz</button>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel} disabled={busy}>Anuluj</button>
       </div>
     </div>
   )
@@ -299,9 +298,9 @@ function AlertySection({ pushToast }: Pick<Props, 'pushToast'>) {
           </label>
         </div>
         <div className="crm-poczta-actions">
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy || !dirty}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz</button>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy || !dirty}>{busy ? <Spinner inline size={14} /> : null} Zapisz</button>
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onTest()} disabled={busy || dirty} title={dirty ? 'Najpierw zapisz zmiany' : 'Wyśle testowy alert na podane adresy'}>
-            <Send size={14} /> Wyślij mail próbny
+            Wyślij mail próbny
           </button>
           {dirty && <span className="crm-muted">niezapisane zmiany — zapisz przed testem</span>}
         </div>
@@ -314,7 +313,7 @@ function AlertySection({ pushToast }: Pick<Props, 'pushToast'>) {
           <li>Ostatni błąd wysyłki: {ostatniBlad ? <span className="crm-text-bad">{ostatniBlad}</span> : <span className="crm-muted">brak — ok</span>}</li>
           <li className="crm-muted">Ostatnie zgłoszone zdarzenie: #{get(ust, CRM_ALERT_KEYS.ostatnieZdarzenie) || '—'}</li>
         </ul>
-        <div className="crm-poczta-actions"><button type="button" className="crm-link" onClick={() => void load()}><RefreshCw size={13} /> odśwież</button></div>
+        <div className="crm-poczta-actions"><button type="button" className="crm-link" onClick={() => void load()}>odśwież</button></div>
       </section>
     </div>
   )
@@ -524,7 +523,7 @@ function FirmaSection({ pushToast }: Pick<Props, 'pushToast'>) {
           </>
         )}
         <div className="crm-poczta-actions">
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy || !dirty}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz</button>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy || !dirty}>{busy ? <Spinner inline size={14} /> : null} Zapisz</button>
         </div>
       </section>
 
@@ -580,7 +579,7 @@ function FirmaSection({ pushToast }: Pick<Props, 'pushToast'>) {
           </label>
         </div>
         <div className="crm-poczta-actions">
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy || !dirty}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz</button>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy || !dirty}>{busy ? <Spinner inline size={14} /> : null} Zapisz</button>
         </div>
       </section>
     </div>
@@ -653,8 +652,8 @@ function BaselinkerSection({ pushToast }: Pick<Props, 'pushToast'>) {
         </label>
       </div>
       <div className="crm-poczta-actions">
-        <button type="button" className="btn btn-sm btn-primary" disabled={busy || !token.trim()} onClick={() => void zapisz(token)}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz token</button>
-        {tokenOk && <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void synchronizuj()}><RefreshCw size={14} /> Pobierz teraz</button>}
+        <button type="button" className="btn btn-sm btn-primary" disabled={busy || !token.trim()} onClick={() => void zapisz(token)}>{busy ? <Spinner inline size={14} /> : null} Zapisz token</button>
+        {tokenOk && <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void synchronizuj()}>Pobierz teraz</button>}
         {tokenOk && <button type="button" className="crm-link" disabled={busy} onClick={() => void zapisz('')}>usuń token</button>}
       </div>
       <dl className="crm-zam-kv">
@@ -736,7 +735,7 @@ function DniWolneSection({ pushToast }: Pick<Props, 'pushToast'>) {
             <div className="crm-screen-sub">Usunąć można tylko dzień firmowy — święto wróciłoby po następnym uzupełnieniu.</div>
           </div>
           <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !!nowy} onClick={() => setNowy({ data: '', nazwa: '' })}>
-            <Plus size={14} /> Dodaj dzień firmowy
+            Dodaj dzień firmowy
           </button>
         </div>
         {nowy && (
@@ -750,8 +749,8 @@ function DniWolneSection({ pushToast }: Pick<Props, 'pushToast'>) {
               <input type="text" value={nowy.nazwa} onChange={(e) => setNowy({ ...nowy, nazwa: e.target.value })} disabled={busy} placeholder="np. inwentaryzacja, zamknięte" autoComplete="off" />
             </label>
             <div className="crm-poczta-actions">
-              <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onAdd()}>{busy ? <Spinner inline size={14} /> : <Save size={14} />} Dodaj</button>
-              <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => setNowy(null)}><X size={14} /> Anuluj</button>
+              <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onAdd()}>{busy ? <Spinner inline size={14} /> : null} Dodaj</button>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => setNowy(null)}>Anuluj</button>
             </div>
           </div>
         )}
@@ -769,7 +768,7 @@ function DniWolneSection({ pushToast }: Pick<Props, 'pushToast'>) {
                     <span className={`crm-status ${d.rodzaj === 'firmowe' ? 'crm-status--working' : 'crm-status--muted'}`}>{CRM_DZIEN_WOLNY_RODZAJ[d.rodzaj] ?? d.rodzaj}</span>
                     <span className="crm-zasada-btns">
                       {d.rodzaj === 'firmowe' && (
-                        <button type="button" className="crm-link" disabled={busy} onClick={() => void onDelete(d)} title="Usuń dzień firmowy"><Trash2 size={13} /></button>
+                        <button type="button" className="crm-link" disabled={busy} onClick={() => void onDelete(d)} title="Usuń dzień firmowy">Usuń</button>
                       )}
                     </span>
                   </li>

@@ -7,7 +7,6 @@
 // type=password, nigdy nie pokazywane, w stanie tylko do zapisu/testu.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, PlugZap, Save, MailCheck, Plus, Pencil, Trash2, X, History } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import {
   CRM_POCZTA_DEFAULT_FOLDER,
@@ -356,13 +355,13 @@ export default function CrmPocztaScreen({ currentUser, isSuperadmin, pushToast }
         </div>
         <div className="crm-poczta-actions crm-poczta-actions--head">
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onCheck()} disabled={busy !== null || rows.length === 0} title="Sprawdź wszystkie aktywne skrzynki teraz">
-            {busy === 'check:all' ? <Spinner inline size={14} /> : <MailCheck size={14} />} Sprawdź wszystkie
+            {busy === 'check:all' ? <Spinner inline size={14} /> : null} Sprawdź wszystkie
           </button>
           <button type="button" className="btn btn-sm btn-primary" onClick={startAdd} disabled={busy !== null || editing?.id === null}>
-            <Plus size={14} /> {isSuperadmin ? 'Dodaj skrzynkę' : 'Dodaj moją skrzynkę'}
+            {isSuperadmin ? 'Dodaj skrzynkę' : 'Dodaj moją skrzynkę'}
           </button>
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież">
-            <RefreshCw size={14} />
+            Odśwież
           </button>
         </div>
       </div>
@@ -458,13 +457,13 @@ export default function CrmPocztaScreen({ currentUser, isSuperadmin, pushToast }
 
           <div className="crm-poczta-actions">
             <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onTest()} disabled={busy !== null}>
-              {busy === 'test' ? <Spinner inline size={14} /> : <PlugZap size={14} />} Testuj połączenie
+              {busy === 'test' ? <Spinner inline size={14} /> : null} Testuj połączenie
             </button>
             <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy !== null || !dirty}>
-              {busy === 'save' ? <Spinner inline size={14} /> : <Save size={14} />} {editing.id ? 'Zapisz' : 'Dodaj'}
+              {busy === 'save' ? <Spinner inline size={14} /> : null} {editing.id ? 'Zapisz' : 'Dodaj'}
             </button>
             <button type="button" className="btn btn-sm btn-secondary" onClick={cancelEdit} disabled={busy !== null}>
-              <X size={14} /> Anuluj
+              Anuluj
             </button>
             {editedRow && resetsStart(editedRow, f) && <span className="crm-muted">Zmiana serwera, loginu lub folderu zeruje punkt startu: starsze maile nie będą czytane.</span>}
           </div>
@@ -521,7 +520,7 @@ export default function CrmPocztaScreen({ currentUser, isSuperadmin, pushToast }
                   </div>
                   <div className="crm-skrzynka-btns">
                     <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onCheck(s.id)} disabled={busy !== null} title="Sprawdź tę skrzynkę teraz (także wyłączoną)">
-                      {checking ? <Spinner inline size={14} /> : <MailCheck size={14} />} Sprawdź teraz
+                      {checking ? <Spinner inline size={14} /> : null} Sprawdź teraz
                     </button>
                     {isSuperadmin && s.czyta_wyslane && (
                       <button
@@ -531,16 +530,16 @@ export default function CrmPocztaScreen({ currentUser, isSuperadmin, pushToast }
                         disabled={busy !== null}
                         title={`Wczytuje ostatnie ${CRM_PROBKI_STYLU_ILE} maili z folderu Wysłane sprzed punktu startu jako próbki stylu do szkiców odpowiedzi (bez dopasowania do zadań). Można powtarzać — duplikaty są pomijane.`}
                       >
-                        {busy === `probki:${s.id}` ? <Spinner inline size={14} /> : <History size={14} />} Wczytaj {CRM_PROBKI_STYLU_ILE} wysłanych jako próbki stylu
+                        {busy === `probki:${s.id}` ? <Spinner inline size={14} /> : null} Wczytaj {CRM_PROBKI_STYLU_ILE} wysłanych jako próbki stylu
                       </button>
                     )}
                     {canEdit(s) && (
                       <>
                         <button type="button" className="btn btn-sm btn-secondary" onClick={() => startEdit(s)} disabled={busy !== null}>
-                          <Pencil size={14} /> Edytuj
+                          Edytuj
                         </button>
                         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onDelete(s)} disabled={busy !== null} title="Usuń skrzynkę (hasło i punkt startu przepadają)">
-                          <Trash2 size={14} />
+                          Usuń
                         </button>
                       </>
                     )}

@@ -5,7 +5,6 @@
 // mimeType: audio/webm;codecs=opus, awaryjnie domyślny przeglądarki (Safari: mp4).
 // =====================================================================
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Mic, Square, Trash2 } from 'lucide-react'
 import { CRM_NAGRANIE_MAX_S } from '../../types/crm'
 import Spinner from '../Spinner'
 
@@ -117,20 +116,20 @@ export default function CrmNagrajNotatke({ onRecorded, busy = false, disabled = 
     <span className="crm-rec">
       {recording ? (
         <button type="button" className={`${btnCls} crm-rec-btn--on`} onClick={stop} title="Zatrzymaj i wyślij nagranie">
-          <Square size={14} /> Stop · {fmtS(sekundy)} / {fmtS(CRM_NAGRANIE_MAX_S)}
+          Stop · {fmtS(sekundy)} / {fmtS(CRM_NAGRANIE_MAX_S)}
         </button>
       ) : pending ? (
         <>
-          <span className="crm-rec-pending"><Mic size={14} /> nagranie {fmtS(pending.sekundy)}</span>
+          <span className="crm-rec-pending">nagranie {fmtS(pending.sekundy)}</span>
           {onClear && (
             <button type="button" className={btnCls} onClick={onClear} disabled={busy || disabled} title="Usuń nagranie">
-              <Trash2 size={14} />
+              Usuń
             </button>
           )}
         </>
       ) : (
         <button type="button" className={btnCls} onClick={() => void start()} disabled={busy || disabled} title="Powiedz, czego klient chce — system spisze nagranie i policzy ofertę">
-          {busy ? <Spinner inline size={14} /> : <Mic size={14} />} Nagraj notatkę
+          {busy ? <Spinner inline size={14} /> : null} Nagraj notatkę
         </button>
       )}
       {blad && <span className="crm-text-bad crm-rec-err">{blad}</span>}

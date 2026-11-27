@@ -6,7 +6,6 @@
 // linki otwieramy przez openExternalUrl (Electron: shell:open-external).
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
-import { Pencil, Plus, Save, Trash2, X, RefreshCw } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import type { CrmPomocStrona } from '../../types/crm'
 import { addPomoc, deletePomoc, fetchPomoc, savePomoc, type CrmError } from '../../hooks/useCrm'
@@ -130,7 +129,7 @@ export default function CrmPomocScreen({ currentUser, canEdit, pushToast }: Prop
         <aside className="crm-pomoc-nav">
           <div className="crm-pomoc-nav-head">
             <b>Pomoc</b>
-            <button type="button" className="crm-link" onClick={() => void load()} title="Odśwież"><RefreshCw size={14} /></button>
+            <button type="button" className="crm-link" onClick={() => void load()} title="Odśwież">Odśwież</button>
           </div>
           {strony.length === 0 && <p className="crm-muted">Brak stron pomocy.</p>}
           <ul>
@@ -144,7 +143,7 @@ export default function CrmPomocScreen({ currentUser, canEdit, pushToast }: Prop
           </ul>
           {canEdit && (
             <button type="button" className="btn btn-sm btn-secondary crm-pomoc-add" onClick={startAdd} disabled={busy}>
-              <Plus size={14} /> Dodaj stronę
+              Dodaj stronę
             </button>
           )}
         </aside>
@@ -156,10 +155,10 @@ export default function CrmPomocScreen({ currentUser, canEdit, pushToast }: Prop
                 <input type="text" value={draft.tytul} onChange={(e) => setDraft((d) => (d ? { ...d, tytul: e.target.value } : d))} placeholder="Tytuł strony" aria-label="Tytuł strony" />
                 <div className="crm-poczta-actions">
                   <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy}>
-                    {busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz
+                    {busy ? <Spinner inline size={14} /> : null} Zapisz
                   </button>
                   <button type="button" className="btn btn-sm btn-secondary" onClick={() => setDraft(null)} disabled={busy}>
-                    <X size={14} /> Anuluj
+                    Anuluj
                   </button>
                 </div>
               </div>
@@ -180,8 +179,8 @@ export default function CrmPomocScreen({ currentUser, canEdit, pushToast }: Prop
                 </div>
                 {canEdit && (
                   <div className="crm-skrzynka-btns">
-                    <button type="button" className="btn btn-sm btn-secondary" onClick={startEdit} disabled={busy}><Pencil size={14} /> Edytuj</button>
-                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onDelete()} disabled={busy} title="Usuń stronę"><Trash2 size={14} /></button>
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={startEdit} disabled={busy}>Edytuj</button>
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onDelete()} disabled={busy} title="Usuń stronę">Usuń</button>
                   </div>
                 )}
               </div>

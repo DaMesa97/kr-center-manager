@@ -6,7 +6,6 @@
 // Panel w miejscu (bez natywnych dialogów — zasada aplikacji).
 // =====================================================================
 import { useState } from 'react'
-import { FileText, Plus, Trash2, X } from 'lucide-react'
 import type { ToastVariant } from '../../types'
 import { CRM_DOKUMENT_RODZAJ, CRM_KARTA_OTWORY_MAX, CRM_OTWOR_RODZAJ, type CrmDokument, type CrmDokumentOdp, type CrmLead, type CrmOferta } from '../../types/crm'
 import { generujDokument, type GenerujDokument, konfiguracjaPliki } from '../../hooks/useCrm'
@@ -166,7 +165,7 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
     <section className="crm-box crm-pf crm-ofic-form crm-dok-form" role="dialog" aria-label={tytul}>
       <div className="crm-screen-head">
         <div className="crm-screen-title">
-          <h4><FileText size={16} /> {tytul}</h4>
+          <h4>{tytul}</h4>
           <div className="crm-screen-sub">{CRM_DOKUMENT_RODZAJ[rodzaj]?.title}. PDF w szablonie Po Drzwi powstaje po kilku sekundach (pierwsze wywołanie do minuty).</div>
         </div>
       </div>
@@ -203,11 +202,11 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
                   {CRM_OTWOR_RODZAJ.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
                 <input type="text" value={o.pomieszczenie} onChange={(e) => setOtwory((s) => s.map((x, j) => (j === i ? { ...x, pomieszczenie: e.target.value } : x)))} placeholder="pomieszczenie (np. łazienka)" disabled={busy} />
-                <button type="button" className="crm-link" disabled={busy} onClick={() => setOtwory((s) => s.filter((_, j) => j !== i))} title="Usuń wiersz"><Trash2 size={14} /></button>
+                <button type="button" className="crm-link" disabled={busy} onClick={() => setOtwory((s) => s.filter((_, j) => j !== i))} title="Usuń wiersz">Usuń</button>
               </div>
             ))}
             <div className="crm-poczta-actions">
-              <button type="button" className="btn btn-sm btn-secondary" disabled={busy || otwory.length >= CRM_KARTA_OTWORY_MAX} onClick={() => setOtwory((s) => [...s, { rodzaj: CRM_OTWOR_RODZAJ[0], pomieszczenie: '' }])}><Plus size={14} /> Dodaj otwór</button>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={busy || otwory.length >= CRM_KARTA_OTWORY_MAX} onClick={() => setOtwory((s) => [...s, { rodzaj: CRM_OTWOR_RODZAJ[0], pomieszczenie: '' }])}>Dodaj otwór</button>
             </div>
           </div>
           <p className="crm-muted">Wymagane jest tylko nazwisko klienta. Puste pola zostają na karcie jako kropki do wpisania długopisem na pomiarze{(!lead.telefon || !lead.email) ? ` — w danych klienta brakuje: ${[!lead.telefon && 'telefon', !lead.email && 'e-mail'].filter(Boolean).join(', ')}` : ''}.</p>
@@ -312,9 +311,9 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
 
       <div className="crm-poczta-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy || (rodzaj === 'umowa' && ofertyDoUmowy.length === 0) || (rodzaj === 'protokol' && umowy.length === 0)}>
-          {busy ? <Spinner inline size={14} /> : <FileText size={14} />} {busy ? 'Składam PDF…' : istniejacy ? 'Generuj ponownie' : 'Generuj PDF'}
+          {busy ? <Spinner inline size={14} /> : null} {busy ? 'Składam PDF…' : istniejacy ? 'Generuj ponownie' : 'Generuj PDF'}
         </button>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel} disabled={busy}><X size={14} /> Anuluj</button>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel} disabled={busy}>Anuluj</button>
       </div>
     </section>
   )

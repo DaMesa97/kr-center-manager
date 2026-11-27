@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Clock, ExternalLink, Paperclip } from 'lucide-react'
 import type { CrmMail } from '../../types/crm'
 import { bezCytatu, czekaNaOdpowiedz, watek, zajawka } from '../../lib/crmKorespondencja'
 
@@ -33,7 +32,7 @@ export default function CrmKorespondencja({ maile, onOpenMail }: { maile: CrmMai
     <div className="crm-kor">
       {czeka && (
         <div className="crm-kor-czeka" role="status">
-          <Clock size={15} aria-hidden="true" /> Klient czeka na odpowiedź od {fmtDateTime(czeka.data ?? czeka.created_at)}
+          Klient czeka na odpowiedź od {fmtDateTime(czeka.data ?? czeka.created_at)}
         </div>
       )}
       <ol className="crm-kor-lista" aria-label="Maile z klientem">
@@ -54,7 +53,7 @@ export default function CrmKorespondencja({ maile, onOpenMail }: { maile: CrmMai
                     {open ? 'Zwiń' : 'Rozwiń'}
                   </button>
                   <button type="button" className="crm-link" onClick={() => onOpenMail(m.id)} title="Otwórz cały mail z nagłówkami i załącznikami">
-                    <ExternalLink size={13} aria-hidden="true" /> otwórz
+                    otwórz
                   </button>
                 </div>
                 <div className="crm-kor-temat">{m.temat || '(bez tematu)'}</div>
@@ -78,7 +77,7 @@ export default function CrmKorespondencja({ maile, onOpenMail }: { maile: CrmMai
                 {open && m.tresc_ucieta && <span className="crm-muted">Treść ucięta — pełna wersja po „otwórz”.</span>}
                 {m.zalaczniki && m.zalaczniki.length > 0 && (
                   <span className="crm-kor-zal" title={m.zalaczniki.map((z) => z.nazwa ?? '').join(', ')}>
-                    <Paperclip size={13} aria-hidden="true" /> {m.zalaczniki.map((z) => z.nazwa ?? 'załącznik').join(', ')}
+                    {m.zalaczniki.map((z) => z.nazwa ?? 'załącznik').join(', ')}
                   </span>
                 )}
               </article>

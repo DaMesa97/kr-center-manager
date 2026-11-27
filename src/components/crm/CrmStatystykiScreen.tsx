@@ -1,7 +1,6 @@
 // CRM → Statystyki (21.11): historia zamkniętych klientów, której nie ma już w bieżącym lejku —
 // ile wygraliśmy per miesiąc, skąd przychodzą klienci, dlaczego przegrywamy, kto zamyka sprzedaż.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { fetchKontakty, fetchOfertyWyslane, fetchProfileNames, type CrmError, type CrmKontaktRow } from '../../hooks/useCrm'
 import { CRM_KANAL } from '../../types/crm'
@@ -76,7 +75,7 @@ export default function CrmStatystykiScreen() {
           ))}
         </div>
         <span className="crm-toolbar-hint">Wszyscy klienci, także zamknięci i schowani w lejku.</span>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()}><RefreshCw size={14} /> Odśwież</button>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()}>Odśwież</button>
       </div>
       {error && <p className="crm-text-bad">{error.message}</p>}
 

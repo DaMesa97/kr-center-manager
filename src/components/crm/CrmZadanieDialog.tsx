@@ -5,7 +5,6 @@
 // Rysowane jako panel w miejscu (bez natywnych dialogów — zasada aplikacji).
 // =====================================================================
 import { useState } from 'react'
-import { Check, X } from 'lucide-react'
 import { CRM_AKCJA, CRM_FOLLOW_UP_DAYS, type CrmZamknijZadanie } from '../../types/crm'
 import { isoLocal, terminHint, terminHintForIso } from '../../utils/crmTermin'
 import { useDniWolne } from '../../hooks/useDniWolne'
@@ -78,7 +77,7 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
           <label key={o.akcja ?? 'nic'} className={`crm-zadanie-opcja${akcja === o.akcja ? ' crm-zadanie-opcja--on' : ''}`}>
             <input type="radio" name="crm-nastepna-akcja" checked={akcja === o.akcja} onChange={() => setAkcja(o.akcja)} disabled={busy} />
             <span>
-              <b>{o.akcja ? `${CRM_AKCJA[o.akcja]?.icon ?? ''} ` : ''}{o.label}</b>
+              <b>{o.label}</b>
               <span className="crm-muted crm-zadanie-hint">{o.hint}</span>
             </span>
           </label>
@@ -120,9 +119,9 @@ export default function CrmZadanieDialog({ klient, biezaceZadanie, busy, onConfi
       )}
       <div className="crm-poczta-actions">
         <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onConfirm({ nastepna_akcja: akcja, za_dni: termin ? Math.max(0, dniDo(termin)) : zaDni, opis, wyslano_oferte: wyslano, termin: termin || null })}>
-          {busy ? <Spinner inline size={14} /> : <Check size={14} />} {edycja ? 'Zapisz zmiany' : dodaj ? 'Dodaj zadanie' : 'Zapisz'}
+          {busy ? <Spinner inline size={14} /> : null} {edycja ? 'Zapisz zmiany' : dodaj ? 'Dodaj zadanie' : 'Zapisz'}
         </button>
-        <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onCancel}><X size={14} /> Anuluj</button>
+        <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onCancel}>Anuluj</button>
       </div>
     </section>
   )

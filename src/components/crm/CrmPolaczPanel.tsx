@@ -7,7 +7,6 @@
 // natywnych dialogów; ostatnie potwierdzenie przez appConfirm (panel aplikacji).
 // =====================================================================
 import { useState } from 'react'
-import { Merge, X } from 'lucide-react'
 import type { ToastVariant } from '../../types'
 import type { CrmStronaPolaczenia } from '../../types/crm'
 import { polaczLeady } from '../../hooks/useCrm'
@@ -79,7 +78,7 @@ export default function CrmPolaczPanel({ a, b, powod, pewnosc, domyslnyCel, opis
   return (
     <div className="crm-polacz-panel" role="dialog" aria-label="Połącz klientów">
       <p className="crm-polacz-powod">
-        <Merge size={14} /> <b>{powod}</b> <span className="crm-muted">(pewność {pewnosc}%)</span> — który kontakt ma zostać?
+        <b>{powod}</b> <span className="crm-muted">(pewność {pewnosc}%)</span> — który kontakt ma zostać?
       </p>
       <div className="crm-polacz-wybor" role="radiogroup">
         {[{ s: a, opis: opisA }, { s: b, opis: opisB }].map(({ s, opis }) => (
@@ -93,9 +92,9 @@ export default function CrmPolaczPanel({ a, b, powod, pewnosc, domyslnyCel, opis
       <p className="crm-dok-uwaga">Nieodwracalne: po połączeniu „{stronaLabel(zrodloS)}” zniknie z Kontaktów, a jego historia, oferty i dokumenty będą przy „{stronaLabel(celS)}”.</p>
       <div className="crm-poczta-actions">
         <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void run()}>
-          {busy ? <Spinner inline size={14} /> : <Merge size={14} />} Połącz
+          {busy ? <Spinner inline size={14} /> : null} Połącz
         </button>
-        <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onCancel}><X size={14} /> Anuluj</button>
+        <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onCancel}>Anuluj</button>
       </div>
     </div>
   )

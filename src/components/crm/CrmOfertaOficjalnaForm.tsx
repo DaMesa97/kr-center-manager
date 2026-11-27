@@ -8,7 +8,6 @@
 // wklejany Ctrl+V jako PNG — wszystko trafia do jednej oferty.
 // =====================================================================
 import { useEffect, useRef, useState, type ClipboardEvent } from 'react'
-import { FileText, Image as ImageIcon, Plus, Trash2, X } from 'lucide-react'
 import type { ToastVariant } from '../../types'
 import { CRM_PRODUCENCI, CRM_RODZAJ_LOKALU, CRM_USLUGI_PODPOWIEDZI, CRM_ZAKRES_PODPOWIEDZI } from '../../types/crm'
 import {
@@ -156,7 +155,7 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
     <section className="crm-box crm-pf crm-ofic-form" onPaste={onPaste}>
       <div className="crm-screen-head">
         <div className="crm-screen-title">
-          <h4><FileText size={16} /> Oferta z montażem (PDF) · {klient}</h4>
+          <h4>Oferta z montażem (PDF) · {klient}</h4>
           <div className="crm-screen-sub">Ceny i stawkę VAT przepisujemy z konfiguracji producenta, usługi wpisujesz sam. Dane o obiekcie są opcjonalne — służą do kontroli, czy stawka z pliku ma sens.</div>
         </div>
       </div>
@@ -185,10 +184,10 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
                 const thumb = thumbs.get(file)
                 return (
                   <li key={`${file.name}-${i}-${file.size}`} className="crm-konf-plik">
-                    {thumb ? <img src={thumb} alt="" className="crm-konf-thumb" /> : <span className="crm-konf-ikona" aria-hidden="true">{file.type.startsWith('image/') ? <ImageIcon size={18} /> : <FileText size={18} />}</span>}
+                    {thumb ? <img src={thumb} alt="" className="crm-konf-thumb" /> : <span className="crm-konf-ikona" aria-hidden="true">{file.type.startsWith('image/') ? 'IMG' : 'PDF'}</span>}
                     <span className="crm-konf-nazwa" title={file.name}>{file.name}</span>
                     <span className="crm-muted">{mb(file.size)} MB</span>
-                    <button type="button" className="crm-link" disabled={busy} onClick={() => removeFile(file)} title="Usuń plik" aria-label={`Usuń ${file.name}`}><Trash2 size={14} /></button>
+                    <button type="button" className="crm-link" disabled={busy} onClick={() => removeFile(file)} title="Usuń plik" aria-label={`Usuń ${file.name}`}>Usuń</button>
                   </li>
                 )
               })}
@@ -216,12 +215,12 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
           <div key={i} className="crm-usluga-row">
             <input type="text" list="crm-uslugi-podp" value={u.nazwa} onChange={(e) => setUsluga(i, { nazwa: e.target.value })} placeholder="Nazwa usługi" disabled={busy} autoComplete="off" />
             <input type="number" min={0} step={1} value={u.netto || ''} onChange={(e) => setUsluga(i, { netto: Number(e.target.value) || 0 })} placeholder="netto zł" disabled={busy} />
-            <button type="button" className="crm-link" disabled={busy} onClick={() => setF((s) => ({ ...s, uslugi: s.uslugi.filter((_, j) => j !== i) }))} title="Usuń usługę"><Trash2 size={14} /></button>
+            <button type="button" className="crm-link" disabled={busy} onClick={() => setF((s) => ({ ...s, uslugi: s.uslugi.filter((_, j) => j !== i) }))} title="Usuń usługę">Usuń</button>
           </div>
         ))}
         <datalist id="crm-uslugi-podp">{CRM_USLUGI_PODPOWIEDZI.map((p) => <option key={p} value={p} />)}</datalist>
         <div className="crm-poczta-actions">
-          <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => setF((s) => ({ ...s, uslugi: [...s.uslugi, { nazwa: '', netto: 0 }] }))}><Plus size={14} /> Dodaj usługę</button>
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => setF((s) => ({ ...s, uslugi: [...s.uslugi, { nazwa: '', netto: 0 }] }))}>Dodaj usługę</button>
           <span className="crm-muted">razem usługi: {sumaUslug.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł netto</span>
         </div>
       </div>
@@ -256,9 +255,9 @@ export default function CrmOfertaOficjalnaForm({ leadId, klient, pushToast, onCr
 
       <div className="crm-poczta-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy}>
-          {busy ? <Spinner inline size={14} /> : <FileText size={14} />} Zleć ofertę PDF
+          {busy ? <Spinner inline size={14} /> : null} Zleć ofertę PDF
         </button>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel} disabled={busy}><X size={14} /> Anuluj</button>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel} disabled={busy}>Anuluj</button>
         {busy && f.konfiguracja_pliki.length > 1 && <span className="crm-muted">Wgrywam {f.konfiguracja_pliki.length} pliki…</span>}
       </div>
     </section>

@@ -4,7 +4,6 @@
 // „bez zadania”), sort domyślnie po ostatniej aktywności. Klik = karta klienta.
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Merge, RefreshCw, Search, UserPlus } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import CrmNowyKlient from './CrmNowyKlient'
 import { CRM_AKCJA, CRM_KANAL, CRM_LEAD_STATUS, CRM_OFERTA_RODZAJ, CRM_OFERTA_STATUS, type CrmDuplikat } from '../../types/crm'
@@ -270,7 +269,7 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
         render: (r) =>
           r.nastepna_akcja ? (
             <span title={r.akcja_opis ?? undefined}>
-              {CRM_AKCJA[r.nastepna_akcja]?.icon} {CRM_AKCJA[r.nastepna_akcja]?.label ?? r.nastepna_akcja}
+              {CRM_AKCJA[r.nastepna_akcja]?.label ?? r.nastepna_akcja}
               {r.nastepny_krok ? <span className="crm-muted"> · {fmtDate(r.nastepny_krok)}</span> : null}
             </span>
           ) : (
@@ -305,7 +304,7 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
     <div className="crm-screen crm-kontakty">
       <div className="crm-toolbar">
         <label className="crm-search">
-          <Search size={14} />
+          
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Szukaj: nazwa, telefon, e-mail, miejscowość" aria-label="Szukaj klienta" />
         </label>
         <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status klienta">
@@ -315,7 +314,7 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
         </select>
         <select value={kanal} onChange={(e) => setKanal(e.target.value)} aria-label="Kanał">
           <option value="">każdy kanał</option>
-          {Object.entries(CRM_KANAL).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+          {Object.entries(CRM_KANAL).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
         <select value={etykieta} onChange={(e) => setEtykieta(e.target.value)} aria-label="Etykieta">
           <option value="">każda etykieta</option>
@@ -325,15 +324,15 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
           <input type="checkbox" checked={bezZadania} onChange={(e) => setBezZadania(e.target.checked)} /> bez zadania
         </label>
         <label className={`crm-check-inline${duplikaty.length ? ' crm-check-inline--warn' : ''}`} title="Pary klientów z tym samym telefonem, e-mailem, nazwą albo domeną firmową — do połączenia">
-          <input type="checkbox" checked={pokazDuplikaty} onChange={(e) => setPokazDuplikaty(e.target.checked)} /> <Merge size={13} /> duplikaty{duplikaty.length ? ` (${duplikaty.length})` : ''}
+          <input type="checkbox" checked={pokazDuplikaty} onChange={(e) => setPokazDuplikaty(e.target.checked)} /> duplikaty{duplikaty.length ? ` (${duplikaty.length})` : ''}
         </label>
         <div className="crm-widok" role="group" aria-label="Widok">
           <button type="button" className={`crm-widok-btn${widok === 'lista' ? ' crm-widok-btn--on' : ''}`} aria-pressed={widok === 'lista'} onClick={() => zmienWidok('lista')}>Lista</button>
           <button type="button" className={`crm-widok-btn${widok === 'lejek' ? ' crm-widok-btn--on' : ''}`} aria-pressed={widok === 'lejek'} onClick={() => zmienWidok('lejek')}>Lejek</button>
         </div>
         <span className="crm-toolbar-hint">{filtered.length} z {rows.length}</span>
-        <button type="button" className="btn btn-sm btn-primary" onClick={() => setNowyKlient((v) => !v)} aria-expanded={nowyKlient} title="Nowy klient (z wizyty w salonie, telefonu albo Facebooka / Instagrama)"><UserPlus size={14} /> Dodaj klienta</button>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież"><RefreshCw size={14} /> Odśwież</button>
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => setNowyKlient((v) => !v)} aria-expanded={nowyKlient} title="Nowy klient (z wizyty w salonie, telefonu albo Facebooka / Instagrama)">Dodaj klienta</button>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież">Odśwież</button>
       </div>
       {nowyKlient && (
         <CrmNowyKlient
@@ -350,7 +349,7 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
         <Spinner center label="Ładowanie kontaktów…" />
       ) : pokazDuplikaty ? (
         <section className="crm-dup-baner crm-dup-baner--lista">
-          <h4><Merge size={15} /> Możliwe duplikaty ({duplikaty.length})</h4>
+          <h4>Możliwe duplikaty ({duplikaty.length})</h4>
           <p className="crm-muted">Każda para raz, najpewniejsze pierwsze. „Połącz” pyta, który kontakt zostaje; drugi wchodzi w niego z całą historią (nieodwracalne).</p>
           {duplikaty.length === 0 && <p className="crm-muted">Nie ma par wyglądających na duplikaty.</p>}
           <ul className="crm-dup-lista">
@@ -368,7 +367,7 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
                   </span>
                   <span className="crm-dup-powod">{d.powod} · {d.pewnosc}%</span>
                   <button type="button" className="btn btn-sm btn-secondary" disabled={polacz != null && !open} onClick={() => setPolacz(open ? null : d)}>
-                    <Merge size={14} /> Połącz
+                    Połącz
                   </button>
                   {open && polacz && (
                     <CrmPolaczPanel

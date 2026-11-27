@@ -6,7 +6,6 @@
 // pilnuje), opcjonalne zadanie z terminem. Telefon normalizowany do +48… (UNIQUE).
 // =====================================================================
 import { useMemo, useState } from 'react'
-import { Save, X } from 'lucide-react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, type CrmEtykieta } from '../../types/crm'
 import { createLeadWizyta, zlecOferteZNagrania, type NowyKlient } from '../../hooks/useCrm'
@@ -157,7 +156,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
           <select value={k.nastepna_akcja ?? ''} onChange={(e) => set('nastepna_akcja', e.target.value || null)}>
             {AKCJE_WIZYTA.map((a) => (
               <option key={a} value={a}>
-                {CRM_AKCJA[a].icon} {CRM_AKCJA[a].label}
+                {CRM_AKCJA[a].label}
               </option>
             ))}
             <option value="">bez zadania (klient nie pojawi się w „Do zrobienia”)</option>
@@ -174,10 +173,10 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
 
       <div className="crm-poczta-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={() => void onSave()} disabled={busy}>
-          {busy ? <Spinner inline size={14} /> : <Save size={14} />} Zapisz klienta
+          {busy ? <Spinner inline size={14} /> : null} Zapisz klienta
         </button>
         <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel} disabled={busy}>
-          <X size={14} /> Anuluj
+          Anuluj
         </button>
         {existingId && (
           <button type="button" className="crm-link" onClick={() => onOpenExisting(existingId)}>

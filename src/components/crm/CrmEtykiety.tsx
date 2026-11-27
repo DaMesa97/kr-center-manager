@@ -6,18 +6,17 @@
 // Automat (crm-call-ingest v9) nadaje etykiety z analizy AI; ręczne zostają.
 // =====================================================================
 import { useMemo, useState } from 'react'
-import { Plus, Tag, X } from 'lucide-react'
 import type { ToastVariant } from '../../types'
 import { CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, CRM_ETYKIETA_KOLORY, CRM_KANAL, type CrmEtykieta } from '../../types/crm'
 
 /** KANAŁ kontaktu (leady.zrodlo, brief pkt 13.1) — mały badge obok etykiet; nie mylić ze „sprawą” (typ z analizy AI). */
-export function KanalBadge({ zrodlo, compact = false }: { zrodlo: string | null | undefined; compact?: boolean }) {
+// v3 (27.11): bez ikonki — sama nazwa kanału (także w wariancie compact, który dotąd pokazywał tylko emoji)
+export function KanalBadge({ zrodlo }: { zrodlo: string | null | undefined; compact?: boolean }) {
   if (!zrodlo) return null
-  const k = CRM_KANAL[zrodlo] ?? { label: zrodlo, icon: '•' }
+  const k = CRM_KANAL[zrodlo] ?? { label: zrodlo, icon: '' }
   return (
     <span className="crm-tag crm-kanal" title={`Kanał: ${k.label}`}>
-      <span aria-hidden="true">{k.icon}</span>
-      {compact ? null : <span> {k.label}</span>}
+      {k.label}
     </span>
   )
 }
@@ -98,7 +97,7 @@ export function EtykietyRow({
       {canEdit && (
         <span className="crm-tags-pick">
           <button type="button" className="crm-tag crm-tag--add" onClick={() => setOpen((v) => !v)} title="Dodaj / zmień etykiety" aria-expanded={open}>
-            {slugi && slugi.length ? <Plus size={12} /> : <><Tag size={12} /> etykiety</>}
+            {slugi && slugi.length ? '+ dodaj' : '+ etykiety'}
           </button>
           {open && (
             <>
@@ -106,7 +105,7 @@ export function EtykietyRow({
               <span className="crm-tags-panel" role="dialog" aria-label="Etykiety">
                 <span className="crm-tags-panel-head">
                   <b>Etykiety</b>
-                  <button type="button" className="crm-link" onClick={() => setOpen(false)} aria-label="Zamknij"><X size={14} /></button>
+                  <button type="button" className="crm-link" onClick={() => setOpen(false)} aria-label="Zamknij">Zamknij</button>
                 </span>
                 {grupy.map(({ grupa, items }) => (
                   <span key={grupa} className="crm-tags-group">
@@ -214,7 +213,7 @@ export function EtykietySlownikEditor({ lista, pushToast, onChanged }: { lista: 
           <select value={form.kolor} onChange={(e) => setForm((f) => ({ ...f, kolor: e.target.value }))} aria-label="Kolor" className={`crm-tag crm-tag--${form.kolor}`}>
             {CRM_ETYKIETA_KOLORY.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onAdd()} disabled={busy}><Plus size={14} /> Dodaj etykietę</button>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => void onAdd()} disabled={busy}>Dodaj etykietę</button>
         </div>
       </div>
     </details>

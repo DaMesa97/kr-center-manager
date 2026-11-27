@@ -6,7 +6,6 @@
 // MailList jest też używana na karcie klienta (obok rozmów).
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, RefreshCw, Paperclip, RotateCcw } from 'lucide-react'
 import type { ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_MAIL_KIERUNEK, CRM_MAIL_STATUS, CRM_MAIL_TYP, type CrmMail } from '../../types/crm'
 import { fetchMail, fetchMaile, retryMailAnaliza, type CrmError } from '../../hooks/useCrm'
@@ -50,10 +49,10 @@ export function MailList({ maile, mode, onOpenMail }: { maile: CrmMail[]; mode: 
             </button>
             {m.kanal === 'formularz' && <span className="crm-tag crm-kanal" title="Zgłoszenie z formularza kontaktowego strony">📝 Formularz</span>}
             {mode === 'pelny' && m.typ && <span className="crm-call-typ" title="Sprawa (z analizy)">{CRM_MAIL_TYP[m.typ] ?? m.typ}</span>}
-            {m.nastepna_akcja && CRM_AKCJA[m.nastepna_akcja] && <span className="crm-call-typ">{CRM_AKCJA[m.nastepna_akcja].icon} {CRM_AKCJA[m.nastepna_akcja].label}</span>}
+            {m.nastepna_akcja && CRM_AKCJA[m.nastepna_akcja] && <span className="crm-call-typ">{CRM_AKCJA[m.nastepna_akcja].label}</span>}
             {m.zalaczniki && m.zalaczniki.length > 0 && (
               <span className="crm-muted" title={m.zalaczniki.map((z) => z.nazwa ?? '').join(', ')}>
-                <Paperclip size={12} /> {m.zalaczniki.length}
+                {m.zalaczniki.length}
               </span>
             )}
             {(mode === 'pelny' || m.status_przetwarzania === 'blad' || m.status_przetwarzania === 'nowy') && <StatusChip status={m.status_przetwarzania} />}
@@ -178,7 +177,7 @@ export default function CrmMaileScreen({
       },
       {
         key: 'zal',
-        label: <Paperclip size={14} />,
+        label: null,
         title: 'Załączniki',
         align: 'center',
         sortValue: (m) => m.zalaczniki?.length ?? 0,
@@ -230,7 +229,7 @@ export default function CrmMaileScreen({
           {' '}· maile przychodzące analizuje system i sam tworzy klientów, zadania i oferty.
         </span>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież listę">
-          <RefreshCw size={14} /> Odśwież
+          Odśwież
         </button>
       </div>
       {error && <div className="crm-box crm-box--bad">{error.message}</div>}
@@ -304,7 +303,7 @@ export function CrmMailScreen({
   if (!mail) {
     return (
       <div className="crm-screen">
-        <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}><ArrowLeft size={14} /> Wróć</button>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}>Wróć</button>
         <p className="no-results">Nie znaleziono maila.</p>
       </div>
     )
@@ -315,7 +314,7 @@ export function CrmMailScreen({
   return (
     <div className="crm-screen crm-mail">
       <div className="crm-screen-head">
-        <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}><ArrowLeft size={14} /> Wróć</button>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}>Wróć</button>
         <div className="crm-screen-title">
           <h3>{mail.temat || '(bez tematu)'}</h3>
           <div className="crm-screen-sub">
@@ -327,12 +326,12 @@ export function CrmMailScreen({
             {mail.nadawca_techniczny ? <span className="crm-muted"> · nadawca techniczny: {mail.nadawca_techniczny}</span> : null}
             {' · '}
             <StatusChip status={mail.status_przetwarzania} />
-            {mail.nastepna_akcja && CRM_AKCJA[mail.nastepna_akcja] ? <> · {CRM_AKCJA[mail.nastepna_akcja].icon} {CRM_AKCJA[mail.nastepna_akcja].label}</> : null}
+            {mail.nastepna_akcja && CRM_AKCJA[mail.nastepna_akcja] ? <> · {CRM_AKCJA[mail.nastepna_akcja].label}</> : null}
           </div>
         </div>
         {canRetry && (
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onRetry()} disabled={busy || pending} title="Status → czeka na analizę; system przeczyta mail jeszcze raz">
-            {busy ? <Spinner inline size={14} /> : <RotateCcw size={14} />} Analizuj ponownie
+            {busy ? <Spinner inline size={14} /> : null} Analizuj ponownie
           </button>
         )}
       </div>
@@ -381,7 +380,7 @@ export function CrmMailScreen({
               <span>
                 {mail.zalaczniki.map((z, i) => (
                   <span key={i} className="crm-call-typ crm-mail-zal">
-                    <Paperclip size={11} /> {z.nazwa || 'plik'}
+                    {z.nazwa || 'plik'}
                     {z.rozmiar ? ` (${Math.max(1, Math.round(z.rozmiar / 1024))} KB)` : ''}
                   </span>
                 ))}

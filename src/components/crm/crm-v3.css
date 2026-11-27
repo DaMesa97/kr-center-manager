@@ -1,0 +1,174 @@
+/* =====================================================================
+   CRM v3 (makieta „CRM karta klienta — makieta”, 27.11.2026, Tymek: „mniej cukierkowe, bez ikonek”).
+   Jeden prosty wygląd dla wszystkich ekranów CRM: białe karty na szarym tle, jeden kolor akcji,
+   jedno kolorowe miejsce na ekranie („Co teraz”), przyciski akcji w stałych kolumnach po prawej.
+   Plik ładowany po App.css (import w CrmView), więc nadpisuje starsze reguły .crm-* o tej samej sile.
+   ===================================================================== */
+
+.crm-view {
+  --crm-bg: #f5f6f8;
+  --crm-card: #ffffff;
+  --crm-line: #e3e6eb;
+  --crm-line2: #eef0f3;
+  --crm-text: #1b1f24;
+  --crm-text2: #3d4652;
+  --crm-muted: #5b6470;
+  --crm-accent: #2457d6;
+  --crm-accent-dark: #173c99;
+  --crm-accent-bg: #eef3ff;
+  --crm-accent-line: #c9d7fb;
+  --crm-ok: #1f7a3d;
+  --crm-ok-text: #1a6634;
+  --crm-ok-bg: #e3f4e8;
+  --crm-late: #a3271a;
+  --crm-late-bg: #fdf1ef;
+  --crm-late-line: #f3c7c0;
+  --crm-warn-bg: #fff8eb;
+  --crm-warn-line: #f1d9a8;
+  --crm-warn-text: #5c3a06;
+  --crm-pill: #eef0f3;
+  color: var(--crm-text);
+  background: var(--crm-bg);
+  gap: 16px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* ---- pasek sekcji: biały, aktywna zakładka podkreślona ---- */
+.crm-view .crm-brand { background: var(--crm-card); color: var(--crm-text); border: 1px solid var(--crm-line); border-radius: 12px; padding: 0 16px; gap: 8px; flex-wrap: wrap; }
+.crm-view .crm-brand-name { color: var(--crm-muted); font-size: 0.72rem; letter-spacing: 0.18em; font-weight: 700; }
+.crm-view .crm-brand-user { color: var(--crm-muted); opacity: 1; }
+.crm-view .crm-nav { gap: 2px; margin-left: 4px; flex-wrap: wrap; }
+.crm-view .crm-nav-btn { color: var(--crm-muted); opacity: 1; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 14px 12px 12px; font-weight: 500; }
+.crm-view .crm-nav-btn:hover { color: var(--crm-text); }
+.crm-view .crm-nav-btn--active { color: var(--crm-text); background: transparent; border-color: transparent; border-bottom-color: var(--crm-text); font-weight: 700; }
+
+/* ---- przyciski ---- */
+.crm-view .btn { border-radius: 8px; min-height: 40px; font-weight: 600; box-shadow: none; }
+.crm-view .btn-sm { min-height: 34px; }
+.crm-view .btn-primary { background: var(--crm-accent); border-color: var(--crm-accent); color: #fff; }
+.crm-view .btn-primary:hover:not(:disabled) { background: var(--crm-accent-dark); border-color: var(--crm-accent-dark); }
+.crm-view .btn-secondary { background: var(--crm-card); border: 1px solid #c3cad4; color: var(--crm-text); }
+.crm-view .btn-secondary:hover:not(:disabled) { background: #f6f7f9; border-color: #a9b2be; }
+.crm-view .btn-success { background: var(--crm-ok); border-color: var(--crm-ok); color: #fff; }
+.crm-view .crm-link, .crm-view .crm-ext { color: var(--crm-accent); text-decoration: none; }
+.crm-view .crm-link:hover { text-decoration: underline; }
+.crm-view .crm-muted { color: var(--crm-muted); }
+
+/* ---- nagłówek ekranu (tytuł + jedno zdanie + główny przycisk) ---- */
+.crm-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
+.crm-head-tekst { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.crm-head h2 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; color: var(--crm-text); }
+.crm-head-sub { color: var(--crm-muted); }
+.crm-head-sub b.crm-late { color: var(--crm-late); }
+.crm-head-akcje { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ---- przełącznik w szarej pigułce (filtry, Lista/Lejek) ---- */
+.crm-seg { display: inline-flex; flex-wrap: wrap; background: #e9ecf0; border-radius: 10px; padding: 3px; gap: 2px; }
+.crm-seg-btn { all: unset; box-sizing: border-box; cursor: pointer; min-height: 36px; padding: 0 14px; border-radius: 8px; font-size: 0.86rem; font-weight: 500; color: var(--crm-text2); display: inline-flex; align-items: center; gap: 6px; }
+.crm-seg-btn:hover { color: var(--crm-text); }
+.crm-seg-btn--on { background: var(--crm-card); color: var(--crm-text); font-weight: 700; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.crm-seg-btn:focus-visible { outline: 2px solid var(--crm-accent); outline-offset: 1px; }
+.crm-seg-n { color: var(--crm-muted); font-weight: 500; }
+.crm-filtry { display: flex; justify-content: space-between; align-items: center; gap: 10px 12px; flex-wrap: wrap; }
+.crm-filtry select, .crm-filtry input[type='search'] { min-height: 40px; border: 1px solid #d3d8df; border-radius: 8px; padding: 0 10px; background: var(--crm-card); font: inherit; color: var(--crm-text); }
+
+/* ---- karty, sekcje, nagłówki sekcji (zwykłe, nie WIELKIE LITERY) ---- */
+.crm-view .crm-screen { gap: 16px; }
+.crm-view .crm-screen section { border-color: var(--crm-line); border-radius: 12px; padding: 18px 20px; background: var(--crm-card); }
+.crm-view .crm-screen h4 { margin: 0 0 10px; font-size: 0.95rem; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--crm-text); }
+.crm-view .crm-k2-card, .crm-view .crm-k2-main, .crm-view .crm-box { border-color: var(--crm-line); border-radius: 12px; }
+.crm-karta { background: var(--crm-card); border: 1px solid var(--crm-line); border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.crm-karta-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.crm-karta-head h3, .crm-karta > h3 { margin: 0; font-size: 0.95rem; font-weight: 700; }
+.crm-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: var(--crm-pill); color: var(--crm-text2); white-space: nowrap; }
+.crm-pill--blue { background: #e8eefc; color: var(--crm-accent-dark); }
+.crm-pill--ok { background: var(--crm-ok-bg); color: var(--crm-ok-text); }
+.crm-pill--warn { background: #fff4e0; color: #7a4300; }
+.crm-pill--late { background: var(--crm-late-bg); color: var(--crm-late); }
+
+/* statusy w starym kodzie — te same, stonowane kolory */
+.crm-view .crm-status { font-weight: 600; padding: 2px 10px; }
+.crm-view .crm-status--todo { background: #fff4e0; color: #7a4300; }
+.crm-view .crm-status--working { background: var(--crm-pill); color: var(--crm-text2); }
+.crm-view .crm-status--sent { background: #e8eefc; color: var(--crm-accent-dark); }
+.crm-view .crm-status--won { background: var(--crm-ok-bg); color: var(--crm-ok-text); }
+.crm-view .crm-status--lost { background: var(--crm-pill); color: var(--crm-muted); }
+.crm-view .crm-status--muted { background: var(--crm-pill); color: var(--crm-muted); }
+
+/* ---- „Co teraz”: jedyne kolorowe miejsce na ekranie ---- */
+.crm-view .crm-k2-krok { background: var(--crm-accent-bg); border: 1px solid var(--crm-accent-line); border-radius: 12px; padding: 18px 22px; gap: 12px 24px; margin-bottom: 0; }
+.crm-view .crm-k2-krok--dzis { background: var(--crm-accent-bg); border-color: var(--crm-accent-line); }
+.crm-view .crm-k2-krok--late { background: var(--crm-late-bg); border-color: var(--crm-late-line); }
+.crm-view .crm-k2-krok--brak { background: var(--crm-card); border: 1px dashed #c3cad4; }
+.crm-view .crm-k2-krok--won { background: var(--crm-ok-bg); border-color: #b9e2c6; }
+.crm-view .crm-k2-krok-label { color: var(--crm-accent-dark); letter-spacing: 0.06em; font-size: 0.72rem; }
+.crm-view .crm-k2-krok--late .crm-k2-krok-label { color: var(--crm-late); }
+.crm-view .crm-k2-krok--brak .crm-k2-krok-label { color: var(--crm-muted); }
+.crm-view .crm-k2-krok--won .crm-k2-krok-label { color: var(--crm-ok-text); }
+.crm-view .crm-k2-krok-tytul { font-size: 1.2rem; color: var(--crm-text); }
+.crm-view .crm-k2-krok-opis { color: var(--crm-text2); font-size: 0.9rem; }
+
+/* ---- etapy (oferta, karta klienta) ---- */
+.crm-etapy { display: flex; gap: 4px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.crm-etap { flex: 1 1 140px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--crm-line); min-width: 0; }
+.crm-etap--on { background: var(--crm-card); border-color: var(--crm-accent); }
+.crm-etap-nr { flex: 0 0 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; background: var(--crm-line); color: var(--crm-text2); }
+.crm-etap--done .crm-etap-nr { background: var(--crm-ok); color: #fff; }
+.crm-etap--on .crm-etap-nr { background: var(--crm-accent); color: #fff; }
+.crm-etap--stop .crm-etap-nr { background: var(--crm-muted); color: #fff; }
+.crm-etap-tekst { display: flex; flex-direction: column; min-width: 0; font-size: 0.84rem; color: var(--crm-muted); }
+.crm-etap--done .crm-etap-tekst { color: var(--crm-text2); font-weight: 500; }
+.crm-etap--on .crm-etap-tekst { color: var(--crm-text); font-weight: 700; }
+.crm-etap-opis { font-size: 0.75rem; color: var(--crm-muted); font-weight: 400; }
+
+/* ---- tabele i listy w CRM ---- */
+.crm-view .crm-table { background: var(--crm-card); }
+.crm-view .crm-table th { font-size: 0.72rem; color: var(--crm-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.crm-view .crm-table td { border-top-color: var(--crm-line2); }
+
+/* ---- pasek z ostrzeżeniem (duplikaty, błędy) ---- */
+.crm-baner { border-radius: 10px; padding: 10px 16px; display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap; }
+.crm-baner--warn { background: var(--crm-warn-bg); border: 1px solid var(--crm-warn-line); color: var(--crm-warn-text); }
+.crm-baner--late { background: var(--crm-late-bg); border: 1px solid var(--crm-late-line); color: #7a1d12; }
+.crm-baner .crm-link { color: inherit; font-weight: 700; text-decoration: underline; }
+
+/* =====================================================================
+   Do zrobienia (makieta „Do zrobienia — propozycja”)
+   ===================================================================== */
+.crm-dz { display: flex; flex-direction: column; gap: 16px; }
+.crm-dz-grupa { background: var(--crm-card); border: 1px solid var(--crm-line); border-radius: 12px; overflow: hidden; }
+.crm-dz-grupa > h3 { margin: 0; padding: 12px 20px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; background: #fafbfc; color: var(--crm-text); }
+.crm-dz-grupa--zalegle > h3 { background: var(--crm-late-bg); color: var(--crm-late); }
+.crm-dz-n { color: var(--crm-muted); font-weight: 500; }
+.crm-dz-wiersz { border-top: 1px solid var(--crm-line2); }
+.crm-dz-row { display: flex; align-items: center; gap: 8px 16px; padding: 14px 20px; flex-wrap: wrap; }
+.crm-dz-termin { flex: 0 0 110px; font-weight: 600; font-size: 0.84rem; color: var(--crm-muted); }
+.crm-dz-grupa--zalegle .crm-dz-termin { color: var(--crm-late); }
+.crm-dz-grupa--dzis .crm-dz-termin { color: var(--crm-text); }
+.crm-dz-tekst { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.crm-dz-tytul { color: var(--crm-text2); }
+.crm-dz-klient { all: unset; cursor: pointer; font-weight: 700; color: var(--crm-text); }
+.crm-dz-klient:hover, .crm-dz-klient:focus-visible { text-decoration: underline; }
+.crm-dz-poco { color: var(--crm-muted); font-size: 0.84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-dz-rodzaj { flex: 0 0 110px; font-size: 0.76rem; color: var(--crm-muted); }
+/* Tymek 27.11: przyciski w stałych kolumnach po prawej — główny | Zrobione, zawsze pod sobą */
+.crm-dz-akcje { flex: 0 0 340px; margin-left: auto; display: grid; grid-template-columns: 180px 152px; gap: 8px; align-items: center; }
+.crm-dz-akcja1 { grid-column: 1; display: flex; }
+.crm-dz-akcja2 { grid-column: 2; display: flex; }
+.crm-dz-akcje .btn { width: 100%; justify-content: center; }
+.crm-dz-liczy { width: 100%; text-align: center; color: var(--crm-muted); font-size: 0.84rem; }
+.crm-dz-notka { padding: 0 20px 12px 146px; color: var(--crm-muted); font-size: 0.76rem; }
+.crm-dz-dalej { margin: 0 20px 16px; }
+.crm-dz-stopka { margin: 0; color: var(--crm-muted); font-size: 0.84rem; }
+@media (max-width: 760px) {
+  .crm-dz-termin, .crm-dz-rodzaj { flex-basis: auto; }
+  .crm-dz-akcje { flex-basis: 100%; grid-template-columns: 1fr 1fr; }
+  .crm-dz-notka { padding-left: 20px; }
+}
+
+/* panel „Co dalej” (Zrobione / Dodaj zadanie / Zmień zadanie) */
+.crm-view .crm-zadanie-dialog { border: 1px solid var(--crm-accent-line) !important; background: #f6f9ff; border-radius: 10px; margin-bottom: 0; }
+.crm-view .crm-zadanie-opcja { background: var(--crm-card); border-color: #d3d8df; }
+.crm-view .crm-zadanie-opcja--on { border-color: var(--crm-accent); background: var(--crm-card); }
+.crm-view .crm-tag.crm-kanal { background: var(--crm-pill); color: var(--crm-text2); border: 0; font-weight: 500; }

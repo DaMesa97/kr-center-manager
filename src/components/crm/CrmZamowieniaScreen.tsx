@@ -2,7 +2,6 @@
 // razem z tym, co dzieje się z nimi w KR Center: zlecenia, etapy, wydanie, wyjazd, reklamacje. Lista z filtrami,
 // pasek „wymaga uwagi” i karta zamówienia (wysuwana z prawej). Zmiana statusów w Baselinkerze to etap 2.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ExternalLink, Link2, RefreshCw, Unlink, UserRound, X } from 'lucide-react'
 import type { CurrentUser, Order, ToastVariant } from '../../types'
 import {
   fetchZamowieniaPanel,
@@ -307,7 +306,7 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
         </div>
         <input type="search" className="crm-zam-szukaj" placeholder="Szukaj: nr BL, nazwisko, mail, telefon, nr zlecenia KR, RO…" value={szukaj} onChange={(e) => setSzukaj(e.target.value)} aria-label="Szukaj zamówienia" />
         <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !tokenOk} onClick={() => void odswiez()} title="Pobierz zamówienia z Baselinkera teraz (automat robi to co 15 min)">
-          {busy ? <Spinner inline size={14} /> : <RefreshCw size={14} />} Odśwież z Baselinkera
+          {busy ? <Spinner inline size={14} /> : null} Odśwież z Baselinkera
         </button>
         <span className="crm-toolbar-hint">
           {ust.bl_sync_ostatni_at ? `pobrane ${fmtDateTime(ust.bl_sync_ostatni_at)}` : 'jeszcze nie pobierano'}
@@ -428,14 +427,14 @@ function KartaZamowienia({ w, pola, busy, onClose, onOdswiez, onKlient, onPowiaz
               <span className={`crm-status ${s.cls}`}>{s.label}</span>
             </div>
           </div>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={onClose} aria-label="Zamknij"><X size={14} /></button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onClose} aria-label="Zamknij">Zamknij</button>
         </div>
 
         <div className="crm-zam-akcje">
-          <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onOdswiez}><RefreshCw size={14} /> Odśwież z Baselinkera</button>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void openExternalUrl(BL_PANEL_URL(z.bl_id))}><ExternalLink size={14} /> Otwórz w Baselinkerze</button>
-          {z.strona_klienta && <button type="button" className="btn btn-sm btn-secondary" onClick={() => void openExternalUrl(z.strona_klienta!)} title="Strona zamówienia, którą widzi klient"><ExternalLink size={14} /> Strona klienta</button>}
-          <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onKlient} title={z.lead_id ? 'Klient jest już w CRM' : 'Znajdzie klienta po telefonie / mailu albo założy nowego (wygrany)'}><UserRound size={14} /> Klient w CRM</button>
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onOdswiez}>Odśwież z Baselinkera</button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void openExternalUrl(BL_PANEL_URL(z.bl_id))}>Otwórz w Baselinkerze</button>
+          {z.strona_klienta && <button type="button" className="btn btn-sm btn-secondary" onClick={() => void openExternalUrl(z.strona_klienta!)} title="Strona zamówienia, którą widzi klient">Strona klienta</button>}
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onKlient} title={z.lead_id ? 'Klient jest już w CRM' : 'Znajdzie klienta po telefonie / mailu albo założy nowego (wygrany)'}>Klient w CRM</button>
         </div>
 
         {w.uwagi.length > 0 && <div className="crm-zam-alert">{w.uwagi.map((u, i) => <div key={i}>⚠ {u}</div>)}</div>}
@@ -494,7 +493,7 @@ function KartaZamowienia({ w, pola, busy, onClose, onOdswiez, onKlient, onPowiaz
                   <span className="crm-muted">{o.model}{o.erp_ro_number ? ` · RO ${o.erp_ro_number}` : ''}{powiazanie === 'reczne' ? ' · powiązane ręcznie' : ''}</span>
                   <span className="crm-zam-krcard-btns">
                     {onOpenOrder && <button type="button" className="crm-link" onClick={() => onOpenOrder(o)}>otwórz zlecenie</button>}
-                    <button type="button" className="crm-link" disabled={busy} onClick={() => onOdepnij(o, powiazanie)} title="Odepnij od tego zamówienia"><Unlink size={13} /></button>
+                    <button type="button" className="crm-link" disabled={busy} onClick={() => onOdepnij(o, powiazanie)} title="Odepnij od tego zamówienia">Odepnij</button>
                   </span>
                 </div>
                 <div className="crm-muted">
@@ -513,7 +512,7 @@ function KartaZamowienia({ w, pola, busy, onClose, onOdswiez, onKlient, onPowiaz
           })}
           <div className="crm-zam-powiaz">
             <input type="search" placeholder="Powiąż zlecenie: nr zlecenia albo nazwisko z nr klienta" value={fraza} onChange={(e) => setFraza(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void szukajZlecen() }} />
-            <button type="button" className="btn btn-sm btn-secondary" disabled={szukam || fraza.trim().length < 2} onClick={() => void szukajZlecen()}>{szukam ? <Spinner inline size={14} /> : <Link2 size={14} />} Szukaj</button>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={szukam || fraza.trim().length < 2} onClick={() => void szukajZlecen()}>{szukam ? <Spinner inline size={14} /> : null} Szukaj</button>
           </div>
           {wyniki.length > 0 && (
             <ul className="crm-zam-wyniki">
@@ -581,7 +580,7 @@ function PowiazSierote({ o, wiersze, busy, onClose, onPowiaz }: { o: Order; wier
       <div className="crm-zam-drawer-panel crm-zam-drawer-panel--waski">
         <div className="crm-zam-drawer-head">
           <div><h3>Powiąż {o.category} {o.order_number}</h3><div className="crm-muted">nr klienta „{o.client_order_number || '—'}” · {o.model} · {fmtDate(o.order_date)}</div></div>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={onClose} aria-label="Zamknij"><X size={14} /></button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onClose} aria-label="Zamknij">Zamknij</button>
         </div>
         <input type="search" className="crm-zam-szukaj" placeholder="Szukaj zamówienia: nr BL, nazwisko, mail, telefon" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
         <p className="crm-muted">{q ? 'Wyniki szukania' : slowa.length ? `Podpowiedzi po nazwisku: ${slowa.join(', ')}` : 'Brak nazwiska w numerze klienta — wpisz, czego szukać.'}</p>
