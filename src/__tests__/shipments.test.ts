@@ -86,3 +86,28 @@ describe('podsumowanie dnia i statusy', () => {
     expect(isPendingForShipment({ id: 5, release_date: null }, today, att)).toBe(false)
   })
 })
+
+describe('daty SUUS i sekcje listy (27.11)', () => {
+  it('doręczenie = wysyłka + 2 dni robocze (weekend i dni wolne pomijane)', async () => {
+    const { addWorkingDays } = await import('../lib/shipments')
+    expect(addWorkingDays('2026-11-30', 2)).toBe('2026-12-02') // pon → śr
+    expect(addWorkingDays('2026-12-03', 2)).toBe('2026-12-07') // czw → pon
+    expect(addWorkingDays('2026-12-22', 2, new Set(['2026-12-24', '2026-12-25']))).toBe('2026-12-28')
+    expect(addWorkingDays('zła', 2)).toBe('')
+  })
+  it('dzień tygodnia w polu daty', async () => {
+    const { dayLabel } = await import('../lib/shipments')
+    expect(dayLabel('2026-11-30')).toBe('pon. 30.11.2026')
+    expect(dayLabel('2026-12-02')).toBe('śr. 02.12.2026')
+    expect(dayLabel(null)).toBe('')
+  })
+  it('sekcje: stare (ponad 30 dni) na dole, reszta gotowe / w produkcji', async () => {
+    const { pendingSection, daysSince } = await import('../lib/shipments')
+    const dzis = '2026-11-27'
+    expect(pendingSection({ order_date: '2026-11-20', ready: true }, dzis)).toBe('gotowe')
+    expect(pendingSection({ order_date: '2026-11-20', ready: false }, dzis)).toBe('produkcja')
+    expect(pendingSection({ order_date: '2026-10-14', ready: true }, dzis)).toBe('stare')
+    expect(pendingSection({ order_date: null, ready: false }, dzis)).toBe('produkcja')
+    expect(daysSince('2026-10-14', dzis)).toBe(44)
+  })
+})

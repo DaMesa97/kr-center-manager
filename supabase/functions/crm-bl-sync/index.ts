@@ -61,6 +61,26 @@ Deno.serve(async (req) => {
       return odp(200, { ok: true, akcja, zapisane, znalezione: zam.length })
     }
 
+    // 27.11: tylko odczyt — jakie pola / konta ma kurier w Baselinkerze (przygotowanie „Wysyłki kurierem” → createPackage)
+    if (akcja === 'kurier_info') {
+      const kod = String(body.courier_code ?? 'rohligsuus')
+      const wynik: Record<string, unknown> = { courier_code: kod }
+      for (const [nazwa, metoda, params] of [
+        ['pola', 'getCourierFields', { courier_code: kod }],
+        ['konta', 'getCourierAccounts', { courier_code: kod }],
+        ...(Number(body.bl_id) > 0 ? [['paczki_zamowienia', 'getOrderPackages', { order_id: Number(body.bl_id) }]] : []),
+      ] as Array<[string, string, Record<string, unknown>]>) {
+        try { wynik[nazwa] = await bl(token, metoda, params) } catch (e) { wynik[nazwa] = { blad: e instanceof Error ? e.message : String(e) } }
+      }
+      return odp(200, { ok: true, ...wynik })
+    }
+
+    // 27.11: Wysyłki kurierem → przesyłka Rohlig SUUS w Baselinkerze (createPackage). Reszta (statusy, maile, etykieta) po stronie BL.
+    if (akcja === 'przesylka') {
+      // błąd przesyłki nie nadpisuje wyniku synchronizacji (bl_sync_ostatni_blad)
+      try { return odp(200, await przesylka(db, token, body)) } catch (e) { return odp(500, { ok: false, error: e instanceof Error ? e.message : String(e) }) }
+    }
+
     const t0 = Date.now()
     const statusy = await synchronizujStatusy(db, token)
     await synchronizujPolaDodatkowe(db, token)
@@ -298,4 +318,103 @@ async function odswiezPaczki(db: SupabaseClient, token: string): Promise<number>
     .slice(0, MAX_PACZEK)
   for (const z of doSprawdzenia) await zapiszPaczki(db, token, Number(z.bl_id))
   return doSprawdzenia.length
+}
+
+// --------------------------------------------------------------------------------------------
+// Przesyłka SUUS dla wysyłki z ekranu „Wysyłki kurierem” (27.11, Tymek): tylko założenie przesyłki w Baselinkerze —
+// statusy, maile do klienta i etykieta (mail do magazynu) dzieją się w BL automatycznie, list przewozowy z portalu SUUS.
+// Ustalenia: każda paleta osobno, waga 100 kg, paleta jednorazowa (JED), pionowa 120×80×220, pozioma 210×100×50;
+// ubezpieczenie zawsze na kwotę zamówienia; pobranie, gdy w BL zaznaczone pobranie: kwota − wpłacone.
+// Wejście: { akcja: 'przesylka', shipment_id } (z bazy: rpc zlec_przesylke_bl przez pg_net) albo
+// { akcja: 'przesylka', dry_run: true, symulacja: { bl_order_id, ship_date, delivery_date?, pallets_vertical, pallets_horizontal, notes? } }
+// — składa zlecenie bez wysyłania (test).
+const SUUS_KOD = 'rohligsuus'
+const SUUS_KONTO = 37840
+const PALETA_WAGA = 100
+const PALETA_RODZAJ = 'JED'
+const PALETA_PION = { size_length: 120, size_width: 80, size_height: 220 }
+const PALETA_POZIOM = { size_length: 210, size_width: 100, size_height: 50 }
+
+type Wysylka = {
+  id: number; bl_order_id: number | null; ship_date: string | null; delivery_date: string | null
+  pallets_vertical: number; pallets_horizontal: number; notes: string | null; bl_package_id: string | null; status: string
+}
+
+/** RRRR-MM-DD + n dni roboczych (bez sobót i niedziel). */
+function plusDniRobocze(iso: string, n: number): string {
+  const d = new Date(iso + 'T12:00:00Z')
+  let dodane = 0
+  while (dodane < n) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    const dz = d.getUTCDay()
+    if (dz !== 0 && dz !== 6) dodane++
+  }
+  return d.toISOString().slice(0, 10)
+}
+/** Data → znacznik czasu dla pól typu „date” w BL (10:00 UTC tego dnia). */
+const znacznik = (iso: string) => Math.floor(Date.parse(iso + 'T10:00:00Z') / 1000)
+
+async function przesylka(db: SupabaseClient, token: string, body: Record<string, unknown>) {
+  const pub = db.schema('public')
+  const dryRun = body.dry_run === true
+  let s: Wysylka
+  if (dryRun && body.symulacja && typeof body.symulacja === 'object') {
+    const x = body.symulacja as Record<string, unknown>
+    s = {
+      id: 0, bl_order_id: Number(x.bl_order_id) || null, ship_date: String(x.ship_date ?? '') || null, delivery_date: (x.delivery_date as string) ?? null,
+      pallets_vertical: Number(x.pallets_vertical) || 0, pallets_horizontal: Number(x.pallets_horizontal) || 0, notes: (x.notes as string) ?? null,
+      bl_package_id: null, status: 'zaplanowana',
+    }
+  } else {
+    const id = Number(body.shipment_id)
+    if (!Number.isFinite(id) || id <= 0) throw new Error('Podaj shipment_id')
+    const { data, error } = await pub.from('order_shipments').select('id, bl_order_id, ship_date, delivery_date, pallets_vertical, pallets_horizontal, notes, bl_package_id, status').eq('id', id).maybeSingle()
+    if (error || !data) throw new Error('Nie ma wysyłki ' + id)
+    s = data as Wysylka
+    if (s.bl_package_id) return { ok: true, juz_jest: true, bl_package_id: s.bl_package_id }
+  }
+  const blad = async (msg: string, req?: unknown) => {
+    if (!dryRun && s.id) await pub.from('order_shipments').update({ bl_status: 'blad', bl_error: msg.slice(0, 500), ...(req ? { bl_request: req } : {}) }).eq('id', s.id)
+    return { ok: false, error: msg }
+  }
+  if (!s.bl_order_id) return await blad('Brak numeru zamówienia BaseLinker — przesyłkę załóż ręcznie w BL')
+  if (!s.ship_date) return await blad('Brak daty wysyłki')
+  const palety = [
+    ...Array.from({ length: Math.max(0, s.pallets_vertical) }, () => ({ weight: PALETA_WAGA, ...PALETA_PION, parcel_type: PALETA_RODZAJ })),
+    ...Array.from({ length: Math.max(0, s.pallets_horizontal) }, () => ({ weight: PALETA_WAGA, ...PALETA_POZIOM, parcel_type: PALETA_RODZAJ })),
+  ]
+  if (palety.length === 0) return await blad('Wysyłka bez palet — dodaj co najmniej jedną paletę')
+
+  const r = await bl(token, 'getOrders', { order_id: s.bl_order_id, get_unconfirmed_orders: true })
+  const z = ((r.orders as BlZamowienie[] | undefined) ?? [])[0]
+  if (!z) return await blad(`Nie ma zamówienia ${s.bl_order_id} w Baselinkerze`)
+  const suma = Math.round(((z.products ?? []).reduce((a, p) => a + (Number(p.price_brutto) || 0) * (Number(p.quantity) || 0), 0) + (Number(z.delivery_price) || 0)) * 100) / 100
+  const wplacone = Number(z.payment_done) || 0
+  const pobranie = String(z.payment_method_cod ?? '0') === '1' ? Math.max(0, Math.round((suma - wplacone) * 100) / 100) : 0
+  const doreczenie = s.delivery_date || plusDniRobocze(s.ship_date, 2)
+
+  const fields: Array<{ id: string; value: unknown }> = [
+    { id: 'package_type', value: PALETA_RODZAJ },
+    { id: 'insurance', value: suma },
+    { id: 'pickup_date', value: znacznik(s.ship_date) },
+    { id: 'dropoff_date', value: znacznik(doreczenie) },
+    { id: 'reference_number', value: `PD-WYS-${s.id || 'TEST'}` },
+    { id: 'package_description', value: 'Drzwi' },
+  ]
+  if (pobranie > 0) fields.push({ id: 'cod', value: pobranie })
+  if (s.notes && s.notes.trim()) fields.push({ id: 'package_remarks', value: s.notes.trim().slice(0, 200) })
+  const req = { order_id: s.bl_order_id, courier_code: SUUS_KOD, account_id: SUUS_KONTO, fields, packages: palety }
+  if (dryRun) return { ok: true, dry_run: true, zamowienie: { suma, wplacone, pobranie_zaznaczone: String(z.payment_method_cod ?? '0') === '1', doreczenie }, request: req }
+
+  try {
+    const w = await bl(token, 'createPackage', req)
+    const { error } = await pub.from('order_shipments').update({
+      bl_package_id: String(w.package_id ?? ''), bl_package_number: String(w.package_number ?? w.courier_inner_number ?? ''),
+      bl_status: 'utworzona', bl_error: null, bl_created_at: new Date().toISOString(), bl_request: req, delivery_date: doreczenie,
+    }).eq('id', s.id)
+    if (error) throw new Error('Przesyłka założona w BL, ale nie zapisano numeru: ' + error.message)
+    return { ok: true, bl_package_id: w.package_id, bl_package_number: w.package_number }
+  } catch (e) {
+    return await blad(e instanceof Error ? e.message : String(e), req)
+  }
 }

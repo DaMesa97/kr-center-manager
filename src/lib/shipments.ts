@@ -79,6 +79,50 @@ export function nextWorkingDay(from: Date, dniWolne: Set<string> = new Set()): s
   return isoDate(d)
 }
 
+/** RRRR-MM-DD + n dni roboczych (bez sobót, niedziel i dni wolnych) — data doręczenia SUUS = wysyłka + 2. */
+export function addWorkingDays(iso: string, n: number, dniWolne: Set<string> = new Set()): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!m) return ''
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  let added = 0
+  for (let i = 0; i < 60 && added < n; i++) {
+    d.setDate(d.getDate() + 1)
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6 && !dniWolne.has(isoDate(d))) added++
+  }
+  return isoDate(d)
+}
+
+const DNI_KR = ['nd.', 'pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.']
+/** „2026-11-30” → „pon. 30.11.2026” (pusto przy złej dacie). */
+export function dayLabel(iso: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ''))
+  if (!m) return ''
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return `${DNI_KR[d.getDay()]} ${m[3]}.${m[2]}.${m[1]}`
+}
+
+/** Sekcja listy „Do wysyłki”: gotowe (produkcja skończona), w produkcji, stare do sprawdzenia (zamówione ponad 30 dni temu). */
+export type PendingSection = 'gotowe' | 'produkcja' | 'stare'
+export const STARE_PO_DNIACH = 30
+
+export function pendingSection(o: { order_date: string | null; ready: boolean }, today: string): PendingSection {
+  const od = String(o.order_date ?? '').slice(0, 10)
+  if (od && today) {
+    const ms = Date.parse(`${today}T12:00:00`) - Date.parse(`${od}T12:00:00`)
+    if (Number.isFinite(ms) && ms > STARE_PO_DNIACH * 86_400_000) return 'stare'
+  }
+  return o.ready ? 'gotowe' : 'produkcja'
+}
+
+/** Dni od zamówienia (do etykiety „44 dni”). */
+export function daysSince(orderDate: string | null | undefined, today: string): number | null {
+  const od = String(orderDate ?? '').slice(0, 10)
+  if (!od) return null
+  const ms = Date.parse(`${today}T12:00:00`) - Date.parse(`${od}T12:00:00`)
+  return Number.isFinite(ms) ? Math.round(ms / 86_400_000) : null
+}
+
 export type ShipmentLite = { id: number; ship_date: string | null; status: ShipmentStatus; pallets_vertical: number; pallets_horizontal: number }
 
 /** Podsumowanie dnia: wysyłki (bez anulowanych) na datę, palety pionowe / poziome. */

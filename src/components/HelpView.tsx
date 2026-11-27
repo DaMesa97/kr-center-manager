@@ -25,6 +25,15 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.5: Wysyłki kurierem — przesyłka SUUS w BaseLinkerze, porządek na liście</h4>
+        <ul>
+          <li><b>Do wysyłki</b> w trzech częściach: <b>Gotowe do wysyłki</b> (wszystkie etapy produkcji odhaczone, drzwi wewnętrzne — wszystko spakowane), <b>W produkcji</b> (z paskiem etapów; kuriera można zaplanować wcześniej) i na dole <b>Do sprawdzenia — starsze niż 30 dni</b>. W każdej części od najnowszych. Zlecenia zamknięte w Optimie nie pokazują się wcale.</li>
+          <li><b>Wysyłka kurierem</b>: data wysyłki z dniem tygodnia w polu (np. „pon. 30.11.2026”) i <b>data doręczenia</b> = wysyłka + 2 dni robocze (bez weekendów i świąt), liczona sama.</li>
+          <li>Po „Zaplanuj wysyłkę” program <b>od razu zakłada przesyłkę Rohlig SUUS w BaseLinkerze</b>: każda paleta osobno (jednorazowa, 100 kg, pionowa 120×80×220, pozioma 210×100×50), data nadania i dostawy, ubezpieczenie na kwotę zamówienia, pobranie — gdy w BL zaznaczone pobranie (kwota minus wpłacone). Numer przesyłki pokazuje się przy wysyłce w Zaplanowanych; statusy, maile i etykieta idą jak dotąd z BaseLinkera. Błąd BL widać przy wysyłce z przyciskiem „Ponów w BaseLinkerze”.</li>
+          <li><b>Palety</b> schodzą z magazynu Bukowa dopiero przy <b>„Nadane”</b> (samo zaplanowanie i „Spakowane” niczego nie zdejmuje).</li>
+          <li><b>Oznacz jako wydane</b> (stare zlecenia, pojedynczo albo zaznaczone): data wydania do potwierdzenia — program zamyka rezerwacje, ale niczego nie zdejmuje ze stanu (stany po inwentaryzacji tego już nie mają).</li>
+          <li>Anulowanie wysyłki z przesyłką w SUUS: przesyłkę anuluj też w BaseLinkerze — program o tym przypomina.</li>
+        </ul>
         <h4>Wersja 1.1.4: NIP na umowie i protokole odbioru</h4>
         <ul>
           <li>Klient z NIP-em na karcie: <b>umowa</b> (PDF) ma w bloku „Zamawiający” wiersze <b>Firma</b> i <b>NIP</b> (774-000-14-54), a <b>protokół odbioru</b> bierze je z umowy. Klient bez NIP-u — dokumenty jak dotąd.</li>

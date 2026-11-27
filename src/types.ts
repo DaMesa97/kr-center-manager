@@ -1472,8 +1472,14 @@ export type OrderShipment = {
   /** podpowiedź suggest_pallets z chwili zaplanowania: { vertical, horizontal } */
   pallets_suggested: { vertical?: number; horizontal?: number } | null
   bl_package_id: string | null
-  /** nr przesyłki — uzupełnia później automat BaseLinker */
+  /** nr przesyłki SUUS — zapisuje crm-bl-sync po założeniu przesyłki w BaseLinkerze */
   bl_package_number: string | null
+  /** 27.11: planowane doręczenie (wysyłka + 2 dni robocze), idzie do SUUS jako „data dostawy” */
+  delivery_date?: string | null
+  /** stan przesyłki w BaseLinkerze: oczekuje (zlecona) | utworzona | blad */
+  bl_status?: 'oczekuje' | 'utworzona' | 'blad' | null
+  bl_error?: string | null
+  bl_created_at?: string | null
   notes: string | null
   created_by: string | null
   created_at: string
