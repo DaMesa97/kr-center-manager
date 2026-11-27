@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, RefreshCw, Truck } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { humanizeAndLog } from '../../lib/friendlyError'
+import { groupPicks, pickProgress, type OrderPick } from '../../lib/orderPicks'
+import type { InternalDoorItem } from '../../types'
 import { countCompletedStages, isRushOrderSequence } from '../../utils'
 import { can, isCategoryScoped } from '../../lib/permissions'
 import {
@@ -52,6 +54,25 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
   const [query, setQuery] = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [confirm, setConfirm] = useState<Order | null>(null)
+  // runda 4 (tester hali): przy drzwiach wewnętrznych telefon nie mówił, ile spakowano i czy są pozycje bez komponentu
+  const [wewInfo, setWewInfo] = useState<{ done: number; total: number; bezKomponentu: number } | null>(null)
+  useEffect(() => {
+    setWewInfo(null)
+    if (!confirm || confirm.category !== 'DrzwiWewnetrzne' || confirm.id == null) return
+    const orderId = confirm.id
+    let aktualne = true
+    void (async () => {
+      const [it, pk] = await Promise.all([
+        supabase.from('order_internal_door_items').select('*').eq('order_id', orderId),
+        supabase.from('order_item_picks').select('order_id, line_key, picked_at, picked_by, picked_initials, line_sig').eq('order_id', orderId),
+      ])
+      if (!aktualne || it.error || pk.error) return
+      const items = (it.data ?? []) as unknown as InternalDoorItem[]
+      const pr = pickProgress(items, groupPicks((pk.data ?? []) as OrderPick[]).get(orderId))
+      setWewInfo({ done: pr.done, total: pr.total, bezKomponentu: items.filter((x) => x.component_id == null).length })
+    })()
+    return () => { aktualne = false }
+  }, [confirm])
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const mountedRef = useRef(true)
@@ -301,6 +322,20 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
                   </>
                 ) : null
               })()}
+              {wewInfo && (
+                <>
+                  <br />
+                  <span style={{ color: wewInfo.total > 0 && wewInfo.done < wewInfo.total ? '#b91c1c' : undefined, fontWeight: 700 }}>
+                    Spakowane: {wewInfo.done}/{wewInfo.total}{wewInfo.total > 0 && wewInfo.done < wewInfo.total ? ' — nie wszystko odhaczone. Na pewno wydać?' : ''}
+                  </span>
+                  {wewInfo.bezKomponentu > 0 && (
+                    <>
+                      <br />
+                      <span style={{ color: '#b45309' }}>⚠️ {wewInfo.bezKomponentu} poz. bez przypisanego komponentu — nie zejdą z magazynu.</span>
+                    </>
+                  )}
+                </>
+              )}
             </div>
             <div className="mstation-confirm-actions">
               <button type="button" className="mstation-confirm-cancel" onClick={() => setConfirm(null)} disabled={saving}>
