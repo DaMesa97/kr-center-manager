@@ -44,6 +44,22 @@ describe('crm-oferta: kandydaci dla modeli Bastion', () => {
     const link = analiza('', { potrzeba: 'drzwi Bastion', poprawka_handlowca: 'https://podrzwi.pl/?p=4001' })
     expect(kandydaci(produkty, link)[0].id).toBe(4001)
   })
+  it('runda 7: „id=48895”, „ID produktu: 48895” i link do sklepu też wskazują produkt', () => {
+    const z = (t: string) => kandydaci(produkty, analiza('', { potrzeba: 'drzwi Bastion do mieszkania', odpowiedzi_handlowca: t }))[0].id
+    expect(z('P-110 normalnie → id=48895')).toBe(48895)
+    expect(z('ID produktu: 4001')).toBe(4001)
+    expect(z('link: https://podrzwi.pl/produkt/drzwi-wewnatrzklatkowe-drewniane-bastion-p-111-akustyczne-34-44-db-z-oscieznica/')).toBe(4001)
+  })
+  it('runda 7: produkt drzwi wewnętrznych wskazany numerem też na pierwszym miejscu', () => {
+    const lista = [...produkty, { id: 9001, nazwa: 'Drzwi wewnętrzne ramiakowe przylgowe – Virello', cena: 900 }]
+    const a = { kategoria: 'wewnetrzne', dane: { model: 'Virello' }, potrzeba: 'drzwi wewnętrzne', odpowiedzi_handlowca: 'ID 9001' } as never
+    expect(kandydaci(lista, a)[0].id).toBe(9001)
+  })
+  it('runda 7: „b12”, „a10”, „t30” z rozmowy nie są modelami Bastion (2 cyfry tylko L- i STD-)', () => {
+    const ids = kandydaci(produkty, analiza('A-104', { potrzeba: 'Bastion A-104, mieszkanie b12, lokal t30, klatka a10' })).map((p) => p.id)
+    expect(ids[0]).toBe(1003)
+    expect(ids.filter((id) => id >= 2000 && id < 2100)).toEqual([])
+  })
   it('wzorProduktu rozpoznaje nowe przedrostki', () => {
     expect(wzorProduktu(nazwaB('P-110'))).toBe('p-110')
     expect(wzorProduktu(nazwaB('L-01'))).toBe('l-01')

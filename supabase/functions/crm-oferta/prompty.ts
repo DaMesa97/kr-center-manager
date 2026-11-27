@@ -296,9 +296,28 @@ export function promptPoprawki(pozycje: PozycjaPoprawki[], kand: Kandydat[], pop
 }
 
 /** Wzory modeli Bastion w nazwach produktów i w rozmowie: A-104, P-110, N-201, T-…, L-01, LUX-401, STD-01 (myślnik opcjonalny). */
-const BASTION_WZOR = /\b(lux|std|[abnptl])-?(\d{2,3})\b/
+// runda 7 (recenzent): liczba cyfr zależy od litery — w cenniku 2 cyfry mają tylko L- i STD- (dotąd „b12”, „a10”, „t30”
+// z rozmowy łapały się jako modele i zapychały listę Bastionami)
+const BASTION_WZOR = /\b((?:lux|[abnpt])(?=-?\d{3}\b)|(?:l|std)(?=-?\d{2}\b))-?(\d{2,3})\b/
 /** Numer produktu wpisany wprost przez handlowca: „ID 48895”, „#48895”, „id: 48895”, link z „?p=48895” / „product_id=48895”. */
-const ID_PRODUKTU = /(?:#|\bid\b[:.\s]*|[?&](?:p|post|product_id|add-to-cart)=)(\d{3,6})\b/gi
+// runda 7: także „id=48895” (tak odpowiedział handlowiec) i „ID produktu: 48895”
+const ID_PRODUKTU = /(?:#|\bid\b(?:\s+produktu)?\s*[:=.]?\s*|[?&](?:p|post|product_id|add-to-cart)=)(\d{3,6})\b/gi
+/** Link do produktu w sklepie: …/produkt/<slug>/ */
+const LINK_PRODUKTU = /\/produkt\/([a-z0-9-]+)\/?/gi
+/** Slug WooCommerce z nazwy produktu (małe litery, bez polskich znaków, myślniki). */
+function slugProduktu(nazwa: string): string {
+  return nazwa.toLowerCase()
+    .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e').replace(/ł/g, 'l').replace(/ń/g, 'n').replace(/ó/g, 'o').replace(/ś/g, 's').replace(/[źż]/g, 'z')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+/** Produkty wskazane wprost w tekście (ID albo link do sklepu) — zawsze na początku listy kandydatów. */
+function wskazaneProdukty(produkty: Kandydat[], tekst: string): Kandydat[] {
+  const ids = new Set([...tekst.matchAll(ID_PRODUKTU)].map((m) => Number(m[1])))
+  const slugi = new Set([...tekst.matchAll(LINK_PRODUKTU)].map((m) => m[1].toLowerCase().replace(/-\d+$/, '')))
+  if (!ids.size && !slugi.size) return []
+  return produkty.filter((p) => ids.has(p.id) || (slugi.size > 0 && slugi.has(slugProduktu(p.nazwa))))
+}
 
 /** Wzór drzwi z nazwy produktu: „otto 49”, „libre 31”, „otto 42b”, „g-05” (Titan), „a-104” (Bastion); null, gdy nazwa nie ma wzoru. */
 export function wzorProduktu(nazwa: string): string | null {
@@ -351,6 +370,19 @@ const LINIE: [string, string[]][] = [
 ]
 
 export function kandydaci(produkty: Kandydat[], analiza: Analiza, limit = 8): Kandydat[] {
+  // 28.11 / runda 7: produkt wskazany przez handlowca numerem (ID) albo linkiem do sklepu — zawsze na pierwszym miejscu,
+  // także dla drzwi wewnętrznych i produktów z „wewnętrzne” w nazwie
+  const d0 = analiza.dane ?? {}
+  const tekstWsk = [d0.system, d0.model, d0.wariant_panelu, d0.okucia, d0.inne, analiza.potrzeba, analiza.poprawka_handlowca, analiza.odpowiedzi_handlowca]
+    .map((x) => String(x ?? '')).join(' ').toLowerCase()
+  const wsk = wskazaneProdukty(produkty, tekstWsk)
+  const reszta = kandydaciWgOpisu(produkty, analiza, limit)
+  if (!wsk.length) return reszta
+  const ids = new Set(wsk.map((p) => p.id))
+  return [...wsk, ...reszta.filter((p) => !ids.has(p.id))].slice(0, Math.max(limit, wsk.length))
+}
+
+function kandydaciWgOpisu(produkty: Kandydat[], analiza: Analiza, limit = 8): Kandydat[] {
   const d = analiza.dane ?? {}
   // 27.11 (Otto 49 + Libre 31, FHU KATO v12): „pochwyt Stilo 170 …” siedział tylko w `okucia` — bez tego pola produkty „z pochwytem”
   // dostawały karę i Otto 49 z pochwytem (#65452) wypadał z listy, a dobór brał zwykły Otto 49 (#31052)
@@ -386,8 +418,6 @@ export function kandydaci(produkty: Kandydat[], analiza: Analiza, limit = 8): Ka
   const pochwyt = tekst.includes('pochwyt')
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const wyniki: [number, Kandydat][] = []
-  // 28.11: produkt wskazany numerem (ID z linku / z panelu sklepu) — zawsze na liście, na pierwszym miejscu
-  const wskazaneId = new Set([...tekst.matchAll(ID_PRODUKTU)].map((m) => Number(m[1])))
   // dokładne trafienie wzoru (indeks w `modele`) — do gwarancji miejsc na liście przy kilku wzorach w jednej ofercie
   const trafienie = new Map<number, number>()
   for (const p of produkty) {
@@ -412,7 +442,6 @@ export function kandydaci(produkty: Kandydat[], analiza: Analiza, limit = 8): Ka
     else if (wariant.includes('gold') || wariant.includes('złot')) s += n.includes('gold') ? 2 : -1
     else if (wariant) s += (!n.includes('noir') && !n.includes('gold')) ? 1 : -1
     if (pochwyt !== n.includes('pochwyt')) s -= 2
-    if (wskazaneId.has(p.id)) s += 20
     if (s > 0) wyniki.push([s, p])
   }
   wyniki.sort((a, b) => b[0] - a[0] || a[1].id - b[1].id)
