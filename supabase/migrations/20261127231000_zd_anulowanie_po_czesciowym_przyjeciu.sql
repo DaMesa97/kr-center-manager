@@ -2,6 +2,7 @@
 -- status „Anulowane”, choć towar przyszedł (np. 3 PZ, 115 szt.) — historia i raporty pokazywały, że nic nie dotarło.
 -- Teraz: pozycje z przyjętą ilością zamykają się jako 'completed' (zamknięte częściowo), reszta 'cancelled'; całe ZD
 -- dostaje 'completed', gdy coś przyjęto, inaczej 'cancelled' (tak jak już robi cancel_purchase_order_item).
+-- Poprawka (testy 27.11, runda 3; NISKI): przy 'completed' ustawiamy też received_at (jeśli puste), jak przy przyjęciu.
 -- DO WDROŻENIA (nie wgrane w sesji).
 create or replace function public.cancel_purchase_order__impl(p_po_id bigint)
  returns void
@@ -28,6 +29,10 @@ begin
 
   select exists (select 1 from purchase_order_items where purchase_order_id = p_po_id and coalesce(quantity_received, 0) > 0)
     into v_przyjete;
-  update purchase_orders set status = case when v_przyjete then 'completed' else 'cancelled' end where id = p_po_id;
+  -- testy 27.11 (runda 3): zamknięte jako przyjęte → data przyjęcia jak przy receive_purchase_order
+  update purchase_orders
+  set status = case when v_przyjete then 'completed' else 'cancelled' end,
+      received_at = case when v_przyjete then coalesce(received_at, now()) else received_at end
+  where id = p_po_id;
 end;
 $function$;
