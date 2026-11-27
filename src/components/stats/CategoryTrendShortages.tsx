@@ -9,6 +9,7 @@ import {
   formatDays,
   formatPct,
   normalizeZewBrak,
+  monthLabel,
   normalizeZewMiesiac,
   periodLabel,
   sortZewShortages,
@@ -78,6 +79,13 @@ export default function CategoryTrendShortages({ category }: Props) {
 
   const trend = useMemo(() => zewTrend(miesiace, wymiar, mode, new Date(), { zBiezacym, min: 10 }), [miesiace, wymiar, mode, zBiezacym])
   const okresy = useMemo(() => trendPeriods(mode, new Date(), zBiezacym), [mode, zBiezacym])
+  // testy 27.11 (runda 3): ST / Bastion / Techniczne mają zlecenia dopiero od czerwca 2026 — porównanie z okresem
+  // sprzed pierwszego zlecenia dawało same „nowe” albo fałszywe „rośnie”; mówimy to wprost
+  const daneOd = useMemo(() => {
+    const m = miesiace.filter((r) => r.szt > 0).map((r) => r.miesiac.slice(0, 7)).sort()[0]
+    return m ?? null
+  }, [miesiace])
+  const zaKrotkaHistoria = daneOd != null && okresy.poprzednio.length > 0 && daneOd > okresy.poprzednio[0]
   const brakiSorted = useMemo(() => sortZewShortages(braki), [braki])
   const srKat = braki[0]?.sr_realizacja_kat ?? null
 
@@ -141,7 +149,14 @@ export default function CategoryTrendShortages({ category }: Props) {
           {loadingM ? <Spinner center label="Ładowanie…" /> : trend.length === 0 ? (
             <p style={{ color: '#6b7280' }}>Brak danych w porównywanych okresach.</p>
           ) : (
-            <DataTable rows={trend} rowKey={(r) => r.nazwa} columns={trendColumns} />
+            <>
+              {zaKrotkaHistoria && daneOd && (
+                <p role="note" style={{ color: '#b45309', margin: '0 0 8px' }}>
+                  Za krótka historia: dane w tej kategorii są od {monthLabel(daneOd)}, a poprzedni okres zaczyna się w {monthLabel(okresy.poprzednio[0])} — ocena „rośnie” / „nowe” nie jest wiarygodna. Wybierz krótszy tryb porównania.
+                </p>
+              )}
+              <DataTable rows={trend} rowKey={(r) => r.nazwa} columns={trendColumns} />
+            </>
           )}
         </div>
       </div>
