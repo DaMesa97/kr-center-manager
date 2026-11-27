@@ -293,6 +293,17 @@ Deno.serve(async (req) => {
             const t = String(w).trim();
             if (/^x+$/i.test(t)) { wyd = today; szac = true; } else wyd = t;
           }
+          // testy 27.11 (2. seria, KRYTYCZNY): „ANULOWANE” wpisane w kolumnie etapu (CNC, ościeżnica…) zamiast w WYDANIE
+          // zostawiało zlecenie otwarte z rezerwacjami (7 zleceń, 65 rezerwacji) — teraz idzie jak „ANUL…” w WYDANIE,
+          // czyli na listę „Anulowane w Excelu” w Weryfikacji (anuluje człowiek, nie automat)
+          // testy 27.11 (runda 3): sprawdzane PRZED kolumną „zrobione” (DONE) i także w niej — wcześniej „ANULOWANE”
+          // w „MAGAZYN, KONTROLA ODBIORCZA” dawało wydanie z dzisiejszą datą (WZ + rozchód z magazynu).
+          // Tylko wartość zaczynająca się od „anulowan” (w przebiegach widać „ANULOWANE”), żeby np. „ANUL. SKRZYDŁO” nie wyłączało wiersza.
+          if (wyd === null) {
+            const anulCols = [...cols.map((c) => c.header), ...(doneCol && !cols.some((c) => c.header === doneCol) ? [doneCol] : [])];
+            const anul = anulCols.find((h) => /^anulowan/i.test(String(x[h] ?? "").trim()));
+            if (anul) wyd = `ANULOWANE (kolumna ${anul})`;
+          }
           if (wyd === null && doneCol) {
             const dv = x[doneCol];
             if (dv != null && String(dv).trim() !== "" && String(dv).trim() !== "-") { wyd = today; szac = true; }
@@ -307,13 +318,6 @@ Deno.serve(async (req) => {
               if (sv.v && sv.info) nietypowe.push({ etap: c.key, wartosc: sv.info });   // zapisane, informacja w raporcie
             }
             if (Object.keys(stages).length || nietypowe.length) etapyByRow[`${sheet} ${String(nr).trim()}`] = { stages, nietypowe };
-          }
-          // testy 27.11 (2. seria, KRYTYCZNY): „ANULOWANE” wpisane w kolumnie etapu (CNC, ościeżnica…) zamiast w WYDANIE
-          // zostawiało zlecenie otwarte z rezerwacjami (7 zleceń, 65 rezerwacji) — teraz idzie jak „ANUL…” w WYDANIE,
-          // czyli na listę „Anulowane w Excelu” w Weryfikacji (anuluje człowiek, nie automat)
-          if (wyd === null) {
-            const anul = cols.find((c) => /^\s*anul/i.test(String(x[c.header] ?? "")));
-            if (anul) wyd = `ANULOWANE (kolumna ${anul.header})`;
           }
           rows.push({
             sheet, nr: String(nr).trim(),
