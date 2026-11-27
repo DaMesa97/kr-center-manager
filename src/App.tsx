@@ -2074,12 +2074,14 @@ function App() {
       // Komponent z aktywnymi rezerwacjami nie znika — usunięcie półek
       // gubiło licznik reserved_quantity (rezerwacje w stock_reservations
       // dalej istnieją i "Dostępne" kłamało)
-      const { data: activeRes } = await supabase
+      // runda 6 (tester błędów): przy nieudanym odczycie kontrole przepuszczały usunięcie
+      const { data: activeRes, error: blRes } = await supabase
         .from('stock_reservations')
         .select('id')
         .eq('component_id', id)
         .in('status', ['reserved', 'partially_released'])
         .limit(1)
+      if (blRes) { pushToast(`Nie usunięto: nie udało się sprawdzić rezerwacji (${blRes.message}) — spróbuj ponownie`, 'error'); return }
       if (activeRes && activeRes.length > 0) {
         pushToast(
           'Komponent ma aktywne rezerwacje magazynowe — zwolnij je (lub wydaj zamówienia) zanim go usuniesz.',
@@ -2089,18 +2091,20 @@ function App() {
       }
       // Komponent w aktywnej recepturze też nie znika — nowe zlecenia dostawałyby
       // „komponent usunięty z kartoteki" (partial_recipe) zamiast rezerwacji (zwiad #6)
-      const { data: recipeRows } = await supabase
+      const { data: recipeRows, error: blRec } = await supabase
         .from('warehouse_recipe_components')
         .select('recipe_id')
         .eq('component_id', id)
+      if (blRec) { pushToast(`Nie usunięto: nie udało się sprawdzić receptur (${blRec.message}) — spróbuj ponownie`, 'error'); return }
       const recipeIds = Array.from(new Set((recipeRows ?? []).map((r) => r.recipe_id as number)))
       if (recipeIds.length > 0) {
-        const { data: activeRecipes } = await supabase
+        const { data: activeRecipes, error: blAkt } = await supabase
           .from('warehouse_recipes')
           .select('name')
           .in('id', recipeIds)
           .eq('is_active', true)
           .limit(6)
+        if (blAkt) { pushToast(`Nie usunięto: nie udało się sprawdzić receptur (${blAkt.message}) — spróbuj ponownie`, 'error'); return }
         if (activeRecipes && activeRecipes.length > 0) {
           const names = activeRecipes.map((r) => r.name as string)
           pushToast(
@@ -2112,12 +2116,13 @@ function App() {
       }
       // Fizyczny stan na półce ≠ 0 też blokuje — delete kasował towar bez
       // ruchu i bez korekty (towar znikał ze stanu bez śladu)
-      const { data: nonZero } = await supabase
+      const { data: nonZero, error: blStan } = await supabase
         .from('warehouse_stock')
         .select('id')
         .eq('component_id', id)
         .neq('quantity', 0)
         .limit(1)
+      if (blStan) { pushToast(`Nie usunięto: nie udało się sprawdzić stanu (${blStan.message}) — spróbuj ponownie`, 'error'); return }
       if (nonZero && nonZero.length > 0) {
         pushToast(
           'Komponent ma niezerowy stan na półkach — wyzeruj go najpierw (inwentaryzacja/korekta), potem usuń.',
