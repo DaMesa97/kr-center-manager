@@ -207,9 +207,11 @@ function zastosujStan(doc: any, ef: Record<string, unknown>, releaseDate: string
   if (brakPozycji) {
     ef.cancelled = true; ef.cancelled_reason = POWOD_BRAK_POZ;
   } else if (stan === STAN_ANULOWANE) {
-    if (ef.cancelled !== true) { ef.cancelled = true; ef.cancelled_reason = POWOD_ANUL_RO; ef.closed_by = "optima_ro"; }
+    // 28.11 (testy, runda 6): anulowanie przez import NIE ustawia już closed_by — inaczej po powrocie RO do realizacji
+    // ręczne „Wydaj” z programu było brane za zamknięcie importem i kasowane (release_date = null). Osobny znacznik.
+    if (ef.cancelled !== true) { ef.cancelled = true; ef.cancelled_reason = POWOD_ANUL_RO; ef.cancelled_by_import = true; }
   } else if (ef.cancelled_reason === POWOD_ANUL_RO || ef.cancelled_reason === POWOD_BRAK_POZ) {
-    delete ef.cancelled; delete ef.cancelled_reason;
+    delete ef.cancelled; delete ef.cancelled_reason; delete ef.cancelled_by_import;
   }
   if (!brakPozycji && stan === STAN_ZREALIZOWANE) {
     if (!releaseDate) { rd = (doc.updated ?? doc.documentIssueDate ?? new Date().toISOString()).slice(0, 10); ef.closed_by = "optima_ro"; }
