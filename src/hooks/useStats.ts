@@ -10,17 +10,32 @@ type UseStatsParams = {
 
 const PAGE = 1000
 
+/**
+ * Kolumny zleceń potrzebne Statystykom (wykresy kategorii, karta firmy, nazwy firm, partner pary, stan RO z Optimy).
+ * Runda 6 (wydajność): dotąd `select *` całej tabeli — 67 MB (ok. 110 kolumn, większość pusta). Test
+ * `statsKolumny.test.ts` pilnuje, żeby każde pole zlecenia używane w kodzie Statystyk było na tej liście.
+ */
+export const STATS_ORDER_COLUMNS = [
+  'id', 'category', 'order_number', 'company', 'model', 'system', 'wing_color', 'quantity',
+  'order_date', 'release_date', 'created_at', 'source', 'source_metadata', 'extra_fields', 'linked_order_id',
+] as const
+
 async function fetchAllRows(table: 'orders' | 'complaints'): Promise<{ data: unknown[] | null; error: { message: string } | null }> {
   const rows: unknown[] = []
-  for (let from = 0; ; from += PAGE) {
+  // runda 6 (wydajność): porcje po `id` (kursor) zamiast OFFSET — przy OFFSET każda porcja to pełny skan i sort tabeli
+  let ostatnieId = 0
+  for (;;) {
     const { data, error } = await supabase
       .from(table)
-      .select('*')
+      .select(table === 'orders' ? STATS_ORDER_COLUMNS.join(', ') : '*')
+      .gt('id', ostatnieId)
       .order('id', { ascending: true })
-      .range(from, from + PAGE - 1)
+      .limit(PAGE)
     if (error) return { data: null, error }
-    rows.push(...(data ?? []))
-    if (!data || data.length < PAGE) return { data: rows, error: null }
+    const porcja = (data ?? []) as unknown as Array<{ id: number }>
+    rows.push(...porcja)
+    if (porcja.length < PAGE) return { data: rows, error: null }
+    ostatnieId = Number(porcja[porcja.length - 1].id)
   }
 }
 
