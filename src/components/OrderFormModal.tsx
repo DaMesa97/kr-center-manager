@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { EDITABLE_CATEGORIES, PRODUCTION_DAYS, type EditableCategory } from '../constants'
 import SearchableConfigSelect from './SearchableConfigSelect'
 import CompanyAutocomplete from './CompanyAutocomplete'
@@ -160,7 +160,13 @@ function OrderFormModal(props: OrderFormModalProps) {
     bastionFormData?.frame_type?.toUpperCase().includes('REGULOWANA') ||
     bastionFormData?.frame_type?.toUpperCase().includes('REGULOWAN')
 
+  // runda 5 (recenzent): efekt odpalał się przy KAŻDYM otwarciu okna i czyścił zakres przy zabudowie
+  // (ZAB.OŚC.METAL. 160 itp.) — od f550afa to wyczyszczenie trafiało do bazy. Czyścimy tylko, gdy człowiek ZMIENIŁ typ.
+  const poprzedniTypOscRef = useRef(bastionFormData.frame_type)
   useEffect(() => {
+    const poprzedni = poprzedniTypOscRef.current
+    poprzedniTypOscRef.current = bastionFormData.frame_type
+    if (poprzedni === bastionFormData.frame_type) return
     if (!isFrameRegulated && bastionFormData.frame_range) {
       autoPatchBastionForm({ frame_range: '' })
     }
