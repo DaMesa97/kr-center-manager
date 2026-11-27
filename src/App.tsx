@@ -3509,6 +3509,7 @@ function App() {
 
         <ComplaintFormModal
           open={showComplaintForm}
+          category={(TABS as readonly string[]).includes(activeTab) ? activeTab : undefined}
           complaintFormData={complaintFormData}
           complaintFormLoading={complaintFormLoading}
           orders={orders}

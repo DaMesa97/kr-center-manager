@@ -19,6 +19,8 @@ type ComplaintFormModalProps = {
   onSelectArchived: (archived: ArchivedOrder) => void
   onSave: () => void
   submitOnEnterInInput: (e: React.KeyboardEvent<HTMLElement>, action: () => void) => void
+  /** kategoria zakładki (STA, Disting, ST…) — „Szukaj wydanych” szuka tylko w niej */
+  category?: string
 }
 
 export default function ComplaintFormModal({
@@ -34,6 +36,7 @@ export default function ComplaintFormModal({
   onSelectArchived,
   onSave,
   submitOnEnterInInput,
+  category,
 }: ComplaintFormModalProps) {
   const { requestClose } = useUnsavedGuard(complaintFormData, onClose, { enabled: !complaintFormLoading, escape: open, resetKey: open })
   // 27.11 (testy): lista ma tylko niewydane zlecenia, a ok. 1/4 reklamacji dotyczy wydanych — szukanie w bazie
@@ -55,13 +58,15 @@ export default function ComplaintFormModal({
       return
     }
     setSzukam(true)
-    const { data, error } = await supabase
+    // testy 27.11 (2. seria): bez kategorii lista mieszała działy (np. 26 drzwi wewnętrznych na 1 STA) i dało się
+    // wybrać zlecenie obcego działu — szukamy tylko w kategorii zakładki
+    let q = supabase
       .from('orders')
       .select('*')
       .not('release_date', 'is', null)
       .or(`order_number.ilike.%${t}%,company.ilike.%${t}%,client_order_number.ilike.%${t}%`)
-      .order('release_date', { ascending: false })
-      .limit(30)
+    if (category) q = q.eq('category', category)
+    const { data, error } = await q.order('release_date', { ascending: false }).limit(30)
     setSzukam(false)
     if (error) {
       setSzukanoInfo(`Błąd szukania: ${error.message}`)
@@ -69,7 +74,7 @@ export default function ComplaintFormModal({
     }
     const lista = (data ?? []) as Order[]
     setWydane(lista)
-    setSzukanoInfo(lista.length ? `Znaleziono wydanych: ${lista.length} — są na liście „Zamówienie” ze znaczkiem ✓` : 'Nie znaleziono wydanego zlecenia')
+    setSzukanoInfo(lista.length ? `Znaleziono wydanych${category ? ` (${category})` : ''}: ${lista.length} — są na liście „Zamówienie” ze znaczkiem ✓` : `Nie znaleziono wydanego zlecenia${category ? ` w kategorii ${category}` : ''}`)
   }
   if (!open) return null
 
