@@ -292,7 +292,10 @@ Tryb nocny: branch `night-testing-2026-11-27`, warunek stopu wyłączony.
 | ŚREDNI | data zamówienia szyby u partnera Disting Plus i intarsja zestawu Titan — błąd tylko w konsoli | komunikat na ekranie, bez lokalnego „zamówione” | cac3610 |
 | ŚREDNI | para reklamacji Disting Plus (etap, realizacja, pilność) rozjeżdżała się po cichu (komputer, Moje stanowisko, telefon) | komunikat „para nie zsynchronizowana” | db5679e |
 | ŚREDNI | usunięcie komponentu przechodziło, gdy kontrola rezerwacji / receptur / stanu nie dała się odczytać | przerwanie | 4dac423 |
-| WYSOKI | Edge: crm-mail-sent gubi mail przy błędzie (UID idzie dalej), crm-call-ingest bez limitów czasu i bez sprawdzania zapisów, orders-intake / excel-intake: noga Titana lub para Disting Plus po cichu nie powstaje, excel-sync: błąd etapów bez śladu | w toku (tor Edge) | — |
+| WYSOKI | crm-mail-sent: błąd jednego maila przesuwał UID (mail przepadał), wychodzący „przetworzony” przed dopasowaniem do oferty | UID stoi na ostatnim udanym, „zatruty” mail pomijany po 2. błędzie ze zdarzeniem; wychodzący „nowy” do dopasowania | 6eb121a |
+| WYSOKI | crm-call-ingest: brak limitów czasu (rozmowa mogła utknąć jako „nowa”), zapisy klienta bez sprawdzenia błędu | `AbortSignal.timeout` 60–120 s, ponawianie zawieszonych > 15 min, błąd zapisu → „blad” i ponowienie (bez dublowania oferty) | 1112c7c |
+| WYSOKI | orders-intake / excel-intake: noga Titana lub para Disting Plus po cichu nie powstawała, a STA dostawało `titan_group` | Weryfikacja z ostrzeżeniem, ponawianie numeru, bez dublowania istniejących nóg (4 nowe testy) | a2c721d |
+| ŚREDNI | excel-sync: błąd etapów / reklamacji tylko w odpowiedzi HTTP | zapis w `excel_sync_runs` | d7431db |
 
 ### Przekrojowe cykle życia (Titan, Disting Plus, bot+Excel+Optima, drzwi wewn., reklamacje, granice dat)
 - KRYTYCZNY — Excel zdejmuje drugi raz towar wydany przed spisem 6.11 (próg = dzień synchronizacji; 5 zleceń STA, 280 szt.) → **D42** (decyzja, pilne).
