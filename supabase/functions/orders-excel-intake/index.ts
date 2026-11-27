@@ -119,6 +119,9 @@ const reserveStock = async (supabase: any, orderId: number): Promise<void> => {
 }
 
 // STA Titan → dorób ST (ościeżnica) + Bastion (skrzydło do okuwania). Grupa w extra_fields.titan_group.
+// testy 27.11 (runda 3): nieudana noga nie jest już pomijana po cichu — STA NIE dostaje wtedy titan_group (ponowne
+// wywołanie może dorobić brakującą nogę; nóg tej grupy, które już są, nie dublujemy), za to needs_review + ostrzeżenie
+// w warnings („nie powstała noga …: <błąd>”), żeby zlecenie trafiło do Weryfikacji.
 const createTitanLegs = async (supabase: any, orderId: number): Promise<void> => {
   const { data: base, error } = await supabase.from('orders').select('*').eq('id', orderId).single()
   if (error || !base) return
@@ -131,31 +134,46 @@ const createTitanLegs = async (supabase: any, orderId: number): Promise<void> =>
   const group = staId
   const { id, created_at, updated_at, ...rest } = base as Record<string, unknown>
 
+  // nogi tej grupy, które już są (np. po wcześniejszym częściowym błędzie)
+  const { data: existing, error: exErr } = await supabase.from('orders').select('id, order_number, category')
+    .eq('extra_fields->>titan_group', String(group)).neq('id', staId)
+  if (exErr) throw new Error(`odczyt nóg Titana: ${exErr.message}`)
+  const legs = (Array.isArray(existing) ? existing : []) as Record<string, unknown>[]
+  const problems: string[] = []
+  const createLeg = async (category: 'ST' | 'Bastion', build: (nr: string) => Record<string, unknown>) => {
+    const found = legs.find((l) => l.category === category)
+    if (found) return found
+    try {
+      const nr = await nextOrderNumber(supabase, category)
+      const { row, error: legErr } = await insertOrderWithNumberRetry(supabase, build(nr), category)
+      if (row) { await reserveStock(supabase, Number(row.id)); return row }
+      problems.push(`nie powstała noga ${category}: ${legErr ?? 'brak danych'}`)
+    } catch (e) {
+      problems.push(`nie powstała noga ${category}: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    return null
+  }
+
   // ST (ościeżnica)
-  const stNr = await nextOrderNumber(supabase, 'ST')
-  const stPayload = {
-    ...rest, order_number: stNr, category: 'ST', airtable_id: '', linked_order_id: staId,
+  const stRow = await createLeg('ST', (nr) => ({
+    ...rest, order_number: nr, category: 'ST', airtable_id: '', linked_order_id: staId,
     sta_ref: String(base.order_number ?? ''), st_sheet: '', release_date: null,
     production_stages: emptyStagesFor('ST'), extra_fields: { ...ef, titan_group: group, titan_role: 'ST' },
-  }
-  const { row: stRow, error: stErr } = await insertOrderWithNumberRetry(supabase, stPayload, 'ST')
-  if (stErr) console.error('titan ST leg failed:', stErr)
-  if (stRow) await reserveStock(supabase, Number(stRow.id))
-
+  }))
   // Bastion (skrzydło do okuwania)
-  const bNr = await nextOrderNumber(supabase, 'Bastion')
-  const bPayload = {
-    ...rest, order_number: bNr, category: 'Bastion', airtable_id: '', linked_order_id: null, release_date: null,
+  await createLeg('Bastion', (nr) => ({
+    ...rest, order_number: nr, category: 'Bastion', airtable_id: '', linked_order_id: null, release_date: null,
     production_stages: emptyStagesFor('Bastion'), extra_fields: { ...ef, titan_group: group, titan_role: 'Bastion' },
-  }
-  const { row: bRow, error: bErr } = await insertOrderWithNumberRetry(supabase, bPayload, 'Bastion')
-  if (bErr) console.error('titan Bastion leg failed:', bErr)
-  if (bRow) await reserveStock(supabase, Number(bRow.id))
+  }))
 
-  // dopnij linki na STA
-  const upd: Record<string, unknown> = { extra_fields: { ...ef, titan_group: group, titan_role: 'STA' } }
+  // dopnij linki na STA; grupa tylko przy komplecie nóg
+  const prevWarnings = Array.isArray(ef.warnings) ? (ef.warnings as string[]) : []
+  const upd: Record<string, unknown> = problems.length
+    ? { extra_fields: { ...ef, needs_review: true, warnings: [...prevWarnings, ...problems] } }
+    : { extra_fields: { ...ef, titan_group: group, titan_role: 'STA' } }
   if (stRow) { upd.linked_order_id = stRow.id; upd.st_sheet = stRow.order_number }
-  await supabase.from('orders').update(upd).eq('id', staId)
+  const { error: updErr } = await supabase.from('orders').update(upd).eq('id', staId)
+  if (updErr) console.error(`titan: zapis STA ${staId}:`, updErr.message)
 }
 
 const todayISO = (): string => new Date().toISOString().split('T')[0]
@@ -455,6 +473,15 @@ const insertOrderWithNumberRetry = async (
   return { row: null, error: `kolizja numeru zlecenia (${category}) — ${NUMBER_RETRIES} prób bez powodzenia` }
 }
 
+// testy 27.11 (runda 3): nieudana para DISTING PLUS → zlecenie bazowe do Weryfikacji (needs_review + ostrzeżenie)
+const flagPairProblem = async (supabase: any, base: Record<string, unknown>, problem: string): Promise<void> => {
+  console.error('DISTING PLUS:', problem)
+  const ef = (base.extra_fields && typeof base.extra_fields === 'object') ? base.extra_fields as Record<string, unknown> : {}
+  const prevWarnings = Array.isArray(ef.warnings) ? (ef.warnings as string[]) : []
+  const { error } = await supabase.from('orders').update({ extra_fields: { ...ef, needs_review: true, warnings: [...prevWarnings, problem] } }).eq('id', base.id)
+  if (error) console.error(`DISTING PLUS: oznaczenie zlecenia ${base.id} do weryfikacji:`, error.message)
+}
+
 const createDistingPlusPartner = async (supabase: any, orderId: number): Promise<void> => {
   const { data: base, error } = await supabase.from('orders').select('*').eq('id', orderId).single()
   if (error || !base) return
@@ -466,7 +493,9 @@ const createDistingPlusPartner = async (supabase: any, orderId: number): Promise
   const partnerCat = baseCat === 'Disting' ? 'STA' : baseCat === 'STA' ? 'Disting' : null
   if (!partnerCat) return
 
-  const partnerNumber = await nextOrderNumber(supabase, partnerCat)
+  let partnerNumber: string
+  try { partnerNumber = await nextOrderNumber(supabase, partnerCat) }
+  catch (e) { await flagPairProblem(supabase, base, `nie powstała para DISTING PLUS (${partnerCat}): ${e instanceof Error ? e.message : String(e)}`); return }
   const { id, created_at, updated_at, ...rest } = base as Record<string, unknown>
   const partnerPayload: Record<string, unknown> = {
     ...rest,
@@ -480,12 +509,13 @@ const createDistingPlusPartner = async (supabase: any, orderId: number): Promise
     sta_sheet: partnerCat === 'Disting' ? String(base.order_number ?? '') : '',
   }
   const { row: partnerRow, error: pErr } = await insertOrderWithNumberRetry(supabase, partnerPayload, partnerCat)
-  if (pErr || !partnerRow) { console.error('partner create failed:', pErr); return }
+  if (pErr || !partnerRow) { await flagPairProblem(supabase, base, `nie powstała para DISTING PLUS (${partnerCat}): ${pErr ?? 'brak danych'}`); return }
 
   const baseUpdate: Record<string, unknown> = { linked_order_id: partnerRow.id }
   if (baseCat === 'Disting') baseUpdate.sta_sheet = partnerRow.order_number
   else baseUpdate.disting_sheet = partnerRow.order_number
-  await supabase.from('orders').update(baseUpdate).eq('id', base.id)
+  const { error: linkErr } = await supabase.from('orders').update(baseUpdate).eq('id', base.id)
+  if (linkErr) await flagPairProblem(supabase, base, `para DISTING PLUS ${partnerCat} ${partnerRow.order_number} powstała, ale nie zapisano powiązania: ${linkErr.message}`)
 
   await reserveStock(supabase, Number(partnerRow.id))
 }

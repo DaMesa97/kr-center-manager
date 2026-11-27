@@ -176,8 +176,9 @@ describe('orders-intake — Titan: trójka STA + ST + Bastion', () => {
       [
         { data: base, error: null },  // DISTING PLUS check (CORE → stop)
         { data: base, error: null },  // createTitanLegs: odczyt bazy
+        { data: [], error: null },    // istniejące nogi grupy (brak)
         { data: { id: 20, order_number: '1' }, error: null }, // insert ST
-        { data: null, error: null },  // insert Bastion
+        { data: { id: 21, order_number: '2' }, error: null }, // insert Bastion
         { data: null, error: null },  // update STA (linki + rola)
       ],
       {
@@ -210,5 +211,91 @@ describe('orders-intake — Titan: trójka STA + ST + Bastion', () => {
       st_sheet: '1',
       extra_fields: { titan_group: 10, titan_role: 'STA' },
     })
+  })
+
+  // testy 27.11 (runda 3): błąd nogi nie może przejść po cichu, a STA bez kompletu nóg nie dostaje titan_group
+  const titanBase = { id: 10, order_number: '900', category: 'STA', system: 'CORE', company: 'X', linked_order_id: null, extra_fields: { warnings: ['stare'] } }
+
+  it('błąd nogi Bastion: STA bez titan_group, needs_review + ostrzeżenie, link do ST zostaje', async () => {
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: titanBase, error: null },
+        { data: titanBase, error: null },
+        { data: [], error: null },
+        { data: { id: 20, order_number: '1' }, error: null },              // insert ST
+        { data: null, error: { code: '23502', message: 'null value' } },   // insert Bastion — błąd (nie kolizja)
+        { data: null, error: null },                                       // update STA
+      ],
+      { ...RPCS_OK(10, '900'), get_next_order_number: { data: '1', error: null } },
+    )
+    __setSupabaseClient(supabase)
+    const res = await handler()(post({ category: 'STA', system: 'CORE' }))
+    expect(res.status).toBe(200)
+    const upd = calls.updated[0] as Record<string, unknown>
+    const ef = upd.extra_fields as Record<string, unknown>
+    expect(ef.titan_group).toBeUndefined()
+    expect(ef.needs_review).toBe(true)
+    expect(ef.warnings).toEqual(['stare', 'nie powstała noga Bastion: null value'])
+    expect(upd).toMatchObject({ linked_order_id: 20, st_sheet: '1' })
+  })
+
+  it('kolizja numeru nogi ST (23505): nowy numer i ponowny insert', async () => {
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: titanBase, error: null },
+        { data: titanBase, error: null },
+        { data: [], error: null },
+        { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "orders_unique_number_per_category"' } },
+        { data: { id: 20, order_number: '1' }, error: null },  // ST — druga próba
+        { data: { id: 21, order_number: '1' }, error: null },  // Bastion
+        { data: null, error: null },
+      ],
+      { ...RPCS_OK(10, '900'), get_next_order_number: { data: '1', error: null } },
+    )
+    __setSupabaseClient(supabase)
+    await handler()(post({ category: 'STA', system: 'CORE' }))
+    expect(calls.inserted).toHaveLength(3)
+    expect(calls.rpc.filter(([n]) => n === 'get_next_order_number')).toHaveLength(3)
+    expect((calls.updated[0] as { extra_fields: Record<string, unknown> }).extra_fields).toMatchObject({ titan_group: 10, titan_role: 'STA' })
+  })
+
+  it('istniejąca noga ST (po wcześniejszym błędzie) nie jest dublowana', async () => {
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: titanBase, error: null },
+        { data: titanBase, error: null },
+        { data: [{ id: 20, order_number: '1', category: 'ST' }], error: null },
+        { data: { id: 21, order_number: '2' }, error: null },  // tylko Bastion
+        { data: null, error: null },
+      ],
+      { ...RPCS_OK(10, '900'), get_next_order_number: { data: '2', error: null } },
+    )
+    __setSupabaseClient(supabase)
+    await handler()(post({ category: 'STA', system: 'CORE' }))
+    expect(calls.inserted).toHaveLength(1)
+    expect((calls.inserted[0][0] as Record<string, unknown>).category).toBe('Bastion')
+    expect(calls.updated[0]).toMatchObject({ linked_order_id: 20, extra_fields: { titan_group: 10, titan_role: 'STA' } })
+  })
+})
+
+describe('orders-intake — DISTING PLUS: błąd partnera', () => {
+  it('nieudany insert partnera → bazowe zlecenie needs_review + ostrzeżenie, bez powiązania', async () => {
+    const base = { id: 10, order_number: '500', category: 'Disting', system: 'DISTING PLUS', company: 'TORA', linked_order_id: null, extra_fields: {} }
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        { data: base, error: null },
+        { data: null, error: { code: '42501', message: 'brak uprawnień' } },  // insert partnera
+        { data: null, error: null },                                          // update: oznaczenie do weryfikacji
+        { data: base, error: null },                                          // createTitanLegs (nie Titan)
+      ],
+      { ...RPCS_OK(10, '500'), get_next_order_number: { data: '42', error: null } },
+    )
+    __setSupabaseClient(supabase)
+    const res = await handler()(post({ category: 'Disting', system: 'DISTING PLUS' }))
+    expect(res.status).toBe(200)
+    expect(calls.updated).toHaveLength(1)
+    const upd = calls.updated[0] as Record<string, unknown>
+    expect(upd.linked_order_id).toBeUndefined()
+    expect(upd.extra_fields).toEqual({ needs_review: true, warnings: ['nie powstała para DISTING PLUS (STA): brak uprawnień'] })
   })
 })

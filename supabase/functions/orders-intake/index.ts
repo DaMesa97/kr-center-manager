@@ -80,38 +80,84 @@ const reserveStock = async (supabase: any, orderId: number): Promise<void> => {
 }
 
 // STA Titan → dorób ST (ościeżnica) + Bastion (skrzydło do okuwania). Grupa w extra_fields.titan_group.
+// testy 27.11 (runda 3): nieudana noga nie jest już pomijana po cichu — STA NIE dostaje wtedy titan_group (ponowne
+// wywołanie może dorobić brakującą nogę; nóg tej grupy, które już są, nie dublujemy), za to needs_review + ostrzeżenie
+// w warnings („nie powstała noga …: <błąd>”), żeby zlecenie trafiło do Weryfikacji.
 const createTitanLegs = async (supabase: any, orderId: number): Promise<void> => {
   const { data: base, error } = await supabase.from('orders').select('*').eq('id', orderId).single()
   if (error || !base) return
   if (!isTitanSystem(base.system)) return
   if (String(base.category) !== 'STA') return
   const ef = (base.extra_fields && typeof base.extra_fields === 'object') ? base.extra_fields as Record<string, unknown> : {}
-  if (ef.titan_group) return
+  if (ef.titan_group) return // już rozbite
 
   const staId = base.id
   const group = staId
   const { id, created_at, updated_at, ...rest } = base as Record<string, unknown>
 
-  const stNr = await nextOrderNumber(supabase, 'ST')
-  const stPayload = {
-    ...rest, order_number: stNr, category: 'ST', airtable_id: '', linked_order_id: staId,
+  // nogi tej grupy, które już są (np. po wcześniejszym częściowym błędzie)
+  const { data: existing, error: exErr } = await supabase.from('orders').select('id, order_number, category')
+    .eq('extra_fields->>titan_group', String(group)).neq('id', staId)
+  if (exErr) throw new Error(`odczyt nóg Titana: ${exErr.message}`)
+  const legs = (Array.isArray(existing) ? existing : []) as Record<string, unknown>[]
+  const problems: string[] = []
+  const createLeg = async (category: 'ST' | 'Bastion', build: (nr: string) => Record<string, unknown>) => {
+    const found = legs.find((l) => l.category === category)
+    if (found) return found
+    try {
+      const nr = await nextOrderNumber(supabase, category)
+      const { row, error: legErr } = await insertOrderWithNumberRetry(supabase, build(nr), category)
+      if (row) { await reserveStock(supabase, Number(row.id)); return row }
+      problems.push(`nie powstała noga ${category}: ${legErr ?? 'brak danych'}`)
+    } catch (e) {
+      problems.push(`nie powstała noga ${category}: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    return null
+  }
+
+  // ST (ościeżnica)
+  const stRow = await createLeg('ST', (nr) => ({
+    ...rest, order_number: nr, category: 'ST', airtable_id: '', linked_order_id: staId,
     sta_ref: String(base.order_number ?? ''), st_sheet: '', release_date: null,
     production_stages: emptyStagesFor('ST'), extra_fields: { ...ef, titan_group: group, titan_role: 'ST' },
-  }
-  const { data: stRow } = await supabase.from('orders').insert([stPayload]).select('id, order_number').single()
-  if (stRow) await reserveStock(supabase, Number(stRow.id))
-
-  const bNr = await nextOrderNumber(supabase, 'Bastion')
-  const bPayload = {
-    ...rest, order_number: bNr, category: 'Bastion', airtable_id: '', linked_order_id: null, release_date: null,
+  }))
+  // Bastion (skrzydło do okuwania)
+  await createLeg('Bastion', (nr) => ({
+    ...rest, order_number: nr, category: 'Bastion', airtable_id: '', linked_order_id: null, release_date: null,
     production_stages: emptyStagesFor('Bastion'), extra_fields: { ...ef, titan_group: group, titan_role: 'Bastion' },
-  }
-  const { data: bRow } = await supabase.from('orders').insert([bPayload]).select('id').single()
-  if (bRow) await reserveStock(supabase, Number(bRow.id))
+  }))
 
-  const upd: Record<string, unknown> = { extra_fields: { ...ef, titan_group: group, titan_role: 'STA' } }
+  // dopnij linki na STA; grupa tylko przy komplecie nóg
+  const prevWarnings = Array.isArray(ef.warnings) ? (ef.warnings as string[]) : []
+  const upd: Record<string, unknown> = problems.length
+    ? { extra_fields: { ...ef, needs_review: true, warnings: [...prevWarnings, ...problems] } }
+    : { extra_fields: { ...ef, titan_group: group, titan_role: 'STA' } }
   if (stRow) { upd.linked_order_id = stRow.id; upd.st_sheet = stRow.order_number }
-  await supabase.from('orders').update(upd).eq('id', staId)
+  const { error: updErr } = await supabase.from('orders').update(upd).eq('id', staId)
+  if (updErr) console.error(`titan: zapis STA ${staId}:`, updErr.message)
+}
+
+// Kolizja unikalnego numeru (kategoria, numer) i INSERT z ponowieniem — kopia z orders-excel-intake/index.ts
+// (funkcje Edge nie dzielą plików; zmieniaj obie kopie razem). testy 27.11 (runda 3): nogi Titana i para
+// DISTING PLUS z bota kolidowały z równoległym intakiem (get_next_order_number = MAX+1 bez rezerwacji).
+export const isOrderNumberCollision = (err: { code?: string; message?: string } | null | undefined): boolean =>
+  !!err && (err.code === '23505' || /orders_unique_number_per_category/i.test(err.message ?? ''))
+
+const NUMBER_RETRIES = 5
+
+const insertOrderWithNumberRetry = async (
+  supabase: any,
+  payload: Record<string, unknown>,
+  category: string,
+): Promise<{ row: Record<string, unknown> | null; error: string | null }> => {
+  for (let attempt = 0; attempt < NUMBER_RETRIES; attempt++) {
+    const { data, error } = await supabase.from('orders').insert([payload]).select('id, order_number, category').single()
+    if (!error && data) return { row: data, error: null }
+    if (!isOrderNumberCollision(error)) return { row: null, error: error?.message ?? 'insert failed' }
+    await new Promise((r) => setTimeout(r, 50 + Math.floor(Math.random() * 250)))
+    payload.order_number = await nextOrderNumber(supabase, category)
+  }
+  return { row: null, error: `kolizja numeru zlecenia (${category}) — ${NUMBER_RETRIES} prób bez powodzenia` }
 }
 
 // Następny numer zlecenia w danej kategorii — RPC w SQL (bez limitu 1000
@@ -121,6 +167,15 @@ const nextOrderNumber = async (supabase: any, category: string): Promise<string>
   const { data, error } = await supabase.rpc('get_next_order_number', { p_category: category })
   if (error || !data) throw new Error(`get_next_order_number(${category}): ${error?.message ?? 'brak danych'}`)
   return String(data)
+}
+
+// testy 27.11 (runda 3): nieudana para DISTING PLUS → zlecenie bazowe do Weryfikacji (needs_review + ostrzeżenie)
+const flagPairProblem = async (supabase: any, base: Record<string, unknown>, problem: string): Promise<void> => {
+  console.error('DISTING PLUS:', problem)
+  const ef = (base.extra_fields && typeof base.extra_fields === 'object') ? base.extra_fields as Record<string, unknown> : {}
+  const prevWarnings = Array.isArray(ef.warnings) ? (ef.warnings as string[]) : []
+  const { error } = await supabase.from('orders').update({ extra_fields: { ...ef, needs_review: true, warnings: [...prevWarnings, problem] } }).eq('id', base.id)
+  if (error) console.error(`DISTING PLUS: oznaczenie zlecenia ${base.id} do weryfikacji:`, error.message)
 }
 
 // DISTING PLUS: po utworzeniu zlecenia tworzymy powiązanego partnera (STA↔Disting)
@@ -137,7 +192,9 @@ const createDistingPlusPartner = async (supabase: any, orderId: number): Promise
   const partnerCat = baseCat === 'Disting' ? 'STA' : baseCat === 'STA' ? 'Disting' : null
   if (!partnerCat) return
 
-  const partnerNumber = await nextOrderNumber(supabase, partnerCat)
+  let partnerNumber: string
+  try { partnerNumber = await nextOrderNumber(supabase, partnerCat) }
+  catch (e) { await flagPairProblem(supabase, base, `nie powstała para DISTING PLUS (${partnerCat}): ${e instanceof Error ? e.message : String(e)}`); return }
 
   // Kopiujemy cały wiersz bazowy bez pól tożsamości/auto i z poprawnymi referencjami
   const { id, created_at, updated_at, ...rest } = base as Record<string, unknown>
@@ -154,20 +211,18 @@ const createDistingPlusPartner = async (supabase: any, orderId: number): Promise
     sta_sheet: partnerCat === 'Disting' ? String(base.order_number ?? '') : '',
   }
 
-  const { data: partnerRow, error: pErr } = await supabase
-    .from('orders')
-    .insert([partnerPayload])
-    .select('id, order_number')
-    .single()
+  // testy 27.11 (runda 3): ponowienie numeru przy kolizji; błąd → zlecenie bazowe do Weryfikacji (bez powiązania)
+  const { row: partnerRow, error: pErr } = await insertOrderWithNumberRetry(supabase, partnerPayload, partnerCat)
   if (pErr || !partnerRow) {
-    console.error('DISTING PLUS partner create failed:', pErr?.message)
+    await flagPairProblem(supabase, base, `nie powstała para DISTING PLUS (${partnerCat}): ${pErr ?? 'brak danych'}`)
     return
   }
 
   const baseUpdate: Record<string, unknown> = { linked_order_id: partnerRow.id }
   if (baseCat === 'Disting') baseUpdate.sta_sheet = partnerRow.order_number
   else baseUpdate.disting_sheet = partnerRow.order_number
-  await supabase.from('orders').update(baseUpdate).eq('id', base.id)
+  const { error: linkErr } = await supabase.from('orders').update(baseUpdate).eq('id', base.id)
+  if (linkErr) await flagPairProblem(supabase, base, `para DISTING PLUS ${partnerCat} ${partnerRow.order_number} powstała, ale nie zapisano powiązania: ${linkErr.message}`)
 
   await reserveStock(supabase, Number(partnerRow.id))
 }
