@@ -321,14 +321,20 @@ function WzrFormModal({
     const nr = form.reklamacja.trim()
     if (!nr) { set({ complaint_id: null, complaint_label: '' }); return }
     setSzukam(true)
-    const KOL = 'id, complaint_number, company, order_number, client_order_number'
+    const KOL = 'id, complaint_number, company, order_number, client_order_number, category, linked_complaint_id'
+    type Rek = { id: number; complaint_number: string; company: string | null; order_number: string | null; client_order_number: string | null; category: string | null; linked_complaint_id: number | null }
     // 27.11 (testy agentów): „XL/Bastion/16” pasowało też do „XL/Bastion/160” → „kilka pasuje” mimo pełnego numeru
-    const dokladnie = await supabase.from('complaints').select(KOL).ilike('complaint_number', nr).limit(2)
-    const { data } = (dokladnie.data ?? []).length === 1
-      ? dokladnie
+    const dokladnie = await supabase.from('complaints').select(KOL).ilike('complaint_number', nr).limit(3)
+    let dok = (dokladnie.data ?? []) as Rek[]
+    // 2. seria: para Disting Plus to z założenia dwa wiersze z tym samym numerem (STA + Disting) — bierzemy wiersz STA
+    if (dok.length === 2 && dok[0].linked_complaint_id === dok[1].id && dok[1].linked_complaint_id === dok[0].id) {
+      dok = [dok.find((r) => r.category === 'STA') ?? (dok[0].id < dok[1].id ? dok[0] : dok[1])]
+    }
+    const { data } = dok.length === 1
+      ? { data: dok }
       : await supabase.from('complaints').select(KOL).ilike('complaint_number', `%${nr}%`).order('id', { ascending: false }).limit(2)
     setSzukam(false)
-    const list = (data ?? []) as Array<{ id: number; complaint_number: string; company: string | null; order_number: string | null; client_order_number: string | null }>
+    const list = (data ?? []) as Rek[]
     if (list.length !== 1) {
       set({ complaint_id: null, complaint_label: list.length === 0 ? 'nie znaleziono — WZ będzie bez powiązania' : 'kilka pasuje — wpisz pełny numer' })
       return
