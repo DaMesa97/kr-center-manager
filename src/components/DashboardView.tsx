@@ -73,6 +73,7 @@ export default function DashboardView({
   const [blad, setBlad] = useState<string | null>(null)
   // testy 27.11 (runda 3, prezes): pasek „N przeterminowanych” liczył tylko otwartą zakładkę, a na Pulpicie go nie było
   const [poTerminie, setPoTerminie] = useState<Array<{ key: string; label: string; n: number }>>([])
+  const [poTerminieRazem, setPoTerminieRazem] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -107,20 +108,22 @@ export default function DashboardView({
         })),
       )
       setOrdersCount(countActiveOrders(active))
+      const poTerm = active.filter((o) => getOrderAgeStatus({ ...o, release_date: null, extra_fields: null } as unknown as Order, leadTimeRules) === 'overdue')
       setPoTerminie(
         ORDER_CATEGORIES.map((cat) => ({
           key: cat.key,
           label: cat.label,
-          n: active.filter((o) => o.category === cat.key && getOrderAgeStatus({ ...o, release_date: null, extra_fields: null } as unknown as Order, leadTimeRules) === 'overdue').length,
+          n: poTerm.filter((o) => o.category === cat.key).length,
         })).filter((c) => c.n > 0),
       )
+      // runda 4 (recenzent): para Disting Plus / zestaw Titan to jedno zlecenie klienta — w sumie liczone raz
+      setPoTerminieRazem(countActiveOrders(poTerm))
     } finally {
       setLoading(false)
     }
   }, [leadTimeRules])
 
   useEffect(() => { void load() }, [load])
-  const poTerminieRazem = poTerminie.reduce((s, c) => s + c.n, 0)
   const najwiecejPoTerminie = [...poTerminie].sort((a, b) => b.n - a.n)[0]
 
   return (
@@ -189,7 +192,7 @@ export default function DashboardView({
             type="button"
             className={`dashboard-alert-card ${poTerminieRazem > 0 ? 'dashboard-alert-card--warn' : ''}`}
             onClick={() => najwiecejPoTerminie && onNavigate(najwiecejPoTerminie.key)}
-            title={`Niewydane zlecenia po terminie (reguły terminów z Ustawień), cała firma:\n${poTerminie.map((c) => `${c.label}: ${c.n}`).join('\n') || 'brak'}${najwiecejPoTerminie ? `\n\nKliknięcie otwiera ${najwiecejPoTerminie.label}` : ''}`}
+            title={`Niewydane zlecenia po terminie (reguły terminów z Ustawień), cała firma — w sumie pary Disting Plus i zestawy Titan liczone raz:\n${poTerminie.map((c) => `${c.label}: ${c.n}`).join('\n') || 'brak'}${najwiecejPoTerminie ? `\n\nKliknięcie otwiera ${najwiecejPoTerminie.label}` : ''}`}
           >
             <Clock size={22} />
             <div className="dashboard-alert-num">{loading ? '…' : poTerminieRazem}</div>
