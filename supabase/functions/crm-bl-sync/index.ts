@@ -47,6 +47,11 @@ Deno.serve(async (req) => {
   const { data: token } = await db.rpc('token_bl')
   if (typeof token !== 'string' || !token.trim()) {
     await zapiszWynik(db, null, 'Brak tokenu API Baselinkera — wpisz go w CRM → Ustawienia → Baselinker.')
+    // 27.11 (testy): wysyłka nie może zostać na „oczekuje” — błąd widać przy wysyłce z przyciskiem „Ponów”
+    const sid = Number(body.shipment_id)
+    if (akcja === 'przesylka' && Number.isFinite(sid) && sid > 0 && body.dry_run !== true) {
+      await db.schema('public').from('order_shipments').update({ bl_status: 'blad', bl_error: 'Brak tokenu API Baselinkera (CRM → Ustawienia → Baselinker)' }).eq('id', sid).eq('bl_status', 'oczekuje')
+    }
     return odp(200, { ok: false, powod: 'brak_tokenu' })
   }
 
@@ -341,15 +346,20 @@ type Wysylka = {
 }
 
 /** RRRR-MM-DD + n dni roboczych (bez sobót i niedziel). */
-function plusDniRobocze(iso: string, n: number): string {
+function plusDniRobocze(iso: string, n: number, wolne: Set<string> = new Set()): string {
   const d = new Date(iso + 'T12:00:00Z')
   let dodane = 0
-  while (dodane < n) {
+  for (let i = 0; i < 60 && dodane < n; i++) {
     d.setUTCDate(d.getUTCDate() + 1)
     const dz = d.getUTCDay()
-    if (dz !== 0 && dz !== 6) dodane++
+    if (dz !== 0 && dz !== 6 && !wolne.has(d.toISOString().slice(0, 10))) dodane++
   }
   return d.toISOString().slice(0, 10)
+}
+/** Święta i dni wolne firmy (crm.dni_wolne) — do daty doręczenia, gdy aplikacja jej nie podała. */
+async function dniWolne(db: SupabaseClient): Promise<Set<string>> {
+  const { data } = await db.from('dni_wolne').select('data').gte('data', new Date(Date.now() - 86_400_000).toISOString().slice(0, 10))
+  return new Set(((data ?? []) as Array<{ data: string }>).map((x) => String(x.data).slice(0, 10)))
 }
 /** Data → znacznik czasu dla pól typu „date” w BL (10:00 UTC tego dnia). */
 const znacznik = (iso: string) => Math.floor(Date.parse(iso + 'T10:00:00Z') / 1000)
@@ -374,9 +384,24 @@ async function przesylka(db: SupabaseClient, token: string, body: Record<string,
     if (s.bl_package_id) return { ok: true, juz_jest: true, bl_package_id: s.bl_package_id }
   }
   const blad = async (msg: string, req?: unknown) => {
-    if (!dryRun && s.id) await pub.from('order_shipments').update({ bl_status: 'blad', bl_error: msg.slice(0, 500), ...(req ? { bl_request: req } : {}) }).eq('id', s.id)
-    return { ok: false, error: msg }
+    if (!dryRun && s.id) await pub.from('order_shipments').update({ bl_status: 'blad', bl_error: msg.slice(0, 500), ...(req ? { bl_request: req } : {}) }).eq('id', s.id).is('bl_package_id', null)
+    return { ok: false as const, error: msg }
   }
+  try {
+    return await przesylkaZaloz(db, token, s, dryRun, blad)
+  } catch (e) {
+    if (e instanceof PrzesylkaZalozona) throw e
+    // 27.11 (testy): każdy błąd (getOrders, sieć, limit BL) zapisuje się w wysyłce — inaczej zostaje „oczekuje” bez „Ponów”
+    return await blad(e instanceof Error ? e.message : String(e))
+  }
+}
+
+async function przesylkaZaloz(
+  db: SupabaseClient, token: string, s: Wysylka, dryRun: boolean,
+  blad: (msg: string, req?: unknown) => Promise<{ ok: false; error: string }>,
+) {
+  const pub = db.schema('public')
+  if (s.status === 'anulowana') return await blad('Wysyłka anulowana — przesyłki nie zakładam')
   if (!s.bl_order_id) return await blad('Brak numeru zamówienia BaseLinker — przesyłkę załóż ręcznie w BL')
   if (!s.ship_date) return await blad('Brak daty wysyłki')
   const palety = [
@@ -390,8 +415,21 @@ async function przesylka(db: SupabaseClient, token: string, body: Record<string,
   if (!z) return await blad(`Nie ma zamówienia ${s.bl_order_id} w Baselinkerze`)
   const suma = Math.round(((z.products ?? []).reduce((a, p) => a + (Number(p.price_brutto) || 0) * (Number(p.quantity) || 0), 0) + (Number(z.delivery_price) || 0)) * 100) / 100
   const wplacone = Number(z.payment_done) || 0
-  const pobranie = String(z.payment_method_cod ?? '0') === '1' ? Math.max(0, Math.round((suma - wplacone) * 100) / 100) : 0
-  const doreczenie = s.delivery_date || plusDniRobocze(s.ship_date, 2)
+  let pobranie = String(z.payment_method_cod ?? '0') === '1' ? Math.max(0, Math.round((suma - wplacone) * 100) / 100) : 0
+  // 27.11 (testy): druga wysyłka do tego samego zamówienia BL nie bierze pobrania drugi raz (klient zapłaciłby kurierowi podwójnie)
+  let uwaga: string | null = null
+  if (!dryRun) {
+    const { data: inne } = await pub.from('order_shipments').select('id').eq('bl_order_id', s.bl_order_id).neq('id', s.id).neq('status', 'anulowana')
+      .in('bl_status', ['oczekuje', 'utworzona']).limit(5)
+    if (inne?.length) {
+      const nr = inne.map((x: { id: number }) => '#' + x.id).join(', ')
+      uwaga = pobranie > 0
+        ? `Zamówienie BL ma już wysyłkę ${nr} — pobranie (${pobranie} zł) NIE zostało doliczone drugi raz. Sprawdź kwoty w BaseLinkerze.`
+        : `Zamówienie BL ma już wysyłkę ${nr} — sprawdź w BaseLinkerze, czy to nie dubel.`
+      pobranie = 0
+    }
+  }
+  const doreczenie = s.delivery_date || plusDniRobocze(s.ship_date, 2, await dniWolne(db))
 
   const fields: Array<{ id: string; value: unknown }> = [
     { id: 'package_type', value: PALETA_RODZAJ },
@@ -406,15 +444,33 @@ async function przesylka(db: SupabaseClient, token: string, body: Record<string,
   const req = { order_id: s.bl_order_id, courier_code: SUUS_KOD, account_id: SUUS_KONTO, fields, packages: palety }
   if (dryRun) return { ok: true, dry_run: true, zamowienie: { suma, wplacone, pobranie_zaznaczone: String(z.payment_method_cod ?? '0') === '1', doreczenie }, request: req }
 
+  // tuż przed zamówieniem kuriera: czy ktoś w międzyczasie nie anulował wysyłki albo nie założył przesyłki
+  const { data: teraz } = await pub.from('order_shipments').select('status, bl_package_id').eq('id', s.id).maybeSingle()
+  if (teraz?.bl_package_id) return { ok: true, juz_jest: true, bl_package_id: teraz.bl_package_id }
+  if (teraz?.status === 'anulowana') return await blad('Wysyłka anulowana w trakcie — przesyłki nie założono', req)
+
+  let w: Record<string, unknown>
   try {
-    const w = await bl(token, 'createPackage', req)
-    const { error } = await pub.from('order_shipments').update({
-      bl_package_id: String(w.package_id ?? ''), bl_package_number: String(w.package_number ?? w.courier_inner_number ?? ''),
-      bl_status: 'utworzona', bl_error: null, bl_created_at: new Date().toISOString(), bl_request: req, delivery_date: doreczenie,
-    }).eq('id', s.id)
-    if (error) throw new Error('Przesyłka założona w BL, ale nie zapisano numeru: ' + error.message)
-    return { ok: true, bl_package_id: w.package_id, bl_package_number: w.package_number }
+    w = await bl(token, 'createPackage', req)
   } catch (e) {
-    return await blad(e instanceof Error ? e.message : String(e), req)
+    const msg = e instanceof Error ? e.message : String(e)
+    // przy zerwanym połączeniu przesyłka mogła powstać — przed „Ponów” trzeba zajrzeć do BL
+    return await blad(`${msg} — zanim ponowisz, sprawdź w BaseLinkerze, czy przesyłka nie powstała (ref. PD-WYS-${s.id})`, req)
   }
+  const zapis = {
+    bl_package_id: String(w.package_id ?? ''), bl_package_number: String(w.package_number ?? w.courier_inner_number ?? ''),
+    bl_status: 'utworzona', bl_error: uwaga, bl_created_at: new Date().toISOString(), bl_request: req, delivery_date: doreczenie,
+  }
+  // przesyłka JUŻ jest w BL: zapis numeru ponawiamy, a przy porażce NIE ustawiamy „blad” (to odblokowałoby „Ponów” = druga przesyłka)
+  let ostatni = ''
+  for (let i = 0; i < 3; i++) {
+    const { error } = await pub.from('order_shipments').update(zapis).eq('id', s.id)
+    if (!error) return { ok: true, bl_package_id: w.package_id, bl_package_number: w.package_number, uwaga }
+    ostatni = error.message
+    await new Promise((r) => setTimeout(r, 1500))
+  }
+  throw new PrzesylkaZalozona(`PRZESYŁKA ZAŁOŻONA w BL (nr ${zapis.bl_package_number || zapis.bl_package_id}), ale nie zapisano numeru w programie: ${ostatni}. NIE ponawiaj — wpisz numer ręcznie.`)
 }
+
+/** Przesyłka już jest w BL — błąd zapisu nie może zamienić się w „blad” z przyciskiem „Ponów”. */
+class PrzesylkaZalozona extends Error {}

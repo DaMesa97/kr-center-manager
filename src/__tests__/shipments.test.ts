@@ -10,6 +10,8 @@ import {
   groupByDate,
   isPendingForShipment,
   nextWorkingDay,
+  isNonWorkingDay,
+  blOczekujeZaDlugo,
 } from '../lib/shipments'
 
 describe('numer BL i klient z client_order_number', () => {
@@ -122,5 +124,32 @@ describe('metoda dostawy z BaseLinkera (27.11)', () => {
     expect(rodzajDostawy('USŁUGA MONTAŻU DRZWI zgodnie z umową 80/11/2026', true)).toBe('inna')
     expect(rodzajDostawy(undefined, true)).toBe('brak')
     expect(rodzajDostawy('Kurier', false)).toBe('brak')
+  })
+})
+
+describe('poprawki po testach 27.11', () => {
+  it('nr BL = pierwszy ciąg 8 cyfr, także w środku tekstu', () => {
+    expect(blFromClientOrder('1066 VIVENTO (zamówienie 55204048/Hanak)')).toBe('55204048')
+    expect(clientFromClientOrder('1066 VIVENTO (zamówienie 55204048/Hanak)')).toBe('Hanak')
+    expect(blFromClientOrder('1051 POL-PANEL (zamówienie 54837651/S.C)')).toBe('54837651')
+    expect(blFromClientOrder('47807951/STEMPNIAK')).toBe('47807951')
+  })
+  it('bez 8 cyfr — pusto (nie skleja „557/…” ani „OF/…” w jedną wysyłkę)', () => {
+    expect(blFromClientOrder('557/09/2026')).toBe('')
+    expect(blFromClientOrder('OF/WASILEWSKI')).toBe('')
+    expect(blFromClientOrder('123456789/X')).toBe('')
+    expect(clientFromClientOrder('OF/WASILEWSKI')).toBe('WASILEWSKI')
+  })
+  it('weekend i święto w polu daty', () => {
+    expect(isNonWorkingDay('2026-11-28')).toBe(true)
+    expect(isNonWorkingDay('2026-11-30')).toBe(false)
+    expect(isNonWorkingDay('2026-12-24', new Set(['2026-12-24']))).toBe(true)
+  })
+  it('„oczekuje” po 3 minutach = zawieszona (pokaż „Ponów”)', () => {
+    const now = Date.parse('2026-11-27T18:00:00Z')
+    expect(blOczekujeZaDlugo({ bl_status: 'oczekuje', bl_requested_at: '2026-11-27T17:59:00Z' }, now)).toBe(false)
+    expect(blOczekujeZaDlugo({ bl_status: 'oczekuje', bl_requested_at: '2026-11-27T17:50:00Z' }, now)).toBe(true)
+    expect(blOczekujeZaDlugo({ bl_status: 'oczekuje', bl_requested_at: null }, now)).toBe(true)
+    expect(blOczekujeZaDlugo({ bl_status: 'utworzona', bl_requested_at: null }, now)).toBe(false)
   })
 })

@@ -7,6 +7,7 @@ import { useShipments, type PendingOrder, type ShipmentWithOrders } from '../../
 import {
   SHIPMENT_STATUS_LABELS,
   addWorkingDays,
+  blOczekujeZaDlugo,
   canEditPallets,
   commonBl,
   dayLabel,
@@ -14,6 +15,7 @@ import {
   daysSince,
   groupByBl,
   groupByDate,
+  isNonWorkingDay,
   isoDate,
   nextWorkingDay,
   type PendingSection,
@@ -43,7 +45,7 @@ const SEKCJE: Array<{ k: PendingSection; tytul: string; opis: string }> = [
  * przy „Nadane” (trigger w bazie).
  */
 export default function ShipmentsView({ canEdit, pushToast }: Props) {
-  const { pending, shipments, loading, load, suggestPallets, createShipment, updateShipment, setStatus, cancelShipment, zlecPrzesylke, podpowiedzDaty, oznaczWydane } = useShipments(pushToast)
+  const { pending, shipments, loading, load, suggestPallets, createShipment, updateShipment, setStatus, cancelShipment, zlecPrzesylke, podpowiedzDaty, oznaczWydane, potwierdzUsuniecieBl } = useShipments(pushToast)
   const dniWolne = useDniWolne()
   const [tab, setTab] = useState<'do' | 'plan'>('do')
   const [day, setDay] = useState(() => isoDate(new Date()))
@@ -60,25 +62,32 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
   // 27.11: tylko zamówienia z metodą dostawy „Kurier” w BaseLinkerze; reszta pod „pokaż”
   const ukryte = useMemo(() => pending.filter((o) => o.dostawa !== 'kurier'), [pending])
   const widoczne = useMemo(() => (bezKuriera ? pending : pending.filter((o) => o.dostawa === 'kurier')), [pending, bezKuriera])
-  const filtered = useMemo(() => {
-    const t = q.trim().toLowerCase()
-    if (!t) return widoczne
-    return widoczne.filter((o) =>
-      [o.bl, o.client, o.order_number, o.client_order_number, o.items, catLabel(o.category)].filter(Boolean).join(' ').toLowerCase().includes(t),
-    )
-  }, [widoczne, q])
-  // grupy po nr BL w kolejności „od najnowszych” (pending jest już posortowane); grupa trafia do sekcji swojego najnowszego zlecenia
+  // 27.11 (testy): grupy po nr BL liczone ze WSZYSTKICH widocznych zleceń, a szukanie filtruje całe grupy —
+  // inaczej „_1” z wyszukiwarki dawało osobną wysyłkę dla _1 i drugą dla _2/_3 (podwójne pobranie)
   const sekcje = useMemo(() => {
-    const g = groupByBl(filtered)
+    const t = q.trim().toLowerCase()
+    const pasuje = (o: PendingOrder) =>
+      [o.bl, o.client, o.order_number, o.client_order_number, o.items, catLabel(o.category)].filter(Boolean).join(' ').toLowerCase().includes(t)
+    const g = groupByBl(widoczne).filter((x) => !t || x.rows.some(pasuje))
     const out: Record<PendingSection, typeof g> = { gotowe: [], produkcja: [], stare: [] }
     for (const x of g) {
-      const s: PendingSection = x.rows.every((r) => r.section === 'stare') ? 'stare' : x.rows.every((r) => r.ready || r.section === 'stare') ? 'gotowe' : 'produkcja'
+      const s: PendingSection = x.rows.every((r) => r.section === 'stare') ? 'stare' : x.rows.every((r) => r.ready) ? 'gotowe' : 'produkcja'
       out[s].push(x)
     }
     return out
-  }, [filtered])
+  }, [widoczne, q])
   const byDate = useMemo(() => groupByDate(shipments), [shipments])
-  const nStare = useMemo(() => widoczne.filter((o) => o.section === 'stare').length, [widoczne])
+  const nAktywne = useMemo(() => shipments.filter((s) => s.status !== 'anulowana').length, [shipments])
+  /** Wysyłki (nieanulowane) na nr BL — ostrzeżenie w oknie planowania: druga wysyłka nie dostanie pobrania. */
+  const wysylkiBl = useMemo(() => {
+    const m = new Map<string, number[]>()
+    for (const s of shipments) {
+      if (s.status === 'anulowana' || !s.bl_order_id) continue
+      const k = String(s.bl_order_id)
+      m.set(k, [...(m.get(k) ?? []), s.id])
+    }
+    return m
+  }, [shipments])
 
   const otworzPlan = async (orders: PendingOrder[]) => {
     if (!canEdit || orders.length === 0) return
@@ -114,10 +123,10 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
         <div className="shipments-head-actions">
           <div className="shipments-seg" role="tablist" aria-label="Widok">
             <button type="button" role="tab" aria-selected={tab === 'do'} className={tab === 'do' ? 'is-active' : undefined} onClick={() => setTab('do')}>
-              Do wysyłki ({widoczne.length - nStare})
+              Do wysyłki ({sekcje.gotowe.length + sekcje.produkcja.length})
             </button>
             <button type="button" role="tab" aria-selected={tab === 'plan'} className={tab === 'plan' ? 'is-active' : undefined} onClick={() => setTab('plan')}>
-              Zaplanowane ({shipments.length})
+              Zaplanowane ({nAktywne})
             </button>
           </div>
           <button type="button" className="shipments-btn-outline" onClick={() => void load()} disabled={loading}>
@@ -154,7 +163,7 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
             </span>
             <input type="search" className="shipments-search" placeholder="Szukaj: nr BL, klient, nr zlecenia, model…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          {filtered.length === 0 && <p className="shipments-empty">Brak zleceń Po Drzwi do wysłania kurierem.</p>}
+          {sekcje.gotowe.length + sekcje.produkcja.length + sekcje.stare.length === 0 && <p className="shipments-empty">Brak zleceń Po Drzwi do wysłania kurierem.</p>}
           {SEKCJE.map((sek) =>
             sekcje[sek.k].length === 0 ? null : (
               <section key={sek.k} className={`shipments-card-section shipments-card-section--${sek.k}`} aria-label={sek.tytul}>
@@ -298,7 +307,7 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
                 </span>
               </h3>
               {d.rows.map((s) => (
-                <ShipmentCard key={s.id} s={s} canEdit={canEdit} onStatus={setStatus} onUpdate={updateShipment} onCancel={cancelShipment} onPonow={(id) => zlecPrzesylke(id).then(async (ok) => { await load(); return ok })} />
+                <ShipmentCard key={s.id} s={s} canEdit={canEdit} onStatus={setStatus} onUpdate={updateShipment} onCancel={cancelShipment} onPonow={(id) => zlecPrzesylke(id).then(async (ok) => { await load(); return ok })} onUsunietaWBl={potwierdzUsuniecieBl} />
               ))}
             </section>
           ))}
@@ -312,6 +321,7 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
           suggested={plan.suggested}
           defaultDate={nextWorkingDay(new Date(), dniWolne)}
           dniWolne={dniWolne}
+          inneWysylki={plan.bl ? wysylkiBl.get(plan.bl) ?? [] : []}
           onClose={() => setPlan(null)}
           onSave={async (v) => {
             const ok = await createShipment({ orderIds: plan.orders.map((o) => o.id), bl: plan.bl, suggested: plan.suggested, ...v })
@@ -358,7 +368,7 @@ function Counter({ label, value, onChange, hint }: { label: string; value: numbe
 }
 
 /** Pole daty z dniem tygodnia w środku („pon. 30.11.2026”); kalendarz otwiera niewidoczny input pod spodem. */
-function PoleDaty({ value, onChange, label, max }: { value: string; onChange: (v: string) => void; label: string; max?: string }) {
+function PoleDaty({ value, onChange, label, max, min }: { value: string; onChange: (v: string) => void; label: string; max?: string; min?: string }) {
   return (
     <span className="shipments-date">
       <span>{dayLabel(value) || 'wybierz datę'}</span>
@@ -371,6 +381,7 @@ function PoleDaty({ value, onChange, label, max }: { value: string; onChange: (v
         aria-label={label}
         value={value}
         max={max}
+        min={min}
         onChange={(e) => onChange(e.target.value)}
         onClick={(e) => {
           // klik w dowolne miejsce pola otwiera kalendarz (inaczej tylko w ikonę po prawej)
@@ -391,6 +402,7 @@ function PlanModal({
   suggested,
   defaultDate,
   dniWolne,
+  inneWysylki,
   onClose,
   onSave,
 }: {
@@ -399,6 +411,7 @@ function PlanModal({
   suggested: { vertical: number; horizontal: number }
   defaultDate: string
   dniWolne: Set<string>
+  inneWysylki: number[]
   onClose: () => void
   onSave: (v: { shipDate: string; deliveryDate: string; vertical: number; horizontal: number; notes: string }) => Promise<boolean>
 }) {
@@ -409,6 +422,9 @@ function PlanModal({
   const [saving, setSaving] = useState(false)
   const deliveryDate = addWorkingDays(shipDate, 2, dniWolne)
   const bezPalet = vertical + horizontal === 0
+  const dzis = isoDate(new Date())
+  const wPrzeszlosci = !!shipDate && shipDate < dzis
+  const wolny = !!shipDate && isNonWorkingDay(shipDate, dniWolne)
   return createPortal(
     <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => { if (!saving) onClose() }}>
       <div className="order-modal shipments-modal" onClick={(e) => e.stopPropagation()}>
@@ -423,8 +439,14 @@ function PlanModal({
           <div className="shipments-dates">
             <label className="shipments-field">
               <span>Data wysyłki</span>
-              <PoleDaty value={shipDate} onChange={setShipDate} label="Data wysyłki" />
-              <span className="muted shipments-counter-hint">domyślnie najbliższy dzień roboczy</span>
+              <PoleDaty value={shipDate} onChange={setShipDate} label="Data wysyłki" min={dzis} />
+              {wPrzeszlosci ? (
+                <span className="shipments-warn">Data w przeszłości — wybierz dziś albo później.</span>
+              ) : wolny ? (
+                <span className="shipments-warn">To weekend albo święto — SUUS tego dnia nie odbierze.</span>
+              ) : (
+                <span className="muted shipments-counter-hint">domyślnie najbliższy dzień roboczy</span>
+              )}
             </label>
             <div className="shipments-field">
               <span>Data doręczenia</span>
@@ -445,12 +467,17 @@ function PlanModal({
             Palety zejdą z magazynu Bukowa dopiero przy „Nadane”.
           </p>
           {!bl && <p className="shipments-warn">Brak numeru BaseLinker — przesyłkę trzeba będzie założyć ręcznie w BL.</p>}
+          {inneWysylki.length > 0 && (
+            <p className="shipments-warn">
+              To zamówienie BL ma już wysyłkę {inneWysylki.map((x) => `#${x}`).join(', ')}. Druga przesyłka nie dostanie pobrania (żeby klient nie płacił dwa razy) — kwoty sprawdź w BaseLinkerze.
+            </p>
+          )}
         </div>
         <div className="order-form-actions">
           <button
             type="button"
             className="btn btn-success shipments-btn"
-            disabled={saving || bezPalet || !shipDate}
+            disabled={saving || bezPalet || !shipDate || wPrzeszlosci}
             title={bezPalet ? 'Dodaj co najmniej jedną paletę' : undefined}
             onClick={async () => {
               setSaving(true)
@@ -531,6 +558,7 @@ function ShipmentCard({
   onUpdate,
   onCancel,
   onPonow,
+  onUsunietaWBl,
 }: {
   s: ShipmentWithOrders
   canEdit: boolean
@@ -538,7 +566,12 @@ function ShipmentCard({
   onUpdate: (id: number, patch: { pallets_vertical: number; pallets_horizontal: number }, msg?: string) => Promise<boolean>
   onCancel: (s: ShipmentWithOrders) => Promise<boolean>
   onPonow: (id: number) => Promise<boolean>
+  onUsunietaWBl: (id: number) => Promise<boolean>
 }) {
+  const anulowana = s.status === 'anulowana'
+  // „oczekuje” starsze niż 3 min: BaseLinker nie odpowiedział — pokazujemy błąd i „Ponów” (z prośbą o sprawdzenie BL)
+  const zawieszona = blOczekujeZaDlugo(s)
+  const zakladaSie = s.bl_status === 'oczekuje' && !zawieszona
   const [edit, setEdit] = useState(false)
   const [v, setV] = useState(s.pallets_vertical)
   const [h, setH] = useState(s.pallets_horizontal)
@@ -569,18 +602,32 @@ function ShipmentCard({
           {s.notes && <span> · {s.notes}</span>}
         </div>
         <div className="shipments-card-bl">
-          {s.bl_status === 'utworzona' || s.bl_package_number ? (
-            <span className="shipments-bl shipments-bl--ok">SUUS w BaseLinkerze: <strong>{s.bl_package_number || 'założona'}</strong></span>
-          ) : s.bl_status === 'oczekuje' ? (
+          {anulowana && s.bl_package_id ? (
+            <span className="shipments-bl shipments-bl--blad">
+              Wysyłka anulowana, ale przesyłka SUUS <strong>{s.bl_package_number || s.bl_package_id}</strong> jest w BaseLinkerze — usuń ją tam, inaczej przyjedzie kurier.
+            </span>
+          ) : s.bl_status === 'utworzona' || s.bl_package_number ? (
+            <span className="shipments-bl shipments-bl--ok">
+              SUUS w BaseLinkerze: <strong>{s.bl_package_number || 'założona'}</strong>
+              {s.bl_error && <span className="shipments-warn"> · {s.bl_error}</span>}
+            </span>
+          ) : zakladaSie ? (
             <span className="shipments-bl">Zakładam przesyłkę w BaseLinkerze…</span>
+          ) : zawieszona ? (
+            <span className="shipments-bl shipments-bl--blad">BaseLinker nie odpowiedział od kilku minut — zanim ponowisz, sprawdź w BL, czy przesyłka nie powstała (ref. PD-WYS-{s.id}).</span>
           ) : s.bl_status === 'blad' ? (
             <span className="shipments-bl shipments-bl--blad">BaseLinker: {s.bl_error || 'błąd'}</span>
           ) : (
             <span className="shipments-bl muted">bez przesyłki w BaseLinkerze</span>
           )}
-          {canEdit && !s.bl_package_id && s.status !== 'nadana' && s.bl_status !== 'oczekuje' && s.bl_order_id && (
+          {canEdit && !s.bl_package_id && s.status !== 'nadana' && !anulowana && !zakladaSie && s.bl_order_id && (
             <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void run(() => onPonow(s.id))}>
-              {s.bl_status === 'blad' ? 'Ponów w BaseLinkerze' : 'Załóż przesyłkę w BaseLinkerze'}
+              {s.bl_status === 'blad' || zawieszona ? 'Ponów w BaseLinkerze' : 'Załóż przesyłkę w BaseLinkerze'}
+            </button>
+          )}
+          {canEdit && anulowana && s.bl_package_id && (
+            <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void run(() => onUsunietaWBl(s.id))}>
+              Usunięta w BaseLinkerze
             </button>
           )}
         </div>
@@ -629,11 +676,12 @@ function ShipmentCard({
                   Zmień palety
                 </button>
               )}
-              {s.status !== 'nadana' && (
+              {s.status !== 'nadana' && !anulowana && (
                 <button
                   type="button"
                   className="btn btn-danger shipments-btn"
-                  disabled={busy}
+                  disabled={busy || zakladaSie}
+                  title={zakladaSie ? 'Przesyłka właśnie zakłada się w BaseLinkerze — poczekaj chwilę' : undefined}
                   onClick={async () => {
                     const msg = s.bl_package_id
                       ? 'Zlecenia wrócą na listę „Do wysyłki”. UWAGA: przesyłka SUUS w BaseLinkerze zostaje — anuluj ją tam ręcznie.'

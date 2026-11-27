@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { fetchAllPages } from '../lib/fetchPaged'
-import { blFromClientOrder, blOrderId, clientFromClientOrder, isoDate, isPendingForShipment, pendingSection, rodzajDostawy, type PendingSection, type RodzajDostawy } from '../lib/shipments'
+import { blFromClientOrder, blOczekujeZaDlugo, blOrderId, clientFromClientOrder, isoDate, isPendingForShipment, pendingSection, rodzajDostawy, type PendingSection, type RodzajDostawy } from '../lib/shipments'
 import { isOptimaClosed } from '../lib/optimaRo'
 import { fetchPicks, groupPicks, pickProgress } from '../lib/orderPicks'
 import { countCompletedStages } from '../utils'
@@ -173,13 +173,15 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
           .sort((a, b) => String(b.order_date ?? '').localeCompare(String(a.order_date ?? '')) || b.id - a.id),
       )
 
-      // wysyłki: bez anulowanych; nadane z ostatnich 7 dni
+      // wysyłki: nadane z ostatnich 7 dni; anulowane tylko z przesyłką SUUS do usunięcia w BL (14 dni), żeby kurier nie przyjechał
       const weekAgo = isoDate(new Date(Date.now() - 7 * 86_400_000))
+      const twoWeeksAgo = new Date(Date.now() - 14 * 86_400_000).toISOString()
       const sh = await fetchAllPages<OrderShipment & { order_shipment_orders: Array<{ order_id: number; orders: ShipOrder | null }> }>((from, to) =>
         supabase
           .from('order_shipments')
           .select('*, order_shipment_orders(order_id, orders(id, order_number, client_order_number, category, model, quantity))')
-          .neq('status', 'anulowana')
+          .or('status.neq.anulowana,and(bl_package_id.not.is.null,bl_status.neq.usunieta_w_bl)')
+          .or(`status.neq.anulowana,updated_at.gte.${twoWeeksAgo}`)
           .or(`status.neq.nadana,ship_date.gte.${weekAgo}`)
           .order('ship_date', { ascending: true, nullsFirst: false })
           .order('id')
@@ -199,7 +201,8 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
       setShipments(lista)
       // przesyłka zlecona do BaseLinkera — odśwież za chwilę, żeby pokazać numer albo błąd
       if (odswiezBl.current) clearTimeout(odswiezBl.current)
-      if (lista.some((s) => s.bl_status === 'oczekuje')) odswiezBl.current = setTimeout(() => void loadRef.current(), 6000)
+      // (tylko świeże „oczekuje” — po 3 min ekran pokazuje błąd z „Ponów”, a nie przeładowuje bez końca)
+      if (lista.some((s) => s.bl_status === 'oczekuje' && !blOczekujeZaDlugo(s))) odswiezBl.current = setTimeout(() => void loadRef.current(), 6000)
     } catch (e) {
       console.error('[wysyłki]', e)
       pushToast(`Nie wczytano wysyłek: ${e instanceof Error ? e.message : String(e)}`, 'error')
@@ -322,7 +325,8 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
     async (s: ShipmentWithOrders) => {
       const nr = s.orders.map((o) => o.order_number ?? `#${o.id}`).join(', ')
       const notes = [s.notes, nr ? `anulowana — zlecenia: ${nr}` : 'anulowana'].filter(Boolean).join(' | ')
-      const { error } = await supabase.from('order_shipments').update({ status: 'anulowana', notes }).eq('id', s.id)
+      // anulowanie zostawia bl_status: anulowana wysyłka z przesyłką SUUS zostaje na liście z „Usunięta w BL” (kurier!)
+      const { error } = await supabase.from('order_shipments').update({ status: 'anulowana', notes }).eq('id', s.id).neq('status', 'nadana')
       if (error) {
         pushToast(`Nie anulowano: ${error.message}`, 'error')
         return false
@@ -360,5 +364,17 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
     return bledy.length === 0
   }, [pushToast, load])
 
-  return { pending, shipments, loading, load, suggestPallets, createShipment, updateShipment, setStatus, cancelShipment, zlecPrzesylke, podpowiedzDaty, oznaczWydane }
+  /** Anulowana wysyłka: przesyłka SUUS usunięta w BaseLinkerze — chowa ją z „Zaplanowanych”. */
+  const potwierdzUsuniecieBl = useCallback(async (id: number): Promise<boolean> => {
+    const { error } = await supabase.from('order_shipments').update({ bl_status: 'usunieta_w_bl' }).eq('id', id).eq('status', 'anulowana')
+    if (error) {
+      pushToast(`Nie zapisano: ${error.message}`, 'error')
+      return false
+    }
+    pushToast('Zapisano: przesyłka usunięta w BaseLinkerze', 'success')
+    await load()
+    return true
+  }, [pushToast, load])
+
+  return { pending, shipments, loading, load, suggestPallets, createShipment, updateShipment, setStatus, cancelShipment, zlecPrzesylke, podpowiedzDaty, oznaczWydane, potwierdzUsuniecieBl }
 }

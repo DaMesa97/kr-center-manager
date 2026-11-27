@@ -19,19 +19,24 @@ export function canEditPallets(status: ShipmentStatus): boolean {
   return status === 'zaplanowana' || status === 'gotowa'
 }
 
-/** Nr zamówienia BaseLinker z client_order_number „57857794/GNIEWEK” → „57857794” (bez „/” — całość). */
+/**
+ * Nr zamówienia BaseLinker = pierwszy ciąg dokładnie 8 cyfr w client_order_number: „57857794/GNIEWEK”,
+ * „1066 VIVENTO (zamówienie 55204048/Hanak)”. Bez takiego ciągu — pusto (zlecenie idzie osobno, bez sklejania:
+ * „557/09/2026” czy „OF/WASILEWSKI” to nie numery BL). Testy 27.11.
+ */
 export function blFromClientOrder(clientOrderNumber: string | null | undefined): string {
-  const s = String(clientOrderNumber ?? '').trim()
-  if (!s) return ''
-  const i = s.indexOf('/')
-  return (i >= 0 ? s.slice(0, i) : s).trim()
+  const m = /(?:^|\D)(\d{8})(?!\d)/.exec(String(clientOrderNumber ?? ''))
+  return m ? m[1] : ''
 }
 
-/** Klient z client_order_number „57857794/GNIEWEK” → „GNIEWEK” (bez „/” — pusto). */
+/** Klient z client_order_number: tekst po „<nr BL>/” („55204048/Hanak)” → „Hanak”), bez nr BL — po pierwszym „/”. */
 export function clientFromClientOrder(clientOrderNumber: string | null | undefined): string {
   const s = String(clientOrderNumber ?? '').trim()
-  const i = s.indexOf('/')
-  return i >= 0 ? s.slice(i + 1).trim() : ''
+  const bl = blFromClientOrder(s)
+  const po = bl ? s.slice(s.indexOf(bl) + bl.length) : s
+  const i = po.indexOf('/')
+  if (i < 0) return ''
+  return po.slice(i + 1).replace(/[)\]]+\s*$/, '').trim()
 }
 
 /** bl_order_id (bigint) z numeru BL — tylko same cyfry, inaczej null. */
@@ -66,6 +71,22 @@ const pad = (n: number) => String(n).padStart(2, '0')
 /** Data lokalna RRRR-MM-DD. */
 export function isoDate(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** Data RRRR-MM-DD to sobota, niedziela albo dzień wolny (święto) — ostrzeżenie w oknie planowania. */
+export function isNonWorkingDay(iso: string, dniWolne: Set<string> = new Set()): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!m) return false
+  const dow = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()
+  return dow === 0 || dow === 6 || dniWolne.has(iso)
+}
+
+/** „Oczekuje” dłużej niż 3 min = BaseLinker / funkcja nie odpowiedziały — ekran pokazuje „Ponów” (baza też wpuszcza po 3 min). */
+export const BL_OCZEKUJE_MS = 3 * 60_000
+export function blOczekujeZaDlugo(s: { bl_status?: string | null; bl_requested_at?: string | null }, now = Date.now()): boolean {
+  if (s.bl_status !== 'oczekuje') return false
+  const t = Date.parse(String(s.bl_requested_at ?? ''))
+  return !Number.isFinite(t) || now - t > BL_OCZEKUJE_MS
 }
 
 /** Najbliższy dzień roboczy OD JUTRA (bez sobót, niedziel i dni wolnych RRRR-MM-DD). */

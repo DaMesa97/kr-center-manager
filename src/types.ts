@@ -1477,9 +1477,11 @@ export type OrderShipment = {
   /** 27.11: planowane doręczenie (wysyłka + 2 dni robocze), idzie do SUUS jako „data dostawy” */
   delivery_date?: string | null
   /** stan przesyłki w BaseLinkerze: oczekuje (zlecona) | utworzona | blad */
-  bl_status?: 'oczekuje' | 'utworzona' | 'blad' | null
+  bl_status?: 'oczekuje' | 'utworzona' | 'blad' | 'usunieta_w_bl' | null
   bl_error?: string | null
   bl_created_at?: string | null
+  /** 27.11 (testy): kiedy zlecono przesyłkę — „oczekuje” starsze niż 3 min = BaseLinker nie odpowiedział */
+  bl_requested_at?: string | null
   notes: string | null
   created_by: string | null
   created_at: string
