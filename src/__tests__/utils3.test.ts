@@ -60,6 +60,14 @@ describe('isAppVersionOlder — bramka minimalnej wersji', () => {
     expect(isAppVersionOlder('1.0.0', '1.0.1')).toBe(true)
   })
 
+  it('przejście z bet na 1.1.x (27.11): ostatnia beta starsza niż 1.1.0, dalej numerycznie', () => {
+    expect(isAppVersionOlder('1.0.0-beta.173', '1.1.0')).toBe(true)
+    expect(isAppVersionOlder('1.1.0', '1.0.0-beta.173')).toBe(false)
+    expect(isAppVersionOlder('1.1.0', '1.1.1')).toBe(true)
+    expect(isAppVersionOlder('1.1.9', '1.1.10')).toBe(true)
+    expect(isAppVersionOlder('1.1.10', '1.2.0')).toBe(true)
+  })
+
   it('nieparsowalne wersje nie blokują (fail-open)', () => {
     expect(isAppVersionOlder('abc', '1.0.0')).toBe(false)
     expect(isAppVersionOlder('1.0.0', '')).toBe(false)
