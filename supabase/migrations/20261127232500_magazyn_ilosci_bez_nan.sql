@@ -87,6 +87,13 @@ select pg_temp.lataj('public.record_inventory_count_line__impl(bigint,numeric)':
 
 drop function pg_temp.lataj(regprocedure, text[]);
 
+-- ponowne uruchomienie nie pada na „constraint already exists” (42710) (testy 27.11, runda 3)
+alter table public.warehouse_stock
+  drop constraint if exists warehouse_stock_quantity_finite_check,
+  drop constraint if exists warehouse_stock_reserved_quantity_finite_check;
+alter table public.warehouse_movements
+  drop constraint if exists warehouse_movements_quantity_finite_check;
+
 alter table public.warehouse_stock
   add constraint warehouse_stock_quantity_finite_check
     check (quantity not in ('NaN', 'Infinity', '-Infinity')),
