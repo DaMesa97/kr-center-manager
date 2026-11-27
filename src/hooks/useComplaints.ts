@@ -261,7 +261,12 @@ export function useComplaints({
 
     const complaint_number = await generateComplaintNumber()
 
-    const sourceOrder = orders.find((o) => o.id === complaintFormData.order_id)
+    let sourceOrder = orders.find((o) => o.id === complaintFormData.order_id)
+    // 27.11 (testy): wydanego zlecenia nie ma na liście („Ukryj wydane”) — dociągamy je, żeby para Disting Plus się rozbiła
+    if (!sourceOrder && complaintFormData.order_id != null) {
+      const { data } = await supabase.from('orders').select('*').eq('id', complaintFormData.order_id).maybeSingle()
+      sourceOrder = (data as Order | null) ?? undefined
+    }
     const isDistingPlus =
       activeTab === 'Disting' &&
       sourceOrder?.linked_order_id != null &&

@@ -91,7 +91,7 @@ import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
 import InternalDoorFiltersBar from './components/InternalDoorFiltersBar'
 import { useOrderPicks } from './hooks/useOrderPicks'
 import { canPick } from './lib/orderPicks'
-import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, isOptimaClosed, matchesIntDoorFilter, summarizeItems, type IntDoorFilter, type ItemsSummary } from './lib/optimaRo'
+import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, isOptimaClosed, isOrderCancelled, matchesIntDoorFilter, summarizeItems, type IntDoorFilter, type ItemsSummary } from './lib/optimaRo'
 import { isOptimaImportedComponent } from './lib/internalWarehouse'
 import AluOrdersTable from './components/AluOrdersTable'
 import AluOrderDetailsModal from './components/AluOrderDetailsModal'
@@ -1148,6 +1148,14 @@ function App() {
   }, [currentUser?.id])
 
   const [archiveSearchSeed, setArchiveSearchSeed] = useState('')
+  /** Zakładka, na której wynik lupki sam wyłączył „Ukryj wydane” — przy wyjściu z niej filtr wraca. */
+  const autoPokazWydaneTabRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (autoPokazWydaneTabRef.current && autoPokazWydaneTabRef.current !== activeTab) {
+      autoPokazWydaneTabRef.current = null
+      setHideCompletedOrders(true)
+    }
+  }, [activeTab, setHideCompletedOrders])
   const handleGlobalSearchNavigate = useCallback((order: SearchResult) => {
     if (order.archived) {
       // Wynik z orders_archive — prowadzi do zakładki Archiwum z prefiltrem
@@ -1161,7 +1169,14 @@ function App() {
       setActiveSubTab('Zamówienia')
       setSearchTerm(order.order_number)
       setShowCancelledOrders(true)
-      setHideCompletedOrders(false)
+      // 27.11 (testy): „Ukryj wydane” wyłączamy tylko dla wydanego zlecenia (inaczej go nie widać) i tylko
+      // do zmiany zakładki — wcześniej zostawało wyłączone do wylogowania = ładowanie całych kategorii
+      if (!isReleaseDateEmpty(order.release_date)) {
+        setHideCompletedOrders(false)
+        autoPokazWydaneTabRef.current = cat
+      } else {
+        setHideCompletedOrders(true)
+      }
       // Zresetuj też pozostałe filtry — zapamiętany dzień produkcji/źródło/
       // wykonawca potrafiły schować kliknięty wynik ("Brak zamówień")
       setSelectedProductionDay('Wszystkie dni')
@@ -1371,8 +1386,13 @@ function App() {
           }
           if (payload.eventType === 'UPDATE') {
             const incoming = payload.new as Order
-            setOrders((prev) =>
-              prev.map((o) => {
+            setOrders((prev) => {
+              // 27.11 (testy): lista „Ukryj wydane” ma tylko niewydane — cofnięte wydanie na innym komputerze
+              // przychodzi jako UPDATE zlecenia, którego tu nie ma; dopisujemy je, inaczej znika do F5
+              if (!prev.some((o) => o.id === incoming.id)) {
+                return isReleaseDateEmpty(incoming.release_date) ? [incoming, ...prev] : prev
+              }
+              return prev.map((o) => {
                 if (o.id !== incoming.id) return o
                 // Merge production_stages: lokalnie wypełniony etap wygrywa z pustą
                 // wartością z realtime TYLKO przez chwilę po własnym kliknięciu
@@ -1382,8 +1402,8 @@ function App() {
                   ...incoming,
                   production_stages: mergeIncomingStages(incoming.id, o.production_stages, incoming.production_stages),
                 }
-              }),
-            )
+              })
+            })
           }
           if (payload.eventType === 'DELETE') {
             setOrders((prev) =>
@@ -1753,9 +1773,33 @@ function App() {
 
   // Partie: wszystkie zlecenia Bastion po id (skład partii) i kandydaci do partii —
   // otwarte, nieanulowane, ościeżnica z flagą partii, jeszcze bez partii (niezależnie od filtrów tabeli)
+  // 27.11 (testy): lista ma tylko niewydane, a partia może mieć zlecenia już wydane — dociągamy je po id
+  const [bastionBatchExtra, setBastionBatchExtra] = useState<Order[]>([])
+  useEffect(() => {
+    if (activeTab !== 'Bastion') return
+    const have = new Set(orders.map((o) => o.id))
+    const extraHave = new Set(bastionBatchExtra.map((o) => o.id))
+    const missing = [...new Set(bastionBatches.batches.flatMap((b) => b.order_ids))].filter((id) => !have.has(id) && !extraHave.has(id))
+    if (missing.length === 0) return
+    let cancelled = false
+    void (async () => {
+      const found: Order[] = []
+      for (let i = 0; i < missing.length; i += 150) {
+        const { data } = await supabase.from('orders').select('*').in('id', missing.slice(i, i + 150))
+        found.push(...((data ?? []) as Order[]))
+      }
+      if (!cancelled && found.length) setBastionBatchExtra((prev) => [...prev.filter((o) => !found.some((f) => f.id === o.id)), ...found])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, orders, bastionBatches.batches, bastionBatchExtra])
   const bastionOrdersById = useMemo(
-    () => new Map(orders.filter((o) => o.category === 'Bastion' && o.id !== undefined).map((o) => [o.id as number, o])),
-    [orders],
+    () =>
+      new Map(
+        [...bastionBatchExtra, ...orders].filter((o) => o.category === 'Bastion' && o.id !== undefined).map((o) => [o.id as number, o]),
+      ),
+    [orders, bastionBatchExtra],
   )
   const bastionBatchCandidates = useMemo(() => {
     if (activeTab !== 'Bastion') return []
@@ -3856,9 +3900,13 @@ function App() {
               <div className="orders-count-bar">
                 {isFilterPending ? (
                   <span className="orders-count-bar--filtering">Filtrowanie…</span>
-                ) : filteredOrders.length === orders.length
-                  ? <span>{hideCompletedOrders ? 'Niewydanych zleceń' : 'Zamówień'}: <strong>{orders.length}</strong></span>
-                  : <span>Wyświetlane: <strong>{filteredOrders.length}</strong> z <strong>{orders.length}</strong>{hideCompletedOrders ? ' niewydanych' : ''}</span>
+                ) : (() => {
+                  // 27.11 (testy): „niewydanych” = bez daty wydania i bez anulowanych (RO anulowane w Optimie to 279 z 611)
+                  const ile = hideCompletedOrders ? orders.filter((o) => isReleaseDateEmpty(o.release_date) && !isOrderCancelled(o)).length : orders.length
+                  return filteredOrders.length === ile
+                    ? <span>{hideCompletedOrders ? 'Niewydanych zleceń' : 'Zamówień'}: <strong>{ile}</strong></span>
+                    : <span>Wyświetlane: <strong>{filteredOrders.length}</strong> z <strong>{ile}</strong>{hideCompletedOrders ? ' niewydanych' : ''}</span>
+                })()
                 }
               </div>
             )}

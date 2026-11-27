@@ -23,6 +23,8 @@ export function parseAlertsSummary(data: unknown): number | null {
 
 let cached: { at: number; value: number } | null = null
 let inFlight: Promise<number | null> | null = null
+/** Numer najnowszego zapytania — spóźniona odpowiedź starszego (np. zwykłe sprzed PZ) nie nadpisuje świeżej. */
+let seq = 0
 
 /**
  * Zwraca licznik z pamięci, jeśli ostatni odczyt jest młodszy niż TTL; w przeciwnym razie woła `load`
@@ -36,19 +38,23 @@ export function alertsBadgeThrottled(
   const fresh = opts.fresh === true
   if (!fresh && cached && now - cached.at < ALERTS_BADGE_TTL_MS) return Promise.resolve(cached.value)
   if (!fresh && inFlight) return inFlight
-  inFlight = load(fresh)
+  const moje = ++seq
+  const p = load(fresh)
     .then((value) => {
-      if (value != null) cached = { at: Date.now(), value }
-      return value
+      if (moje === seq && value != null) cached = { at: Date.now(), value }
+      // starsza odpowiedź: zwracamy wartość wołającemu, ale pamięć zostaje przy nowszej
+      return moje === seq || !cached ? value : cached.value
     })
     .finally(() => {
-      inFlight = null
+      if (inFlight === p) inFlight = null
     })
-  return inFlight
+  inFlight = p
+  return p
 }
 
 /** Tylko testy. */
 export function resetAlertsBadgeForTests(): void {
   cached = null
   inFlight = null
+  seq = 0
 }

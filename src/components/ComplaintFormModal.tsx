@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { supabase } from '../supabaseClient'
 import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import SearchableSelect from './SearchableSelect'
 import { WHAT_COMPLAINED_OPTIONS } from '../constants'
@@ -34,6 +36,41 @@ export default function ComplaintFormModal({
   submitOnEnterInInput,
 }: ComplaintFormModalProps) {
   const { requestClose } = useUnsavedGuard(complaintFormData, onClose, { enabled: !complaintFormLoading, escape: open, resetKey: open })
+  // 27.11 (testy): lista ma tylko niewydane zlecenia, a ok. 1/4 reklamacji dotyczy wydanych — szukanie w bazie
+  const [wydane, setWydane] = useState<Order[]>([])
+  const [szukaj, setSzukaj] = useState('')
+  const [szukam, setSzukam] = useState(false)
+  const [szukanoInfo, setSzukanoInfo] = useState('')
+  useEffect(() => {
+    if (!open) {
+      setWydane([])
+      setSzukaj('')
+      setSzukanoInfo('')
+    }
+  }, [open])
+  const szukajWydanych = async () => {
+    const t = szukaj.replace(/[,()%*\\]/g, ' ').trim()
+    if (t.length < 2) {
+      setSzukanoInfo('Wpisz co najmniej 2 znaki')
+      return
+    }
+    setSzukam(true)
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .not('release_date', 'is', null)
+      .or(`order_number.ilike.%${t}%,company.ilike.%${t}%,client_order_number.ilike.%${t}%`)
+      .order('release_date', { ascending: false })
+      .limit(30)
+    setSzukam(false)
+    if (error) {
+      setSzukanoInfo(`Błąd szukania: ${error.message}`)
+      return
+    }
+    const lista = (data ?? []) as Order[]
+    setWydane(lista)
+    setSzukanoInfo(lista.length ? `Znaleziono wydanych: ${lista.length} — są na liście „Zamówienie” ze znaczkiem ✓` : 'Nie znaleziono wydanego zlecenia')
+  }
   if (!open) return null
 
   return createPortal(
@@ -63,13 +100,19 @@ export default function ComplaintFormModal({
             {/* #97/#107: lista zleceń z wyszukiwaniem po numerze i firmie zamiast
                 zwykłego selecta z tysiącem pozycji */}
             {(() => {
-              type Entry = (typeof ordersForComplaintSelect)[number]
-              const labelFor = (o: Entry) => `${o.isArchived ? '📁 ' : ''}${o.order_number} — ${o.company}`
+              type Entry = (typeof ordersForComplaintSelect)[number] & { released?: string | null }
+              const labelFor = (o: Entry) => `${o.isArchived ? '📁 ' : o.released ? '✓ ' : ''}${o.order_number} — ${o.company}${o.released ? ` (wydane ${o.released})` : ''}`
+              const entries: Entry[] = [
+                ...wydane
+                  .filter((w) => !ordersForComplaintSelect.some((o) => !o.isArchived && o.id === w.id))
+                  .map((w) => ({ id: w.id ?? null, order_number: w.order_number ?? '', company: w.company ?? '', isArchived: false, released: w.release_date ?? null })),
+                ...ordersForComplaintSelect,
+              ]
               const byLabel = new Map<string, Entry>()
-              for (const o of ordersForComplaintSelect) byLabel.set(labelFor(o), o)
+              for (const o of entries) byLabel.set(labelFor(o), o)
               const current = (() => {
                 if (complaintFormData.order_id != null) {
-                  return ordersForComplaintSelect.find((o) => !o.isArchived && o.id === complaintFormData.order_id)
+                  return entries.find((o) => !o.isArchived && o.id === complaintFormData.order_id)
                 }
                 if (complaintFormData.order_number) {
                   return ordersForComplaintSelect.find((o) => o.isArchived && o.order_number === complaintFormData.order_number)
@@ -91,14 +134,34 @@ export default function ComplaintFormModal({
                       const a = archivedOrdersForComplaints.find((x) => x.order_number === o.order_number)
                       if (a) onSelectArchived(a)
                     } else {
-                      const full = orders.find((x) => x.id === o.id)
+                      const full = orders.find((x) => x.id === o.id) ?? wydane.find((x) => x.id === o.id)
                       if (full) onSelectOrder(full)
                     }
                   }}
                 />
               )
             })()}
-            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>📁 = zamówienie archiwalne</span>
+            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>📁 = zamówienie archiwalne · ✓ = zlecenie już wydane</span>
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+              <input
+                type="search"
+                value={szukaj}
+                onChange={(e) => setSzukaj(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    void szukajWydanych()
+                  }
+                }}
+                placeholder="Nie ma na liście? Szukaj wydanego: numer, firma, nr BL"
+                style={{ flex: 1 }}
+              />
+              <button type="button" className="btn btn-secondary btn-sm" disabled={szukam} onClick={() => void szukajWydanych()}>
+                {szukam ? 'Szukam…' : 'Szukaj wydanych'}
+              </button>
+            </span>
+            {szukanoInfo && <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>{szukanoInfo}</span>}
           </label>
           <label className="order-field-full">
             <span className="order-field-label-text">Co reklamowane</span>

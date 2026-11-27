@@ -56,3 +56,16 @@ describe('alertsBadgeThrottled', () => {
     expect(seen).toEqual([false, false, true])
   })
 })
+
+describe('spóźniona odpowiedź (testy 27.11)', () => {
+  it('stare zwykłe zapytanie nie nadpisuje świeżego po PZ', async () => {
+    resetAlertsBadgeForTests()
+    let resolveOld: (v: number) => void = () => {}
+    const old = alertsBadgeThrottled(() => new Promise<number>((r) => { resolveOld = r }))
+    const fresh = await alertsBadgeThrottled(async () => 7, { fresh: true })
+    expect(fresh).toBe(7)
+    resolveOld(3)
+    await old
+    expect(await alertsBadgeThrottled(async () => 99)).toBe(7)
+  })
+})
