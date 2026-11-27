@@ -1124,11 +1124,13 @@ export function useWarehouse({
 
   // Anulowanie zamówienia — zwalnia niewydane rezerwacje (wydane zostają: audit)
   const cancelOrderReservations = useCallback(
-    async (orderId: number) => {
+    async (orderId: number): Promise<boolean> => {
       const { error } = await supabase.rpc('cancel_order_reservations', { p_order_id: orderId })
       if (error) {
         pushToast(`Ostrzeżenie: nie udało się zwolnić rezerwacji: ${error.message}`, 'error')
+        return false
       }
+      return true
     },
     [pushToast],
   )

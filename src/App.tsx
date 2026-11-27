@@ -3854,10 +3854,11 @@ function App() {
             onRefreshReservations={fetchStockReservations}
             onReleaseReservation={releaseReservationById}
             onReleaseOrderReservations={async (orderId: number) => {
-              await cancelOrderReservations(orderId)
+              // noc 28.11: zielony „Zwolniono” pokazywał się także po błędzie (obok czerwonego ostrzeżenia)
+              const ok = await cancelOrderReservations(orderId)
               await fetchStockReservations()
               void fetchWarehouseStock()
-              pushToast('Zwolniono rezerwacje zlecenia', 'success')
+              if (ok) pushToast('Zwolniono rezerwacje zlecenia', 'success')
             }}
             onRefreshStock={fetchWarehouseStock}
             stockLevels={stockLevels}
