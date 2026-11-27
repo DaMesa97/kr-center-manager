@@ -1,5 +1,11 @@
 # TESTING_LOG — sesja testów KR Center (start 27.11.2026, ok. 20:30)
 
+> **Rano — sprzątanie danych testowych (TEST_):** w Supabase → SQL Editor wklej całą zawartość pliku `scripts/cleanup-test-data.sql` i kliknij Run. Skrypt usuwa tylko rekordy z prefiksem `TEST_` (zlecenia, komponenty, reklamacje, ruchy, rezerwacje, dokumenty) i na końcu sprawdza, że nic `TEST_` nie zostało (inaczej zgłasza błąd i nic nie zmienia). Można go uruchamiać wielokrotnie.
+> Testy wydajności w nocy idą w transakcjach cofanych na końcu — nie zostawiają danych.
+>
+> **Decyzje do podjęcia:** `DECISIONS.md` (podsumowanie na górze). **Branch nocny:** `night-testing-2026-11-27`.
+
+
 ## 0. Przygotowanie
 
 ### Co się zmieniło w ostatnich 7 dniach (153 commity, 18.11–27.11; 49 z nich 27.11)
@@ -223,6 +229,7 @@ Stan po rundzie: `tsc` OK, **687 testów** OK, lint bez nowych problemów.
 **Podsumowanie rundy 4:** znalezisk ok. 40; poprawione 26 (w tym 2 regresje i 4 poprawki niepełne z rundy 3). Nowe KRYTYCZNE/WYSOKIE były — warunek stopu niespełniony.
 
 ## Do decyzji
+> Od 28.11 w nocy pełna, uporządkowana lista jest w `DECISIONS.md` (format: problem / opcje / rekomendacja / pilność / praca). Poniżej historyczna lista z rund 1–4.
 1. **Gdzie testować z zapisem danych.** Opcje: (a) gałąź Supabase (osobna baza, płatna godzinowo; dane trzeba zasiać skryptem seed), (b) zostać przy trybie bezpiecznym na produkcji (bez seeda i czyszczenia), (c) lokalny Supabase w Dockerze (Docker nie działa na tym komputerze). Koszt gałęzi wg Supabase: **0,01344 USD za godzinę** (ok. 0,32 USD na dobę); projekt nie ma dziś żadnej gałęzi. Gałąź startuje pusta (schemat z historii migracji, bez danych i bez funkcji Edge), więc potrzebny skrypt seed. Rekomendacja: (a) na czas sesji, potem usunąć gałąź.
 
 2. **Porządki starych rezerwacji** (`20261127232100_…superseded.sql`): oznaczyć 16 232 stare anulowane wiersze bez powodu (828 zleceń) jako zastąpione. Nic nie kasuje, nie zmienia stanów; samo podwajanie usuwa już plik 232000. Rekomendacja: wgrać razem z 232000 (porządek w historii, mniej pułapek na przyszłość).

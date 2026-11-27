@@ -1,0 +1,247 @@
+# DECISIONS — decyzje dla właściciela (sesja testów 27–28.11.2026)
+
+Plik prowadzony na bieżąco w nocy. Każdy punkt: problem → opcje → rekomendacja → pilność → praca.
+Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, niewypchnięte). Pliki migracji bazy są w `supabase/migrations/` i **nic z nich nie jest wgrane** — lista i kolejność: `TESTING_LOG.md`, sekcja „Migracje do wdrożenia”.
+
+## Podsumowanie (5 minut przy kawie)
+
+### Pilne
+1. **D1 — Luka bezpieczeństwa na produkcji (bez logowania)**: publicznym kluczem z programu można anulować / przywracać rezerwacje magazynowe dowolnego zlecenia. Plik naprawczy — wgrać od razu.
+2. **D2 — Rejestracja kont w Supabase**: sprawdzić, czy „Allow new users to sign up” jest wyłączone (jeśli nie — każdy z kluczem z programu zakłada konto i czyta bazę).
+3. **D3 — Wgranie pakietu migracji z sesji** (m.in. „Przywróć” podwajające rezerwacje, etap „nie dotyczy” zdejmowany przy wydaniu, wydanie anulowanego zlecenia, uprawnienia kierownika działu). Jednym skryptem, gdy nikt nie pracuje.
+4. **D4 — Publikacja aplikacji 1.1.8** („tnij”) — ok. 150 poprawek od 1.1.7; część poprawek aplikacji zakłada wgrane migracje (D3).
+5. **D5 — Korekta 7 ram** zdjętych mimo etapu „nie dotyczy” (5 zleceń ST, BUKOWA).
+6. **D6 — Porządki 16 232 starych wierszy rezerwacji** (oznaczenie jako zastąpione).
+7. **D7 — Prognozy magazynowe**: poprawka zmieni też Alerty (19 krytycznych → „brak danych” do grudnia/stycznia).
+
+### Może poczekać (najważniejsze)
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka.
+
+---
+
+## Pilne
+
+### D1. Luka: rezerwacje magazynowe bez logowania
+- **Problem**: funkcje bazy `cancel_stage_reservations__impl` i `restore_stage_reservations__impl` (oraz `recompute_order_stock_status`) mają prawo wykonania dla `anon`. Ktoś z publicznym kluczem (jest w każdej instalacji programu, widać go w F12) wysyła `rpc/...` z numerem zlecenia — rezerwacje etapu znikają albo wracają, stany „wolne”, zamawianie i alerty liczą źle, w dzienniku brak autora. Odtworzone w transakcji cofanej (zlecenie 17384, etap e2_1: anulowano 16, przywrócono 16).
+- **Opcje**: (a) wgrać od razu samodzielny plik „PILNE” z `revoke` (powstaje w nocy, patrz TESTING_LOG); (b) poczekać i wgrać z całym pakietem D3.
+- **Rekomendacja**: (a) — plik nie zależy od reszty, tylko odbiera uprawnienia, których program nie używa.
+- **Pilność**: pilne · **Praca**: mały (wgranie jednego pliku)
+
+### D2. Rejestracja nowych kont w Supabase
+- **Problem**: w repo `supabase/config.toml` ma `enable_signup = true`. Konto bez profilu (sprawdzone w transakcji) czyta wszystkie zlecenia, kontrahentów, stany i woła część funkcji. Jeśli na produkcji rejestracja jest włączona, każdy z kluczem z programu może założyć konto.
+- **Opcje**: (a) panel Supabase → Authentication → wyłączyć „Allow new users to sign up” (konta zakłada tylko `manage-users`); (b) dodatkowo polityki odczytu oprzeć na „ma profil” zamiast „jest zalogowany” (większa zmiana bazy).
+- **Rekomendacja**: (a) od razu, (b) w kolejnym etapie.
+- **Pilność**: pilne · **Praca**: mały (a), średni (b)
+
+### D3. Wgranie pakietu migracji z sesji
+- **Problem**: ok. 30 plików w `supabase/migrations/2026112722…–2348…` naprawia błędy krytyczne w bazie (podwajanie rezerwacji, „nie dotyczy” zdejmowane przy wydaniu, wydanie i wysyłka anulowanego, NaN w ilościach, numeracja, uprawnienia). Próba generalna: cały zestaw przechodzi w kolejności nazw w jednej transakcji (kilka sekund), wszystkie łatki trafiają.
+- **Opcje**: (a) jeden skrypt, jedna transakcja, gdy nikt nie pracuje (triggery na `orders` i `check` na tabelach magazynu chwilowo blokują zapisy), potem `scripts/kontrola-po-wdrozeniu.sql`; (b) partiami.
+- **Rekomendacja**: (a). Pliki-decyzje (D5, D6, D7) można wyłączyć — reszta przechodzi bez nich.
+- **Pilność**: pilne · **Praca**: mały–średni (wgranie + kontrola)
+
+### D4. Publikacja aplikacji 1.1.8
+- **Problem**: produkcja = 1.1.7; na branchu ok. 150 commitów poprawek (wszystkie testy przechodzą). Część poprawek (np. komunikaty P0409/P0410, blokady anulowanych) działa pełniej z wgranymi migracjami.
+- **Opcje**: (a) najpierw D3, potem „tnij”; (b) najpierw aplikacja.
+- **Rekomendacja**: (a), po przejrzeniu brancha.
+- **Pilność**: pilne · **Praca**: mały (publikacja), przegląd zmian — średni
+
+### D5. Korekta 7 ram (plik `20261127233100_korekta_nd_ramy_zwrot.sql`)
+- **Problem**: Excel z „--”/„x” w kolumnie etapu i X w WYDANIE zdejmował z magazynu ramy etapu „nie dotyczy” (zlecenia ST 17431, 17437, 17588, 17589, 17625 — razem 7 ram, BUKOWA, stany na minus).
+- **Opcje**: (a) wgrać plik (5 ruchów ZWR, stany wracają do 0); (b) poprawić ręcznie po spisie.
+- **Rekomendacja**: (a) razem z 233000.
+- **Pilność**: pilne · **Praca**: mały
+
+### D6. Porządki starych rezerwacji (plik `20261127232100_…superseded.sql`)
+- **Problem**: 16 232 stare anulowane wiersze rezerwacji bez powodu (828 zleceń) — źródło dawnego podwajania. Samo podwajanie usuwa już 232000.
+- **Opcje**: (a) wgrać (oznaczenie, nic nie kasuje, nie zmienia stanów); (b) zostawić.
+- **Rekomendacja**: (a) — mniej pułapek na przyszłość.
+- **Pilność**: może poczekać (ale najlepiej razem z D3) · **Praca**: mały
+
+### D7. Prognozy magazynowe (plik `20261127232800_prognozy_pelne_miesiace.sql`)
+- **Problem**: dziś „wystarczające dane” przy 1–2 miesiącach historii, średnia tylko z miesięcy > 0 (np. komponent 470: 860/mies. z jednorazowego nadrobienia). Po poprawce: średnia z pełnych miesięcy, „za mało danych” przy < 3 pełnych miesiącach. Skutek uboczny: Alerty magazynowe — 32 pozycje (19 dziś krytycznych) przejdą w „brak danych”, proponowana ilość do zamówienia spadnie do pokrycia ujemnego stanu, do ok. grudnia/stycznia (historia od 4.09).
+- **Opcje**: (a) wgrać jak jest; (b) wgrać, ale przy „za mało danych” zostawić średnią orientacyjną z oznaczeniem (alerty nie gasną); (c) nie wgrywać do stycznia.
+- **Rekomendacja**: (b) — uczciwa prognoza bez gaszenia alertów (do zrobienia po decyzji, mała zmiana).
+- **Pilność**: pilne (dziś prognoza myli) · **Praca**: mały–średni
+
+---
+
+## Może poczekać
+
+### D8. Disting Plus — rezerwacje części skrzydła (e3/e4) nikt nie wydaje
+- **Problem**: rezerwacje leżą na rekordzie Disting, a etap odhacza STA → 2568 rezerwacji / 7389 szt. wiszą.
+- **Opcje**: (a) etap STA zdejmuje też rezerwacje partnera Disting; (b) rezerwacje części skrzydła zakładać na STA.
+- **Rekomendacja**: (a) — mniej zmian w danych.
+- **Pilność**: może poczekać (zawyża „zarezerwowane”) · **Praca**: średni
+
+### D9. Zaopatrzenie — trzy ekrany, trzy „ile zamówić”
+- **Problem**: Stany i Alerty liczą minimum całej firmy osobno na każdym magazynie, ujemne stany wchodzą 1:1.
+- **Opcje**: (a) jedna funkcja bazy dla wszystkich ekranów; (b) zostawić, opisać różnice w Pomocy.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: średni
+
+### D10. MR Profil — import RO
+- **Problem**: numery `ZLEC/…` z MR zderzą się z KR (unikalny indeks), nieudane RO przepada bez śladu (kursor idzie dalej), towar MR schodziłby z magazynów WEW KR i liczył się w statystykach KR. Dziś MR ma 0 zleceń.
+- **Opcje**: (a) przedrostek numeru „MR/” + osobny magazyn + filtr firmy w statystykach; (b) osobna kategoria.
+- **Rekomendacja**: (a) + tabela nieudanych RO z ponawianiem (Weryfikacja).
+- **Pilność**: może poczekać (do startu MR) · **Praca**: średni–duży
+
+### D11. Kierownik działu a Weryfikacja innych kategorii
+- **Problem**: po poprawce uprawnień w bazie kierownik działu może zmieniać tylko swoje kategorie, a Weryfikacja pokazuje mu wszystkie (anulowanie spoza kategorii dostanie odmowę).
+- **Opcje**: (a) Weryfikacja filtrowana do kategorii kierownika; (b) kierownik działu widzi wszystko, ale bez akcji spoza kategorii.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać (po D3) · **Praca**: mały
+
+### D12. Ceny z konfiguratora dla hali i magazynu
+- **Problem**: `configurator_value` jest ukryte tylko na ekranie; w danych w przeglądarce (F12) pracownik hali widzi ceny 3703 zleceń.
+- **Opcje**: (a) wycinać kolumnę w bazie dla zwykłych ról (widok / uprawnienie kolumny); (b) zostawić.
+- **Rekomendacja**: (a), jeśli ceny mają być tajne.
+- **Pilność**: może poczekać · **Praca**: średni
+
+### D13. Pulpit — „aktywne” = „Do wysłania” i Techniczne w „Po terminie”
+- **Problem**: 1818 = 1818, w tym 797 Technicznych (prawie nigdy niewydawanych) i 177 nóg Disting Plus z wydaną nogą STA; kafel „Po terminie” 1262, z czego 720 Technicznych.
+- **Opcje**: (a) „Do wysłania” = zlecenia z ukończonymi etapami, Techniczne osobnym kaflem; (b) zostawić.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D14. Spis z kartki a ruchy w trakcie
+- **Problem**: magazynier liczy rano, po południu PZ +10, wieczorem przepisuje kartkę → korekta zdejmuje dostawę (system_qty z chwili wpisania).
+- **Opcje**: (a) blokada PZ/MM/zdjęć na magazynie z otwartym spisem; (b) godzina liczenia na kartce i różnica od stanu z tej chwili; (c) ostrzeżenie przy ruchach.
+- **Rekomendacja**: (b) + (c).
+- **Pilność**: może poczekać (przed kolejnym spisem — pilne) · **Praca**: średni
+
+### D15. Zmiana receptury na zleceniach w produkcji
+- **Problem**: przeliczenie pomija zlecenia, z których coś zeszło (STA 47/92, Disting 90/282); przeliczenie startuje z przeglądarki po 15 s; zapis receptury w dwóch krokach.
+- **Opcje**: (a) przeliczać tylko niezrobione etapy, w jednej funkcji bazy; (b) zostawić (receptura działa od nowych zleceń).
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: średni
+
+### D16. MM towaru zarezerwowanego
+- **Problem**: przesunięcie całego stanu zostawia rezerwacje na starym magazynie (hala dostaje „brak”, „Wydaj mimo braku” zdejmuje źródło na minus).
+- **Opcje**: (a) w MM pytanie „przenieść też rezerwacje N zleceń?”; (b) blokada przesunięcia ponad wolny stan.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: średni
+
+### D17. Klient ze sklepu zostaje „Nowy”
+- **Problem**: `crm-bl-sync` przypina zamówienie do istniejącego klienta, ale nie zmienia statusu (10 klientów z opłaconym zamówieniem ma „nowy/oferta”). Porządki już ich nie zamykają (poprawka w nocy).
+- **Opcje**: (a) potwierdzone zamówienie → „wygrany”; (b) dopiero wpłata.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D18. Klient wracający po przegranej
+- **Problem**: oferty odrzucone przy przegranej zostają odrzucone; „Zamówił” i umowa nie mają oferty.
+- **Opcje**: (a) przy „Przywróć do gry” oferty odrzucone przy przegranej → „wysłana”; (b) „Zamówił” bierze też ostatnią odrzuconą.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D19. Odstąpienie od podpisanej umowy
+- **Problem**: trigger (plik 233500) blokuje każdą zmianę podpisanej umowy, także „podpisana → anulowana”.
+- **Opcje**: (a) dopuścić tylko to jedno przejście z potwierdzeniem; (b) zostawić blokadę.
+- **Rekomendacja**: (a), gdy będzie potrzebne.
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D20. Pliki PDF przy usuwaniu klienta (RODO)
+- **Problem**: bucket `crm-dokumenty` nie ma polityki DELETE — „Usuń klienta / ofertę” nie kasuje PDF-ów (8 plików po usuniętych klientach, 7 osieroconych).
+- **Opcje**: (a) polityka DELETE dla osób z CRM; (b) kasowanie w funkcji serwerowej.
+- **Rekomendacja**: (b).
+- **Pilność**: może poczekać (RODO — raczej wcześniej) · **Praca**: mały
+
+### D21. Follow-up po ofercie dla klienta „Zamówił”
+- **Problem**: trigger `crm.po_wyslaniu_oferty` daje „Zapytaj o decyzję” także klientowi „wygrany” (komentarz migracji opisuje to jako zamierzone).
+- **Opcje**: (a) pomijać wygranych; (b) zostawić.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D22. Reklamacje — poprawka w Excelu a program
+- **Problem**: przy różnych wartościach etapu wygrywa program, poprawka inicjałów w Excelu nie dociera.
+- **Opcje**: (a) zostawić + raport różnic w Weryfikacji; (b) Excel wygrywa dla wpisów, które przyszły z Excela.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: średni
+
+### D23. Druga umowa z tej samej oferty
+- **Problem**: ten sam numer tylko, gdy poprzednia jest projektem; stary projekt zostaje bez oznaczenia; protokół nadal nadpisuje plik.
+- **Opcje**: (a) tak zostawić + protokół w osobnych plikach; (b) zawsze nowy numer.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D24. Numery central w podpisach maili
+- **Problem**: dopięcie po telefonie z podpisu łączy maile kilku osób z firmy w jednego klienta.
+- **Opcje**: (a) dopinać tylko komórki (9 cyfr od 4–8); (b) zostawić z oznaczeniem „sprawdź”.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D25. Czas realizacji ST / Bastion bez dat z Excela
+- **Problem**: Excel daje sam znacznik „X” — po poprawce statystyki pomijają te daty (ST: 1 prawdziwa data).
+- **Opcje**: (a) prosić halę o datę zamiast „X”; (b) zostawić z licznikiem pominiętych.
+- **Rekomendacja**: (a) + (b).
+- **Pilność**: może poczekać · **Praca**: mały (organizacyjny)
+
+### D26. Archiwizacja po 12 miesiącach
+- **Problem**: archiwizacja po `created_at` — w czerwcu 2027 zniknie ze statystyk import 5243 zleceń.
+- **Opcje**: (a) archiwizować po `release_date` + statystyki z `orders ∪ orders_archive`; (b) zostawić.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać (do maja 2027) · **Praca**: średni
+
+### D27. Pole „Kategoria” i dzień produkcji w formularzu
+- **Problem**: zmiana kategorii w nowym zleceniu zapisuje je w innej zakładce z cudzym numerem; dzień produkcji tylko z kartoteki firmy.
+- **Opcje**: (a) kategoria tylko do odczytu w nowym zleceniu, dzień z listą i podpowiedzią; (b) zostawić.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D28. Anulowanie Titana z zakładki Bastion
+- **Problem**: anuluje tylko nogę Bastion, STA i ST zostają w produkcji.
+- **Opcje**: (a) pytanie „anulować cały zestaw?”; (b) zostawić.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D29. Kolumna `orders.updated_at`
+- **Problem**: bez niej nie da się ostrzec „ktoś zmienił zlecenie po otwarciu” (dziś wysyłane są tylko zmienione pola; to samo pole zmienione przez dwie osoby — wygrywa ostatni).
+- **Opcje**: (a) kolumna + trigger + porównanie przed zapisem; (b) zostawić.
+- **Rekomendacja**: (a) w kolejnym etapie.
+- **Pilność**: może poczekać · **Praca**: średni
+
+### D30. „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11
+- **Problem**: `oznacz_wydane_wysylki` zawsze anuluje rezerwacje bez rozchodu (dziś nieużywane, od ok. 7.12 obejmie zlecenia po spisie).
+- **Opcje**: (a) rozchód dla zleceń od 6.11; (b) zostawić.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać (do 7.12) · **Praca**: mały
+
+### D31. Czy magazynier planuje trasy
+- **Problem**: „Dodaj do trasy” widoczne dla magazyniera, baza odrzuca zlecenia STA (drzwi wewnętrzne przechodzą). Komunikat poprawiony w nocy.
+- **Opcje**: (a) chować przypinanie; (b) dopuścić magazyniera przez funkcję bazy.
+- **Rekomendacja**: zależy od organizacji pracy.
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D32. Szerokość „90” vs „90E”
+- **Problem**: import Excela porównuje szerokość dosłownie — taki wiersz trafi do Weryfikacji jako „różni się od bota”.
+- **Opcje**: (a) normalizować (bez „E”), jeśli to tylko zapis; (b) zostawić.
+- **Rekomendacja**: potrzebna informacja, co znaczy „E”.
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D33. Zakres ościeżnicy przy zabudowie (Bastion)
+- **Problem**: formularz pokazuje pole zakresu tylko dla ościeżnicy regulowanej, a dane z Excela mają zakres także przy zabudowie (121 zleceń). Po poprawce z nocy edycja już go nie kasuje.
+- **Opcje**: (a) pokazywać pole zakresu także dla zabudowy; (b) zostawić.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D34. Techniczne nigdy niewydawane
+- **Problem**: 797 z 800 otwartych zleceń Technicznych nigdy nie dostaje daty wydania (zawyża Pulpit, opóźnienia, rezerwacje).
+- **Opcje**: (a) wydanie z Excela dla Technicznych; (b) ręczne zamknięcie starych.
+- **Rekomendacja**: ustalić, skąd ma przychodzić wydanie.
+- **Pilność**: może poczekać · **Praca**: mały–średni
+
+### D35. Weryfikacja zalana
+- **Problem**: ok. 460 pozycji i ponad 1000 powiadomień tygodniowo — ważne giną.
+- **Opcje**: (a) priorytety + ukrywanie starych; (b) przegląd reguł ostrzeżeń.
+- **Rekomendacja**: (b), potem (a).
+- **Pilność**: może poczekać · **Praca**: średni
+
+### D36. „Ponów do Optimy” bez adresu webhooka
+- **Problem**: `erp_retry_webhook_url` puste — przycisk nic nie robi.
+- **Opcje**: (a) uzupełnić adres w ustawieniach; (b) schować przycisk do czasu konfiguracji.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+---
+
+## Refaktory do rozważenia
+(uzupełniane w nocy — tylko opisy, bez wdrażania)
