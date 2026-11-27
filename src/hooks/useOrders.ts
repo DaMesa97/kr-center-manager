@@ -436,11 +436,10 @@ export function useOrders({
   const applyReleaseDateCore = useCallback(
     async (orderId: number, value: string | null) => {
       setReleaseDateUpdating(orderId)
-      const { data, error } = await supabase
-        .from('orders')
-        .update({ release_date: value })
-        .eq('id', orderId)
-        .select('id')
+      // runda 4: anulowanego zlecenia nie wydajemy (wyczyszczenie daty — wolno)
+      let zapytanie = supabase.from('orders').update({ release_date: value }).eq('id', orderId)
+      if (value !== null) zapytanie = zapytanie.or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.neq.true')
+      const { data, error } = await zapytanie.select('id')
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
         setReleaseDateUpdating(null)
@@ -448,7 +447,7 @@ export function useOrders({
       }
       // RLS odrzuca update bez błędu (0 wierszy) — bez tego UI pokazałby wydanie
       if (!data || data.length === 0) {
-        pushToast('Nie zapisano daty wydania — brak uprawnień do tego zlecenia', 'error')
+        pushToast('Nie zapisano daty wydania — zlecenie jest anulowane albo brak uprawnień (odśwież listę)', 'error')
         setReleaseDateUpdating(null)
         return
       }

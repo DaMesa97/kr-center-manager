@@ -219,6 +219,12 @@ function InternalDoorOrderDetailsModal({
         ? `Wydać zlecenie ${order.order_number} dla ${order.company}? Pozycje z komponentem zejdą z magazynu wewnętrznego.${shortageWarning}${skippedWarning}`
         : `Czy na pewno wydać zamówienie #${order.order_number} dla firmy ${order.company}?`,
       run: async () => {
+        // runda 4: zlecenie mogło zostać anulowane, gdy okno było otwarte — świeży odczyt przed zdjęciem z magazynu
+        const { data: swieze } = await supabase.from('orders').select('extra_fields').eq('id', order.id!).maybeSingle()
+        if ((swieze?.extra_fields as Record<string, unknown> | null)?.cancelled === true) {
+          pushToast('Zlecenie zostało anulowane — nie wydano (odśwież listę)', 'error')
+          return
+        }
         // Ręczne zlecenia schodzą z magazynu przy zapisie; z Optimy — dopiero tu
         if (fromOptima && !(await issueStock())) return
         const today = new Date().toLocaleDateString('sv-SE')

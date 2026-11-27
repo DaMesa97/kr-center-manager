@@ -166,11 +166,13 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
         .update({ release_date: today })
         .eq('id', order.id!)
         .is('release_date', null)
+        // runda 4 (tester magazynu): lista na telefonie się nie odświeża — zlecenie anulowane w biurze dawało się wydać
+        .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.neq.true')
         .select('id')
       if (!mountedRef.current) return
       if (error) { flash(`Błąd: NIE wydano (${error.message})`, true); return }
       if (!updated || updated.length === 0) {
-        flash('NIE wydano — zamówienie jest już wydane albo nie masz uprawnień do wydania', true)
+        flash('NIE wydano — zamówienie jest już wydane, zostało anulowane albo nie masz uprawnień (odśwież listę)', true)
         return
       }
       // DOPIERO teraz fizyczne wydanie (WZ) — jak desktop. Braki z force=true
