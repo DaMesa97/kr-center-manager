@@ -228,6 +228,39 @@ Stan po rundzie: `tsc` OK, **687 testów** OK, lint bez nowych problemów.
 
 **Podsumowanie rundy 4:** znalezisk ok. 40; poprawione 26 (w tym 2 regresje i 4 poprawki niepełne z rundy 3). Nowe KRYTYCZNE/WYSOKIE były — warunek stopu niespełniony.
 
+## Runda 5 (28.11 w nocy) — recenzent aplikacji r4, próba generalna wszystkich migracji, uprawnienia / admin / wejście zleceń
+
+### Znalezione
+Ok. 30 znalezisk: krytyczne 3 (bez logowania można anulować / przywracać rezerwacje — `cancel_/restore_stage_reservations__impl` dla anon; `reserve_stock_for_order` dla każdego zalogowanego; regresja r4: edycja Bastionu kasowała zakres ościeżnicy przy zabudowie — wysoki), wysokie ok. 8 (kierownik działu bez zakresu kategorii w bazie, dowolny stan magazynu z F12 bez audytu, admin mógł przejąć konto CRM Po Drzwi, dubel bot↔Excel z innym towarem znikał), średnie ok. 12, niskie ok. 7.
+**Próba generalna:** wszystkie 20 plików migracji (223000–233500) przechodzą w kolejności nazw w jednej transakcji (kilka sekund), 37 znaczników poprawek obecnych w końcowych definicjach, dymne testy zgodne (anuluj/przywróć 15402, #ND 17626/17588, drzwi wewn. 29364, NaN, numeracja, prognozy, porządki CRM, reklamacje 402).
+
+### Poprawione — aplikacja i Edge (repo)
+| Waga | Obszar | Problem | Commit |
+|---|---|---|---|
+| WYSOKI | Bastion (regresja r4) | otwarcie edycji kasowało „Zakres ościeżnicy” przy zabudowie (12 otwartych zleceń) | b24ca64 |
+| ŚREDNI | CRM | po „Wysłałem” komunikat obiecywał follow-up, którego nie było | bc580eb |
+| ŚREDNI | Zlecenia (r4 niepełna) | dubel po zerwanym połączeniu: pary Disting Plus / Titan i firma z aliasem bez pytania — kontrola przed zapisem | 954fa45 |
+| NISKI | Aktualizacja | flaga instalacji nie wracała, gdy program się nie zamknął | 033fa24 |
+| NISKI | Ustawienia | włączenie zdublowanej reguły — surowy komunikat | 753ebf8 |
+| NISKI | CRM | blokada statusu „podpisana” także dla karty / protokołu | f864e45 |
+| ŚREDNI | Logistyka | „Dodaj do trasy” przy odmowie bazy pokazywało zielone „Dodano…” | a7ea009 |
+| WYSOKI | manage-users | admin mógł zresetować hasło / zablokować / usunąć konto z dostępem do CRM Po Drzwi | bacc1ec |
+| ŚREDNI | manage-users | usunięcie konta z historią po cichu zerowało autora (22 kolumny) — odmowa | 4ee1867 |
+| ŚREDNI | Użytkownicy | lista bez statusu blokady, okno obiecywało odblokowanie — kolumna „Status”, „Odblokuj” | 48b2dc6 |
+| WYSOKI | orders-excel-intake | wiersz z innym towarem / ilością / wykonawcą niż bot znikał jako dubel — teraz Weryfikacja | 381658d |
+
+### Poprawione — baza
+(w toku: tor bezpieczeństwa — pilny plik z odebraniem uprawnień anon, `reserve_stock_for_order` z kontrolą roli, zakres kategorii kierownika działu, audyt i zawężenie zapisu stanów, rola konta CRM, uwagi z próby generalnej — wpis po przyjęciu)
+
+### Znalezione, nie poprawione
+- Do decyzji: D2 (rejestracja kont), D11 (Weryfikacja dla kierownika działu), D12 (ceny dla hali), D31 (magazynier a trasy), D32 („90” vs „90E”), D10 (MR Profil — RO przepada bez śladu).
+- Dezaktywacja nie odcina od razu (token do ~60 min; potrzebny znacznik „nieaktywny” w profilu sprawdzany w bazie) — do zrobienia w bazie.
+- Konto bez profilu czyta całą bazę (polityki „zalogowany” zamiast „ma profil”) — powiązane z D2.
+- Zmiana roli innej osoby: menu u niej zmienia się dopiero po ponownym wczytaniu programu (NISKI).
+- Pomoc (`HelpView.tsx`) nie wspomina o „Odblokuj” i zakazie usuwania kont z historią (NISKI).
+
+Stan: `tsc` OK, **698 testów** OK.
+
 ## Do decyzji
 > Od 28.11 w nocy pełna, uporządkowana lista jest w `DECISIONS.md` (format: problem / opcje / rekomendacja / pilność / praca). Poniżej historyczna lista z rund 1–4.
 1. **Gdzie testować z zapisem danych.** Opcje: (a) gałąź Supabase (osobna baza, płatna godzinowo; dane trzeba zasiać skryptem seed), (b) zostać przy trybie bezpiecznym na produkcji (bez seeda i czyszczenia), (c) lokalny Supabase w Dockerze (Docker nie działa na tym komputerze). Koszt gałęzi wg Supabase: **0,01344 USD za godzinę** (ok. 0,32 USD na dobę); projekt nie ma dziś żadnej gałęzi. Gałąź startuje pusta (schemat z historii migracji, bez danych i bez funkcji Edge), więc potrzebny skrypt seed. Rekomendacja: (a) na czas sesji, potem usunąć gałąź.
