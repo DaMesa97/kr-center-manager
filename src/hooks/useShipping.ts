@@ -210,22 +210,23 @@ export function useShipping({
 
   // Przypięcie zlecenia do innej trasy niż firmowa (extra_fields.route_pin, wygasa po 7 dniach); null = odepnij
   const pinOrderToRoute = useCallback(
-    async (order: Order, route: string | null) => {
+    async (order: Order, route: string | null): Promise<boolean> => {
       const id = order.id
-      if (id === undefined) return
+      if (id === undefined) return false
       const { data: newExtra, error } = await supabase.rpc('merge_order_extra_fields', {
         p_order_id: id,
         p_patch: { route_pin: route ? { route, at: new Date().toISOString() } : null },
       })
       if (error) {
         pushToast(`Błąd: ${error.message}`, 'error')
-        return
+        return false
       }
       const apply = (prev: Order[]) =>
         prev.map((o) => (o.id === id ? { ...o, extra_fields: (newExtra as Order['extra_fields']) ?? o.extra_fields } : o))
       setShippingOrders(apply)
       setShippingReleasedOrders(apply)
       pushToast(route ? `Dodano ${order.order_number} do trasy ${route}` : `Odpięto ${order.order_number} od trasy`, 'success')
+      return true
     },
     [pushToast],
   )

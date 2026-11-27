@@ -42,7 +42,7 @@ type Props = {
   onRefresh: () => void
   onShowDetails: (order: Order) => void
   onToggleReadyToInvoice: (order: Order, ready: boolean) => Promise<void>
-  onPin: (order: Order, route: string | null) => Promise<void>
+  onPin: (order: Order, route: string | null) => Promise<boolean | void>
   onMarkShipped: (ids: number[], route: string, shipped: boolean) => Promise<number>
 }
 
@@ -214,8 +214,10 @@ export default function LogisticsDeskView({
     const currentRoute = deskRouteOf(target, resolveCompany(target.company))
     if (currentRoute === prefs.route) { setPinHint(`${target.category} ${target.order_number} już jest na tej trasie`); setPin(''); return }
     setBusy(true)
-    await onPin(target, prefs.route)
+    const ok = await onPin(target, prefs.route)
     setBusy(false)
+    // runda 5 (tester uprawnień): przy odmowie bazy obok czerwonego błędu pokazywało się zielone „Dodano…”
+    if (ok === false) { setPinHint(`Nie dodano ${target.category} ${target.order_number} — brak uprawnień do zmiany tego zlecenia`); return }
     setPin('')
     setPinHint(`Dodano ${target.category} ${target.order_number} (${target.company}, normalnie trasa ${currentRoute || '—'})`)
   }, [pin, candidates, resolveCompany, prefs.route, onPin])
