@@ -108,6 +108,58 @@ serve(async (req) => {
       if (crmErr) return 'Nie udało się sprawdzić dostępu do CRM Po Drzwi — spróbuj ponownie'
       return crmRow ? 'Kontem z dostępem do CRM Po Drzwi zarządza tylko superadministrator' : null
     }
+    // Testy 27.11 (runda 3): usunięcie konta z historią po cichu zerowało autora
+    // (klucze obce ON DELETE SET NULL), a część kluczy (ZKP, crm.pomoc) i tak blokuje
+    // usunięcie. Lista = wszystkie FK do auth.users / profiles poza kaskadowymi
+    // (sprawdzone w pg_constraint 27.11; przy nowej tabeli z autorem — dopisać).
+    const HISTORY_REFS: Array<{ schema: string; table: string; column: string; label: string }> = [
+      { schema: 'public', table: 'warehouse_movements', column: 'created_by', label: 'ruchy magazynowe' },
+      { schema: 'public', table: 'purchase_orders', column: 'created_by', label: 'zamówienia do dostawców' },
+      { schema: 'public', table: 'purchase_orders', column: 'sent_by', label: 'zamówienia do dostawców' },
+      { schema: 'public', table: 'inventory_sessions', column: 'created_by', label: 'inwentaryzacje' },
+      { schema: 'public', table: 'inventory_sessions', column: 'closed_by', label: 'inwentaryzacje' },
+      { schema: 'public', table: 'order_comments', column: 'author_id', label: 'komentarze' },
+      { schema: 'public', table: 'order_documents', column: 'uploaded_by', label: 'dokumenty zleceń' },
+      { schema: 'public', table: 'order_photos', column: 'uploaded_by', label: 'zdjęcia zleceń' },
+      { schema: 'public', table: 'worker_stages', column: 'created_by', label: 'nadane przypisania etapów' },
+      { schema: 'public', table: 'company_aliases', column: 'created_by', label: 'aliasy kontrahentów' },
+      { schema: 'public', table: 'seasonal_factors', column: 'updated_by', label: 'ustawienia (sezonowość)' },
+      { schema: 'public', table: 'alert_thresholds', column: 'updated_by', label: 'ustawienia (progi alertów)' },
+      { schema: 'public', table: 'zkp_card_stage_records', column: 'operator_id', label: 'zapisy ZKP' },
+      { schema: 'public', table: 'zkp_competencies', column: 'profile_id', label: 'kompetencje ZKP' },
+      { schema: 'public', table: 'zkp_test_protocols', column: 'inspector_id', label: 'protokoły ZKP' },
+      { schema: 'crm', table: 'oferty', column: 'handlowiec', label: 'oferty CRM' },
+      { schema: 'crm', table: 'oferty', column: 'sprawdzil', label: 'oferty CRM' },
+      { schema: 'crm', table: 'zdarzenia', column: 'kto', label: 'zdarzenia CRM' },
+      { schema: 'crm', table: 'skrzynki', column: 'user_id', label: 'skrzynki pocztowe CRM' },
+      { schema: 'crm', table: 'skrzynki', column: 'updated_by', label: 'skrzynki pocztowe CRM' },
+      { schema: 'crm', table: 'pomoc', column: 'updated_by', label: 'strony pomocy CRM' },
+      { schema: 'crm', table: 'dostep', column: 'nadal', label: 'nadane dostępy do CRM' },
+    ]
+    // null = brak historii; tekst = powód odmowy
+    const historyDenyReason = async (user_id: string): Promise<string | null> => {
+      const results = await Promise.all(
+        HISTORY_REFS.map(async (r) => {
+          const { count, error } = await supabaseAdmin
+            .schema(r.schema)
+            .from(r.table)
+            .select(r.column, { count: 'exact', head: true })
+            .eq(r.column, user_id)
+          return { ...r, count: count ?? 0, error }
+        }),
+      )
+      const failed = results.find((r) => r.error)
+      if (failed) {
+        return `Nie udało się sprawdzić historii konta (${failed.schema}.${failed.table}) — użyj „Dezaktywuj".`
+      }
+      const byLabel = new Map<string, number>()
+      for (const r of results) {
+        if (r.count > 0) byLabel.set(r.label, (byLabel.get(r.label) ?? 0) + r.count)
+      }
+      if (byLabel.size === 0) return null
+      const parts = [...byLabel].map(([label, n]) => `${label}: ${n}`).join(', ')
+      return `Konto ma historię (${parts}) — usunięcie skasowałoby autora tych wpisów. Użyj „Dezaktywuj".`
+    }
     const deny = (reason: string) =>
       new Response(JSON.stringify({ error: reason }), {
         status: 403,
@@ -159,8 +211,8 @@ serve(async (req) => {
       })
     }
 
-    // Dezaktywacja (ban) — twarde usunięcie wywala się na kluczach obcych
-    // (ruchy magazynowe, ZD, inwentaryzacje wskazują na profil). Ban blokuje
+    // Dezaktywacja (ban) — dla kont z historią (ruchy magazynowe, ZD, inwentaryzacje,
+    // komentarze, CRM…) usunięcie jest zablokowane (historyDenyReason). Ban blokuje
     // logowanie, a historia zostaje nietknięta.
     if (action === 'deactivate' || action === 'reactivate') {
       const user_id = String(body.user_id ?? '').trim()
@@ -251,6 +303,14 @@ serve(async (req) => {
       }
       const saReason = await superadminDenyReason(user_id)
       if (saReason) return deny(saReason)
+      // konto z historią — tylko dezaktywacja (testy 27.11, runda 3)
+      const historyReason = await historyDenyReason(user_id)
+      if (historyReason) {
+        return new Response(JSON.stringify({ error: historyReason }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
 
       const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(user_id)
       if (delErr) {

@@ -270,9 +270,9 @@ export function useUsers({
     })
   }
 
-  // Dezaktywacja (ban) — twarde usunięcie wywala się na kluczach obcych
-  // (ruchy magazynowe, ZD, inwentaryzacje); ban blokuje logowanie,
-  // a historia pracownika zostaje
+  // Dezaktywacja (ban) — usunięcia konta z historią (ruchy magazynowe, ZD,
+  // inwentaryzacje, komentarze, CRM…) manage-users odmawia (testy 27.11, runda 3);
+  // ban blokuje logowanie, a historia pracownika zostaje
   const handleDeactivateUser = async (row: DbProfileRow, deactivate: boolean) => {
     if (!canManage) return
     if (row.id === currentUser?.id) {

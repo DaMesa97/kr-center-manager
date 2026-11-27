@@ -22,6 +22,10 @@ type FakeOpts = {
   crmUsers?: string[]
   /** błąd odczytu crm.dostep (np. chwilowa awaria) */
   crmError?: { message: string } | null
+  /** liczba wierszy z autorem = konto, klucz `schemat.tabela.kolumna` (historia przy delete) */
+  history?: Record<string, number>
+  /** błąd liczenia historii (dla wszystkich tabel) */
+  historyError?: { message: string } | null
 }
 
 function makeFakeSupabase(opts: FakeOpts) {
@@ -33,6 +37,8 @@ function makeFakeSupabase(opts: FakeOpts) {
     targets = {},
     crmUsers = [],
     crmError = null,
+    history = {},
+    historyError = null,
   } = opts
   const calls = { created: [] as unknown[], deleted: [] as string[], updated: [] as string[] }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,7 +46,18 @@ function makeFakeSupabase(opts: FakeOpts) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const builder: any = {}
     let lastEq: string | null = null
-    builder.select = () => builder
+    let selCol = ''
+    builder.select = (col?: string) => {
+      selCol = String(col ?? '')
+      return builder
+    }
+    // zapytanie z { count, head } jest awaitowane bezpośrednio (bez single/maybeSingle)
+    builder.then = (resolve: (v: unknown) => unknown) =>
+      resolve(
+        historyError
+          ? { count: null, error: historyError }
+          : { count: history[`${schema}.${table}.${selCol}`] ?? 0, error: null },
+      )
     builder.eq = (_col: string, v: string) => {
       lastEq = v
       return builder
@@ -228,5 +245,35 @@ describe('manage-users — konta z dostępem do CRM Po Drzwi', () => {
     __setSupabaseClient(supabase)
     expect((await handler()(post({ action: 'reset_password', user_id: 'x-1', password: 'nowehaslo' }))).status).toBe(403)
     expect(calls.updated).toEqual([])
+  })
+})
+
+// Testy 27.11 (runda 3): usunięcie konta z historią zerowało autora (FK ON DELETE SET NULL).
+describe('manage-users — delete konta z historią', () => {
+  it('konto z ruchami magazynowymi / ofertami CRM → 409 z liczbami, bez usuwania', async () => {
+    const { supabase, calls } = makeFakeSupabase({
+      history: {
+        'public.warehouse_movements.created_by': 12,
+        'crm.zdarzenia.kto': 3,
+        'public.purchase_orders.created_by': 1,
+        'public.purchase_orders.sent_by': 2,
+      },
+    })
+    __setSupabaseClient(supabase)
+    const res = await handler()(post({ action: 'delete', user_id: 'u-hist' }))
+    expect(res.status).toBe(409)
+    const msg = ((await res.json()) as { error: string }).error
+    expect(msg).toContain('ruchy magazynowe: 12')
+    expect(msg).toContain('zdarzenia CRM: 3')
+    expect(msg).toContain('zamówienia do dostawców: 3')
+    expect(msg).toContain('Dezaktywuj')
+    expect(calls.deleted).toEqual([])
+  })
+
+  it('błąd liczenia historii → odmowa, bez usuwania', async () => {
+    const { supabase, calls } = makeFakeSupabase({ historyError: { message: 'timeout' } })
+    __setSupabaseClient(supabase)
+    expect((await handler()(post({ action: 'delete', user_id: 'u-x' }))).status).toBe(409)
+    expect(calls.deleted).toEqual([])
   })
 })

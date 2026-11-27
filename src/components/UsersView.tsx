@@ -166,7 +166,7 @@ export default function UsersView({
                 title={
                   row.id === currentUserId
                     ? 'Nie można usunąć własnego konta'
-                    : 'Twarde usunięcie — zadziała tylko dla kont bez historii (ruchy magazynowe, ZD). W innym wypadku użyj Dezaktywuj.'
+                    : 'Twarde usunięcie — tylko konto bez żadnej historii (ruchy magazynowe, ZD, inwentaryzacje, komentarze, zdjęcia, ZKP, CRM). Konto z historią system odrzuci z podaniem liczby wpisów — wtedy użyj Dezaktywuj.'
                 }
               >
                 Usuń
