@@ -2080,14 +2080,15 @@ export function useOrders({
         if (bastionErr) {
           pushToast(`ST i STA zapisane, ale Bastion nie: ${bastionErr.message}`, 'error')
         }
-        await supabase.rpc('merge_order_extra_fields', {
-          p_order_id: stId,
-          p_patch: { titan_group: group, titan_role: 'ST' },
-        })
-        await supabase.rpc('merge_order_extra_fields', {
-          p_order_id: staId,
-          p_patch: { titan_group: group, titan_role: 'STA' },
-        })
+        // noc 28.11 (analiza duplikacji): błędy oznaczenia grupy były ignorowane — bez titan_group nogi nie widzą się
+        // nawzajem (etapy, anulowanie, intarsja), a użytkownik dostawał „Utworzono Titan”
+        const [{ error: stGrErr }, { error: staGrErr }] = await Promise.all([
+          supabase.rpc('merge_order_extra_fields', { p_order_id: stId, p_patch: { titan_group: group, titan_role: 'ST' } }),
+          supabase.rpc('merge_order_extra_fields', { p_order_id: staId, p_patch: { titan_group: group, titan_role: 'STA' } }),
+        ])
+        if (stGrErr || staGrErr) {
+          pushToast(`Zestaw Titan zapisany, ale nie oznaczono grupy na ${stGrErr ? 'ST' : ''}${stGrErr && staGrErr ? ' i ' : ''}${staGrErr ? 'STA' : ''} (${(stGrErr ?? staGrErr)?.message}) — zgłoś administratorowi (nogi zestawu nie są połączone)`, 'error')
+        }
 
         await reserveStockForOrderWithToasts(stId)
         await reserveStockForOrderWithToasts(staId)
