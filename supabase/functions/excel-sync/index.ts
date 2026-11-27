@@ -308,6 +308,13 @@ Deno.serve(async (req) => {
             }
             if (Object.keys(stages).length || nietypowe.length) etapyByRow[`${sheet} ${String(nr).trim()}`] = { stages, nietypowe };
           }
+          // testy 27.11 (2. seria, KRYTYCZNY): „ANULOWANE” wpisane w kolumnie etapu (CNC, ościeżnica…) zamiast w WYDANIE
+          // zostawiało zlecenie otwarte z rezerwacjami (7 zleceń, 65 rezerwacji) — teraz idzie jak „ANUL…” w WYDANIE,
+          // czyli na listę „Anulowane w Excelu” w Weryfikacji (anuluje człowiek, nie automat)
+          if (wyd === null) {
+            const anul = cols.find((c) => /^\s*anul/i.test(String(x[c.header] ?? "")));
+            if (anul) wyd = `ANULOWANE (kolumna ${anul.header})`;
+          }
           rows.push({
             sheet, nr: String(nr).trim(),
             firma: String(x["FIRMA"] ?? ""),
