@@ -247,3 +247,22 @@ export function gridItems<T>(sheets: GridSheet<T>[]): T[] {
   for (const s of sheets) for (const b of s.blocks) for (const t of b.tables) for (const r of t.rows) for (const c of r.cells) if (c != null) out.push(c)
   return out
 }
+
+/**
+ * Najmniejsza szerokość kafelka (px), przy której tabelki zakładki mieszczą się bez poziomego paska:
+ * kolumna opisu wg najdłuższego napisu + kolumny ilości (BAZA L/P, BELKA 60–90…). Kafelki skrzydeł — stałe 330.
+ */
+export function gridBlockMinWidth<T>(sheet: GridSheet<T>, cellPx = 64): number {
+  const WING = 330
+  const CHAR = 7.2 // ~0.78rem pogrubione
+  let max = WING
+  for (const b of sheet.blocks) {
+    for (const t of b.tables) {
+      if (t.kind !== 'matrix') continue
+      const longest = Math.max(t.label.length, ...t.rows.map((r) => r.label.length), 4)
+      const width = Math.ceil(longest * CHAR + 18 + t.columns.length * cellPx + 4)
+      if (width > max) max = width
+    }
+  }
+  return max
+}

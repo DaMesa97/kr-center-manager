@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
-import type { GridSheet, GridTable } from '../../lib/doorStockGrid'
+import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { gridBlockMinWidth, type GridSheet, type GridTable } from '../../lib/doorStockGrid'
 
 type Props<T> = {
   sheets: GridSheet<T>[]
@@ -7,6 +7,8 @@ type Props<T> = {
   renderCell: (item: T) => ReactNode
   /** dopisek pod tytułem zakładki, np. liczba pozycji */
   emptyText?: string
+  /** szerokość kolumny ilości w tabelkach ościeżnic (px) — przy polach do wpisywania spisu szersza */
+  cellWidth?: number
 }
 
 /**
@@ -14,12 +16,14 @@ type Props<T> = {
  * (PŁYTOWE, BRAVO, CREDIS…), bloki model + kolor, w bloku numer modelu i wiersze
  * szerokość × LEWA / PRAWA; ościeżnice jako profil × baza / belka.
  */
-export default function DoorStockGrid<T>({ sheets, renderCell, emptyText = 'Brak pozycji' }: Props<T>) {
+export default function DoorStockGrid<T>({ sheets, renderCell, emptyText = 'Brak pozycji', cellWidth = 64 }: Props<T>) {
   const [active, setActive] = useState(sheets[0]?.name ?? '')
   useEffect(() => {
     if (sheets.length > 0 && !sheets.some((s) => s.name === active)) setActive(sheets[0].name)
   }, [sheets, active])
   const sheet = sheets.find((s) => s.name === active) ?? sheets[0]
+  // kafelek tak szeroki, żeby tabelka ościeżnic (BAZA L/P + BELKI) zmieściła się bez poziomego paska
+  const minWidth = useMemo(() => (sheet ? gridBlockMinWidth(sheet, cellWidth) : 330), [sheet, cellWidth])
   if (!sheet) return <p className="muted">{emptyText}</p>
   return (
     <div className="door-grid">
@@ -37,7 +41,7 @@ export default function DoorStockGrid<T>({ sheets, renderCell, emptyText = 'Brak
           </button>
         ))}
       </div>
-      <div className="door-grid-blocks">
+      <div className="door-grid-blocks" style={{ '--door-grid-min': `${minWidth}px` } as CSSProperties}>
         {sheet.blocks.map((b) => (
           <section key={b.title} className="door-grid-block">
             <h4 className="door-grid-block-title">{b.title}</h4>

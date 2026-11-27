@@ -621,6 +621,7 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
                         {przelacznik}
                         <DoorStockGrid
                           sheets={buildDoorGrid(shown, lineGridAttrs)}
+                          cellWidth={76}
                           emptyText={sd.lines.length === 0 ? 'Brak pozycji w spisie' : 'Brak pozycji dla wybranych filtrów'}
                           renderCell={(line) => (
                             <span title={`${line.component_code ? `${line.component_code} — ` : ''}${line.component_name ?? ''}`}>

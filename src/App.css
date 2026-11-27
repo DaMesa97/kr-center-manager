@@ -10468,7 +10468,8 @@ li.optima-item--kit-part { margin-left: 16px; }
 .stocked-field-options { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 /* 27.11: magazyn wewnętrzne jak dawny Excel — zakładki, bloki model + kolor, szerokość × kierunek */
 .door-grid-tabs { padding-left: 0; padding-right: 0; flex-wrap: wrap; }
-.door-grid-blocks { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; align-items: start; }
+/* 27.11 wieczorem: szerokość kafelka liczona z kolumn tabelki (DoorStockGrid → --door-grid-min), żeby ościeżnice nie miały poziomego paska; min(100%) – na telefonie jeden kafelek na całą szerokość */
+.door-grid-blocks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--door-grid-min, 330px)), 1fr)); gap: 14px; align-items: start; }
 .door-grid-block { border: 1px solid #b9c3d3; border-radius: 6px; background: var(--color-card-bg); overflow: hidden; }
 .door-grid-block-title { margin: 0; padding: 7px 10px; background: #eef3d6; color: #1b304a; font-size: 0.95rem; font-weight: 700; text-align: center; border-bottom: 1px solid #b9c3d3; }
 .door-grid-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }

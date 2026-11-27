@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildDoorGrid, gridItems, parseFrame, parseWing, type GridAttrs } from '../lib/doorStockGrid'
+import { buildDoorGrid, gridBlockMinWidth, gridItems, parseFrame, parseWing, type GridAttrs, type GridSheet } from '../lib/doorStockGrid'
 
 const w = (name: string, model: string | null, color: string | null, size: string | null, dir: string | null): GridAttrs => ({
   name, product_category: 'door_wing', door_model: model, door_color: color, door_size: size, door_direction: dir,
@@ -82,5 +82,26 @@ describe('buildDoorGrid', () => {
     const all = gridItems(grid)
     expect(all).toHaveLength(items.length)
     expect(new Set(all).size).toBe(items.length)
+  })
+})
+
+describe('gridBlockMinWidth (kafelek bez poziomego paska)', () => {
+  const matrix = (rows: string[], cols: string[]): GridSheet<number> => ({
+    name: 'OŚCIEŻNICE',
+    blocks: [{ title: 'X', tables: [{ label: '', kind: 'matrix', columns: cols, rows: rows.map((label) => ({ label, cells: cols.map(() => 1) })) }] }],
+  })
+  const cols6 = ['BAZA LEWA', 'BAZA PRAWA', 'BELKA 60', 'BELKA 70', 'BELKA 80', 'BELKA 90']
+  it('ościeżnice z 6 kolumnami są szersze niż domyślne 330 px i rosną z kolumną ilości', () => {
+    const s = matrix(['OR1 (80-100)', 'OR7 (300-340)'], cols6)
+    expect(gridBlockMinWidth(s)).toBeGreaterThan(330 + 100)
+    expect(gridBlockMinWidth(s, 76)).toBe(gridBlockMinWidth(s, 64) + 6 * 12)
+  })
+  it('dłuższa nazwa profilu poszerza kafelek', () => {
+    expect(gridBlockMinWidth(matrix(['OPB5-90-PROMO (260-300)'], cols6))).toBeGreaterThan(gridBlockMinWidth(matrix(['OR1 (80-100)'], cols6)))
+  })
+  it('same skrzydła i wąskie tabelki — zostaje 330 px', () => {
+    expect(gridBlockMinWidth(matrix(['LISTWA'], ['STAN']))).toBe(330)
+    const wings: GridSheet<number> = { name: 'MALEO', blocks: [{ title: 'MALEO BIAŁY', tables: [{ label: '01', kind: 'wing', columns: ['LEWA', 'PRAWA'], rows: [{ label: '80', cells: [1, 1] }] }] }] }
+    expect(gridBlockMinWidth(wings)).toBe(330)
   })
 })
