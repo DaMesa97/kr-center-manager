@@ -72,7 +72,12 @@ import { useErpRetry } from './hooks/useErpRetry'
 import { useExcelSync } from './hooks/useExcelSync'
 import type { ReviewFocus } from './components/OrdersNeedingReviewView'
 import { STAGE_NA, holdValue } from './lib/stageSpecial'
-import { dateInRange, resolveDateRange } from './lib/dateRange'
+import { DATE_FILTER_ALL, dateInRange, isDateFilterActive, resolveDateRange } from './lib/dateRange'
+
+/** Zakładki, w których filtr dnia produkcji jest widoczny (i tylko tam działa) — testy 27.11 (runda 3). */
+const pokazFiltrDnia = (tab: string) => tab !== 'Aluminium' && tab !== 'DrzwiWewnetrzne'
+/** Zakładki z filtrem źródła bot / ręczne. */
+const pokazFiltrZrodla = (tab: string) => ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'].includes(tab)
 import ReleaseClearPopup from './components/ReleaseClearPopup'
 import UsersView from './components/UsersView'
 import ContractorsView from './components/ContractorsView'
@@ -1665,7 +1670,9 @@ function App() {
     const query = searchTerm.trim().toLowerCase()
     // #164 (Tymek 23.11): kilka słów = każde musi pasować do któregoś pola (np. „231/11 antracyt” = numer RO + kolor)
     const terms = query.split(/\s+/).filter(Boolean)
-    const filterByDay = selectedProductionDay !== 'Wszystkie dni'
+    // testy 27.11 (runda 3): filtr dnia działał po cichu w zakładkach, gdzie go nie widać (Aluminium) albo gdzie
+    // zlecenia nie mają dnia (Drzwi wewnętrzne) — wszystko znikało z radą „wgraj listę produkcyjną”
+    const filterByDay = selectedProductionDay !== 'Wszystkie dni' && pokazFiltrDnia(activeTab)
     const dateRange = resolveDateRange(dateFilter)
     const activeCategory = activeTab.toLowerCase()
 
@@ -1721,7 +1728,7 @@ function App() {
         // filtr źródła bot/ręczne nie jest tu pokazany — nie może działać po cichu
         return matchesIntDoorFilter(order, intDoorFilter, summaryByOrder.get(order.id ?? -1))
       }
-      if (sourceFilter !== 'all') {
+      if (sourceFilter !== 'all' && pokazFiltrZrodla(activeTab)) {
         if (sourceFilter === 'manual' && order.source === 'bot') return false
         if (sourceFilter === 'bot' && order.source !== 'bot') return false
       }
@@ -3897,10 +3904,10 @@ function App() {
               sourceFilterCounts={sourceFilterCounts}
               dateFilter={dateFilter}
               onDateFilterChange={(v) => startFilterTransition(() => setDateFilter(v))}
-              showSourceFilter={['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'].includes(activeTab)}
+              showSourceFilter={pokazFiltrZrodla(activeTab)}
               wykonawcaFilter={wykonawcaFilter}
               showWykonawcaFilter={activeTab === 'STA' || activeTab === 'Disting'}
-              showDayFilter={activeTab !== 'Aluminium'}
+              showDayFilter={pokazFiltrDnia(activeTab)}
               onSearchChange={handleSearchInputChange}
               onSearchCommit={commitSearch}
               onDayChange={(v) => startFilterTransition(() => setSelectedProductionDay(v))}
@@ -3919,7 +3926,27 @@ function App() {
                   const ile = hideCompletedOrders ? orders.filter((o) => isReleaseDateEmpty(o.release_date) && (showCancelledOrders || !isOrderCancelled(o))).length : orders.length
                   return filteredOrders.length === ile
                     ? <span>{hideCompletedOrders ? 'Niewydanych zleceń' : 'Zamówień'}: <strong>{ile}</strong></span>
-                    : <span>Wyświetlane: <strong>{filteredOrders.length}</strong> z <strong>{ile}</strong>{hideCompletedOrders ? ' niewydanych' : ''}</span>
+                    : <span>Wyświetlane: <strong>{filteredOrders.length}</strong> z <strong>{ile}</strong>{hideCompletedOrders ? ' niewydanych' : ''}{(() => {
+                        // testy 27.11 (runda 3): pusty wynik nie mówił, który filtr działa
+                        const aktywne = [
+                          searchTerm.trim() ? `szukaj „${searchTerm.trim()}”` : '',
+                          pokazFiltrDnia(activeTab) && selectedProductionDay !== 'Wszystkie dni' ? `dzień ${selectedProductionDay}` : '',
+                          isDateFilterActive(dateFilter) ? 'data zamówienia' : '',
+                          pokazFiltrZrodla(activeTab) && sourceFilter !== 'all' ? `źródło ${sourceFilter === 'bot' ? 'bot' : 'ręczne'}` : '',
+                          (activeTab === 'STA' || activeTab === 'Disting') && wykonawcaFilter.length ? 'wykonawca' : '',
+                          activeTab === 'Bastion' && bastionTitanOnly ? 'tylko TITAN' : '',
+                        ].filter(Boolean)
+                        if (!aktywne.length) return null
+                        return (
+                          <>
+                            {' · filtry: '}{aktywne.join(', ')}{' '}
+                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => startFilterTransition(() => {
+                              setSearchInput(''); setSearchTerm(''); setSelectedProductionDay('Wszystkie dni'); setDateFilter(DATE_FILTER_ALL)
+                              setSourceFilter('all'); setWykonawcaFilter([]); setBastionTitanOnly(false)
+                            })}>Wyczyść filtry</button>
+                          </>
+                        )
+                      })()}</span>
                 })()
                 }
               </div>

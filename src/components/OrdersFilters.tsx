@@ -81,6 +81,8 @@ export default function OrdersFilters({
           {PRODUCTION_DAYS.map((day) => (
             <option key={day}>{day}</option>
           ))}
+          {/* testy 27.11 (runda 3): 52 otwarte zlecenia mają ten dzień, a nie dało się go wybrać */}
+          <option>ODBIÓR OSOBISTY</option>
         </select>
       )}
       <div className={`date-filter${isDateFilterActive(dateFilter) ? ' date-filter--active' : ''}`} title="Data zamówienia">
