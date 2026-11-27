@@ -13,6 +13,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 5. **D5 — Korekta 7 ram** zdjętych mimo etapu „nie dotyczy” (5 zleceń ST, BUKOWA).
 6. **D6 — Porządki 16 232 starych wierszy rezerwacji** (oznaczenie jako zastąpione).
 7. **D7 — Prognozy magazynowe**: poprawka zmieni też Alerty (19 krytycznych → „brak danych” do grudnia/stycznia).
+8. **D39 — Wdrożyć poprawkę CRM „Bastion P-110 nie jest na liście kandydatów”** (Twoje zgłoszenie z nocy): handlowiec nie wyceni żadnego Bastiona P-, N-, T-, L-, LUX-, STD- do czasu wdrożenia `crm-oferta`.
 
 ### Może poczekać (najważniejsze)
 D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów.
@@ -62,6 +63,12 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Opcje**: (a) wgrać jak jest; (b) wgrać, ale przy „za mało danych” zostawić średnią orientacyjną z oznaczeniem (alerty nie gasną); (c) nie wgrywać do stycznia.
 - **Rekomendacja**: (b) — uczciwa prognoza bez gaszenia alertów (do zrobienia po decyzji, mała zmiana).
 - **Pilność**: pilne (dziś prognoza myli) · **Praca**: mały–średni
+
+### D39. Wdrożenie poprawki `crm-oferta` (Bastion P-110 i inne)
+- **Problem**: zgłoszone w nocy — oferta z Bastion P-110 kończy się „nie jest na liście kandydatów”. Przyczyna: prefiltr znał tylko Bastiony A-/B- i ignorował ID produktu w tekście. Poprawione w repo (f1cb07b, test), funkcja na serwerze nadal v29.
+- **Opcje**: (a) wdrożyć `supabase/functions/crm-oferta` (6 plików, z repo) i w tej ofercie „Policz od nowa”; (b) do czasu wdrożenia — wycena ręczna.
+- **Rekomendacja**: (a) od razu rano. Zmiana dotyczy tylko wyboru kandydatów (lista dla AI), nie cen ani PDF.
+- **Pilność**: pilne · **Praca**: mały
 
 ---
 

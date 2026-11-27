@@ -276,6 +276,12 @@ Stan: `tsc` OK, **698 testów** OK.
 
 **Podsumowanie rundy 5:** znalezisk ok. 30 + 6 z próby generalnej; poprawione 21 (aplikacja/Edge 11, baza 10). Nowe KRYTYCZNE były — od tej nocy warunek stopu wyłączony, testy pogłębiane.
 
+## Zgłoszenie właściciela (28.11 w nocy): CRM nie umie wycenić Bastion P-110
+- **Objaw**: oferta (lead 5e016d87…, oferta a5e17c9c…) — „System nie dobrał produktu: Bastion P-110 (ID 48895) nie jest na liście kandydatów”; handlowiec podał nazwę, link i ID — bez skutku.
+- **Przyczyna**: prefiltr `kandydaci()` w Edge `crm-oferta` (v29) rozpoznawał wzory Bastion tylko z literą A/B (`[ab]-?\d{3}`). P-110 nie dostawał punktów za model, a 8 miejsc na liście zajmowały inne Bastiony (cennik: A 23, B 21, P 22, N 11, T 11, L 3, LUX 5, STD 2). Numer produktu wpisany w tekście (ID / link `?p=`) nie był brany pod uwagę.
+- **Poprawka**: commit f1cb07b — wzory `A/B/N/P/T/L-NNN(NN)`, `LUX-`, `STD-`; produkt wskazany numerem (`ID 48895`, `#48895`, `?p=…`) zawsze na pierwszym miejscu listy. Test `src/__tests__/crmOfertaKandydaci.test.ts` (5 przypadków; na starym kodzie 4 padają). Źródło v29 pobrane z serwera do repo (b2f4cb9, bez zmian), bo funkcja była tylko na serwerze.
+- **Wdrożenie**: NIE wdrożone (zasada nocy). Do wdrożenia: `supabase/functions/crm-oferta` (6 plików) — patrz DECISIONS D39. Po wdrożeniu: w ofercie kliknąć „Zapisz odpowiedzi i policz od nowa” (albo „Policz od nowa”).
+
 ## Do decyzji
 > Od 28.11 w nocy pełna, uporządkowana lista jest w `DECISIONS.md` (format: problem / opcje / rekomendacja / pilność / praca). Poniżej historyczna lista z rund 1–4.
 1. **Gdzie testować z zapisem danych.** Opcje: (a) gałąź Supabase (osobna baza, płatna godzinowo; dane trzeba zasiać skryptem seed), (b) zostać przy trybie bezpiecznym na produkcji (bez seeda i czyszczenia), (c) lokalny Supabase w Dockerze (Docker nie działa na tym komputerze). Koszt gałęzi wg Supabase: **0,01344 USD za godzinę** (ok. 0,32 USD na dobę); projekt nie ma dziś żadnej gałęzi. Gałąź startuje pusta (schemat z historii migracji, bez danych i bez funkcji Edge), więc potrzebny skrypt seed. Rekomendacja: (a) na czas sesji, potem usunąć gałąź.
