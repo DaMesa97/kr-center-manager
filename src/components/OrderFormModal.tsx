@@ -13,6 +13,7 @@ import DamageReportModal from './DamageReportModal'
 import { useStockPreview } from '../hooks/useStockPreview'
 import { buildPreviewPayload } from '../lib/stockPreview'
 import { getOrderStageDefinitions } from '../utils'
+import { cancelledReason, isOrderCancelled } from '../lib/optimaRo'
 
 // Ostrzeżenie + dopasowanie niedopasowanej firmy (gł. zamówienia z BOT-a).
 // Auto-podpowiedź (najlepsze dopasowanie) ORAZ ręczny wybór z pełnej listy kontrahentów.
@@ -133,6 +134,10 @@ function OrderFormModal(props: OrderFormModalProps) {
 
   // Zgłoszenie zniszczenia z poziomu szczegółów zamówienia (tylko kierownik)
   const [damageOpen, setDamageOpen] = useState(false)
+
+  // testy 27.11 (runda 3): anulowane zlecenie — tylko podgląd, zapis zablokowany
+  // (hook i tak sprawdza świeży stan w bazie przed zapisem)
+  const editingCancelled = editingOrderId !== null && isOrderCancelled(editingOrderBaseline)
 
   const companies = (allCompanies ?? []) as Array<{ name: string; production_day?: string; route_day?: string }>
   const renderCompanyMatchWarning = (
@@ -281,6 +286,25 @@ function OrderFormModal(props: OrderFormModalProps) {
                   </button>
                 </div>
               </div>
+              {editingCancelled && (
+                <div
+                  role="alert"
+                  style={{
+                    margin: '10px 24px 0',
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    border: '1px solid #dc2626',
+                    background: 'rgba(220, 38, 38, 0.08)',
+                    color: '#b91c1c',
+                    fontWeight: 600,
+                  }}
+                >
+                  🚫 Zlecenie anulowane — najpierw przywróć. Formularz jest tylko do podglądu, zapis zablokowany.
+                  {cancelledReason(editingOrderBaseline) && (
+                    <div style={{ fontWeight: 400, marginTop: 4 }}>{cancelledReason(editingOrderBaseline)}</div>
+                  )}
+                </div>
+              )}
               <OrderErpSection
                 order={editingOrderBaseline}
                 onRetry={onErpRetry && editingOrderBaseline ? () => onErpRetry(editingOrderBaseline) : undefined}
@@ -1923,10 +1947,17 @@ function OrderFormModal(props: OrderFormModalProps) {
                     📋 Duplikuj
                   </button>
                 )}
-                <button className="btn btn-primary" onClick={handleSaveOrder} disabled={isSaving}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveOrder}
+                  disabled={isSaving || editingCancelled}
+                  title={editingCancelled ? 'Zlecenie anulowane — najpierw przywróć' : undefined}
+                >
                   {isSaving
                     ? 'Zapisywanie...'
-                    : editingOrderId !== null
+                    : editingCancelled
+                      ? 'Anulowane — zapis zablokowany'
+                      : editingOrderId !== null
                       ? 'Zapisz zmiany'
                       : usesStructuredOrderForm
                         ? 'Dodaj'

@@ -69,7 +69,7 @@ import type {
 } from '../types'
 import type React from 'react'
 import type { StockReleaseRow } from './useMyStation'
-import { isOptimaClosed } from '../lib/optimaRo'
+import { isOptimaClosed, isOrderCancelled } from '../lib/optimaRo'
 
 /** Dialog braków przy wydaniu z tabeli zamówień / oznaczeniu wydania */
 export type StageReleaseShortageState = {
@@ -1237,8 +1237,19 @@ export function useOrders({
         continue
       }
       setOrders((prev) => prev.map((o) => (o.id === leg.id ? ({ ...o, ...payload } as Order) : o)))
-      await syncWarehouseStockAfterOrderEdit(leg.id, leg, payload)
+      // testy 27.11 (runda 3): anulowana noga nie dostaje nowych rezerwacji
+      if (!isOrderCancelled(leg)) await syncWarehouseStockAfterOrderEdit(leg.id, leg, payload)
     }
+  }
+
+  // testy 27.11 (runda 3): przeliczenie rezerwacji partnera (Disting Plus / Titan)
+  // tylko gdy partner nie jest anulowany — inaczej dostawał nowe rezerwacje
+  const resyncLinkedPartnerStock = async (baseline: Order, newData: Record<string, unknown>): Promise<void> => {
+    const partnerId = baseline.linked_order_id
+    if (partnerId == null) return
+    const { data } = await supabase.from('orders').select('extra_fields').eq('id', partnerId).maybeSingle()
+    if (isOrderCancelled(data as Pick<Order, 'extra_fields'> | null)) return
+    await syncWarehouseStockAfterOrderEdit(partnerId, baseline, newData)
   }
 
   const handleSaveOrderImpl = async () => {
@@ -1251,6 +1262,35 @@ export function useOrders({
       return
     }
     const editId = editingOrderId!
+
+    // testy 27.11 (runda 3): anulowanego zlecenia nie zapisujemy — przeliczenie
+    // rezerwacji po edycji zakładało mu nowe rezerwacje. Świeży odczyt z bazy:
+    // łapie też anulowanie przez kogoś innego w trakcie edycji.
+    if (isEditing) {
+      const { data: fresh, error: freshErr } = await supabase
+        .from('orders')
+        .select('extra_fields')
+        .eq('id', editId)
+        .maybeSingle()
+      if (freshErr || !fresh) {
+        pushToast(
+          `Nie udało się sprawdzić zlecenia przed zapisem: ${freshErr?.message ?? 'nie ma go w bazie'}. Spróbuj ponownie.`,
+          'error',
+        )
+        setIsSaving(false)
+        return
+      }
+      if (isOrderCancelled(fresh as Pick<Order, 'extra_fields'>)) {
+        pushToast(
+          isOrderCancelled(editingOrderBaseline)
+            ? 'Zlecenie anulowane — najpierw przywróć, potem edytuj. Zmiany nie zostały zapisane.'
+            : 'Ktoś anulował to zlecenie w trakcie Twojej edycji — zmiany nie zostały zapisane. Najpierw przywróć zlecenie.',
+          'error',
+        )
+        setIsSaving(false)
+        return
+      }
+    }
 
     if (activeTab === 'STA' || activeTab === 'Disting') {
       const errors = validateOrderForm(activeTab, {
@@ -1425,13 +1465,7 @@ export function useOrders({
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
         // Partner (Disting Plus / Titan) dostał te same zmiany pól przez sync —
         // jego rezerwacje też trzeba przeliczyć (wcześniej trzymał stare)
-        if (editingOrderBaseline.linked_order_id != null) {
-          await syncWarehouseStockAfterOrderEdit(
-            editingOrderBaseline.linked_order_id,
-            editingOrderBaseline,
-            mapped,
-          )
-        }
+        await resyncLinkedPartnerStock(editingOrderBaseline, mapped)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
           await fetchOrdersNeedingReview()
@@ -1739,13 +1773,7 @@ export function useOrders({
         await syncSharedFieldsToTitanGroup(editingOrderBaseline, stSyncFields)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, stSyncFields)
         // Partner STA (Titan) dostał zmiany wspólnych pól — przelicz też jego rezerwacje
-        if (editingOrderBaseline.linked_order_id != null) {
-          await syncWarehouseStockAfterOrderEdit(
-            editingOrderBaseline.linked_order_id,
-            editingOrderBaseline,
-            stSyncFields,
-          )
-        }
+        await resyncLinkedPartnerStock(editingOrderBaseline, stSyncFields)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
           await fetchOrdersNeedingReview()

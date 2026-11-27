@@ -3,7 +3,7 @@ import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import { componentLabel } from '../lib/componentLabel'
-import { OPTIMA_READONLY_HINT, isKitPart, isOptimaOrder, lowerFirst } from '../lib/optimaRo'
+import { OPTIMA_READONLY_HINT, isKitPart, isOptimaOrder, isOrderCancelled, lowerFirst } from '../lib/optimaRo'
 import { pickKey } from '../lib/orderPicks'
 import { INTERNAL_WAREHOUSE_CODE_PATTERN } from '../lib/internalWarehouse'
 import type { Order, WarehouseComponent, InternalDoorItem, ToastVariant } from '../types'
@@ -268,6 +268,25 @@ function InternalDoorOrderModal({
         return
       }
       orderId = initialOrder.id
+
+      // testy 27.11 (runda 3): anulowanego zlecenia nie zapisujemy — ponowne wydanie
+      // pozycji (issue_internal_door_stock) zdjęłoby towar z magazynu. Świeży odczyt
+      // łapie też anulowanie przez kogoś innego w trakcie edycji.
+      const { data: fresh, error: freshErr } = await supabase
+        .from('orders')
+        .select('extra_fields')
+        .eq('id', orderId)
+        .maybeSingle()
+      if (freshErr || !fresh) {
+        setSaving(false)
+        pushToast(`Nie udało się sprawdzić zlecenia przed zapisem: ${freshErr?.message ?? 'nie ma go w bazie'}`, 'error')
+        return
+      }
+      if (isOrderCancelled(fresh as Pick<Order, 'extra_fields'>)) {
+        setSaving(false)
+        pushToast('Zlecenie anulowane — najpierw przywróć, potem edytuj. Zmiany nie zostały zapisane.', 'error')
+        return
+      }
 
       // Zwrot przed edycją NIEpotrzebny — issue_internal_door_stock rozlicza
       // na końcu RÓŻNICĘ netto (dośle brakujące / zwróci nadmiar ZWR-em)
