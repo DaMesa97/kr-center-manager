@@ -12,6 +12,7 @@ import { fetchMail, fetchMaile, retryMailAnaliza, type CrmError } from '../../ho
 import { appConfirm } from '../../lib/appDialogs'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
+import CrmZalaczniki from './CrmZalaczniki'
 import { useCrmActive, useOnCrmReshow } from './crmActive'
 
 type Mode = 'handlowiec' | 'pelny'
@@ -354,15 +355,7 @@ export function CrmMailScreen({
           {mail.zalaczniki && mail.zalaczniki.length > 0 && (
             <div className="crm-field">
               <span className="crm-field-label">Załączniki</span>
-              <span>
-                {mail.zalaczniki.map((z, i) => (
-                  <span key={i} className="crm-call-typ crm-mail-zal">
-                    {z.nazwa || 'plik'}
-                    {z.rozmiar ? ` (${Math.max(1, Math.round(z.rozmiar / 1024))} KB)` : ''}
-                  </span>
-                ))}
-                <span className="crm-muted"> — pliki są w skrzynce pocztowej, tu tylko lista.</span>
-              </span>
+              <CrmZalaczniki mailId={mail.id} zalaczniki={mail.zalaczniki} />
             </div>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { CrmMail } from '../../types/crm'
+import CrmZalaczniki from './CrmZalaczniki'
 import { bezCytatu, czekaNaOdpowiedz, watek, zajawka } from '../../lib/crmKorespondencja'
 
 const fmtDateTime = (iso: string | null | undefined): string => {
@@ -75,11 +76,7 @@ export default function CrmKorespondencja({ maile, onOpenMail }: { maile: CrmMai
                   </button>
                 )}
                 {open && m.tresc_ucieta && <span className="crm-muted">Treść ucięta — pełna wersja po „otwórz”.</span>}
-                {m.zalaczniki && m.zalaczniki.length > 0 && (
-                  <span className="crm-kor-zal" title={m.zalaczniki.map((z) => z.nazwa ?? '').join(', ')}>
-                    {m.zalaczniki.map((z) => z.nazwa ?? 'załącznik').join(', ')}
-                  </span>
-                )}
+                {m.zalaczniki && m.zalaczniki.length > 0 && <CrmZalaczniki mailId={m.id} zalaczniki={m.zalaczniki} kompakt />}
               </article>
             </li>
           )

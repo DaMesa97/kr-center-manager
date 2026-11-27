@@ -10570,3 +10570,95 @@ li.optima-item--kit-part { margin-left: 16px; }
 .shipments-bl--blad { color: #b3261e; font-weight: 600; }
 .shipments-wydane-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 8px; }
 .shipments-wydane-row .shipments-date { min-width: 190px; }
+/* 27.11: Wysyłki kurierem — wygląd jak na makiecie (karty, marginesy, wiersz na zamówienie BL) */
+.shipments-view { width: 100%; max-width: 1200px; margin: 0 auto; gap: 16px; padding-bottom: 32px; font-size: 14px; color: #1b1f24; }
+.shipments-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.shipments-head-title { display: flex; flex-direction: column; gap: 4px; }
+.shipments-head-title h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.shipments-head-title span { color: #5b6470; }
+.shipments-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.shipments-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: #e9ecf0; }
+.shipments-seg button { min-height: 38px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: #3d4652; font-size: 13px; font-weight: 500; cursor: pointer; }
+.shipments-seg button.is-active { background: #fff; color: #1b1f24; font-weight: 700; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.shipments-btn-outline, .shipments-btn-dark, .shipments-btn-warn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border-radius: 8px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.shipments-btn-outline { border: 1px solid #c3cad4; background: #fff; color: #1b1f24; }
+.shipments-btn-dark { border: 0; background: #1b1f24; color: #fff; }
+.shipments-btn-dark:hover:not(:disabled) { background: #343a42; }
+.shipments-btn-warn { border: 1px solid #d9a441; background: #fff; color: #7a4a06; }
+.shipments-btn-warn:hover:not(:disabled) { background: #fffaf0; }
+.shipments-btn-outline:disabled, .shipments-btn-dark:disabled, .shipments-btn-warn:disabled { opacity: 0.5; cursor: default; }
+.shipments-link { margin-top: 6px; padding: 0; border: 0; background: none; color: #2457d6; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.shipments-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.shipments-tiles--plan { grid-template-columns: minmax(200px, 1.3fr) repeat(3, minmax(0, 1fr)); margin-bottom: 4px; }
+.shipments-tile { display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border: 1px solid #e3e6eb; border-radius: 12px; background: #fff; }
+.shipments-tile span { font-size: 13px; font-weight: 600; color: #3d4652; }
+.shipments-tile strong { font-size: 28px; font-weight: 700; line-height: 1.2; }
+.shipments-tile--gotowe { border-color: transparent; background: #e3f4e8; }
+.shipments-tile--gotowe span, .shipments-tile--gotowe strong { color: #1a6634; }
+.shipments-tile--stare { border-color: transparent; background: #fdf3dc; }
+.shipments-tile--stare span, .shipments-tile--stare strong { color: #7a4a06; }
+.shipments-tile--dzien { gap: 6px; }
+.shipments-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: -4px; }
+.shipments-hint { margin: 0; font-size: 13px; color: #5b6470; }
+.shipments-search { flex: 0 1 340px; min-height: 40px; padding: 0 12px; border: 1px solid #d3d8df; border-radius: 8px; background: #fff; font-size: 14px; }
+.shipments-empty { margin: 0; padding: 20px; border: 1px dashed #d3d8df; border-radius: 12px; color: #5b6470; text-align: center; }
+.shipments-card-section { border: 1px solid #e3e6eb; border-radius: 12px; background: #fff; overflow: hidden; }
+.shipments-card-section--stare { border-color: #f0dcb4; }
+.shipments-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #eef0f3; }
+.shipments-card-section--stare .shipments-section-head { background: #fffaf0; border-bottom-color: #f6ead2; }
+.shipments-section-desc { color: #5b6470; }
+.shipments-card-section--stare .shipments-section-desc { color: #7a4a06; }
+.shipments-section-btn { margin-left: auto; }
+.shipments-pill { padding: 2px 10px; font-size: 12px; }
+.shipments-pill--produkcja { background: #e8eefc; color: #173c99; }
+.shipments-scroll { overflow-x: auto; }
+.shipments-table { min-width: 860px; font-size: 14px; }
+.shipments-table th { padding: 10px 12px; font-size: 12px; font-weight: 600; color: #5b6470; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0; }
+.shipments-table td { padding: 12px; border-bottom: 0; border-top: 1px solid #eef0f3; vertical-align: top; }
+.shipments-table tbody tr { cursor: default; }
+.shipments-table th:first-child, .shipments-table td:first-child { padding-left: 20px; }
+.shipments-table th:last-child, .shipments-table td:last-child { padding-right: 20px; }
+.shipments-card-section--stare .shipments-table td { border-top-color: #f6ead2; }
+.shipments-col-bl { width: 130px; font-weight: 600; }
+.shipments-col-kat { width: 130px; }
+.shipments-col-data { width: 130px; color: #3d4652; }
+.shipments-col-akcja { width: 200px; }
+.shipments-row--sel td { background: #fffaf0; }
+.shipments-bl-check { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
+.shipments-bl-check input { width: 18px; height: 18px; }
+.shipments-pos { margin-top: 2px; color: #5b6470; font-size: 13px; }
+.shipments-pos-nr { color: #3d4652; font-weight: 600; }
+.shipments-kat { display: inline-block; margin: 0 4px 4px 0; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #eef0f3; color: #3d4652; white-space: nowrap; }
+.shipments-kat--STA { background: #e8eefc; color: #173c99; }
+.shipments-kat--ST { background: #fbeae4; color: #8a2e12; }
+.shipments-kat--Bastion { background: #efedfd; color: #3c3489; }
+.shipments-kat--Disting { background: #e9f3df; color: #2f5a0c; }
+.shipments-kat--DrzwiWewnetrzne { background: #e1f4ee; color: #0b5b48; }
+.shipments-progress { font-size: 13px; color: #3d4652; }
+.shipments-bar { width: 90px; margin-right: 8px; background: #e3e6eb; }
+.shipments-muted { color: #5b6470; }
+.shipments-days { gap: 20px; }
+.shipments-day-title { margin: 0 0 10px; }
+.shipments-card { padding: 16px 20px; margin-bottom: 10px; border-color: #e3e6eb; border-radius: 12px; }
+/* okna: marginesy jak na makiecie */
+.shipments-modal { max-width: 640px; border-radius: 14px; }
+.shipments-modal .order-modal-header { padding: 20px 24px 16px; }
+.shipments-modal-body { gap: 16px; padding: 20px 24px; overflow-y: auto; }
+.shipments-modal .order-form-actions { padding: 16px 24px; }
+.shipments-counters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.shipments-counter { padding: 12px 14px; border: 1px solid #eef0f3; border-radius: 10px; }
+@media (max-width: 720px) {
+  .shipments-tiles, .shipments-tiles--plan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shipments-dates, .shipments-counters { grid-template-columns: 1fr; }
+}
+/* 27.11: załączniki maili w CRM — klik otwiera plik */
+.crm-zal { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.crm-zal--kompakt { align-self: flex-start; margin-top: 4px; }
+.crm-zal-plik { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 32px; padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #1b1f24; font-size: 0.82rem; cursor: pointer; }
+.crm-zal-plik:hover:not(:disabled) { border-color: #2457d6; color: #2457d6; }
+.crm-zal-plik:disabled { opacity: 0.6; cursor: default; }
+.crm-zal-plik svg { flex: none; color: #5b6470; }
+.crm-zal-nazwa { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.crm-zal-rozmiar { color: #5b6470; font-size: 0.75rem; }
+.crm-zal-stopka { font-size: 0.78rem; }
+.crm-zal-blad { flex-basis: 100%; color: #b3261e; font-size: 0.8rem; }

@@ -26,7 +26,7 @@ export function parsujWiadomosc(naglowkiSurowe: string, cialo: Uint8Array, uciet
   return { tekst: tekst || htmlNaTekst(html), html, zalaczniki: out.zalaczniki, ucieta }
 }
 
-type Zbior = { teksty: string[]; htmle: string[]; zalaczniki: Zalacznik[] }
+type Zbior = { teksty: string[]; htmle: string[]; zalaczniki: Zalacznik[]; surowe?: Array<{ cialo: string; cte: string }> }
 
 function rozbierz(h: Record<string, string>, cialo: string, out: Zbior, glebokosc: number) {
   if (glebokosc > 10) return
@@ -53,11 +53,25 @@ function rozbierz(h: Record<string, string>, cialo: string, out: Zbior, glebokos
   const zalacznik = cd.wartosc.toLowerCase() === 'attachment' || (!!nazwaPliku && !typ.startsWith('text/')) || (!typ.startsWith('text/') && typ !== '')
   if (zalacznik) {
     out.zalaczniki.push({ nazwa: nazwaPliku || (typ.startsWith('image/') ? 'obraz' : 'plik'), typ, rozmiar: rozmiarPoDekodowaniu(cialo, cte) })
+    out.surowe?.push({ cialo, cte })
     return
   }
   const tekst = dekodujTekst(cialo, cte, ct.parametry['charset'])
   if (typ === 'text/html') out.htmle.push(tekst)
   else out.teksty.push(tekst)
+}
+
+/**
+ * Załącznik nr `nr` (0..) w CAŁEJ wiadomości — ta sama kolejność co lista `zalaczniki` z parsujWiadomosc (27.11: podgląd
+ * załączników w CRM pobiera wiadomość ze skrzynki na żądanie). null, gdy nie ma takiego numeru.
+ */
+export function wyciagnijZalacznik(naglowkiSurowe: string, cialo: Uint8Array, nr: number): { nazwa: string; typ: string; bajty: Uint8Array } | null {
+  const out: Zbior = { teksty: [], htmle: [], zalaczniki: [], surowe: [] }
+  rozbierz(parsujNaglowki(naglowkiSurowe), bajtyNaLancuch(cialo), out, 0)
+  const z = out.zalaczniki[nr]
+  const sur = out.surowe?.[nr]
+  if (!z || !sur) return null
+  return { nazwa: z.nazwa, typ: z.typ || 'application/octet-stream', bajty: dekodujTransport(sur.cialo, sur.cte) }
 }
 
 /** Części między liniami „--granica”; ignoruje preambułę i epilog. */

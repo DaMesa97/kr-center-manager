@@ -76,14 +76,6 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
   const byDate = useMemo(() => groupByDate(shipments), [shipments])
   const nStare = useMemo(() => pending.filter((o) => o.section === 'stare').length, [pending])
 
-  const toggle = (id: number) =>
-    setSelected((prev) => {
-      const n = new Set(prev)
-      if (n.has(id)) n.delete(id)
-      else n.add(id)
-      return n
-    })
-
   const otworzPlan = async (orders: PendingOrder[]) => {
     if (!canEdit || orders.length === 0) return
     setBusy(true)
@@ -107,121 +99,157 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
   }
 
   const zaznaczoneStare = pending.filter((o) => selected.has(o.id) && o.section === 'stare')
-  const zaznaczoneDoWysylki = pending.filter((o) => selected.has(o.id) && o.section !== 'stare')
 
   return (
     <div className="shipments-view">
-      <div className="shipments-summary">
-        <label className="shipments-summary-date">
-          <span>Dzień</span>
-          <input type="date" value={day} onChange={(e) => setDay(e.target.value || isoDate(new Date()))} />
-        </label>
-        <div className="shipments-summary-stat"><strong>{summary.count}</strong><span>wysyłek</span></div>
-        <div className="shipments-summary-stat"><strong>{summary.vertical}</strong><span>palet pionowych</span></div>
-        <div className="shipments-summary-stat"><strong>{summary.horizontal}</strong><span>palet poziomych</span></div>
-        <button type="button" className="btn btn-secondary shipments-btn" onClick={() => void load()} disabled={loading}>
-          {loading ? 'Odświeżam…' : 'Odśwież'}
-        </button>
-      </div>
-
-      <div className="subtab-bar" role="tablist" aria-label="Wysyłki">
-        <button type="button" role="tab" aria-selected={tab === 'do'} className={`btn ${tab === 'do' ? 'btn-primary' : 'btn-secondary'} shipments-btn`} onClick={() => setTab('do')}>
-          Do wysyłki ({pending.length - nStare}{nStare ? ` + ${nStare} do sprawdzenia` : ''})
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'plan'} className={`btn ${tab === 'plan' ? 'btn-primary' : 'btn-secondary'} shipments-btn`} onClick={() => setTab('plan')}>
-          Zaplanowane ({shipments.length})
-        </button>
+      <div className="shipments-head">
+        <div className="shipments-head-title">
+          <h1>Wysyłki kurierem</h1>
+          <span>Zlecenia Po Drzwi do nadania SUUS · gotowe na górze, stare do sprawdzenia na dole</span>
+        </div>
+        <div className="shipments-head-actions">
+          <div className="shipments-seg" role="tablist" aria-label="Widok">
+            <button type="button" role="tab" aria-selected={tab === 'do'} className={tab === 'do' ? 'is-active' : undefined} onClick={() => setTab('do')}>
+              Do wysyłki ({pending.length - nStare})
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'plan'} className={tab === 'plan' ? 'is-active' : undefined} onClick={() => setTab('plan')}>
+              Zaplanowane ({shipments.length})
+            </button>
+          </div>
+          <button type="button" className="shipments-btn-outline" onClick={() => void load()} disabled={loading}>
+            {loading ? 'Odświeżam…' : 'Odśwież'}
+          </button>
+        </div>
       </div>
 
       {loading && pending.length === 0 && shipments.length === 0 ? (
         <Spinner center label="Wczytywanie wysyłek…" />
       ) : tab === 'do' ? (
         <>
-          <div className="shipments-toolbar">
-            <input type="text" className="search-input" placeholder="Szukaj: nr BL, klient, nr zlecenia, model…" value={q} onChange={(e) => setQ(e.target.value)} />
-            {canEdit && zaznaczoneDoWysylki.length > 0 && (
-              <button type="button" className="btn btn-success shipments-btn" disabled={busy} onClick={() => void otworzPlan(zaznaczoneDoWysylki)}>
-                Wysyłka kurierem — zaznaczone ({zaznaczoneDoWysylki.length})
-              </button>
-            )}
-            {canEdit && zaznaczoneStare.length > 0 && (
-              <button type="button" className="btn btn-warning shipments-btn" disabled={busy} onClick={() => void otworzWydane(zaznaczoneStare)}>
-                Oznacz zaznaczone jako wydane ({zaznaczoneStare.length})
-              </button>
-            )}
+          <div className="shipments-tiles">
+            {SEKCJE.map((sek) => (
+              <div key={sek.k} className={`shipments-tile shipments-tile--${sek.k}`}>
+                <span>{sek.k === 'stare' ? 'Do sprawdzenia · ponad 30 dni' : sek.tytul}</span>
+                <strong>{sekcje[sek.k].length}</strong>
+              </div>
+            ))}
           </div>
-          <p className="muted shipments-hint">W każdej części od najnowszych. Zlecenia zamknięte w Optimie się nie pokazują.</p>
-          {pending.length === 0 && <p className="muted">Brak zleceń Po Drzwi do wysłania.</p>}
+          <div className="shipments-toolbar">
+            <span className="shipments-hint">W każdej grupie od najnowszych. Zlecenia zamknięte w Optimie nie pokazują się wcale.</span>
+            <input type="search" className="shipments-search" placeholder="Szukaj: nr BL, klient, nr zlecenia, model…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          {pending.length === 0 && <p className="shipments-empty">Brak zleceń Po Drzwi do wysłania.</p>}
           {SEKCJE.map((sek) =>
             sekcje[sek.k].length === 0 ? null : (
-              <section key={sek.k} className={`shipments-section shipments-section--${sek.k}`} aria-label={sek.tytul}>
+              <section key={sek.k} className={`shipments-card-section shipments-card-section--${sek.k}`} aria-label={sek.tytul}>
                 <header className="shipments-section-head">
-                  <span className={`shipments-pill shipments-pill--${sek.k}`}>{sek.tytul} · {sekcje[sek.k].reduce((n, g) => n + g.rows.length, 0)}</span>
-                  <span className="muted">{sek.opis}</span>
+                  <span className={`shipments-pill shipments-pill--${sek.k}`}>{sek.tytul}</span>
+                  <span className="shipments-section-desc">{sek.opis}</span>
+                  {canEdit && sek.k === 'stare' && (
+                    <button type="button" className="shipments-btn-warn shipments-section-btn" disabled={busy || zaznaczoneStare.length === 0} onClick={() => void otworzWydane(zaznaczoneStare)}>
+                      Oznacz zaznaczone jako wydane ({zaznaczoneStare.length})
+                    </button>
+                  )}
                 </header>
-                <div className="shipments-groups">
-                  {sekcje[sek.k].map((g) => (
-                    <section key={g.key} className="shipments-group">
-                      <header className="shipments-group-head">
-                        <div>
-                          <div className="shipments-group-bl">{g.bl ? `BL ${g.bl}` : 'bez nr BL'}</div>
-                          <div className="shipments-group-client">{[...new Set(g.rows.map((r) => r.client).filter(Boolean))].join(', ') || '—'}</div>
-                        </div>
-                        {canEdit && sek.k !== 'stare' && (
-                          <button type="button" className={`btn ${sek.k === 'gotowe' ? 'btn-primary' : 'btn-secondary'} shipments-btn`} disabled={busy} onClick={() => void otworzPlan(g.rows)}>
-                            Wysyłka kurierem{g.rows.length > 1 ? ` (${g.rows.length} zlec.)` : ''}
-                          </button>
-                        )}
-                        {canEdit && sek.k === 'stare' && (
-                          <button type="button" className="btn btn-warning shipments-btn" disabled={busy} onClick={() => void otworzWydane(g.rows)}>
-                            Oznacz jako wydane
-                          </button>
-                        )}
-                      </header>
-                      <table className="shipments-table">
-                        <thead>
-                          <tr>
-                            {canEdit && <th aria-label="Zaznacz" />}
-                            <th>Nr zlecenia</th>
-                            <th>Kategoria</th>
-                            <th>Model / pozycje</th>
-                            <th>Ilość</th>
-                            <th>Zamówione</th>
-                            <th>Produkcja</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {g.rows.map((o) => (
-                            <tr key={o.id} className={selected.has(o.id) ? 'shipments-row--sel' : undefined} onClick={canEdit ? () => toggle(o.id) : undefined}>
-                              {canEdit && (
-                                <td onClick={(e) => e.stopPropagation()}>
-                                  <input type="checkbox" className="shipments-check" checked={selected.has(o.id)} onChange={() => toggle(o.id)} aria-label={`Zaznacz ${o.order_number ?? o.id}`} />
-                                </td>
+                <div className="shipments-scroll">
+                  <table className="shipments-table">
+                    {sek.k === 'gotowe' && (
+                      <thead>
+                        <tr>
+                          <th className="shipments-col-bl">Nr BL</th>
+                          <th>Klient · co jedzie</th>
+                          <th className="shipments-col-kat">Kategoria</th>
+                          <th className="shipments-col-data">Zamówione</th>
+                          <th className="shipments-col-akcja" aria-label="Akcja" />
+                        </tr>
+                      </thead>
+                    )}
+                    <tbody>
+                      {sekcje[sek.k].map((g) => {
+                        const najnowsze = g.rows[0]
+                        const klienci = [...new Set(g.rows.map((r) => r.client).filter(Boolean))].join(', ') || '—'
+                        const kategorie = [...new Set(g.rows.map((r) => r.category))]
+                        const zaznaczone = g.rows.every((r) => selected.has(r.id))
+                        const zProcentem = g.rows.filter((r) => r.percent != null)
+                        const procent = zProcentem.length ? Math.min(...zProcentem.map((r) => r.percent as number)) : null
+                        const postep = zProcentem.find((r) => r.percent === procent)?.progress ?? ''
+                        return (
+                          <tr key={g.key} className={zaznaczone && sek.k === 'stare' ? 'shipments-row--sel' : undefined}>
+                            <td className="shipments-col-bl">
+                              {canEdit && sek.k === 'stare' ? (
+                                <label className="shipments-bl-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={zaznaczone}
+                                    onChange={() =>
+                                      setSelected((prev) => {
+                                        const n = new Set(prev)
+                                        for (const r of g.rows) {
+                                          if (zaznaczone) n.delete(r.id)
+                                          else n.add(r.id)
+                                        }
+                                        return n
+                                      })
+                                    }
+                                  />
+                                  {g.bl || 'bez nr BL'}
+                                </label>
+                              ) : (
+                                <strong>{g.bl || 'bez nr BL'}</strong>
                               )}
-                              <td><strong>{o.order_number ?? `#${o.id}`}</strong></td>
-                              <td>{catLabel(o.category)}</td>
-                              <td className="shipments-items">{o.items || '—'}</td>
-                              <td>{o.quantity ?? '—'}</td>
-                              <td>
-                                {o.order_date ? dayLabel(o.order_date) : '—'}
-                                {o.section === 'stare' && <div className="shipments-age">{daysSince(o.order_date, today)} dni</div>}
-                              </td>
-                              <td className="shipments-progress">
-                                {o.percent != null ? (
-                                  <>
-                                    <span className="shipments-bar"><i style={{ width: `${o.percent}%` }} /></span>
-                                    {o.progress}
-                                  </>
-                                ) : (
-                                  <span className="muted">bez etapów</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </section>
-                  ))}
+                            </td>
+                            <td>
+                              <strong>{klienci}</strong>
+                              {g.rows.map((r) => (
+                                <div key={r.id} className="shipments-pos">
+                                  <span className="shipments-pos-nr">{r.order_number ?? `#${r.id}`}</span> · {r.items || catLabel(r.category)}
+                                  {r.quantity ? ` · ${r.quantity} szt.` : ''}
+                                </div>
+                              ))}
+                            </td>
+                            <td className="shipments-col-kat">
+                              {kategorie.map((k) => (
+                                <span key={k} className={`shipments-kat shipments-kat--${k}`}>{catLabel(k)}</span>
+                              ))}
+                            </td>
+                            <td className="shipments-col-data">
+                              {najnowsze.order_date ? dayLabel(najnowsze.order_date) : '—'}
+                              {sek.k === 'stare' && <div className="shipments-age">{daysSince(najnowsze.order_date, today)} dni</div>}
+                            </td>
+                            <td className="shipments-col-akcja">
+                              {sek.k === 'produkcja' && (
+                                <div className="shipments-progress">
+                                  {procent != null ? (
+                                    <>
+                                      <span className="shipments-bar"><i style={{ width: `${procent}%` }} /></span>
+                                      {postep}
+                                    </>
+                                  ) : (
+                                    <span className="shipments-muted">bez etapów</span>
+                                  )}
+                                </div>
+                              )}
+                              {canEdit && sek.k === 'gotowe' && (
+                                <button type="button" className="shipments-btn-dark" disabled={busy} onClick={() => void otworzPlan(g.rows)}>
+                                  Wysyłka kurierem
+                                </button>
+                              )}
+                              {canEdit && sek.k === 'produkcja' && (
+                                <button type="button" className="shipments-link" disabled={busy} onClick={() => void otworzPlan(g.rows)}>
+                                  zaplanuj wcześniej
+                                </button>
+                              )}
+                              {canEdit && sek.k === 'stare' && (
+                                <button type="button" className="shipments-btn-warn" disabled={busy} onClick={() => void otworzWydane(g.rows)}>
+                                  Oznacz jako wydane
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </section>
             ),
@@ -229,7 +257,16 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
         </>
       ) : (
         <div className="shipments-days">
-          {byDate.length === 0 && <p className="muted">Brak zaplanowanych wysyłek.</p>}
+          <div className="shipments-tiles shipments-tiles--plan">
+            <label className="shipments-tile shipments-tile--dzien">
+              <span>Dzień</span>
+              <PoleDaty value={day} onChange={(v) => setDay(v || isoDate(new Date()))} label="Dzień wysyłek" />
+            </label>
+            <div className="shipments-tile"><span>Wysyłek</span><strong>{summary.count}</strong></div>
+            <div className="shipments-tile"><span>Palet pionowych</span><strong>{summary.vertical}</strong></div>
+            <div className="shipments-tile"><span>Palet poziomych</span><strong>{summary.horizontal}</strong></div>
+          </div>
+          {byDate.length === 0 && <p className="shipments-empty">Brak zaplanowanych wysyłek.</p>}
           {byDate.map((d) => (
             <section key={d.date ?? 'brak'} className="shipments-day">
               <h3 className="shipments-day-title">

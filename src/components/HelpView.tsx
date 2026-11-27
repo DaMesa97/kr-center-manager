@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.6: załączniki maili w CRM, nowy wygląd Wysyłek kurierem</h4>
+        <ul>
+          <li><b>CRM — załączniki maili</b>: przy mailu (Maile i korespondencja na karcie klienta) pliki są teraz przyciskami — klik otwiera PDF, zdjęcie itp. Pierwsze otwarcie pobiera plik ze skrzynki pocztowej (chwilę trwa), kolejne są od razu. Obrazki ze stopki (image001.png itp.) są schowane pod „obrazki ze stopki”. Gdy mail zniknął ze skrzynki, program o tym napisze — wtedy otwórz go w poczcie.</li>
+          <li><b>Wysyłki kurierem</b> (menu boczne, zaraz pod „Wysyłka”): wygląd jak na makiecie — nagłówek, trzy kafelki (gotowe / w produkcji / do sprawdzenia), białe karty z odstępami, jeden wiersz na zamówienie BL (klient, co jedzie, kategoria, data, przycisk). Dzień i liczba palet są teraz w „Zaplanowanych”. Okna „Wysyłka kurierem” i „Oznacz jako wydane” z marginesami.</li>
+        </ul>
         <h4>Wersja 1.1.5: Wysyłki kurierem — przesyłka SUUS w BaseLinkerze, porządek na liście</h4>
         <ul>
           <li><b>Do wysyłki</b> w trzech częściach: <b>Gotowe do wysyłki</b> (wszystkie etapy produkcji odhaczone, drzwi wewnętrzne — wszystko spakowane), <b>W produkcji</b> (z paskiem etapów; kuriera można zaplanować wcześniej) i na dole <b>Do sprawdzenia — starsze niż 30 dni</b>. W każdej części od najnowszych. Zlecenia zamknięte w Optimie nie pokazują się wcale.</li>

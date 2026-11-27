@@ -18,6 +18,7 @@
 //                      (jedna skrzynka, ręcznie także nieaktywna). Alias: sprawdz_poczte.
 //   test_poczty      – próbne logowanie: `skrzynka_id` (dane i hasło z bazy) i/lub host, port, login, haslo z treści;
 //                      zwraca listę folderów z podpowiedzią Wysłane/Odebrane i liczbę maili w `folder` (gdy podany).
+//   zalacznik        – { mail_id, nr }: załącznik maila na żądanie (skrzynka IMAP → bucket crm-zalaczniki), podpisany link 10 min.
 //   alerty           – co 15 min z pg_cron: nowe zdarzenia typu 'blad' (od crm.ustawienia.alert_ostatnie_zdarzenie_id) idą jednym
 //                      mailem na alert_email przez SMTP skrzynki alert_skrzynka_id (smtp.ts). test_alertu – mail próbny (superadmin/system).
 //   (bez akcji)      – pojedynczy mail {do, temat, data, message_id, od} jako JSON lub formularz (stare wejście, zostaje awaryjnie).
@@ -29,7 +30,7 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { Imap, type Folder, parsujNaglowki, parsujDate } from './imap.ts'
 import { polaczTls } from './imap_deno.ts'
-import { parsujWiadomosc, usunCytaty, type Zalacznik } from './mime.ts'
+import { parsujWiadomosc, usunCytaty, wyciagnijZalacznik, type Zalacznik } from './mime.ts'
 import { wyslijSmtp } from './smtp.ts'
 
 const JSON_H = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
@@ -77,6 +78,7 @@ Deno.serve(async (req: Request) => {
   try {
     if (akcja === 'sprawdz_skrzynki' || akcja === 'sprawdz_poczte') return odp(200, await sprawdzSkrzynki(db, kto, body))
     if (akcja === 'test_poczty') return odp(200, await testPoczty(db, body))
+    if (akcja === 'zalacznik') return odp(200, await zalacznik(db, body))
     if (akcja === 'alerty' || akcja === 'test_alertu') return odp(200, await alerty(db, kto, akcja))
     if (akcja === 'historia_wyslanych') {
       if (kto === 'uzytkownik') return odp(403, { error: 'Historię wysłanych może wczytać tylko superadmin albo system' })
@@ -708,4 +710,64 @@ export function mailZOferta(temat: string, tekst: string, zalaczniki: Zalacznik[
   if (!pdfy.length) return false
   if (pdfy.some((z) => /ofert|wycen|kalkulac/i.test(z.nazwa ?? ''))) return true
   return /ofert|wycen/i.test(String(temat ?? '').replace(/^\s*((re|odp|fw|fwd|pd)\s*:\s*)+/i, '')) || /ofert|wycen/i.test(wlasna)
+}
+
+// ============================================================================================
+// Załącznik maila na żądanie (27.11, Tymek: „żeby w mailach w CRM móc wyświetlać załączniki”)
+// ============================================================================================
+// { akcja: 'zalacznik', mail_id, nr } → { ok, url (podpisany, 10 min), nazwa, typ }. Plik leży w bucket crm-zalaczniki
+// (<mail_id>/<nr>-<nazwa>); pierwszy raz pobieramy wiadomość ze skrzynki IMAP (folder wg kierunku, UID z crm.maile),
+// sprawdzamy Message-ID, wycinamy załącznik nr (kolejność jak crm.maile.zalaczniki) i zapisujemy. Mail usunięty ze
+// skrzynki / przebudowana skrzynka → czytelny błąd (otwórz w poczcie).
+const BUCKET_ZAL = 'crm-zalaczniki'
+const MAKS_ZALACZNIK = 25_000_000
+const MAKS_WIADOMOSC = 40_000_000
+
+function bezpiecznaNazwa(n: string): string {
+  const s = String(n || 'plik').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L')
+    .replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
+  return (s || 'plik').slice(-100)
+}
+
+async function zalacznik(db: SupabaseClient, body: Record<string, unknown>) {
+  const mailId = String(body.mail_id ?? '').trim()
+  const nr = Number(body.nr)
+  if (!mailId || !Number.isInteger(nr) || nr < 0) return { ok: false, blad: 'Podaj mail_id i nr załącznika' }
+  const { data: m } = await db.from('maile').select('id, skrzynka_id, uid, kierunek, message_id, zalaczniki').eq('id', mailId).maybeSingle()
+  if (!m) return { ok: false, blad: 'Nie ma takiego maila' }
+  const lista = (Array.isArray(m.zalaczniki) ? m.zalaczniki : []) as Zalacznik[]
+  const z = lista[nr]
+  if (!z) return { ok: false, blad: 'Nie ma takiego załącznika' }
+  const sciezka = `${m.id}/${nr}-${bezpiecznaNazwa(z.nazwa)}`
+  const wynik = async () => {
+    const { data: s } = await db.storage.from(BUCKET_ZAL).createSignedUrl(sciezka, 600)
+    return s?.signedUrl ? { ok: true, url: s.signedUrl, nazwa: z.nazwa, typ: z.typ, z_pamieci: true } : null
+  }
+  const juz = await wynik()
+  if (juz) return juz
+  if (!m.skrzynka_id || !m.uid) return { ok: false, blad: 'Ten mail nie przyszedł przez skrzynkę CRM — załącznik otwórz w poczcie' }
+  if ((Number(z.rozmiar) || 0) > MAKS_ZALACZNIK) return { ok: false, blad: 'Załącznik większy niż 25 MB — otwórz go w poczcie' }
+  const { data: s } = await db.from('skrzynki').select('id, host, port, login, ma_haslo, folder_wyslane, folder_odebrane').eq('id', m.skrzynka_id).maybeSingle()
+  if (!s?.ma_haslo) return { ok: false, blad: 'Skrzynka tego maila nie ma hasła w CRM' }
+  const { data: haslo } = await db.rpc('haslo_skrzynki', { p_id: s.id })
+  if (typeof haslo !== 'string' || !haslo) return { ok: false, blad: 'Nie udało się odczytać hasła skrzynki z sejfu' }
+  let imap: Imap | null = null
+  try {
+    imap = new Imap(await polaczTls(s.host, s.port), 60_000)
+    await imap.powitanie()
+    await imap.login(s.login, haslo)
+    await imap.wybierz(m.kierunek === 'wychodzacy' ? s.folder_wyslane : s.folder_odebrane)
+    const w = await imap.wiadomosc(Number(m.uid), MAKS_WIADOMOSC)
+    if (!w) return { ok: false, blad: 'Tego maila nie ma już w skrzynce (usunięty albo przeniesiony) — załącznika nie da się pobrać' }
+    const mid = (parsujNaglowki(w.naglowki)['message-id'] ?? '').trim()
+    if (m.message_id && mid && mid !== String(m.message_id).trim()) return { ok: false, blad: 'Skrzynka zmieniła numerację maili — otwórz ten załącznik w poczcie' }
+    if (w.ucieta) return { ok: false, blad: 'Mail jest za duży (ponad 40 MB) — otwórz załącznik w poczcie' }
+    const x = wyciagnijZalacznik(w.naglowki, w.cialo, nr)
+    if (!x || x.bajty.length === 0) return { ok: false, blad: 'Nie udało się wyciąć załącznika z maila' }
+    const { error } = await db.storage.from(BUCKET_ZAL).upload(sciezka, x.bajty, { contentType: x.typ || 'application/octet-stream', upsert: true })
+    if (error) return { ok: false, blad: 'Nie zapisano załącznika: ' + error.message }
+  } finally {
+    if (imap) await imap.wyloguj()
+  }
+  return (await wynik()) ?? { ok: false, blad: 'Nie utworzono linku do załącznika' }
 }

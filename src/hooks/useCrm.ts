@@ -750,6 +750,20 @@ async function invokeMailSent<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 /**
+ * Załącznik maila na żądanie (27.11): funkcja pobiera wiadomość ze skrzynki IMAP, wycina plik nr `nr`
+ * (kolejność jak crm.maile.zalaczniki), trzyma go w bucket crm-zalaczniki i zwraca podpisany link na 10 min.
+ */
+export async function linkZalacznika(mailId: string, nr: number): Promise<{ url: string } | { blad: string }> {
+  try {
+    const r = await invokeMailSent<{ ok?: boolean; url?: string; blad?: string; error?: string }>({ akcja: 'zalacznik', mail_id: mailId, nr })
+    if (r.ok && r.url) return { url: r.url }
+    return { blad: r.blad || r.error || 'Nie udało się pobrać załącznika' }
+  } catch (e) {
+    return { blad: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
  * Test połączenia. Z `skrzynkaId` brakujące dane i hasło biorą się z bazy/sejfu, więc test
  * zapisanej skrzynki nie wymaga hasła; puste pola pomijamy (undefined), żeby funkcja je dopełniła.
  */
