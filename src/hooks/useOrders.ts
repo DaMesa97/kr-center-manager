@@ -1774,7 +1774,7 @@ export function useOrders({
         return
       }
 
-      pushToast('Zamówienie dodane', 'success')
+      pushToast(`Zamówienie dodane — nr ${String((savedOrder as Order | null)?.order_number ?? '')}`, 'success')
 
       const savedId = (savedOrder as Order).id
       await reserveStockForOrderWithToasts(savedId!)
@@ -2015,7 +2015,7 @@ export function useOrders({
       }
 
       const payload = sanitizeOrderPayloadForDb({ ...emptyOrderMeta, ...mapped })
-      const { data: stInserted, error } = await insertOrderRow(payload, 'id')
+      const { data: stInserted, error } = await insertOrderRow(payload, 'id, order_number')
 
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -2023,6 +2023,8 @@ export function useOrders({
         return
       }
 
+      // testy 27.11 (runda 3): potwierdzenie z numerem jak w STA
+      pushToast(`Zamówienie dodane — nr ${String(stInserted?.order_number ?? '')}`, 'success')
       await reserveStockForOrderWithToasts(Number((stInserted as { id: number }).id))
 
       setIsModalOpen(false)
@@ -2143,7 +2145,7 @@ export function useOrders({
       }
 
       const payload = sanitizeOrderPayloadForDb({ ...emptyOrderMeta, ...mapped })
-      const { data: techInserted, error } = await insertOrderRow(payload, 'id')
+      const { data: techInserted, error } = await insertOrderRow(payload, 'id, order_number')
 
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -2151,6 +2153,8 @@ export function useOrders({
         return
       }
 
+      // testy 27.11 (runda 3): potwierdzenie z numerem jak w STA
+      pushToast(`Zamówienie dodane — nr ${String(techInserted?.order_number ?? '')}`, 'success')
       await reserveStockForOrderWithToasts(Number((techInserted as { id: number }).id))
 
       setIsModalOpen(false)
@@ -2252,7 +2256,7 @@ export function useOrders({
       }
 
       const payload = sanitizeOrderPayloadForDb({ ...emptyOrderMeta, ...mapped })
-      const { data: bastionInserted, error } = await insertOrderRow(payload, 'id')
+      const { data: bastionInserted, error } = await insertOrderRow(payload, 'id, order_number')
 
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -2260,6 +2264,8 @@ export function useOrders({
         return
       }
 
+      // testy 27.11 (runda 3): potwierdzenie z numerem jak w STA
+      pushToast(`Zamówienie dodane — nr ${String(bastionInserted?.order_number ?? '')}`, 'success')
       await reserveStockForOrderWithToasts(Number((bastionInserted as { id: number }).id))
 
       setIsModalOpen(false)
@@ -2317,7 +2323,7 @@ export function useOrders({
         order_date: formData.order_date || new Date().toLocaleDateString('sv-SE'),
         production_stages: createEmptyProductionStages(activeTab),
       } as Record<string, unknown>),
-      'id',
+      'id, order_number',
     )
 
     if (error) {
@@ -2326,6 +2332,7 @@ export function useOrders({
       return
     }
 
+    pushToast(`Zamówienie dodane — nr ${String(genericInserted?.order_number ?? '')}`, 'success')
     await reserveStockForOrderWithToasts(Number((genericInserted as { id: number }).id))
 
     setIsModalOpen(false)
