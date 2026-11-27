@@ -1818,14 +1818,23 @@ function App() {
   }, [activeTab, orders, bastionBatches.batchNoById, bastionFrameOptions])
 
   const filteredComplaints = useMemo(() => {
+    // testy 27.11 (2. seria): pole Szukaj i „Ukryj wydane” nad listą reklamacji nic nie robiły — reklamacja „wydana” =
+    // zrealizowana (release_date), szukanie po numerze, zleceniu, firmie, powodzie, modelu
+    const terms = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean)
     return complaints.filter((c) => {
       const isCancelled =
         typeof c.extra_fields === 'object' &&
         c.extra_fields !== null &&
         (c.extra_fields as Record<string, unknown>).cancelled === true
-      return showCancelledOrders || !isCancelled
+      if (!showCancelledOrders && isCancelled) return false
+      if (hideCompletedOrders && !isReleaseDateEmpty((c as { release_date?: string | null }).release_date ?? null)) return false
+      if (terms.length) {
+        const hay = [c.complaint_number, c.order_number, c.company, c.reason, c.what_complained, c.model].map((v) => String(v ?? '').toLowerCase()).join(' | ')
+        if (!terms.every((t) => hay.includes(t))) return false
+      }
+      return true
     })
-  }, [complaints, showCancelledOrders])
+  }, [complaints, showCancelledOrders, hideCompletedOrders, searchTerm])
 
   const ordersForComplaintSelect = useMemo(() => {
     type Opt = {
