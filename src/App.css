@@ -10466,3 +10466,26 @@ body.crm-dragging, body.crm-dragging * { cursor: grabbing !important; user-selec
 li.optima-item--kit-part { margin-left: 16px; }
 .optima-status-note { font-size: 0.8rem; color: #607d8b; font-style: italic; }
 .stocked-field-options { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+/* 27.11: magazyn wewnętrzne jak dawny Excel — zakładki, bloki model + kolor, szerokość × kierunek */
+.door-grid-tabs { padding-left: 0; padding-right: 0; flex-wrap: wrap; }
+.door-grid-blocks { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; align-items: start; }
+.door-grid-block { border: 1px solid #b9c3d3; border-radius: 6px; background: var(--color-card-bg); overflow: hidden; }
+.door-grid-block-title { margin: 0; padding: 7px 10px; background: #eef3d6; color: #1b304a; font-size: 0.95rem; font-weight: 700; text-align: center; border-bottom: 1px solid #b9c3d3; }
+.door-grid-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.door-grid-table + .door-grid-table { border-top: 2px solid #b9c3d3; }
+.door-grid-table th { background: var(--color-table-header-bg); color: #475569; font-size: 0.7rem; font-weight: 600; padding: 4px 6px; border: 1px solid #d5dce8; text-align: center; }
+.door-grid-table th.door-grid-sub { background: #dfe6f1; color: #1b304a; font-size: 0.85rem; font-weight: 700; }
+.door-grid-table td { border: 1px solid #d5dce8; padding: 3px 6px; text-align: center; }
+.door-grid-width { font-weight: 700; background: #f7f9e9; white-space: nowrap; }
+.door-grid-dir { color: #475569; font-size: 0.8rem; }
+.door-grid-qty { min-width: 70px; font-weight: 700; }
+.door-grid-qty .inventory-input-wrap { justify-content: center; }
+.door-grid-qty .inventory-count-input { width: 80px; }
+.door-grid-none { color: #cbd5e1; }
+.door-grid-matrix-wrap { overflow-x: auto; }
+.door-grid-table--matrix td.door-grid-width { text-align: left; font-size: 0.78rem; }
+.door-grid-table--matrix .door-grid-qty { min-width: 48px; }
+.door-grid-table--matrix .inventory-count-input { width: 58px; }
+.door-grid-stock-neg { color: #c62828; }
+.door-grid-res { display: block; font-size: 0.68rem; font-weight: 500; color: #854d0e; }
+.door-grid-mode { display: inline-flex; gap: 4px; }

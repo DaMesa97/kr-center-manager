@@ -15,6 +15,8 @@ import {
   type OpenItem,
 } from '../../lib/internalWarehouse'
 import DataTable, { type DataTableColumn } from '../DataTable'
+import DoorStockGrid from './DoorStockGrid'
+import { buildDoorGrid } from '../../lib/doorStockGrid'
 import Spinner from '../Spinner'
 import type { ToastVariant, WarehouseComponent } from '../../types'
 
@@ -43,6 +45,8 @@ export default function InternalStockView({ components, onShowHistory, pushToast
   const [filter, setFilter] = useState<DoorFilter>(DOOR_FILTER_EMPTY)
   const [onlyNonZero, setOnlyNonZero] = useState(false)
   const [page, setPage] = useState(0)
+  // 27.11: domyślnie układ jak w dawnym Excelu (zakładki, model + kolor, szerokość × kierunek) — „żeby się w tym odnaleźli”
+  const [mode, setMode] = useState<'excel' | 'lista'>('excel')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -137,6 +141,17 @@ export default function InternalStockView({ components, onShowHistory, pushToast
     () => rows.filter((r) => (!onlyNonZero || r.stock !== 0 || r.reserved !== 0) && matchesDoorFilter(r, filter)),
     [rows, filter, onlyNonZero],
   )
+  // układ jak w Excelu: pozycje trzymane na magazynie + to, co ma stan albo rezerwację (kartoteki w tle bez ruchu pomijamy)
+  const grid = useMemo(
+    () =>
+      mode === 'excel'
+        ? buildDoorGrid(
+            shown.filter((r) => r.is_stocked !== false || r.stock !== 0 || r.reserved !== 0),
+            (r) => r,
+          )
+        : [],
+    [mode, shown],
+  )
   const pageCount = Math.max(1, Math.ceil(shown.length / PAGE))
   const curPage = Math.min(page, pageCount - 1)
   const pageRows = shown.slice(curPage * PAGE, (curPage + 1) * PAGE)
@@ -224,7 +239,35 @@ export default function InternalStockView({ components, onShowHistory, pushToast
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} disabled={loading}>
           {loading ? 'Odświeżam…' : 'Odśwież'}
         </button>
+        <span className="door-grid-mode" role="group" aria-label="Układ">
+          <button type="button" className={`btn btn-sm ${mode === 'excel' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('excel')}>
+            Jak w Excelu
+          </button>
+          <button type="button" className={`btn btn-sm ${mode === 'lista' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('lista')}>
+            Lista
+          </button>
+        </span>
       </div>
+      {mode === 'excel' ? (
+        <DoorStockGrid
+          sheets={grid}
+          emptyText={rows.length === 0 ? 'Brak komponentów drzwi wewnętrznych — zakłada je import kartotek Optimy' : 'Brak komponentów dla filtrów'}
+          renderCell={(r) => (
+            <button
+              type="button"
+              className="btn-link"
+              style={{ textDecoration: 'none', fontWeight: 700 }}
+              title={`${r.code ? `${r.code} — ` : ''}${r.name}
+Stan ${fmt(r.stock)}, rezerwacje ${fmt(r.reserved)}, dostępne ${fmt(r.available)} — kliknij: historia ruchów`}
+              onClick={() => onShowHistory(r)}
+            >
+              <span className={r.stock < 0 ? 'door-grid-stock-neg' : undefined}>{fmt(r.stock)}</span>
+              {r.reserved > 0 && <span className="door-grid-res">rez. {fmt(r.reserved)}</span>}
+            </button>
+          )}
+        />
+      ) : (
+      <>
       <DataTable
         rows={pageRows}
         rowKey={(r) => r.id}
@@ -246,6 +289,8 @@ export default function InternalStockView({ components, onShowHistory, pushToast
           </span>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }

@@ -3,7 +3,8 @@ import type { TDocumentDefinitions } from 'pdfmake/interfaces'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { InventoryLine, InventorySession } from '../types'
 import { PRODUCT_CATEGORY_LABELS } from '../constants'
-import { groupInventoryLines } from '../lib/internalWarehouse'
+import { groupInventoryLines, isDoorCategory } from '../lib/internalWarehouse'
+import { buildDoorGrid, type GridBlock } from '../lib/doorStockGrid'
 
 type PdfMakeRuntime = typeof pdfMake & {
   vfs?: Record<string, string>
@@ -27,6 +28,11 @@ export function generateInventorySheet(
   companyName = 'KR Center',
 ): void {
   const dateStr = session.counted_date
+  // magazyn wewnętrzne (27.11): kartka ułożona jak dawny Excel „STAN WEWNĘTRZNE MAGAZYN”
+  if (lines.some((l) => isDoorCategory(l.component_category))) {
+    generateDoorGridSheet(session, lines, companyName)
+    return
+  }
 
   // ŚLEPY SPIS: bez kolumny stanu systemowego — liczący nie może „podciągać"
   // wyniku pod system. Zamiast tego KOD komponentu (identyfikacja na hali).
@@ -161,4 +167,132 @@ export function generateInventorySheet(
   pdfMakeRuntime.createPdf(docDefinition as TDocumentDefinitions).download(
     `inwentaryzacja_${dateStr}.pdf`,
   )
+}
+
+// ---------------------------------------------------------------------
+// Magazyn wewnętrzne (27.11): zakładki (PŁYTOWE, BRAVO…), bloki model + kolor po dwa w rzędzie,
+// w bloku SZEROKOŚĆ | KIERUNEK | STAN | UWAGI — jak w starym Excelu. Ślepy spis: STAN pusty
+// (chyba że już policzone). Ościeżnice: profil × BAZA L/P, BELKA szerokości.
+// ---------------------------------------------------------------------
+type Cell = Record<string, unknown>
+const GRID_LINE = '#9aa5b5'
+const TITLE_FILL = '#eef3d6'
+const SUB_FILL = '#dfe6f1'
+const HEAD_FILL = '#f1f5fb'
+const gridLayout = { hLineWidth: () => 0.6, vLineWidth: () => 0.6, hLineColor: () => GRID_LINE, vLineColor: () => GRID_LINE }
+
+function qtyText(l: InventoryLine): string {
+  return l.counted_qty != null ? String(l.counted_qty) : ''
+}
+
+function blockContent(b: GridBlock<InventoryLine>): Record<string, unknown> {
+  const stack: unknown[] = []
+  b.tables.forEach((t, ti) => {
+    if (t.kind === 'wing') {
+      const body: Cell[][] = []
+      if (ti === 0) body.push([{ text: b.title, colSpan: 4, bold: true, fontSize: 10, alignment: 'center', fillColor: TITLE_FILL, margin: [0, 3, 0, 3] }, {}, {}, {}])
+      if (t.label) {
+        body.push([
+          { text: t.label, colSpan: 3, bold: true, fontSize: 9, alignment: 'center', fillColor: SUB_FILL },
+          {},
+          {},
+          { text: 'UWAGI', fontSize: 7, alignment: 'center', fillColor: SUB_FILL, color: '#475569' },
+        ])
+      }
+      body.push(['SZEROKOŚĆ', 'KIERUNEK', 'STAN', t.label ? '' : 'UWAGI'].map((h) => ({ text: h, fontSize: 6.5, alignment: 'center', fillColor: HEAD_FILL, color: '#475569' })))
+      for (const row of t.rows) {
+        const cells = t.columns
+          .map((c, ci) => ({ c, l: row.cells[ci] }))
+          .filter((x): x is { c: string; l: InventoryLine } => x.l != null)
+        cells.forEach((x, k) => {
+          body.push([
+            k === 0
+              ? { text: row.label, rowSpan: cells.length, bold: true, fontSize: 10, alignment: 'center', fillColor: '#f7f9e9', margin: [0, cells.length > 1 ? 5 : 1, 0, 0] }
+              : {},
+            { text: x.c, fontSize: 8, alignment: 'center', margin: [0, 2, 0, 2] },
+            { text: qtyText(x.l), bold: true, fontSize: 10, alignment: 'center', margin: [0, 1, 0, 1] },
+            { text: '' },
+          ])
+        })
+      }
+      stack.push({ table: { widths: [52, 52, '*', 58], body, dontBreakRows: true }, layout: gridLayout })
+    } else {
+      const n = t.columns.length
+      const body: Cell[][] = [
+        [{ text: b.title, colSpan: n + 1, bold: true, fontSize: 9.5, alignment: 'center', fillColor: TITLE_FILL, margin: [0, 3, 0, 3] }, ...t.columns.map(() => ({}))],
+        [{ text: t.label || '', fontSize: 6.5, fillColor: HEAD_FILL }, ...t.columns.map((c) => ({ text: c, fontSize: 6.5, alignment: 'center', fillColor: HEAD_FILL, color: '#475569' }))],
+        ...t.rows.map((row) => [
+          { text: row.label, bold: true, fontSize: n > 3 ? 7 : 8.5, fillColor: '#f7f9e9', margin: [0, 2, 0, 2] },
+          ...row.cells.map((l) =>
+            l
+              ? { text: qtyText(l), bold: true, fontSize: 9, alignment: 'center', margin: [0, 2, 0, 2] }
+              : { text: '—', color: '#cbd5e1', fontSize: 7, alignment: 'center', fillColor: '#f1f1f1' },
+          ),
+        ]),
+      ]
+      stack.push({ table: { widths: [n > 3 ? 70 : '*', ...t.columns.map(() => (n > 3 ? '*' : 60))], body, dontBreakRows: true }, layout: gridLayout })
+    }
+  })
+  return { stack, unbreakable: true }
+}
+
+function generateDoorGridSheet(session: InventorySession, lines: InventoryLine[], companyName: string): void {
+  const dateStr = session.counted_date
+  const sheets = buildDoorGrid(lines, (l) => ({
+    name: l.component_name,
+    product_category: l.component_category,
+    door_model: l.component_door_model,
+    door_color: l.component_door_color,
+    door_size: l.component_door_size,
+    door_direction: l.component_door_direction,
+  }))
+  const content: unknown[] = []
+  sheets.forEach((sheet, si) => {
+    content.push({
+      ...(si > 0 ? { pageBreak: 'before' } : {}),
+      columns: [
+        { text: sheet.name, fontSize: 15, bold: true, color: '#1b304a', width: '*' },
+        { text: `${companyName} · magazyn wewnętrzne · data: ${dateStr}`, fontSize: 9, color: '#475569', alignment: 'right', width: 'auto', margin: [0, 5, 0, 0] },
+      ],
+      marginBottom: 8,
+    })
+    // dwa bloki w rzędzie, jak w Excelu
+    for (let i = 0; i < sheet.blocks.length; i += 2) {
+      const a = sheet.blocks[i]
+      const b = sheet.blocks[i + 1]
+      content.push({
+        columns: [{ width: '*', ...blockContent(a) }, b ? { width: '*', ...blockContent(b) } : { width: '*', text: '' }],
+        columnGap: 12,
+        marginBottom: 10,
+        unbreakable: true,
+      })
+    }
+  })
+  content.push({
+    marginTop: 18,
+    unbreakable: true,
+    columns: ['Sporządził/a:', 'Zatwierdził/a:'].map((t) => ({
+      width: '50%',
+      stack: [
+        { text: t, fontSize: 9, color: '#555' },
+        { text: '\n\n', fontSize: 9 },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 160, y2: 0, lineWidth: 0.5 }] },
+        { text: 'Podpis', fontSize: 8, color: '#888', marginTop: 2 },
+      ],
+    })),
+  })
+  const docDefinition = {
+    pageSize: 'A4',
+    pageMargins: [24, 28, 24, 32],
+    footer: (currentPage: number, pageCount: number) => ({
+      text: `Arkusz inwentaryzacyjny · magazyn wewnętrzne · ${dateStr} · strona ${currentPage} z ${pageCount} · pozycji ${lines.length}`,
+      alignment: 'center',
+      fontSize: 7.5,
+      color: '#888',
+      margin: [0, 10, 0, 0],
+    }),
+    content,
+    defaultStyle: { font: 'Roboto' },
+  }
+  pdfMakeRuntime.createPdf(docDefinition as unknown as TDocumentDefinitions).download(`inwentaryzacja_wewnetrzne_${dateStr}.pdf`)
 }

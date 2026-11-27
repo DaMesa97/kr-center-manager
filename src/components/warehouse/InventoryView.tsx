@@ -8,14 +8,27 @@ import type { CurrentUser, InventoryLine, InventorySession, ToastVariant, Wareho
 import { isManagerRole } from '../../lib/permissions'
 import { fetchAllPages } from '../../lib/fetchPaged'
 import { inventoryReview, parseCountInput } from '../../lib/inventory'
-import { DOOR_FILTER_EMPTY, distinctValues, matchesDoorFilter, sortInventoryLines, type DoorFilter } from '../../lib/internalWarehouse'
+import { DOOR_FILTER_EMPTY, distinctValues, isDoorCategory, matchesDoorFilter, sortInventoryLines, type DoorFilter } from '../../lib/internalWarehouse'
+import { buildDoorGrid } from '../../lib/doorStockGrid'
+import DoorStockGrid from './DoorStockGrid'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
 
 /** pozycji spisu na stronę — magazyn wewnętrzne ma kilka tysięcy komponentów z kartotek Optimy */
 const INV_PAGE = 100
 
-type LinesView = DoorFilter & { onlyCounted: boolean; page: number; showBackground: boolean }
-const LINES_VIEW_EMPTY: LinesView = { ...DOOR_FILTER_EMPTY, onlyCounted: false, page: 0, showBackground: false }
+/** excel = magazyn wewnętrzne ułożony jak dawny Excel i kartka PDF (27.11); domyślnie dla spisu z drzwiami wewnętrznymi */
+type LinesView = DoorFilter & { onlyCounted: boolean; page: number; showBackground: boolean; excel: boolean }
+const LINES_VIEW_EMPTY: LinesView = { ...DOOR_FILTER_EMPTY, onlyCounted: false, page: 0, showBackground: false, excel: true }
+
+/** atrybuty pozycji spisu dla układu jak w Excelu */
+const lineGridAttrs = (l: InventoryLine) => ({
+  name: l.component_name,
+  product_category: l.component_category,
+  door_model: l.component_door_model,
+  door_color: l.component_door_color,
+  door_size: l.component_door_size,
+  door_direction: l.component_door_direction,
+})
 
 /** Pozycja liczy się do spisu: trzymamy ją na magazynie (is_stocked) albo ktoś ją już policzył. Kartoteki w tle
  *  (is_stocked = false, towar na zamówienie) widać tylko po włączeniu „Kartoteki w tle” — nie idą do postępu, kartki ani zamknięcia. */
@@ -445,7 +458,13 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
       label: 'Policzono',
       align: 'center',
       thStyle: { width: '10rem' },
-      render: (line) => (
+      render: (line) => renderCountInput(line),
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [draftCounts, saving, failed, lineNo])
+
+  function renderCountInput(line: InventoryLine) {
+    return (
         <div className="inventory-input-wrap">
           <input
             type="number"
@@ -471,10 +490,8 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
             <span style={{ color: '#dc2626', fontSize: '0.75rem', fontWeight: 700 }} title="Nie zapisano">!</span>
           )}
         </div>
-      ),
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [draftCounts, saving, failed, lineNo])
+    )
+  }
 
   const historyColumns = useMemo((): DataTableColumn<PastSession>[] => [
     { key: 'warehouse', label: 'Magazyn', render: (s) => <strong>{s.warehouse_name}</strong> },
@@ -585,12 +602,43 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
                       v,
                     )
                   })
+                  const doorSpis = sd.lines.some((l) => isDoorCategory(l.component_category))
+                  const przelacznik = doorSpis && (
+                    <div className="door-grid-mode" role="group" aria-label="Układ spisu" style={{ margin: '4px 0 8px' }}>
+                      <button type="button" className={`btn btn-sm ${v.excel ? 'btn-primary' : 'btn-secondary'}`} onClick={() => patchView(sd.session.id, { excel: true })}>
+                        Jak na kartce (Excel)
+                      </button>
+                      <button type="button" className={`btn btn-sm ${!v.excel ? 'btn-primary' : 'btn-secondary'}`} onClick={() => patchView(sd.session.id, { excel: false })}>
+                        Lista
+                      </button>
+                    </div>
+                  )
+                  if (doorSpis && v.excel) {
+                    // układ jak na kartce PDF: Enter idzie po kolei w zakładce (blok po bloku, LEWA → PRAWA)
+                    pageCountRef.current[sd.session.id] = 1
+                    return (
+                      <>
+                        {przelacznik}
+                        <DoorStockGrid
+                          sheets={buildDoorGrid(shown, lineGridAttrs)}
+                          emptyText={sd.lines.length === 0 ? 'Brak pozycji w spisie' : 'Brak pozycji dla wybranych filtrów'}
+                          renderCell={(line) => (
+                            <span title={`${line.component_code ? `${line.component_code} — ` : ''}${line.component_name ?? ''}`}>
+                              {renderCountInput(line)}
+                            </span>
+                          )}
+                        />
+                        <p className="muted" style={{ fontSize: '0.8rem' }}>{shown.length} pozycji · Enter = następna kratka</p>
+                      </>
+                    )
+                  }
                   const pageCount = Math.max(1, Math.ceil(shown.length / INV_PAGE))
                   pageCountRef.current[sd.session.id] = pageCount
                   const page = Math.min(v.page, pageCount - 1)
                   const pageRows = shown.slice(page * INV_PAGE, (page + 1) * INV_PAGE)
                   return (
                     <>
+                      {przelacznik}
                       <DataTable
                         rows={pageRows}
                         rowKey={(line) => line.id}
