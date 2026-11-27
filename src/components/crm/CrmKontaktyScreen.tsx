@@ -11,11 +11,10 @@ import { fetchDuplikaty, fetchKontakty, oznaczOfertePozaSystemem, oznaczWynik, t
 import { appConfirm } from '../../lib/appDialogs'
 import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
 import { useEtykiety } from '../../hooks/useEtykiety'
-import { EtykietyRow, KanalBadge } from './CrmEtykiety'
 import CrmPolaczPanel from './CrmPolaczPanel'
-import CrmTelefon from './CrmTelefon'
+import { ileOdm } from '../../utils/odmiana'
 import DataTable, { type DataTableColumn } from '../DataTable'
-import { CRM_WYNIK_POWOD, LEAD_STATUS_CLS, LEJEK_KOLUMNY, LEJEK_ZAMKNIETE_DNI, lejekPodsumowanie, opisWyniku, ruchWLejku, swiezoZamkniety, wartoscKlienta, type LejekStatus } from '../../lib/crmWynik'
+import { CRM_WYNIK_POWOD, LEJEK_KOLUMNY, LEJEK_ZAMKNIETE_DNI, lejekPodsumowanie, opisWyniku, ruchWLejku, swiezoZamkniety, wartoscKlienta, type LejekStatus } from '../../lib/crmWynik'
 import Spinner from '../Spinner'
 import { useOnCrmReshow } from './crmActive'
 
@@ -24,6 +23,14 @@ type Props = {
   pushToast: (message: string, variant: ToastVariant) => void
   onOpenLead: (id: string) => void
   onOpenOferta: (id: string) => void
+}
+
+/** termin zadania względem dziś (jak w „Do zrobienia”) */
+const terminState = (date: string | null | undefined): 'overdue' | 'today' | 'later' | null => {
+  if (!date) return null
+  const d = String(date).slice(0, 10)
+  const t = new Date().toLocaleDateString('sv-SE')
+  return d < t ? 'overdue' : d === t ? 'today' : 'later'
 }
 
 const fmtPln = (v: number | null | undefined): string =>
@@ -225,56 +232,43 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
 
   const columns = useMemo<DataTableColumn<CrmKontaktRow>[]>(
     () => [
+      // v3 (makieta „Klienci”, 27.11): klient z miejscowością i kanałem, status, następny krok z terminem, ostatnia oferta, ostatni kontakt
       {
         key: 'klient',
         label: 'Klient',
         sortValue: (r) => leadName(r),
         render: (r) => (
-          <>
-            <button type="button" className="crm-link" onClick={() => onOpenLead(r.id)} title="Karta klienta: dane, historia, oferty">
-              <b>{leadName(r)}</b>
-            </button>
-            {/* 23.11: numer jako link tel: — klik dzwoni przez Ringostat Smart Phone, nie otwiera karty */}
-            {r.nazwa && r.telefon ? <span className="crm-muted"> · <CrmTelefon telefon={r.telefon} nazwa={r.nazwa} compact /></span> : null}
-          </>
+          <span className="crm-of-klient">
+            <button type="button" className="crm-dz-klient" onClick={() => onOpenLead(r.id)} title="Karta klienta: dane, historia, oferty">{leadName(r)}</button>
+            <span className="crm-muted">{[r.miejscowosc, r.zrodlo ? CRM_KANAL[r.zrodlo]?.label ?? r.zrodlo : null].filter(Boolean).join(' · ') || '—'}</span>
+          </span>
         ),
       },
-      { key: 'miejscowosc', label: 'Miejscowość', sortValue: (r) => r.miejscowosc ?? '', render: (r) => r.miejscowosc || '—' },
-      { key: 'kanal', label: 'Kanał', sortValue: (r) => r.zrodlo ?? '', render: (r) => <KanalBadge zrodlo={r.zrodlo} /> },
       {
         key: 'status',
         label: 'Status',
         sortValue: (r) => r.status ?? '',
         render: (r) => (
-          <span className={`crm-status ${LEAD_STATUS_CLS[r.status ?? ''] ?? 'crm-status--muted'}`} title={opisWyniku(r) || undefined}>
+          <span className={`crm-pill${r.status === 'oferta' ? ' crm-pill--blue' : r.status === 'wygrany' ? ' crm-pill--ok' : ''}`} title={opisWyniku(r) || undefined}>
             {CRM_LEAD_STATUS[r.status ?? ''] ?? r.status ?? '—'}
             {r.status === 'przegrany' && r.wynik_powod ? ` · ${CRM_WYNIK_POWOD[r.wynik_powod] ?? r.wynik_powod}` : ''}
           </span>
         ),
       },
       {
-        key: 'etykiety',
-        label: 'Etykiety',
-        sortValue: (r) => (r.etykiety ?? []).join(','),
-        stopRowClick: true,
-        render: (r) => (
-          <EtykietyRow leadId={r.id} slugi={r.etykiety} slownik={etyk.mapa} compact pushToast={pushToast} onChanged={(slugi) => setRows((rs) => rs.map((x) => (x.id === r.id ? { ...x, etykiety: slugi } : x)))} />
-        ),
-      },
-      { key: 'aktywnosc', label: 'Ostatnia aktywność', sortValue: (r) => aktywnosc(r), render: (r) => fmtDateTime(aktywnosc(r)) },
-      {
         key: 'zadanie',
-        label: 'Zadanie',
-        sortValue: (r) => r.nastepna_akcja ?? '',
-        render: (r) =>
-          r.nastepna_akcja ? (
-            <span title={r.akcja_opis ?? undefined}>
-              {CRM_AKCJA[r.nastepna_akcja]?.label ?? r.nastepna_akcja}
-              {r.nastepny_krok ? <span className="crm-muted"> · {fmtDate(r.nastepny_krok)}</span> : null}
+        label: 'Następny krok',
+        sortValue: (r) => r.nastepny_krok ?? '9999',
+        render: (r) => {
+          if (!r.nastepna_akcja) return <span className="crm-muted">—</span>
+          const st = terminState(r.nastepny_krok)
+          return (
+            <span className="crm-of-klient" title={r.akcja_opis ?? undefined}>
+              <span>{CRM_AKCJA[r.nastepna_akcja]?.label ?? r.nastepna_akcja}</span>
+              {r.nastepny_krok ? <span className={st === 'overdue' ? 'crm-kl-late' : st === 'today' ? 'crm-kl-dzis' : 'crm-muted'}>{st === 'today' ? 'dziś' : fmtDate(r.nastepny_krok)}{st === 'overdue' ? ' · zaległe' : ''}</span> : null}
             </span>
-          ) : (
-            <span className="crm-muted">—</span>
-          ),
+          )
+        },
       },
       {
         key: 'oferta',
@@ -287,53 +281,76 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
           const kwota = o.rodzaj === 'oficjalna' ? o.brutto : o.cena_razem
           const st = CRM_OFERTA_STATUS[o.status]
           return (
-            <button type="button" className="crm-link" onClick={() => onOpenOferta(o.id)} title={CRM_OFERTA_RODZAJ[o.rodzaj ?? 'sklep']?.title}>
-              {o.rodzaj === 'oficjalna' && o.numer ? `nr ${o.numer}` : `v${o.wersja}`} · {fmtPln(kwota)}
-              {st ? <span className={`crm-status ${st.cls}`}> {st.label}</span> : null}
+            <button type="button" className="crm-link crm-kl-oferta" onClick={() => onOpenOferta(o.id)} title={CRM_OFERTA_RODZAJ[o.rodzaj ?? 'sklep']?.title}>
+              {kwota != null ? fmtPln(kwota) : 'bez kwoty'}{st ? <span className="crm-muted"> · {st.label.toLowerCase()}</span> : null}
             </button>
           )
         },
       },
+      { key: 'aktywnosc', label: 'Ostatni kontakt', sortValue: (r) => aktywnosc(r), render: (r) => <span className="crm-muted">{fmtDateTime(aktywnosc(r))}</span> },
     ],
-    [onOpenLead, onOpenOferta, etyk.mapa, pushToast],
+    [onOpenLead, onOpenOferta],
   )
 
   const etykietyLista = [...etyk.mapa.values()].filter((e) => e.aktywna)
 
   return (
     <div className="crm-screen crm-kontakty">
-      <div className="crm-toolbar">
-        <label className="crm-search">
-          
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Szukaj: nazwa, telefon, e-mail, miejscowość" aria-label="Szukaj klienta" />
-        </label>
+      <div className="crm-head">
+        <div className="crm-head-tekst">
+          <h2>Klienci</h2>
+          <span className="crm-head-sub">Wszyscy, także bez zadania · {filtered.length === rows.length ? ileOdm(rows.length, 'klient', 'klientów', 'klientów') : `${filtered.length} z ${rows.length}`}</span>
+        </div>
+        <div className="crm-head-akcje">
+          <button type="button" className="btn btn-primary" onClick={() => setNowyKlient((v) => !v)} aria-expanded={nowyKlient} title="Klient, którego system nie złapał sam: wizyta, komórka, polecenie, Facebook">Dodaj klienta</button>
+        </div>
+      </div>
+      {!loading && !pokazDuplikaty && (() => {
+        const s = lejekPodsumowanie(filtered)
+        return (
+          <div className="crm-kafle" aria-label="Podsumowanie">
+            <div className="crm-kafel" title="Klienci Nowy + Ma ofertę; wartość = ostatnie oferty albo wartości wpisane ręcznie"><span>W grze</span><b>{s.wGrze} · {fmtPln(s.wartoscWGrze)}</b></div>
+            <div className="crm-kafel"><span>Zamówili</span><b className="crm-kafel--ok">{s.wygrane.n} · {fmtPln(s.wygrane.suma)}</b></div>
+            <div className="crm-kafel"><span>Przegrani</span><b>{s.przegrane.n}</b>{s.przegrane.topPowod ? <span>najczęściej: {(CRM_WYNIK_POWOD[s.przegrane.topPowod] ?? s.przegrane.topPowod).toLowerCase()}</span> : null}</div>
+            <div className="crm-kafel" title="Zamówili / (zamówili + przegrani)"><span>Skuteczność</span><b>{s.procentWygranych == null ? '—' : `${s.procentWygranych}%`}</b></div>
+          </div>
+        )
+      })()}
+      <div className="crm-filtry crm-kl-filtry">
+        <input type="search" className="crm-kl-szukaj" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Szukaj: nazwa, telefon, e-mail, miejscowość" aria-label="Szukaj klienta" />
         <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status klienta">
-          <option value="">każdy status</option>
-          <option value="w_grze">w grze (nowy + ma ofertę)</option>
+          <option value="">Każdy status</option>
+          <option value="w_grze">W grze (nowy + ma ofertę)</option>
           {Object.entries(CRM_LEAD_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <select value={kanal} onChange={(e) => setKanal(e.target.value)} aria-label="Kanał">
-          <option value="">każdy kanał</option>
+        <select value={kanal} onChange={(e) => setKanal(e.target.value)} aria-label="Skąd">
+          <option value="">Skąd: wszystko</option>
           {Object.entries(CRM_KANAL).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
         <select value={etykieta} onChange={(e) => setEtykieta(e.target.value)} aria-label="Etykieta">
-          <option value="">każda etykieta</option>
+          <option value="">Każda etykieta</option>
           {etykietyLista.map((e) => <option key={e.slug} value={e.slug}>{e.nazwa}</option>)}
         </select>
         <label className="crm-check-inline">
           <input type="checkbox" checked={bezZadania} onChange={(e) => setBezZadania(e.target.checked)} /> bez zadania
         </label>
-        <label className={`crm-check-inline${duplikaty.length ? ' crm-check-inline--warn' : ''}`} title="Pary klientów z tym samym telefonem, e-mailem, nazwą albo domeną firmową — do połączenia">
-          <input type="checkbox" checked={pokazDuplikaty} onChange={(e) => setPokazDuplikaty(e.target.checked)} /> duplikaty{duplikaty.length ? ` (${duplikaty.length})` : ''}
-        </label>
-        <div className="crm-widok" role="group" aria-label="Widok">
-          <button type="button" className={`crm-widok-btn${widok === 'lista' ? ' crm-widok-btn--on' : ''}`} aria-pressed={widok === 'lista'} onClick={() => zmienWidok('lista')}>Lista</button>
-          <button type="button" className={`crm-widok-btn${widok === 'lejek' ? ' crm-widok-btn--on' : ''}`} aria-pressed={widok === 'lejek'} onClick={() => zmienWidok('lejek')}>Lejek</button>
+        <div className="crm-seg crm-kl-widok" role="group" aria-label="Widok">
+          <button type="button" className={`crm-seg-btn${widok === 'lista' && !pokazDuplikaty ? ' crm-seg-btn--on' : ''}`} aria-pressed={widok === 'lista' && !pokazDuplikaty} onClick={() => { setPokazDuplikaty(false); zmienWidok('lista') }}>Lista</button>
+          <button type="button" className={`crm-seg-btn${widok === 'lejek' && !pokazDuplikaty ? ' crm-seg-btn--on' : ''}`} aria-pressed={widok === 'lejek' && !pokazDuplikaty} onClick={() => { setPokazDuplikaty(false); zmienWidok('lejek') }}>Lejek</button>
         </div>
-        <span className="crm-toolbar-hint">{filtered.length} z {rows.length}</span>
-        <button type="button" className="btn btn-sm btn-primary" onClick={() => setNowyKlient((v) => !v)} aria-expanded={nowyKlient} title="Nowy klient (z wizyty w salonie, telefonu albo Facebooka / Instagrama)">Dodaj klienta</button>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież">Odśwież</button>
       </div>
+      {duplikaty.length > 0 && !pokazDuplikaty && (
+        <div className="crm-baner crm-baner--warn">
+          <span><b>{ileOdm(duplikaty.length, 'możliwy duplikat', 'możliwe duplikaty', 'możliwych duplikatów')}</b> — ten sam telefon, e-mail albo nazwa u dwóch klientów.</span>
+          <button type="button" className="crm-link" onClick={() => setPokazDuplikaty(true)}>Przejrzyj i połącz</button>
+        </div>
+      )}
+      {pokazDuplikaty && (
+        <div className="crm-baner crm-baner--warn">
+          <span>Przeglądasz możliwe duplikaty.</span>
+          <button type="button" className="crm-link" onClick={() => setPokazDuplikaty(false)}>Wróć do listy klientów</button>
+        </div>
+      )}
       {nowyKlient && (
         <CrmNowyKlient
           currentUser={currentUser}
@@ -390,17 +407,6 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
         </section>
       ) : (
         <>
-          {(() => {
-            const s = lejekPodsumowanie(filtered)
-            return (
-              <div className="crm-kpi-linia" aria-label="Podsumowanie">
-                <span title="Klienci Nowy + Ma ofertę; wartość = ostatnie oferty albo wartości wpisane ręcznie (*)">W grze <b>{s.wGrze} · {fmtPln(s.wartoscWGrze)}</b></span>
-                <span>Zamówili <b className="crm-kpi-won">{s.wygrane.n} · {fmtPln(s.wygrane.suma)}</b></span>
-                <span>Przegrani <b>{s.przegrane.n}{s.przegrane.topPowod ? ` · najczęściej ${CRM_WYNIK_POWOD[s.przegrane.topPowod] ?? s.przegrane.topPowod}` : ''}</b></span>
-                <span title="Zamówili / (zamówili + przegrani)">Skuteczność <b>{s.procentWygranych == null ? '—' : `${s.procentWygranych}%`}</b></span>
-              </div>
-            )
-          })()}
           {widok === 'lista' ? (
             <DataTable rows={filtered} rowKey={(r) => r.id} columns={columns} className="crm-table" emptyText={rows.length === 0 ? 'Nie ma jeszcze żadnego klienta.' : 'Nikt nie pasuje do filtrów.'} />
           ) : (

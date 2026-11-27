@@ -247,3 +247,17 @@
 .crm-view .crm-check, .crm-view .crm-check--clean, .crm-view .crm-ofic, .crm-view .crm-mail, .crm-view .crm-notatka-src { border-left: 1px solid var(--crm-line) !important; }
 .crm-view .crm-check--bad { border-color: var(--crm-late-line) !important; background: var(--crm-late-bg) !important; }
 .crm-view .crm-check-clean { color: var(--crm-ok-text); }
+
+/* Klienci */
+.crm-kafle { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 900px) { .crm-kafle { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.crm-kafel { background: var(--crm-card); border: 1px solid var(--crm-line); border-radius: 12px; padding: 14px 18px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.crm-kafel > span { font-size: 0.75rem; color: var(--crm-muted); }
+.crm-kafel > b { font-size: 1.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-kafel--ok { color: var(--crm-ok-text); }
+.crm-kl-filtry { justify-content: flex-start; }
+.crm-kl-szukaj { flex: 1 1 300px; min-width: 220px; }
+.crm-kl-widok { margin-left: auto; }
+.crm-kl-late { color: var(--crm-late); font-weight: 600; font-size: 0.78rem; }
+.crm-kl-dzis { color: var(--crm-text); font-weight: 600; font-size: 0.78rem; }
+.crm-kl-oferta { font-weight: 600; white-space: nowrap; }
