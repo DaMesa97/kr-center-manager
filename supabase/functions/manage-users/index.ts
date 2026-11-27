@@ -211,6 +211,59 @@ serve(async (req) => {
       })
     }
 
+    // Testy 27.11 (runda 3): lista nie pokazywała, kto jest zablokowany (ban żyje
+    // w auth, poza profiles). Zwraca per konto: banned (banned_until w przyszłości)
+    // i locked (konto, którym zarządza tylko superadmin: superadmin albo dostęp do CRM;
+    // dla superadmina zawsze false). Kierownik działu dostaje tylko konta, którymi zarządza.
+    if (action === 'list_status') {
+      const banned = new Map<string, boolean>()
+      const now = Date.now()
+      for (let page = 1; page <= 50; page++) {
+        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        const users = data?.users ?? []
+        for (const u of users) {
+          const until = (u as { banned_until?: string | null }).banned_until
+          banned.set(u.id, !!until && new Date(until).getTime() > now)
+        }
+        if (users.length < 1000) break
+      }
+      const { data: profs, error: profsErr } = await supabaseAdmin.from('profiles').select('id, role, categories')
+      if (profsErr) {
+        return new Response(JSON.stringify({ error: profsErr.message }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      let crmIds = new Set<string>()
+      if (!isSuperadmin) {
+        const { data: crmRows, error: crmErr } = await supabaseAdmin.schema('crm').from('dostep').select('user_id')
+        // przy błędzie przyciski zostają, a odmowę i tak da superadminDenyReason
+        if (!crmErr) crmIds = new Set((crmRows ?? []).map((r: { user_id: string }) => String(r.user_id)))
+      }
+      const rows = (profs ?? []) as Array<{ id: string; role: string | null; categories: string[] | null }>
+      const users = rows
+        .filter((p) => {
+          if (!isKd) return true
+          const cats = Array.isArray(p.categories) ? p.categories : []
+          return String(p.role ?? '') === 'pracownik_produkcji' && cats.length > 0 && cats.every((c) => kdCategories.includes(c))
+        })
+        .map((p) => ({
+          id: p.id,
+          banned: banned.get(p.id) ?? false,
+          locked: !isSuperadmin && (String(p.role ?? '') === 'superadmin' || crmIds.has(p.id)),
+        }))
+      return new Response(JSON.stringify({ users }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Dezaktywacja (ban) — dla kont z historią (ruchy magazynowe, ZD, inwentaryzacje,
     // komentarze, CRM…) usunięcie jest zablokowane (historyDenyReason). Ban blokuje
     // logowanie, a historia zostaje nietknięta.

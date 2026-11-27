@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DbProfileRow, ToastVariant } from '../types'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 import { appConfirm, appPrompt } from '../lib/appDialogs'
 import CrmAccessSection from './crm/CrmAccessSection'
+import { fetchAccountStatus, type AccountStatus } from '../hooks/useUsers'
 
 // Legenda ról — to samo, co macierz w lib/permissions.ts, ludzkim językiem.
 // Aktualizować przy zmianach macierzy!
@@ -24,7 +25,8 @@ type UsersViewProps = {
   currentUserId?: string
   onEditUser: (row: DbProfileRow) => void
   onDeleteUser: (row: DbProfileRow) => void
-  onDeactivateUser: (row: DbProfileRow, deactivate: boolean) => void | Promise<void>
+  /** true = status konta się zmienił (lista odświeża plakietkę „zablokowane”) */
+  onDeactivateUser: (row: DbProfileRow, deactivate: boolean) => boolean | void | Promise<boolean | void>
   onResetPassword: (row: DbProfileRow, newPassword: string) => Promise<boolean> | boolean | void
   onManageWorkerStages: (row: DbProfileRow) => void
   getRoleLabel: (role: string) => string
@@ -70,6 +72,26 @@ export default function UsersView({
     )
   }, [profiles, scopedCategories])
 
+  // Testy 27.11 (runda 3): status kont z manage-users (list_status) — kto jest
+  // zablokowany (ban w auth) i którymi kontami zarządza tylko superadmin
+  // (superadmin albo dostęp do CRM Po Drzwi). null = nie wiadomo (stary widok przycisków).
+  const [status, setStatus] = useState<Map<string, AccountStatus> | null>(null)
+  const loadStatus = useCallback(async () => {
+    setStatus(await fetchAccountStatus())
+  }, [])
+  useEffect(() => {
+    if (profilesLoading) return
+    void loadStatus()
+  }, [profiles, profilesLoading, loadStatus])
+
+  const runDeactivate = useCallback(
+    async (row: DbProfileRow, deactivate: boolean) => {
+      const changed = await onDeactivateUser(row, deactivate)
+      if (changed !== false) await loadStatus()
+    },
+    [onDeactivateUser, loadStatus],
+  )
+
   const columns = useMemo<DataTableColumn<DbProfileRow>[]>(() => {
     const deptText = (row: DbProfileRow) =>
       row.categories && row.categories.length > 0
@@ -81,25 +103,46 @@ export default function UsersView({
       { key: 'role', label: 'Rola', sortValue: (r) => getRoleLabel(r.role), render: (r) => getRoleLabel(r.role) },
       { key: 'department', label: 'Kategorie / Dział', sortValue: deptText, render: deptText },
       {
+        key: 'status',
+        label: 'Status',
+        sortValue: (r) => (status?.get(r.id)?.banned ? 1 : 0),
+        render: (r) => {
+          const st = status?.get(r.id)
+          if (!st) return null
+          return st.banned ? (
+            <span className="badge badge-danger" title="Logowanie zablokowane (dezaktywowane). Odblokujesz przyciskiem „Odblokuj”.">
+              zablokowane
+            </span>
+          ) : (
+            <span className="badge badge-success">aktywne</span>
+          )
+        },
+      },
+      {
         key: 'actions',
         label: 'Akcje',
         render: (row) => {
           // Konto superadministratora: hasło / dezaktywacja / usunięcie tylko dla
           // superadmina (manage-users odpowiada 403, baza blokuje usunięcie) — nie-superadmin
           // widzi tylko Edytuj (imię, inicjały; roli i tak nie zmieni)
+          // Testy 27.11 (runda 3): to samo dla konta z dostępem do CRM Po Drzwi
+          // (status.locked z manage-users; roli też nie zmieni — pilnuje handleSaveUser)
           const lockedSuperadmin = row.role === 'superadmin' && !isSuperadmin
-          if (lockedSuperadmin) {
+          const lockedCrm = !lockedSuperadmin && !isSuperadmin && !!status?.get(row.id)?.locked
+          if (lockedSuperadmin || lockedCrm) {
+            const what = lockedSuperadmin ? 'konto superadministratora' : 'konto z dostępem do CRM Po Drzwi'
             return (
               <div className="contractor-actions">
                 <button type="button" className="btn btn-sm btn-primary" onClick={() => onEditUser(row)}>
                   Edytuj
                 </button>
-                <span className="user-modal-hint" title="Hasło, dezaktywację i usunięcie konta superadministratora obsługuje tylko superadministrator">
-                  konto superadministratora
+                <span className="user-modal-hint" title={`Hasło, rolę, dezaktywację i usunięcie (${what}) obsługuje tylko superadministrator`}>
+                  {what}
                 </span>
               </div>
             )
           }
+          const banned = status?.get(row.id)?.banned
           return (
           <div className="contractor-actions">
             {/* Kierownik działu też pracuje na stanowisku (brygadzista) —
@@ -129,34 +172,39 @@ export default function UsersView({
             >
               Hasło
             </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary"
-              disabled={row.id === currentUserId}
-              title="Zablokuj logowanie bez usuwania historii (odblokowanie: ten sam przycisk)"
-              onClick={() => {
-                void (async () => {
-                  const deactivate = await appConfirm(
-                    `Dezaktywować konto ${row.full_name}? (logowanie zablokowane, historia zostaje). Jeśli konto jest już dezaktywowane — zostanie odblokowane.`,
-                    { title: 'Dezaktywacja konta', confirmLabel: 'Dezaktywuj' },
-                  )
-                  if (deactivate) {
-                    void onDeactivateUser(row, true)
-                  }
-                })()
-              }}
-            >
-              Dezaktywuj
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              disabled={row.id === currentUserId}
-              title="Odblokuj wcześniej dezaktywowane konto"
-              onClick={() => void onDeactivateUser(row, false)}
-            >
-              Aktywuj
-            </button>
+            {/* Testy 27.11 (runda 3): okno obiecywało odblokowanie, a przycisk zawsze
+                blokował. Teraz: aktywne → „Dezaktywuj”, zablokowane → „Odblokuj”;
+                gdy statusu nie udało się pobrać — oba przyciski. */}
+            {banned !== true && (
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={row.id === currentUserId}
+                title="Zablokuj logowanie bez usuwania historii"
+                onClick={() => {
+                  void (async () => {
+                    const deactivate = await appConfirm(
+                      `Dezaktywować konto ${row.full_name}? Logowanie zostanie zablokowane, historia zostaje. Odblokować można później przyciskiem „Odblokuj”.`,
+                      { title: 'Dezaktywacja konta', confirmLabel: 'Dezaktywuj' },
+                    )
+                    if (deactivate) void runDeactivate(row, true)
+                  })()
+                }}
+              >
+                Dezaktywuj
+              </button>
+            )}
+            {banned !== false && (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                disabled={row.id === currentUserId}
+                title="Odblokuj logowanie dezaktywowanego konta"
+                onClick={() => void runDeactivate(row, false)}
+              >
+                Odblokuj
+              </button>
+            )}
             {canDelete && (
               <button
                 type="button"
@@ -177,7 +225,7 @@ export default function UsersView({
         },
       },
     ]
-  }, [currentUserId, canDelete, isSuperadmin, onEditUser, onDeleteUser, onDeactivateUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
+  }, [currentUserId, canDelete, isSuperadmin, status, runDeactivate, onEditUser, onDeleteUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
 
   const [legendOpen, setLegendOpen] = useState(false)
 

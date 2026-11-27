@@ -26,6 +26,8 @@ type FakeOpts = {
   history?: Record<string, number>
   /** błąd liczenia historii (dla wszystkich tabel) */
   historyError?: { message: string } | null
+  /** konta w auth (list_status): banned_until */
+  authUsers?: Array<{ id: string; banned_until?: string | null }>
 }
 
 function makeFakeSupabase(opts: FakeOpts) {
@@ -39,6 +41,7 @@ function makeFakeSupabase(opts: FakeOpts) {
     crmError = null,
     history = {},
     historyError = null,
+    authUsers = [],
   } = opts
   const calls = { created: [] as unknown[], deleted: [] as string[], updated: [] as string[] }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,12 +55,19 @@ function makeFakeSupabase(opts: FakeOpts) {
       return builder
     }
     // zapytanie z { count, head } jest awaitowane bezpośrednio (bez single/maybeSingle)
-    builder.then = (resolve: (v: unknown) => unknown) =>
-      resolve(
+    builder.then = (resolve: (v: unknown) => unknown) => {
+      if (schema === 'crm' && table === 'dostep') {
+        return resolve({ data: crmError ? null : crmUsers.map((user_id) => ({ user_id })), error: crmError })
+      }
+      if (table === 'profiles') {
+        return resolve({ data: Object.entries(targets).map(([id, t]) => ({ id, categories: [], ...t })), error: null })
+      }
+      return resolve(
         historyError
           ? { count: null, error: historyError }
           : { count: history[`${schema}.${table}.${selCol}`] ?? 0, error: null },
       )
+    }
     builder.eq = (_col: string, v: string) => {
       lastEq = v
       return builder
@@ -89,6 +99,7 @@ function makeFakeSupabase(opts: FakeOpts) {
           calls.deleted.push(id)
           return { error: deleteError }
         },
+        listUsers: async () => ({ data: { users: authUsers }, error: null }),
         updateUserById: async (id: string) => {
           calls.updated.push(id)
           return { error: null }
@@ -275,5 +286,57 @@ describe('manage-users — delete konta z historią', () => {
     __setSupabaseClient(supabase)
     expect((await handler()(post({ action: 'delete', user_id: 'u-x' }))).status).toBe(409)
     expect(calls.deleted).toEqual([])
+  })
+})
+
+// Testy 27.11 (runda 3): lista użytkowników nie pokazywała, kto jest zablokowany.
+describe('manage-users — list_status', () => {
+  const targets = {
+    'pp-1': { role: 'pracownik_produkcji', categories: ['STA'] },
+    'pp-2': { role: 'pracownik_produkcji', categories: ['ALU'] },
+    'sa-1': { role: 'superadmin' },
+    'h-1': { role: 'obsluga_klienta' },
+  }
+  const authUsers = [
+    { id: 'pp-1', banned_until: '2126-01-01T00:00:00Z' },
+    { id: 'pp-2', banned_until: '2020-01-01T00:00:00Z' }, // ban wygasł
+    { id: 'sa-1', banned_until: null },
+    { id: 'h-1' },
+  ]
+
+  it('admin: banned z banned_until w przyszłości, locked dla superadmina i konta z CRM', async () => {
+    __setSupabaseClient(makeFakeSupabase({ role: 'admin', targets, authUsers, crmUsers: ['h-1'] }).supabase)
+    const res = await handler()(post({ action: 'list_status' }))
+    expect(res.status).toBe(200)
+    const { users } = (await res.json()) as { users: Array<{ id: string; banned: boolean; locked: boolean }> }
+    const byId = Object.fromEntries(users.map((u) => [u.id, u]))
+    expect(byId['pp-1']).toEqual({ id: 'pp-1', banned: true, locked: false })
+    expect(byId['pp-2']).toEqual({ id: 'pp-2', banned: false, locked: false })
+    expect(byId['sa-1'].locked).toBe(true)
+    expect(byId['h-1'].locked).toBe(true)
+  })
+
+  it('superadmin: nic nie jest locked', async () => {
+    __setSupabaseClient(makeFakeSupabase({ role: 'superadmin', targets, authUsers, crmUsers: ['h-1'] }).supabase)
+    const { users } = (await (await handler()(post({ action: 'list_status' }))).json()) as {
+      users: Array<{ locked: boolean }>
+    }
+    expect(users.every((u) => !u.locked)).toBe(true)
+  })
+
+  it('kierownik działu: tylko pracownicy produkcji ze swoich kategorii', async () => {
+    const { supabase } = makeFakeSupabase({ role: 'kierownik_dzialu', targets, authUsers })
+    // kategorie kierownika (single() profilu wołającego)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const origFrom = (supabase as any).from
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabase as any).from = (t: string) => {
+      const b = origFrom(t)
+      b.single = async () => ({ data: { role: 'kierownik_dzialu', categories: ['STA'] }, error: null })
+      return b
+    }
+    __setSupabaseClient(supabase)
+    const { users } = (await (await handler()(post({ action: 'list_status' }))).json()) as { users: Array<{ id: string }> }
+    expect(users.map((u) => u.id)).toEqual(['pp-1'])
   })
 })

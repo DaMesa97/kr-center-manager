@@ -4,7 +4,7 @@ import { INITIAL_USER_FORM } from '../constants'
 import type { CurrentUser, DbProfileRow, DeleteConfirmState, UserFormState } from '../types'
 import type { ToastVariant } from '../types'
 import type { Session, User } from '@supabase/supabase-js'
-import { canManageUsers, usersScopeFor } from '../lib/permissions'
+import { canManageUsers, isSuperadminRole, usersScopeFor } from '../lib/permissions'
 
 // Przy non-2xx supabase-js daje generyczny error.message, a prawdziwy komunikat
 // funkcji jest w error.context (Response). Wyciągamy go, żeby user widział powód.
@@ -25,6 +25,20 @@ async function fnErrorMessage(error: unknown, fallback: string): Promise<string>
     }
   } catch { /* ignore */ }
   return (error as { message?: string })?.message || fallback
+}
+
+/** Status konta z manage-users (list_status): blokada logowania i „tylko superadmin”. */
+export type AccountStatus = { banned: boolean; locked: boolean }
+
+// Testy 27.11 (runda 3): ban żyje w auth (banned_until), poza profiles — lista
+// użytkowników nie pokazywała, kto jest zablokowany. null = nie udało się pobrać.
+export async function fetchAccountStatus(): Promise<Map<string, AccountStatus> | null> {
+  const { data, error } = await supabase.functions.invoke<{
+    error?: string
+    users?: Array<{ id: string; banned?: boolean; locked?: boolean }>
+  }>('manage-users', { body: { action: 'list_status' } })
+  if (error || !data || data.error || !Array.isArray(data.users)) return null
+  return new Map(data.users.map((u) => [String(u.id), { banned: !!u.banned, locked: !!u.locked }]))
 }
 
 type UseUsersParams = {
@@ -215,6 +229,23 @@ export function useUsers({
 
     if (!editingProfileId) return
     const wasSelf = editingProfileId === currentUser?.id
+    // Testy 27.11 (runda 3): roli konta z dostępem do CRM Po Drzwi (lub superadmina)
+    // nie zmienia nikt poza superadminem. Tu tylko komunikat po ludzku — baza
+    // (trg_protect_superadmin_role) pilnuje dziś wyłącznie roli superadmin.
+    const original = profilesList.find((p) => p.id === editingProfileId)
+    if (original && original.role !== userForm.role && !isSuperadminRole(currentUser?.role)) {
+      setUserModalSaving(true)
+      const status = await fetchAccountStatus()
+      setUserModalSaving(false)
+      if (status == null) {
+        pushToast('Nie udało się sprawdzić, czy konto ma dostęp do CRM Po Drzwi — spróbuj ponownie', 'error')
+        return
+      }
+      if (status.get(editingProfileId)?.locked) {
+        pushToast('Rolę konta z dostępem do CRM Po Drzwi zmienia tylko superadministrator', 'error')
+        return
+      }
+    }
     setUserModalSaving(true)
     const { error } = await supabase
       .from('profiles')
@@ -273,11 +304,12 @@ export function useUsers({
   // Dezaktywacja (ban) — usunięcia konta z historią (ruchy magazynowe, ZD,
   // inwentaryzacje, komentarze, CRM…) manage-users odmawia (testy 27.11, runda 3);
   // ban blokuje logowanie, a historia pracownika zostaje
-  const handleDeactivateUser = async (row: DbProfileRow, deactivate: boolean) => {
-    if (!canManage) return
+  // zwraca true, gdy status konta się zmienił (UsersView odświeża wtedy plakietkę)
+  const handleDeactivateUser = async (row: DbProfileRow, deactivate: boolean): Promise<boolean> => {
+    if (!canManage) return false
     if (row.id === currentUser?.id) {
       pushToast('Nie możesz dezaktywować własnego konta', 'error')
-      return
+      return false
     }
     const { data, error } = await supabase.functions.invoke<{ error?: string; ok?: boolean }>(
       'manage-users',
@@ -285,13 +317,14 @@ export function useUsers({
     )
     if (error) {
       pushToast(await fnErrorMessage(error, 'Błąd zmiany statusu konta'), 'error')
-      return
+      return false
     }
     if (data && typeof data === 'object' && 'error' in data && data.error) {
       pushToast(String(data.error), 'error')
-      return
+      return false
     }
-    pushToast(deactivate ? `Konto ${row.full_name} dezaktywowane` : `Konto ${row.full_name} aktywne`, 'success')
+    pushToast(deactivate ? `Konto ${row.full_name} zablokowane` : `Konto ${row.full_name} odblokowane`, 'success')
+    return true
   }
 
   const handleResetPassword = async (row: DbProfileRow, newPassword: string): Promise<boolean> => {
