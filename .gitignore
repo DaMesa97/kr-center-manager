@@ -38,3 +38,6 @@ dist-electron/
 *.asar
 .tmp-inter/
 dist-mobile
+
+# snapshoty stanów z sesji testów (dane firmy, nie do repo)
+testing/*.json
