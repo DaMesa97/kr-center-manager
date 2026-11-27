@@ -107,6 +107,7 @@ export default function PurchaseOrdersView({
           zdNumber: po.zd_number,
           createdAt: po.created_at.slice(0, 10),
           expectedDelivery: po.expected_delivery_date,
+          deliveryWarehouse: warehouses.find((w) => w.id === po.warehouse_id)?.name ?? null,
           notes: po.notes,
           company: companySettings,
           supplier,

@@ -7,6 +7,8 @@ export type ZdPdfData = {
   zdNumber: string
   createdAt: string
   expectedDelivery: string | null
+  /** testy 27.11 (2. seria): magazyn docelowy ZD — dostawca musi wiedzieć, dokąd jechać */
+  deliveryWarehouse?: string | null
   notes: string | null
   company: CompanySettings
   supplier: Supplier
@@ -132,6 +134,7 @@ function buildDocDefinition(data: ZdPdfData): TDocumentDefinitions {
       { text: data.zdNumber, style: 'zdNumber' },
       { text: `Data wystawienia: ${data.createdAt}`, style: 'metaCenter' },
       data.expectedDelivery && { text: `Przewidywana dostawa: ${data.expectedDelivery}`, style: 'metaCenter' },
+      data.deliveryWarehouse && { text: `Miejsce dostawy: ${data.deliveryWarehouse}`, style: 'metaCenter', bold: true },
       {
         table: {
           headerRows: 1,
