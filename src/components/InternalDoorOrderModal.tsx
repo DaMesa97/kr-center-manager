@@ -223,6 +223,17 @@ function InternalDoorOrderModal({
         pushToast('Nie udało się pobrać numeru zamówienia — spróbuj ponownie', 'error')
         return
       }
+      // testy 27.11 (runda 3): WPISAŁ = inicjały / imię użytkownika (jak bot i Excel), nie UUID
+      const { data: me } = await supabase
+        .from('profiles')
+        .select('initials, full_name')
+        .eq('id', currentUserId)
+        .maybeSingle()
+      const enteredBy = String(
+        (me as { initials?: string | null; full_name?: string | null } | null)?.initials ||
+          (me as { full_name?: string | null } | null)?.full_name ||
+          '',
+      ).trim()
       const { data, error } = await supabase
         .from('orders')
         .insert({
@@ -231,7 +242,7 @@ function InternalDoorOrderModal({
           company: companyName.trim(),
           notes: notes.trim(),
           wentylacja: wentylacja.trim(),
-          entered_by: currentUserId,
+          entered_by: enteredBy,
           quantity: items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0),
           sequence: '',
           system: '',

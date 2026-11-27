@@ -1301,7 +1301,10 @@ export function useOrders({
     payload: Record<string, unknown>,
     select: string,
   ): Promise<{ data: Record<string, unknown> | null; error: { message: string; code?: string } | null }> => {
-    const res = await insertOrderWithNumberRetry(payload, {
+    // testy 27.11 (runda 3): kolumna WPISAŁ — inicjały użytkownika (jak w Excelu), gdy formularz nic nie podał
+    const enteredBy = String(currentUser?.initials || currentUser?.full_name || (currentUser?.email ?? '').split('@')[0] || '').trim()
+    const row = String(payload.entered_by ?? '').trim() ? payload : { ...payload, entered_by: enteredBy }
+    const res = await insertOrderWithNumberRetry(row, {
       fallbackCategory: activeTab,
       fetchNumber: (category) => fetchNextOrderNumber(category, { silent: true }),
       insert: async (row) => {
@@ -2317,8 +2320,9 @@ export function useOrders({
 
     const { data: genericInserted, error } = await insertOrderRow(
       sanitizeOrderPayloadForDb({
-        ...formData,
+        // emptyOrderMeta PRZED formData — pole WPISAŁ z formularza nie może być kasowane pustym ''
         ...emptyOrderMeta,
+        ...formData,
         category: formData.category || activeTab,
         order_date: formData.order_date || new Date().toLocaleDateString('sv-SE'),
         production_stages: createEmptyProductionStages(activeTab),
