@@ -167,6 +167,8 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
   ipcMain.handle('updater:install', () => {
     // runda 4: o niezapisanych zmianach program pytał już przed instalacją (renderer) — przy zamykaniu bez drugiego pytania
     instalacjaAktualizacji = true
+    // runda 5: gdyby instalator nie ruszył (program się nie zamknął), po 30 s znów pytamy o niezapisane przy zamykaniu
+    setTimeout(() => { instalacjaAktualizacji = false }, 30_000)
     // false = nie czeka na wszystkie okna, true = restartuje
     autoUpdater.quitAndInstall(true, true)  // true = silent (bez okna instalatora), true = restart po instalacji
   })
