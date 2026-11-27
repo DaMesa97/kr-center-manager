@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
 import DataTable, { type DataTableColumn } from '../DataTable'
@@ -63,6 +63,8 @@ export default function WzReklamacyjneView({ warehouses, components, canEdit, pu
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<Form | null>(null)
   const [saving, setSaving] = useState(false)
+  // testy 27.11 (runda 3): blokada przed podwójnym kliknięciem już przed sprawdzeniem stanu (było: dwa WZR, podwójne zdjęcie)
+  const wzrWToku = useRef(false)
   const [q, setQ] = useState('')
   const whName = useCallback((id: number) => warehouses.find((w) => w.id === id)?.name ?? `#${id}`, [warehouses])
 
@@ -213,6 +215,10 @@ export default function WzReklamacyjneView({ warehouses, components, canEdit, pu
           saving={saving}
           onClose={() => setForm(null)}
           onSave={async () => {
+            if (wzrWToku.current) return
+            wzrWToku.current = true
+            setSaving(true)
+            try {
             if (!form.warehouse_id) { pushToast('Wybierz magazyn', 'error'); return }
             const items = form.items.filter((it) => it.component_id > 0 && it.quantity > 0)
             if (items.length === 0) { pushToast('Dodaj co najmniej jedną pozycję (towar i ilość)', 'error'); return }
@@ -256,6 +262,10 @@ export default function WzReklamacyjneView({ warehouses, components, canEdit, pu
                 .eq('id', res.r_id)
                 .maybeSingle()
               if (one) generateWzReklamacyjnyPdf(pdfData(one as unknown as Wzr))
+            }
+            } finally {
+              wzrWToku.current = false
+              setSaving(false)
             }
           }}
         />

@@ -74,6 +74,8 @@ export function useWarehouse({
   const [mmFormOpen, setMmFormOpen] = useState(false)
   const [mmFormData, setMmFormData] = useState<MmFormState>(INITIAL_MM_FORM)
   const [mmSaving, setMmSaving] = useState(false)
+  // testy 27.11 (runda 3): blokada przed podwójnym kliknięciem już przed sprawdzeniem stanu źródła (było: dwa MM)
+  const mmWToku = useRef(false)
   const [doorComponentModal, setDoorComponentModal] = useState<{
     open: boolean
     mode: 'add' | 'edit'
@@ -1640,7 +1642,7 @@ export function useWarehouse({
     }))
   }, [])
 
-  const handleSaveMm = useCallback(async () => {
+  const zapiszMm = useCallback(async () => {
     touchSession()
     if (!mmFormData.warehouse_from_id || !mmFormData.warehouse_to_id) {
       pushToast('Wybierz oba magazyny', 'error')
@@ -1724,6 +1726,18 @@ export function useWarehouse({
       setMmSaving(false)
     }
   }, [mmFormData, warehouseComponents, pushToast, fetchMmGroups, fetchWarehouseStock, fetchOrders, fetchAlertsBadgeCount, touchSession])
+
+  const handleSaveMm = useCallback(async () => {
+    if (mmWToku.current) return
+    mmWToku.current = true
+    setMmSaving(true)
+    try {
+      await zapiszMm()
+    } finally {
+      mmWToku.current = false
+      setMmSaving(false)
+    }
+  }, [zapiszMm])
 
   const handleMmPreview = useCallback((referenceDoc: string) => {
     setDocDetailsModal({ open: true, referenceDoc, movementType: 'MM' })
