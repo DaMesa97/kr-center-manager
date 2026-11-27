@@ -115,80 +115,49 @@ export default function CrmMaileScreen({
     )
   }, [rows, q])
 
+  // v3 (makieta „Maile”, 27.11): kiedy · kierunek · kto i temat (pod spodem jedno zdanie) · co system z tym zrobił
   const columns = useMemo<DataTableColumn<CrmMail>[]>(() => {
     const all: Array<DataTableColumn<CrmMail> & { pelnyOnly?: boolean }> = [
-      { key: 'data', label: 'Data', sortValue: (m) => m.data ?? m.created_at, render: (m) => fmtDateTime(m.data ?? m.created_at) },
+      { key: 'data', label: 'Kiedy', sortValue: (m) => m.data ?? m.created_at, render: (m) => <span className="crm-muted">{fmtDateTime(m.data ?? m.created_at)}</span> },
       {
         key: 'kierunek',
-        label: 'Kierunek',
+        label: '',
+        title: 'Przychodzący (←) / wychodzący (→)',
         sortValue: (m) => m.kierunek ?? '',
-        render: (m) => <span className={`crm-call-dir crm-call-dir--${m.kierunek ?? 'x'}`}>{CRM_MAIL_KIERUNEK[m.kierunek ?? ''] ?? m.kierunek ?? '—'}</span>,
-      },
-      {
-        key: 'kto',
-        label: 'Od / do',
-        sortValue: (m) => (m.kierunek === 'wychodzacy' ? toLabel(m) : fromLabel(m)),
-        render: (m) => <span className="crm-mail-addr">{m.kierunek === 'wychodzacy' ? toLabel(m) : fromLabel(m)}</span>,
+        render: (m) => <span className="crm-ml-kier" title={CRM_MAIL_KIERUNEK[m.kierunek ?? ''] ?? undefined}>{m.kierunek === 'wychodzacy' ? '→' : '←'}</span>,
       },
       {
         key: 'temat',
-        label: 'Temat',
+        label: 'Od / do · temat',
         sortValue: (m) => m.temat ?? '',
         render: (m) => (
-          <button type="button" className="crm-link" onClick={() => onOpenMail(m.id)} title="Otwórz mail">
-            {m.temat || '(bez tematu)'}
-          </button>
+          <span className="crm-of-klient crm-ml-temat">
+            <span>
+              <b>{m.kierunek === 'wychodzacy' ? `do: ${toLabel(m)}` : fromLabel(m)}</b>
+              {' · '}
+              <button type="button" className="crm-link" onClick={() => onOpenMail(m.id)} title="Otwórz mail">{m.temat || '(bez tematu)'}</button>
+              {m.kanal === 'formularz' ? <span className="crm-muted"> · formularz ze strony</span> : null}
+              {m.zalaczniki && m.zalaczniki.length ? <span className="crm-muted"> · załączniki: {m.zalaczniki.length}</span> : null}
+            </span>
+            {m.status_przetwarzania === 'blad' && m.blad ? <span className="crm-kl-late">{m.blad}</span> : m.podsumowanie ? <span className="crm-muted crm-mail-summary" title={m.podsumowanie}>{m.podsumowanie}</span> : null}
+          </span>
         ),
       },
-      // kanał (mail / formularz ze strony) widzi każdy; SPRAWA (wynik AI) tylko tryb pełny (brief pkt 13)
-      { key: 'kanal', label: 'Kanał', sortValue: (m) => m.kanal ?? '', render: (m) => (m.kanal === 'formularz' ? <span className="crm-tag crm-kanal" title="Zgłoszenie z formularza kontaktowego strony">Formularz</span> : <span className="crm-muted">✉️</span>) },
       { key: 'sprawa', label: 'Sprawa', pelnyOnly: true, sortValue: (m) => m.typ ?? '', render: (m) => (m.typ ? <span className="crm-call-typ">{CRM_MAIL_TYP[m.typ] ?? m.typ}</span> : '—') },
       {
-        key: 'status',
-        label: 'Status',
-        sortValue: (m) => m.status_przetwarzania ?? '',
-        render: (m) => <StatusChip status={m.status_przetwarzania} />,
-      },
-      {
-        key: 'klient',
-        label: 'Klient',
+        key: 'efekt',
+        label: 'Co system zrobił',
         sortValue: (m) => leadLabel(m),
-        render: (m) =>
-          m.lead_id ? (
-            <button type="button" className="crm-link" onClick={() => m.lead_id && onOpenLead(m.lead_id)}>
-              {leadLabel(m)}
-            </button>
-          ) : (
-            '—'
-          ),
-      },
-      {
-        key: 'oferta',
-        label: 'Oferta',
-        sortValue: (m) => (m.oferta_id ? 1 : 0),
-        render: (m) =>
-          m.oferta_id ? (
-            <button type="button" className="crm-link" onClick={() => m.oferta_id && onOpenOferta(m.oferta_id)}>
-              otwórz
-            </button>
-          ) : (
-            '—'
-          ),
-      },
-      {
-        key: 'zal',
-        label: null,
-        title: 'Załączniki',
-        align: 'center',
-        sortValue: (m) => m.zalaczniki?.length ?? 0,
-        render: (m) => (m.zalaczniki && m.zalaczniki.length ? m.zalaczniki.length : ''),
-      },
-      {
-        key: 'podsumowanie',
-        label: 'Podsumowanie',
         render: (m) => (
-          <span className="crm-mail-summary" title={m.podsumowanie ?? ''}>
-            {m.status_przetwarzania === 'blad' && m.blad ? <span className="crm-text-bad">{m.blad}</span> : m.podsumowanie || ''}
+          <span className="crm-of-klient">
+            {m.status_przetwarzania === 'nowy' || m.status_przetwarzania === 'blad' ? <span><StatusChip status={m.status_przetwarzania} /></span> : null}
+            {m.lead_id ? (
+              <span>
+                <button type="button" className="crm-link" onClick={() => m.lead_id && onOpenLead(m.lead_id)}>{leadLabel(m)}</button>
+                {m.oferta_id ? <> · <button type="button" className="crm-link" onClick={() => m.oferta_id && onOpenOferta(m.oferta_id)}>oferta</button></> : null}
+              </span>
+            ) : m.status_przetwarzania !== 'nowy' && m.status_przetwarzania !== 'blad' ? <span className="crm-muted">bez klienta</span> : null}
+            {m.nastepna_akcja && CRM_AKCJA[m.nastepna_akcja] ? <span className="crm-muted">zadanie: {CRM_AKCJA[m.nastepna_akcja].label}</span> : null}
           </span>
         ),
       },
@@ -204,11 +173,22 @@ export default function CrmMaileScreen({
     }),
     [rows],
   )
+  const [tylkoBledy, setTylkoBledy] = useState(false)
+  const pokazane = tylkoBledy ? filtered.filter((m) => m.status_przetwarzania === 'blad') : filtered
 
   return (
-    <>
-      <div className="crm-toolbar">
-        <div className="crm-toolbar-group" role="tablist" aria-label="Filtr maili">
+    <div className="crm-dz">
+      <div className="crm-head">
+        <div className="crm-head-tekst">
+          <h2>Maile</h2>
+          <span className="crm-head-sub">
+            System czyta przychodzące i sam zakłada klientów, zadania i oferty
+            {counts.nowy ? ` · ${counts.nowy} czeka na przeczytanie` : ''}
+          </span>
+        </div>
+      </div>
+      <div className="crm-filtry">
+        <div className="crm-seg" role="group" aria-label="Kierunek">
           {(
             [
               ['wszystkie', 'Wszystkie'],
@@ -216,29 +196,26 @@ export default function CrmMaileScreen({
               ['wychodzacy', 'Wychodzące'],
             ] as Array<[Filter, string]>
           ).map(([k, label]) => (
-            <button key={k} type="button" role="tab" aria-selected={filter === k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(k)}>
+            <button key={k} type="button" aria-pressed={filter === k} className={`crm-seg-btn${filter === k ? ' crm-seg-btn--on' : ''}`} onClick={() => setFilter(k)}>
               {label}
             </button>
           ))}
         </div>
-        <input type="search" className="crm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Szukaj: temat, adres, klient…" aria-label="Szukaj w mailach" />
-        <span className="crm-toolbar-hint">
-          {rows.length} {rows.length === 1 ? 'mail' : rows.length < 5 ? 'maile' : 'maili'}
-          {counts.nowy ? ` · ${counts.nowy} czeka na analizę` : ''}
-          {counts.blad ? ` · ${counts.blad} z błędem` : ''}
-          {' '}· maile przychodzące analizuje system i sam tworzy klientów, zadania i oferty.
-        </span>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież listę">
-          Odśwież
-        </button>
+        <input type="search" className="crm-of-szukaj" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Szukaj: temat, adres, klient" aria-label="Szukaj w mailach" />
       </div>
+      {counts.blad > 0 && (
+        <div className="crm-baner crm-baner--late">
+          <span><b>{counts.blad === 1 ? '1 mail z błędem' : `${counts.blad} maile z błędem`}</b> — system go nie przeczytał.</span>
+          <button type="button" className="crm-link" onClick={() => setTylkoBledy((v) => !v)}>{tylkoBledy ? 'Pokaż wszystkie' : 'Pokaż'}</button>
+        </div>
+      )}
       {error && <div className="crm-box crm-box--bad">{error.message}</div>}
       {loading ? (
         <Spinner center label="Ładowanie maili…" />
       ) : (
-        <DataTable rows={filtered} rowKey={(m) => m.id} columns={columns} className="crm-table" emptyText="Brak maili — pojawią się po pierwszym sprawdzeniu skrzynki z włączonym czytaniem Odebranych." />
+        <DataTable rows={pokazane} rowKey={(m) => m.id} columns={columns} className="crm-table" emptyText="Brak maili — pojawią się po pierwszym sprawdzeniu skrzynki z włączonym czytaniem Odebranych." />
       )}
-    </>
+    </div>
   )
 }
 
