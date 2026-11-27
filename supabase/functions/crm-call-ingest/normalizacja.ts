@@ -46,7 +46,11 @@ export function normalizujTelefon(x: unknown): string | null {
   if (!s || /anonym|unknown|private|restricted|zastrze|hidden|withheld/.test(s)) return null
   // testy 27.11 (2. seria): podpis maila z dwoma numerami („601 234 567, 602 345 678”) sklejał się w 18 cyfr —
   // bierzemy pierwszy numer z listy
-  s = s.split(/[,;/]|\s(?:i|lub|or|albo)\s/)[0].trim()
+  // testy 27.11 (runda 3): „/” nie jest już zwykłym separatorem — „32/455 00 00”, „tel./fax 32 455 00 00” dawały null
+  // pierwszy kawałek z co najmniej 7 cyframi — „tel. i fax 32 455 00 00”, „tel., fax: …” nie kończą się na samym „tel.”
+  const kawalki = s.split(/[,;]|\s(?:i|lub|or|albo)\s/)
+  s = (kawalki.find((k) => k.replace(/\D/g, '').length >= 7) ?? kawalki[0]).trim()
+  s = pierwszyPrzedUkosnikiem(s)
   s = s.replace(/[^\d+]/g, '')
   if (s.startsWith('00')) s = '+' + s.slice(2)
   const cyfry = s.replace(/\D/g, '')
@@ -57,6 +61,19 @@ export function normalizujTelefon(x: unknown): string | null {
   if (cyfry.length === 11 && cyfry.startsWith('48')) return '+' + cyfry
   if (cyfry.length === 10 && cyfry.startsWith('0')) return '+48' + cyfry.slice(1)
   return '+' + cyfry
+}
+
+// „/” tnie tylko wtedy, gdy przed nim jest już pełny numer (≥ 9 cyfr): „601 234 567 / 602 345 678” → pierwszy,
+// „32 455 00 00/01” → „32 455 00 00”; przy krótszym początku „/” jest częścią zapisu: „32/455 00 00”, „tel./fax …”.
+// testy 27.11 (runda 3)
+function pierwszyPrzedUkosnikiem(s: string): string {
+  const czesci = s.split('/')
+  let lewa = ''
+  for (let i = 0; i < czesci.length - 1; i++) {
+    lewa = i === 0 ? czesci[0] : `${lewa}/${czesci[i]}`
+    if (lewa.replace(/\D/g, '').length >= 9) return lewa.trim()
+  }
+  return s
 }
 
 function liczba(x: unknown): number {
