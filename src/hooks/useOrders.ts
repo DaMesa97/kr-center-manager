@@ -34,6 +34,7 @@ import {
   bastionFormToOrderFields,
   checkOrderQuantity,
   insertOrderWithNumberRetry,
+  isUncertainWriteError,
   pickChangedFields,
   isStTitanSystemLabel,
   isTitanSystem,
@@ -1081,13 +1082,20 @@ export function useOrders({
         }
         if (response.ok) {
           const today = new Date().toLocaleDateString('sv-SE') // lokalna data
-          const { data: stampRows, error: stampErr } = await supabase
+          const { data: stampRows, error: stampErr, status: stampStatus } = await supabase
             .from('orders')
             .update({ glass_order_date: today })
             .eq('id', order.id)
             .is('glass_order_date', null)
             .select('id')
-          if (stampErr || !stampRows || stampRows.length === 0) {
+          if (stampErr && isUncertainWriteError(stampErr, stampStatus)) {
+            // testy 27.11 (runda 3): brak odpowiedzi ≠ porażka — data mogła się zapisać
+            pushToast(
+              'Szyba zamówiona u szklarza, ale serwer nie potwierdził zapisu daty — NIE wiadomo, czy się zapisała. Nie zamawiaj ponownie: lista się odświeży, sprawdź datę.',
+              'error',
+            )
+            void fetchOrders()
+          } else if (stampErr || !stampRows || stampRows.length === 0) {
             // Webhook POSZEDŁ — bez daty w bazie zamówienie wróci jako
             // "niezamówione" i grozi podwójnym zamówieniem u szklarza
             pushToast(
@@ -1129,36 +1137,48 @@ export function useOrders({
         )
       }
     },
-    [isManager, pushToast, glassAllowances],
+    [isManager, pushToast, glassAllowances, fetchOrders],
   )
 
   // Stempel „szyba zamówiona” BEZ webhooka — po zbiorczym PDF dla szklarza
   // (PDF jest zamówieniem; webhook per zamówienie zamawiałby drugi raz).
   // Jeden UPDATE na wszystkie zamówienia + partnerów Disting Plus.
+  // testy 27.11 (runda 3): zwraca id rekordów, którym data faktycznie się zapisała
+  // (PDF powstaje tylko z nich, nie z całego zaznaczenia). Brak odpowiedzi serwera
+  // (504/timeout/zerwane połączenie) = „nie wiadomo, czy się zapisało” — odświeżamy
+  // listę zamiast zachęcać do drugiego kliknięcia (podwójne zamówienie u szklarza).
   const stampGlassOrdered = useCallback(
-    async (toStamp: Order[]): Promise<boolean> => {
+    async (toStamp: Order[]): Promise<number[]> => {
       const ids = new Set<number>()
       for (const o of toStamp) {
         if (o.id !== undefined) ids.add(o.id)
         if (o.linked_order_id != null) ids.add(o.linked_order_id)
       }
-      if (ids.size === 0) return true
+      if (ids.size === 0) return []
       const today = new Date().toLocaleDateString('sv-SE') // lokalna data (UTC dawało wczoraj po północy)
-      const { data, error } = await supabase
+      const { data, error, status } = await supabase
         .from('orders')
         .update({ glass_order_date: today })
         .in('id', Array.from(ids))
         .is('glass_order_date', null)
         .select('id')
       if (error) {
+        if (isUncertainWriteError(error, status)) {
+          pushToast(
+            'Serwer nie odpowiedział — NIE wiadomo, czy data zamówienia szyb się zapisała. PDF NIE został wygenerowany. Lista się odświeży: sprawdź kolumnę daty, zanim klikniesz ponownie.',
+            'error',
+          )
+          void fetchOrders()
+          return []
+        }
         pushToast(`Nie zapisano daty zamówienia szyb: ${error.message}. PDF NIE został wygenerowany — spróbuj ponownie.`, 'error')
-        return false
+        return []
       }
       const stamped = new Set((data ?? []).map((r: { id: number }) => r.id))
       if (stamped.size === 0) {
         // RLS (brak uprawnień do zmiany zamówień) albo ktoś właśnie ostemplował — nie udawaj sukcesu
         pushToast('Nie oznaczono żadnego zamówienia (brak uprawnień albo już oznaczone przez kogoś innego). PDF NIE został wygenerowany.', 'error')
-        return false
+        return []
       }
       setOrders((prev) => prev.map((o) => (o.id !== undefined && stamped.has(o.id) ? { ...o, glass_order_date: today } : o)))
       const skipped = ids.size - stamped.size
@@ -1166,9 +1186,9 @@ export function useOrders({
         `Oznaczono ${stamped.size} rekordów jako „szyba zamówiona” (${today})${skipped > 0 ? ` — ${skipped} pominięto (już oznaczone)` : ''}`,
         'success',
       )
-      return true
+      return Array.from(stamped)
     },
-    [pushToast],
+    [pushToast, fetchOrders],
   )
 
   // #23 — Disting Plus (STA↔Disting) oraz Titan (STA↔ST): edycja jednego rekordu

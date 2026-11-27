@@ -55,7 +55,8 @@ type GlassViewProps = {
   glassAllowances: GlassAllowance[]
   onSendGlassOrder: (order: Order) => void | Promise<void>
   /** Stempel daty zamówienia szyby bez wysyłki do Make (po zbiorczym PDF) */
-  onStampGlassOrdered: (orders: Order[]) => Promise<boolean>
+  /** Zwraca id rekordów, którym data zamówienia faktycznie się zapisała */
+  onStampGlassOrdered: (orders: Order[]) => Promise<number[]>
   onGlassReceived: (orderId: number) => void | Promise<void>
   tableWrapperRef: RefObject<HTMLDivElement>
 }
@@ -117,8 +118,21 @@ export default function GlassView({
     if (!ok) return
     setGenerating(true)
     try {
-      // PDF to już zamówienie u szklarza — tylko stempel daty, bez webhooka
-      if (await onStampGlassOrdered(pendingOrders)) generateGlassOrderPdf(lines)
+      // PDF to już zamówienie u szklarza — tylko stempel daty, bez webhooka.
+      // testy 27.11 (runda 3): PDF tylko z zamówień, którym data FAKTYCZNIE się zapisała
+      // (id zwrócone z zapisu) — nie z całego zaznaczenia (oznaczone w międzyczasie
+      // przez kogoś innego trafiałyby do szklarza drugi raz)
+      const stampedIds = new Set(await onStampGlassOrdered(pendingOrders))
+      const stampedOrders = pendingOrders.filter((o) => o.id !== undefined && stampedIds.has(o.id))
+      if (stampedOrders.length > 0) {
+        generateGlassOrderPdf(stampedOrders.flatMap((o) => glassLinesFor(o, activeTab, glassAllowances)))
+        const skipped = pendingOrders.length - stampedOrders.length
+        if (skipped > 0) {
+          void appAlert(
+            `PDF zawiera ${stampedOrders.length} z ${pendingOrders.length} zamówień. Pominięto ${skipped} — ktoś oznaczył je w międzyczasie jako zamówione (albo zapis daty się nie udał).`,
+          )
+        }
+      }
     } finally {
       setGenerating(false)
     }

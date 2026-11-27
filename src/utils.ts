@@ -1592,6 +1592,23 @@ export function quantityFromInput(v: string): number | string {
   return Number.isFinite(n) ? n : t
 }
 
+/**
+ * testy 27.11 (runda 3): błąd zapisu, po którym NIE wiadomo, czy serwer zapisał zmianę
+ * (504/502/503/408, brak statusu, timeout, zerwane połączenie). Taki wynik pokazujemy
+ * jako „odśwież i sprawdź”, nie jako porażkę — ponowny klik mógłby zdublować operację.
+ */
+export function isUncertainWriteError(
+  error: { message?: string; code?: string } | null | undefined,
+  status?: number | null,
+): boolean {
+  if (!error) return false
+  if (status === 0 || status === 408 || status === 502 || status === 503 || status === 504 || (status != null && status >= 520 && status <= 524)) {
+    return true
+  }
+  const msg = `${error.message ?? ''} ${error.code ?? ''}`
+  return /timeout|timed out|Failed to fetch|NetworkError|Load failed|fetch failed|network request failed|AbortError|ERR_INTERNET_DISCONNECTED|Gateway/i.test(msg)
+}
+
 export const ORDER_NUMBER_UNIQUE_INDEX = 'orders_unique_number_per_category_new'
 
 type InsertErr = { message: string; code?: string }
