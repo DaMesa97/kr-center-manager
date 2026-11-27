@@ -62,6 +62,11 @@ const OFERTA_LIST_COLS =
 
 type Result<T> = { data: T; error: CrmError | null }
 
+/** Oferty do sprawdzenia bez tych, których klient ma już wynik (zamówił / przegrał) — tam nie ma czego wysyłać. */
+export function bezZamknietychKlientow<T extends { lead?: { status?: string | null } | null }>(rows: T[]): T[] {
+  return rows.filter((o) => o.lead?.status !== 'wygrany' && o.lead?.status !== 'przegrany')
+}
+
 export async function fetchOferty(onlyOpen: boolean): Promise<Result<CrmOferta[]>> {
   let q = crm()
     .from('oferty')
@@ -70,7 +75,9 @@ export async function fetchOferty(onlyOpen: boolean): Promise<Result<CrmOferta[]
     .limit(300)
   if (onlyOpen) q = q.in('status', [...CRM_OPEN_STATUSES])
   const { data, error } = await q
-  return { data: (data ?? []) as unknown as CrmOferta[], error: crmErrorFrom(error) }
+  const rows = (data ?? []) as unknown as CrmOferta[]
+  // 27.11 (Tymek): „Do sprawdzenia” bez ofert klientów, którzy już zamówili albo przegrali — robił się śmietnik
+  return { data: onlyOpen ? bezZamknietychKlientow(rows) : rows, error: crmErrorFrom(error) }
 }
 
 export async function fetchOferta(id: string): Promise<Result<CrmOferta | null>> {
