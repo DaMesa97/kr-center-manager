@@ -192,8 +192,6 @@ export function deskSpec(order: Order): { system: string; color: string; size: s
   }
 }
 
-export const PERSONAL_PICKUP = PERSONAL_PICKUP_ROUTE
-
 // ── lista do druku ───────────────────────────────────────────────────
 export type PrintRow = { nr: string; cat: string; model: string; spec: string; qty: number; client: string; ro: string; noRo: boolean }
 export type PrintFirm = { name: string; rows: PrintRow[] }

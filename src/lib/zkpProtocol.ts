@@ -4,7 +4,7 @@
 // wstrzymany, numeracja deklaracji) pilnuje baza: migrate/zkp_07_protokol_deklaracje.sql.
 // Tu typy, treść sprawdzeń z załącznika i pomocnicze do formularza / wydruku.
 // =====================================================================
-import type { ZkpProductCard, ZkpRange } from './zkpCard'
+import type { ZkpProductCard } from './zkpCard'
 
 export type ZkpCheckResult = 'OK' | 'NOK' | 'nd'
 
@@ -286,9 +286,4 @@ export function fireClassLabel(range: string): string {
 }
 export function smokeLabel(range: string): string {
   return range.endsWith('S') ? 'S200 / Sa4' : '—'
-}
-
-/** Limity tabeli K do protokołu — krótki opis zakresu (nagłówek wydruku). */
-export function rangeShort(r: ZkpRange | null | undefined): string {
-  return r ? `${r.code} — ${r.label} (${r.report})` : '—'
 }

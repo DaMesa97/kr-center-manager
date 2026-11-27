@@ -25,9 +25,6 @@ export const OPTIMA_IMPORT_NOTE_PREFIX = 'Import z kartotek Optimy'
 /** warehouse_components.category, którą import kartotek nadaje komponentom drzwi wewnętrznych */
 export const INTERNAL_DOOR_GROUP = 'DRZWI WEWNĘTRZNE'
 
-/** Kategorie komponentów drzwi wewnętrznych (product_category LIKE 'door_%'). */
-export const DOOR_CATEGORIES = ['door_wing', 'door_frame', 'door_handle', 'door_hinge_cover', 'door_accessory'] as const
-
 /** product_category drzwi wewnętrznych — także door_accessory (zamki, wkładki…) i każda przyszła door_*. */
 export function isDoorCategory(category: string | null | undefined): boolean {
   return String(category ?? '').startsWith('door_')

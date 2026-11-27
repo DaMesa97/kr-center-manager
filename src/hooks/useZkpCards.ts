@@ -342,6 +342,4 @@ export function useZkpDeclarations(pushToast: Toast, active: boolean) {
   }
 }
 
-export type ZkpDeclarationsApi = ReturnType<typeof useZkpDeclarations>
-
 export type ZkpCardApi = ReturnType<typeof useZkpCard>

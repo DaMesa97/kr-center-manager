@@ -172,15 +172,6 @@ export const PRODUCT_CATEGORY_LABELS: Record<string, string> = {
   door_accessory: 'Akcesorium drzwi wewn.',
 }
 
-export const PRODUCT_CATEGORY_FILTER_LABELS: Record<string, string> = {
-  raw: 'Surowce',
-  door_wing: 'Skrzydła wewnętrzne',
-  door_frame: 'Ościeżnice wewnętrzne',
-  door_handle: 'Klamki',
-  door_hinge_cover: 'Osłonki na zawias',
-  door_accessory: 'Akcesoria (zamki, wkładki, skrócenia)',
-}
-
 export const INITIAL_PZ_FORM: PzFormState = {
   warehouse_id: null,
   reference_doc: '',
@@ -703,8 +694,6 @@ export const PURCHASE_ORDER_ITEM_STATUS_LABELS: Record<string, string> = {
 // ── ALUMINIUM ────────────────────────────────────────────────────────
 // Etapy per POZYCJA (konstrukcja) LP — kolejność liniowa (każdy wymaga poprzedniego)
 export const ALU_CATEGORY = 'Aluminium' as const
-/** Nazwa zakładki (w bazie kategoria 'Aluminium' — bez spacji/ogonków, jak DrzwiWewnetrzne) */
-export const ALU_TAB_LABEL = 'Stolarka aluminiowa'
 // Kolejność i nazwy ZGODNE Z ZKP AS 75EI (zał. 6.25 / instrukcje stanowiskowe,
 // decyzja Tymka 4.11.2026): IS-01 cięcie → IS-03 łączenie/składanie → IS-04 okucia
 // → IS-05 szklenie → pakowanie. Lustro w bazie: alu_stage_keys() / alu_stage_name()

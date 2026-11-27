@@ -159,14 +159,6 @@ export function opisWyniku(l: { status: string | null; wynik_powod?: string | nu
   return ''
 }
 
-/** Klasa plakietki statusu klienta (te same kolory co statusy ofert). */
-export const LEAD_STATUS_CLS: Record<string, string> = {
-  nowy: 'crm-status--muted',
-  oferta: 'crm-status--working',
-  wygrany: 'crm-status--won',
-  przegrany: 'crm-status--lost',
-}
-
 /**
  * Przeciągnięcie karty w lejku (Kontakty): co znaczy przejście z kolumny `z` do `do`.
  * - do „Zamówił” → 'wygrany' (z potwierdzeniem), do „Przegrany” → 'przegrany' (okno z powodem),

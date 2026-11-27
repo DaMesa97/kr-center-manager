@@ -271,16 +271,6 @@ export type InternalDoorItem = {
   component_is_stocked?: boolean | null
 }
 
-/** optima_kit_parts — rozbicie kodu kompletu z Optimy na części magazynu (np. „MALEO 06 … Z SYSTEMEM PRZESUWNYM”
- *  = skrzydło przesuwne sort 1 + SYSTEM PRZESUWNY sort 2). Rozbija triggery bazy na order_internal_door_items:
- *  sort 1 podmienia komponent pozycji z RO, sort > 1 to osobne pozycje „Część kompletu <kod>” z tym samym optima_element_id. */
-export type OptimaKitPart = {
-  optima_code: string
-  component_id: number
-  qty: number
-  sort: number
-}
-
 export type ProfileDepartment = 'all' | 'bastion' | 'stalowe' | 'magazyn'
 
 export type DbProfileRow = {
@@ -1487,5 +1477,3 @@ export type OrderShipment = {
   created_at: string
   updated_at: string
 }
-
-export type OrderShipmentOrder = { shipment_id: number; order_id: number }

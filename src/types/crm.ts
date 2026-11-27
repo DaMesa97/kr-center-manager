@@ -364,12 +364,6 @@ export const CRM_KANAL: Record<string, { label: string; icon: string }> = {
   polecenie: { label: 'Polecenie', icon: '' },
   inne: { label: 'Inne', icon: '•' },
 }
-/** maile.kanal: mail zwykły albo zgłoszenie z formularza kontaktowego strony (Contact Form 7) */
-export const CRM_MAIL_KANAL: Record<string, string> = {
-  mail: 'Mail',
-  formularz: 'Formularz ze strony',
-}
-
 export const CRM_DOSTAWA_LABEL: Record<string, string> = {
   kurier: 'dostawa kurierem',
   odbior_osobisty: 'odbiór osobisty',
