@@ -443,29 +443,11 @@ export function staDistingPlusMirrorTitle(stageColKey: string): string {
   return ''
 }
 
-export function staTitanMirrorStorageKey(stageColKey: string): 'e1' | 'e2' | null {
-  if (stageColKey === 'e1') return 'e1'
-  if (stageColKey === 'e2_1') return 'e2'
-  return null
-}
-
-export function staTitanMirrorTitle(stageColKey: string): string {
-  if (stageColKey === 'e1') return 'Etap z arkusza ST (E1 — ościeżnica)'
-  if (stageColKey === 'e2_1') return 'Etap z arkusza ST (E2 — skrzydło odebrane)'
-  return ''
-}
-
 export function distingPlusMirrorTitle(stageColKey: string): string {
   if (stageColKey === 'e3') return 'Etap z arkusza STA (E3)'
   if (stageColKey === 'e4') return 'Etap z arkusza STA (E4)'
   if (stageColKey === 'e5') return 'Etap z arkusza STA (E5)'
   return ''
-}
-
-export function orderAddonAbsentForE22Lock(value: unknown): boolean {
-  if (value == null) return true
-  const s = String(value).trim()
-  return s === '' || s.toUpperCase() === 'NIE'
 }
 
 export function isE22StageLockedNoAddons(order: Order): boolean {
@@ -506,14 +488,6 @@ export function productionStagesFromLegacyStageFormFields(
     e4: fields.stage4 ?? '',
     e5: fields.stage5 ?? '',
   }
-}
-
-export function formatTodayDDMMYYYY(): string {
-  const d = new Date()
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const yyyy = d.getFullYear()
-  return `${dd}.${mm}.${yyyy}`
 }
 
 export function isReleaseDateEmpty(value: string | null | undefined): boolean {
@@ -1101,59 +1075,6 @@ export function productionDaySortValue(day: string | null | undefined): number |
   return PRODUCTION_DAY_WEEKDAY[day.toUpperCase().trim()] ?? null
 }
 
-/**
- * Zwraca docelową datę produkcji dla zamówienia:
- * pierwsza data >= order_date w której wypada production_day.
- * Jeśli production_day pokrywa się z dniem order_date — zwraca order_date.
- */
-export function getOrderTargetProductionDate(
-  orderDate: string | null | undefined,
-  productionDay: string | null | undefined,
-): Date | null {
-  if (!orderDate || !productionDay) return null
-  const targetWeekday = PRODUCTION_DAY_WEEKDAY[productionDay.toUpperCase().trim()]
-  if (targetWeekday === undefined) return null
-
-  const base = new Date(orderDate)
-  if (isNaN(base.getTime())) return null
-  base.setHours(0, 0, 0, 0)
-
-  // getDay(): 0=niedziela … 6=sobota → przelicz na 1=pon … 7=niedz
-  const baseWeekday = base.getDay() === 0 ? 7 : base.getDay()
-  let daysToAdd = targetWeekday - baseWeekday
-  if (daysToAdd < 0) daysToAdd += 7   // cofnij do następnego tygodnia
-
-  const target = new Date(base)
-  target.setDate(base.getDate() + daysToAdd)
-  return target
-}
-
-/**
- * Zwraca true gdy zamówienie jest przeterminowane:
- * jego docelowa data produkcji minęła, a zamówienie nie zostało jeszcze wydane.
- */
-export function isOrderOverdue(order: {
-  order_date?: string | null
-  production_day?: string | null
-  release_date?: string | null
-  extra_fields?: unknown
-}): boolean {
-  const extra = order.extra_fields as Record<string, unknown> | null
-  if (extra?.cancelled === true) return false
-  if (order.release_date && !isReleaseDateEmpty(order.release_date)) return false
-
-  const target = getOrderTargetProductionDate(order.order_date, order.production_day)
-  if (!target) return false
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  return target < today
-}
-
-/**
- * Liczba dni, które upłynęły od daty złożenia zamówienia (order_date).
- */
 /** Dni ROBOCZE (pn–pt) w przedziale (start, end] — bez sobót i niedziel.
  *  Świąt nie znamy (brak kalendarza) — przy progach terminów to margines
  *  na korzyść produkcji. */
