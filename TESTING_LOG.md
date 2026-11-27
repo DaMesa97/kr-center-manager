@@ -67,10 +67,41 @@ Po każdej poprawce: `tsc` OK, testy modułu OK.
 **Podsumowanie rundy 1:** znalezisk ok. 70 (krytyczne 8, wysokie ok. 25, średnie ok. 20, niskie ok. 15); poprawione 12 (w tym 9 regresji z dzisiejszych poprawek).
 
 
+## Runda 2 (27.11, ok. 22:30–23:30) — poprawki znalezisk z rundy 1, które nie wymagają decyzji
+
+Zmiany bazy sprawdzane w transakcjach cofanych na końcu (wynik w komunikacie wyjątku), zapisane jako pliki migracji i **niewgrane**. Funkcje Edge poprawione w repo i **niewgrane** (na serwerze zostają obecne wersje).
+
+| # | Waga | Rola / obszar | Problem | Poprawka | Wdrożenie | Commit |
+|---|---|---|---|---|---|---|
+| 13 | ŚREDNI | Reklamacje | pole Szukaj i „Ukryj wydane” nad listą reklamacji nic nie robiły | filtr po numerze, zleceniu, firmie, powodzie, modelu; „Ukryj wydane” chowa zrealizowane (zmiana widoku domyślnego: zrealizowane schowane, jak przy zleceniach) | aplikacja | fdb11bb |
+| 14 | WYSOKI | Magazyn | WZ reklamacyjny nie podpinał reklamacji Disting Plus („kilka pasuje”) | para wzajemnie połączona → wiersz STA | aplikacja | 9230e24 |
+| 15 | KRYTYCZNY | Reklamacje | synchronizacja z Excelem kasowała etapy reklamacji kliknięte w programie | scalanie: Excel uzupełnia, program wygrywa | migracja `20261127223000_reklamacje_excel_scalanie_etapow.sql` | 4b4f1eb |
+| 16 | KRYTYCZNY | CRM | łączenie klientów padało na etykietach z jednej grupy, gubiło zamówienia sklepowe i dane firmy | etykieta celu wygrywa w grupie „jedna na grupę”; `zamowienia_sklep` i NIP/firma przechodzą | migracja `20261127224000_crm_polacz_leady_etykiety_zamowienia_firma.sql` | 9b57535 |
+| 17 | WYSOKI | CRM | nocne porządki zamykały jako przegranego klienta z zadaniem w przyszłości | pomija klientów z zadaniem na dziś lub później | migracja `20261127225000_crm_porzadki_bez_przyszlych_zadan.sql` | 1e362ef |
+| 18 | WYSOKI | Produkcja | cofnięcie etapu na wydanym zleceniu zostawiało rezerwację na zawsze | odmowa P0409 „najpierw cofnij wydanie” | migracja `20261127230000_cofanie_etapu_na_wydanym.sql` | c4f5daa |
+| 19 | ŚREDNI | Zaopatrzenie | ZD anulowane po częściowym przyjęciu miało status „Anulowane” | pozycje z przyjęciem i ZD → „completed” | migracja `20261127231000_zd_anulowanie_po_czesciowym_przyjeciu.sql` | 29f7662 |
+| 20 | KRYTYCZNY | CRM | umowa z oferty z pozycjami po 0 zł; numer umowy zużywany przy nieudanej próbie; druga umowa z tej samej oferty = nowy numer | odmowa przy 0 zł (poza gratis), braki klienta przed numerem, ten sam numer dla tej samej oferty | Edge `crm-dokumenty` (repo) | 16de60e |
+| 21 | ŚREDNI | CRM | przycisk „Umowa” aktywny dla oferty z cenami 0 zł | blokada z podpowiedzią, test | aplikacja | 72c3a22 |
+| 22 | KRYTYCZNY | CRM | mail od klienta, który już dzwonił (numer w podpisie), zakładał drugiego klienta; sklejone numery z podpisu | dopięcie do klienta z tym numerem (+ adres do `inne_kontakty`); z kilku numerów pierwszy, > 15 cyfr odrzucane | Edge `crm-call-ingest` (repo) | f4d77d1 |
+| 23 | KRYTYCZNY | Wejście zleceń | „ANULOWANE” w kolumnie etapu Excela nie anulowało zlecenia (65 rezerwacji) | wiersz idzie jako „ANULOWANE (kolumna …)” → lista „Anulowane w Excelu” w Weryfikacji | Edge `excel-sync` (repo) | 7409ce5 |
+
+Stan po rundzie: `tsc` OK, **648 testów** OK, lint 66 problemów (bez zmian względem startu — wszystkie stare).
+
+**Podsumowanie rundy 2:** poprawione 11 (krytyczne 5, wysokie 3, średnie 3). Nowych znalezisk w tej rundzie: 0 (runda poprawek). Zostają znaleziska z rundy 1 wymagające decyzji (sekcja „Do decyzji”) i większe tematy.
+
 ## Do decyzji
 1. **Gdzie testować z zapisem danych.** Opcje: (a) gałąź Supabase (osobna baza, płatna godzinowo; dane trzeba zasiać skryptem seed), (b) zostać przy trybie bezpiecznym na produkcji (bez seeda i czyszczenia), (c) lokalny Supabase w Dockerze (Docker nie działa na tym komputerze). Koszt gałęzi wg Supabase: **0,01344 USD za godzinę** (ok. 0,32 USD na dobę); projekt nie ma dziś żadnej gałęzi. Gałąź startuje pusta (schemat z historii migracji, bez danych i bez funkcji Edge), więc potrzebny skrypt seed. Rekomendacja: (a) na czas sesji, potem usunąć gałąź.
 
 ## Migracje do wdrożenia na produkcję
 1. ✅ już wgrane (regresja): `supabase/migrations/20261127221000_crm_bez_decyzji_po_wyniku_v2.sql`
 2. ✅ już wgrane (regresja): funkcja Edge `crm-mail-sent` v18 (kod w repo)
+3. ⏳ `supabase/migrations/20261127223000_reklamacje_excel_scalanie_etapow.sql` — scalanie etapów reklamacji z Excelem
+4. ⏳ `supabase/migrations/20261127224000_crm_polacz_leady_etykiety_zamowienia_firma.sql` — łączenie klientów CRM
+5. ⏳ `supabase/migrations/20261127225000_crm_porzadki_bez_przyszlych_zadan.sql` — nocne porządki CRM
+6. ⏳ `supabase/migrations/20261127230000_cofanie_etapu_na_wydanym.sql` — cofanie etapu na wydanym zleceniu
+7. ⏳ `supabase/migrations/20261127231000_zd_anulowanie_po_czesciowym_przyjeciu.sql` — anulowanie ZD po częściowym przyjęciu
+8. ⏳ funkcja Edge `crm-dokumenty` (repo) — umowy: 0 zł, numer po sprawdzeniu braków
+9. ⏳ funkcja Edge `crm-call-ingest` (repo) — mail do klienta po numerze z podpisu, sklejone numery (po wgraniu skopiować też do OneDrive `supabase/functions/crm-call-ingest`)
+10. ⏳ funkcja Edge `excel-sync` (repo) — ANULOWANE w kolumnie etapu (przed wgraniem porównać repo z wersją v16 na serwerze)
+Kolejność dowolna (zmiany niezależne); 3–7 to podmiany pojedynczych funkcji z kontrolą „już poprawione”.
 (migracje z 27.11 przed sesją są wgrane, lista w `TESTY_AGENTOW_27-11.md`, część 7)
