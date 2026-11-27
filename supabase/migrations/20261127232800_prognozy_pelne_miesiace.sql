@@ -8,13 +8,15 @@
 -- get_component_consumption_history (i za nią prognoza):
 --   c) „za mało danych” zależało od liczby ruchów WZ (< 3) — 169 wydań w jednym miesiącu dawało „wystarczających danych”;
 --   → teraz: mniej niż 3 pełne miesiące historii komponentu = za mało danych. Pełne miesiące liczone od miesiąca
---     pierwszego ruchu komponentu (dowolnego typu) do poprzedniego miesiąca włącznie.
+--     PO miesiącu pierwszego ruchu komponentu (dowolnego typu) — chyba że pierwszy ruch był 1. dnia miesiąca, wtedy
+--     od tego miesiąca — do poprzedniego miesiąca włącznie (miesiąc pierwszego ruchu jest zwykle niepełny).
 --   Odcinanie wydań odstających (> 3 × mediana) zostaje jak było (zależne od liczby WZ). Wiersze historii (wykres)
 --   bez zmian — nadal z bieżącym miesiącem.
 -- Przykład: komponent 470 (październik 10 szt., listopad 2330) — było baseline 910/mies. i „wystarczających danych”,
--- teraz 1 pełny miesiąc → „za mało danych”. 27.11 cała historia magazynu zaczyna się 4.09.2026, więc do końca
--- grudnia żaden komponent nie ma 3 pełnych miesięcy (status zmienia się z „wystarczających” na „za mało” — liczba
--- w raporcie naprawy).
+-- teraz 0 pełnych miesięcy → „za mało danych”. 27.11 cała historia magazynu zaczyna się 4.09.2026 (36 komponentów
+-- ma pierwszy ruch 4–15.09, żaden 1. dnia miesiąca), więc pierwszy pełny miesiąc to październik: do końca grudnia
+-- żaden komponent nie ma 3 pełnych miesięcy, od stycznia 2027 te 36 je ma (październik–grudzień).
+-- Poprawka (testy 27.11, runda 3; próba generalna): wcześniej niepełny wrzesień liczył się jak pełny.
 -- DO WDROŻENIA (nie wgrane w sesji).
 
 create or replace function public.get_component_consumption_history(p_component_id bigint, p_months integer default 12)
@@ -27,6 +29,7 @@ declare
   v_wz_count integer;
   v_wz_median numeric;
   v_wz_threshold numeric;
+  v_first_ts timestamptz;
   v_first_month date;
   v_full_months integer;
   v_insufficient boolean;
@@ -38,9 +41,15 @@ begin
     and movement_type = 'WZ';
 
   -- testy 27.11 (runda 3): „za mało danych” = mniej niż 3 pełne miesiące historii komponentu
-  select date_trunc('month', min(created_at))::date into v_first_month
+  select min(created_at) into v_first_ts
   from warehouse_movements where component_id = p_component_id;
-  v_full_months := case when v_first_month is null then 0
+  -- pierwszy PEŁNY miesiąc: miesiąc po pierwszym ruchu, chyba że ruch był 1. dnia (testy 27.11, runda 3)
+  v_first_month := case
+    when v_first_ts is null then null
+    when extract(day from v_first_ts) = 1 then date_trunc('month', v_first_ts)::date
+    else (date_trunc('month', v_first_ts) + interval '1 month')::date
+  end;
+  v_full_months := case when v_first_month is null or v_first_month >= date_trunc('month', now())::date then 0
     else (extract(year from age(date_trunc('month', now())::date, v_first_month)) * 12
           + extract(month from age(date_trunc('month', now())::date, v_first_month)))::integer end;
   v_insufficient := v_full_months < 3;
@@ -109,6 +118,7 @@ declare
   v_insufficient boolean := false;
   v_sum numeric := 0;
   v_cur date := date_trunc('month', now())::date;
+  v_first_ts timestamptz;
   v_first_month date;
   v_target_date date;
   v_target_month integer;
@@ -116,9 +126,15 @@ declare
   v_factor numeric;
   v_i integer;
 begin
-  -- testy 27.11 (runda 3): tylko pełne miesiące (bez bieżącego), także zerowe, od pierwszego ruchu komponentu
-  select date_trunc('month', min(created_at))::date into v_first_month
+  -- testy 27.11 (runda 3): tylko pełne miesiące (bez bieżącego), także zerowe, od pierwszego pełnego miesiąca
+  select min(created_at) into v_first_ts
   from warehouse_movements where component_id = p_component_id;
+  -- pierwszy PEŁNY miesiąc: miesiąc po pierwszym ruchu, chyba że ruch był 1. dnia (testy 27.11, runda 3)
+  v_first_month := case
+    when v_first_ts is null then null
+    when extract(day from v_first_ts) = 1 then date_trunc('month', v_first_ts)::date
+    else (date_trunc('month', v_first_ts) + interval '1 month')::date
+  end;
 
   select coalesce(avg(greatest(h.r_net_consumption, 0)), 0), count(*)::integer,
          coalesce(sum(greatest(h.r_net_consumption, 0)), 0), coalesce(bool_or(h.r_insufficient_data), true)
