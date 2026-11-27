@@ -1782,6 +1782,9 @@ function App() {
   // otwarte, nieanulowane, ościeżnica z flagą partii, jeszcze bez partii (niezależnie od filtrów tabeli)
   // 27.11 (testy): lista ma tylko niewydane, a partia może mieć zlecenia już wydane — dociągamy je po id
   const [bastionBatchExtra, setBastionBatchExtra] = useState<Order[]>([])
+  // recenzent (runda 3): „Ukryj wydane” w Reklamacjach przeładowywało całą historię zleceń kategorii —
+  // reklamacje mają własny przełącznik (domyślnie zrealizowane schowane), bez ładowania zleceń
+  const [ukryjZrealizowaneRekl, setUkryjZrealizowaneRekl] = useState(true)
   // id już raz pobierane (także nieznalezione, np. w archiwum) — bez ponawiania przy każdej zmianie listy z realtime
   const bastionProbowaneRef = useRef<Set<number>>(new Set())
   useEffect(() => {
@@ -1835,14 +1838,14 @@ function App() {
         c.extra_fields !== null &&
         (c.extra_fields as Record<string, unknown>).cancelled === true
       if (!showCancelledOrders && isCancelled) return false
-      if (hideCompletedOrders && !isReleaseDateEmpty((c as { release_date?: string | null }).release_date ?? null)) return false
+      if (ukryjZrealizowaneRekl && !isReleaseDateEmpty((c as { release_date?: string | null }).release_date ?? null)) return false
       if (terms.length) {
         const hay = [c.complaint_number, c.order_number, c.company, c.reason, c.what_complained, c.model].map((v) => String(v ?? '').toLowerCase()).join(' | ')
         if (!terms.every((t) => hay.includes(t))) return false
       }
       return true
     })
-  }, [complaints, showCancelledOrders, hideCompletedOrders, searchTerm])
+  }, [complaints, showCancelledOrders, ukryjZrealizowaneRekl, searchTerm])
 
   const ordersForComplaintSelect = useMemo(() => {
     type Opt = {
@@ -3899,7 +3902,7 @@ function App() {
             <OrdersFilters
               searchTerm={searchInput}
               selectedProductionDay={selectedProductionDay}
-              hideCompletedOrders={hideCompletedOrders}
+              hideCompletedOrders={activeSubTab === 'Reklamacje' ? ukryjZrealizowaneRekl : hideCompletedOrders}
               showCancelledOrders={showCancelledOrders}
               sourceFilter={sourceFilter}
               sourceFilterCounts={sourceFilterCounts}
@@ -3912,7 +3915,7 @@ function App() {
               onSearchChange={handleSearchInputChange}
               onSearchCommit={commitSearch}
               onDayChange={(v) => startFilterTransition(() => setSelectedProductionDay(v))}
-              onHideCompletedChange={(v) => startFilterTransition(() => setHideCompletedOrders(v))}
+              onHideCompletedChange={(v) => startFilterTransition(() => (activeSubTab === 'Reklamacje' ? setUkryjZrealizowaneRekl(v) : setHideCompletedOrders(v)))}
               onShowCancelledChange={(v) => startFilterTransition(() => setShowCancelledOrders(v))}
               onSourceFilterChange={(v) => startFilterTransition(() => setSourceFilter(v))}
               onWykonawcaFilterChange={(v) => startFilterTransition(() => setWykonawcaFilter(v))}
