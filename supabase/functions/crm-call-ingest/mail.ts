@@ -22,6 +22,8 @@ type Lead = {
   status: string; kategoria: string | null; podsumowanie: string | null; nastepna_akcja: string | null; nastepny_krok: string | null
 }
 const POLA_LEADA = 'id, telefon, email, nazwa, miejscowosc, status, kategoria, podsumowanie, nastepna_akcja, nastepny_krok'
+// nasze domeny — te same, które pomija crm.znajdz_leada (testy 27.11, runda 3)
+const WLASNE_DOMENY = ['podrzwi.pl', 'krcenter.pl', 'mrprofil.pl']
 
 export async function przetworzMailAkcja(db: SupabaseClient, mailId: string) {
   if (!mailId) return { ok: false, blad: 'Brak mail_id' }
@@ -113,29 +115,31 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
   const sprzedazowa = a.typ === 'zapytanie' || a.typ === 'klient'
   if (sprzedazowa || a.typ === 'reklamacja') {
     // testy 27.11 (2. seria, KRYTYCZNY): nieznany adres, ale numer z podpisu maila należy do klienta, który już dzwonił —
-    // mail trafia do tego klienta (adres dopisany do inne_kontakty), zamiast zakładać drugiego (3 takie pary w 7 dni)
+    // mail trafia do tego klienta, zamiast zakładać drugiego (3 takie pary w 7 dni)
+    // testy 27.11 (runda 3): (a) nie dla maili z naszych domen (nasz podpis = nasz numer, jak w crm.znajdz_leada);
+    // (b) adresu nie dopisujemy trwale do inne_kontakty — samo dopasowanie po numerze jest niepewne, zostaje zdarzenie
+    // „dopasowano … — sprawdź”; (c) klientowi wygranemu/przegranemu nie nadpisujemy podsumowania ani zadania
     let lPoTel: Lead | null = null
-    if (!lead) {
+    const domenaNadawcy = email.split('@')[1] ?? ''
+    if (!lead && !WLASNE_DOMENY.includes(domenaNadawcy)) {
       const telPodpis = normalizujTelefon(a.telefon)
       if (telPodpis) {
         const { data: wl } = await db.from('leady').select('id').eq('telefon', telPodpis).maybeSingle()
         if (wl) lPoTel = await leadPoId(db, wl.id)
         if (lPoTel) {
-          await zdarzenie(db, { lead_id: lPoTel.id, mail_id: mail.id, typ: 'dopasowano', opis: `Mail z adresu ${email} dopisany do tego klienta (ten sam numer telefonu w podpisie maila).`, dane: { powod: 'telefon_z_podpisu', email, telefon: telPodpis } })
-          const { data: ik } = await db.from('leady').select('email, inne_kontakty').eq('id', lPoTel.id).single()
-          if (ik?.email && String(ik.email).toLowerCase() !== email.toLowerCase()) {
-            const lista = Array.isArray(ik.inne_kontakty) ? ik.inne_kontakty as Array<{ email?: string }> : []
-            if (!lista.some((x) => String(x?.email ?? '').toLowerCase() === email.toLowerCase())) {
-              await db.from('leady').update({ inne_kontakty: [...lista, { email, zrodlo: 'mail', dodano: new Date().toISOString() }] }).eq('id', lPoTel.id)
-            }
-          }
+          const zamk = lPoTel.status === 'wygrany' || lPoTel.status === 'przegrany'
+          await zdarzenie(db, { lead_id: lPoTel.id, mail_id: mail.id, typ: 'dopasowano',
+            opis: `Mail z adresu ${email} dopasowano po numerze telefonu z podpisu — sprawdź, czy to ten klient (adres nie został dopisany do kontaktów).${zamk ? ` Klient ${lPoTel.status}: podsumowanie i zadanie bez zmian; treść maila: ${a.podsumowanie}` : ''}`.slice(0, 500),
+            dane: { powod: 'telefon_z_podpisu', email, telefon: telPodpis, do_sprawdzenia: true } })
         }
       }
     }
     const l = lead ?? lPoTel ?? await nowyLead(db, email, a.nazwa || mail.od_nazwa, mail.id, mail.kanal === 'formularz' ? 'formularz' : 'mail')
     leadId = l.id
     const akcja = a.typ === 'reklamacja' ? 'reklamacja' : (a.nastepna_akcja === 'brak' ? null : a.nastepna_akcja)
-    const zmiany: Record<string, unknown> = {
+    // (c) dopasowanie po samym telefonie do klienta zamkniętego: podsumowanie, braki i zadanie zostają jak były
+    const chronZamkniety = !lead && !!lPoTel && (l.status === 'wygrany' || l.status === 'przegrany')
+    const zmiany: Record<string, unknown> = chronZamkniety ? { ostatnia_rozmowa_at: mail.data ?? new Date().toISOString() } : {
       ostatnia_rozmowa_at: mail.data ?? new Date().toISOString(),
       podsumowanie: a.podsumowanie,
       brakuje: a.brakuje.length ? a.brakuje.join('; ') : null,
@@ -147,7 +151,8 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
     if (a.nazwa && !l.nazwa) zmiany.nazwa = a.nazwa
     if (!l.nazwa && !a.nazwa && mail.od_nazwa) zmiany.nazwa = mail.od_nazwa
     if (a.miejscowosc && !l.miejscowosc) zmiany.miejscowosc = a.miejscowosc
-    if (!l.email) zmiany.email = email
+    // (b) przy dopasowaniu po samym telefonie adres nie trafia też do głównego e-maila klienta (testy 27.11, runda 3)
+    if (!l.email && !lPoTel) zmiany.email = email
     if (a.kategoria && a.kategoria !== 'nieznana') zmiany.kategoria = a.kategoria
     const tel = normalizujTelefon(a.telefon)
     if (tel && !l.telefon) {
