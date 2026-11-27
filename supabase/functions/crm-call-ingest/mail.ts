@@ -153,7 +153,9 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
     if (a.miejscowosc && !l.miejscowosc) zmiany.miejscowosc = a.miejscowosc
     // (b) przy dopasowaniu po samym telefonie adres nie trafia też do głównego e-maila klienta (testy 27.11, runda 3)
     if (!l.email && !lPoTel) zmiany.email = email
-    if (a.kategoria && a.kategoria !== 'nieznana') zmiany.kategoria = a.kategoria
+    // runda 4 (recenzent): zamknięty klient dopasowany tylko po numerze z podpisu — bez zmiany kategorii, ceny,
+    // etykiet i bez nowej oferty (mail mógł napisać ktoś inny z tej firmy); zostaje zdarzenie „do sprawdzenia”
+    if (a.kategoria && a.kategoria !== 'nieznana' && !chronZamkniety) zmiany.kategoria = a.kategoria
     const tel = normalizujTelefon(a.telefon)
     if (tel && !l.telefon) {
       // numer może już należeć do innego leada (unikalny): wtedy zostawiamy bez numeru, informacja jest w podsumowaniu
@@ -161,15 +163,15 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
       if (!zajety) zmiany.telefon = tel
     }
     // 24.11 (Tymek): cena podana klientowi w mailu od razu jest wartością klienta w lejku (do czasu oferty / wpisu ręcznego)
-    const cena = cenaOrientacyjna(a)
+    const cena = chronZamkniety ? null : cenaOrientacyjna(a)
     if (cena != null) zmiany.wartosc_wstepna = cena
     await db.from('leady').update(zmiany).eq('id', l.id)
     await db.from('maile').update({ lead_id: l.id }).eq('id', mail.id)
     if (cena != null) await zdarzenie(db, { lead_id: l.id, mail_id: mail.id, typ: 'wartosc_wstepna', opis: `Cena orientacyjna z maila: ${cena.toLocaleString('pl-PL')} zł`, dane: { kwota: cena, zrodlo: 'mail' } })
-    const etykiety = etykietyZAnalizy(a)
+    const etykiety = chronZamkniety ? [] : etykietyZAnalizy(a)
     if (etykiety.length) await db.rpc('dodaj_etykiety', { p_lead_id: l.id, p_etykiety: etykiety })
 
-    if (sprzedazowa && a.nastepna_akcja === 'przygotuj_oferte') {
+    if (sprzedazowa && a.nastepna_akcja === 'przygotuj_oferte' && !chronZamkniety) {
       const { data: otwarte } = await db.from('oferty').select('id, wersja').eq('lead_id', l.id).in('status', ['przelicz', 'do_sprawdzenia']).order('wersja', { ascending: false })
       const { data: ostatnia } = await db.from('oferty').select('id, wersja').eq('lead_id', l.id).order('wersja', { ascending: false }).limit(1).maybeSingle()
       const { data: of, error } = await db.from('oferty').insert({
