@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { fetchAllPages } from '../lib/fetchPaged'
-import { blFromClientOrder, blOrderId, clientFromClientOrder, isoDate, isPendingForShipment, pendingSection, type PendingSection } from '../lib/shipments'
+import { blFromClientOrder, blOrderId, clientFromClientOrder, isoDate, isPendingForShipment, pendingSection, rodzajDostawy, type PendingSection, type RodzajDostawy } from '../lib/shipments'
 import { isOptimaClosed } from '../lib/optimaRo'
 import { fetchPicks, groupPicks, pickProgress } from '../lib/orderPicks'
 import { countCompletedStages } from '../utils'
@@ -37,6 +37,9 @@ export type PendingOrder = {
   /** 0–100 do paska postępu; null = bez etapów */
   percent: number | null
   section: PendingSection
+  /** metoda dostawy z BaseLinkera (crm.zamowienia_sklep przez rpc metody_dostawy_bl) */
+  dostawa: RodzajDostawy
+  metoda: string | null
 }
 
 export type ShipmentWithOrders = OrderShipment & {
@@ -107,6 +110,14 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
         if (it.error) throw new Error(it.error.message)
         for (const x of it.data) itemsBy.set(x.order_id, [...(itemsBy.get(x.order_id) ?? []), x])
       }
+      // 27.11: metoda dostawy z BaseLinkera — na liście tylko „Kurier”, reszta schowana pod przełącznikiem
+      const blIds = [...new Set(pend.map((o) => blOrderId(blFromClientOrder(o.client_order_number))).filter((x): x is number => x != null))]
+      const metody = new Map<string, string>()
+      for (let i = 0; i < blIds.length; i += CHUNK) {
+        const r = await supabase.rpc('metody_dostawy_bl', { p_bl: blIds.slice(i, i + CHUNK) })
+        if (r.error) throw new Error(r.error.message)
+        for (const x of (r.data ?? []) as Array<{ bl_id: number; dostawa_metoda: string | null }>) metody.set(String(x.bl_id), x.dostawa_metoda ?? '')
+      }
       const picks = groupPicks(wewIds.length ? await fetchPicks(wewIds) : [])
 
       setPending(
@@ -154,6 +165,8 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
               progress,
               percent,
               section: pendingSection({ order_date, ready }, today),
+              dostawa: rodzajDostawy(metody.get(blFromClientOrder(o.client_order_number)), blOrderId(blFromClientOrder(o.client_order_number)) != null),
+              metoda: metody.get(blFromClientOrder(o.client_order_number)) || null,
             }
           })
           // od najnowszych

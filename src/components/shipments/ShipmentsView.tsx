@@ -48,6 +48,7 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
   const [tab, setTab] = useState<'do' | 'plan'>('do')
   const [day, setDay] = useState(() => isoDate(new Date()))
   const [q, setQ] = useState('')
+  const [bezKuriera, setBezKuriera] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [plan, setPlan] = useState<null | { orders: PendingOrder[]; bl: string; suggested: { vertical: number; horizontal: number } }>(null)
   const [wydane, setWydane] = useState<null | Array<{ o: PendingOrder; data: string; zrodlo: string }>>(null)
@@ -56,13 +57,16 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
 
   const summary = useMemo(() => daySummary(shipments, day), [shipments, day])
 
+  // 27.11: tylko zamówienia z metodą dostawy „Kurier” w BaseLinkerze; reszta pod „pokaż”
+  const ukryte = useMemo(() => pending.filter((o) => o.dostawa !== 'kurier'), [pending])
+  const widoczne = useMemo(() => (bezKuriera ? pending : pending.filter((o) => o.dostawa === 'kurier')), [pending, bezKuriera])
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase()
-    if (!t) return pending
-    return pending.filter((o) =>
+    if (!t) return widoczne
+    return widoczne.filter((o) =>
       [o.bl, o.client, o.order_number, o.client_order_number, o.items, catLabel(o.category)].filter(Boolean).join(' ').toLowerCase().includes(t),
     )
-  }, [pending, q])
+  }, [widoczne, q])
   // grupy po nr BL w kolejności „od najnowszych” (pending jest już posortowane); grupa trafia do sekcji swojego najnowszego zlecenia
   const sekcje = useMemo(() => {
     const g = groupByBl(filtered)
@@ -74,7 +78,7 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
     return out
   }, [filtered])
   const byDate = useMemo(() => groupByDate(shipments), [shipments])
-  const nStare = useMemo(() => pending.filter((o) => o.section === 'stare').length, [pending])
+  const nStare = useMemo(() => widoczne.filter((o) => o.section === 'stare').length, [widoczne])
 
   const otworzPlan = async (orders: PendingOrder[]) => {
     if (!canEdit || orders.length === 0) return
@@ -110,7 +114,7 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
         <div className="shipments-head-actions">
           <div className="shipments-seg" role="tablist" aria-label="Widok">
             <button type="button" role="tab" aria-selected={tab === 'do'} className={tab === 'do' ? 'is-active' : undefined} onClick={() => setTab('do')}>
-              Do wysyłki ({pending.length - nStare})
+              Do wysyłki ({widoczne.length - nStare})
             </button>
             <button type="button" role="tab" aria-selected={tab === 'plan'} className={tab === 'plan' ? 'is-active' : undefined} onClick={() => setTab('plan')}>
               Zaplanowane ({shipments.length})
@@ -135,10 +139,22 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
             ))}
           </div>
           <div className="shipments-toolbar">
-            <span className="shipments-hint">W każdej grupie od najnowszych. Zlecenia zamknięte w Optimie nie pokazują się wcale.</span>
+            <span className="shipments-hint">
+              Tylko zamówienia z dostawą „Kurier” w BaseLinkerze, w każdej grupie od najnowszych. Zamknięte w Optimie nie pokazują się wcale.
+              {ukryte.length > 0 && (
+                <>
+                  {' '}
+                  <button type="button" className="shipments-link shipments-link--inline" onClick={() => setBezKuriera((v) => !v)} aria-pressed={bezKuriera}>
+                    {bezKuriera
+                      ? `schowaj zlecenia bez kuriera (${ukryte.length})`
+                      : `pokaż schowane: ${ukryte.filter((o) => o.dostawa === 'inna').length} z inną dostawą (odbiór, montaż), ${ukryte.filter((o) => o.dostawa === 'brak').length} bez danych z BL`}
+                  </button>
+                </>
+              )}
+            </span>
             <input type="search" className="shipments-search" placeholder="Szukaj: nr BL, klient, nr zlecenia, model…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          {pending.length === 0 && <p className="shipments-empty">Brak zleceń Po Drzwi do wysłania.</p>}
+          {filtered.length === 0 && <p className="shipments-empty">Brak zleceń Po Drzwi do wysłania kurierem.</p>}
           {SEKCJE.map((sek) =>
             sekcje[sek.k].length === 0 ? null : (
               <section key={sek.k} className={`shipments-card-section shipments-card-section--${sek.k}`} aria-label={sek.tytul}>
@@ -200,9 +216,12 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
                             </td>
                             <td>
                               <strong>{klienci}</strong>
+                              {najnowsze.dostawa !== 'kurier' && (
+                                <span className="shipments-dostawa">{najnowsze.dostawa === 'brak' ? 'brak danych z BL' : najnowsze.metoda}</span>
+                              )}
                               {g.rows.map((r) => (
                                 <div key={r.id} className="shipments-pos">
-                                  <span className="shipments-pos-nr">{r.order_number ?? `#${r.id}`}</span> · {r.items || catLabel(r.category)}
+                                  <span className="shipments-pos-nr">zlec. {r.order_number ?? `#${r.id}`}</span> · {r.items || catLabel(r.category)}
                                   {r.quantity ? ` · ${r.quantity} szt.` : ''}
                                 </div>
                               ))}
@@ -347,7 +366,21 @@ function PoleDaty({ value, onChange, label, max }: { value: string; onChange: (v
         <rect x="3" y="5" width="18" height="16" rx="2" />
         <path d="M16 3v4M8 3v4M3 10h18" />
       </svg>
-      <input type="date" aria-label={label} value={value} max={max} onChange={(e) => onChange(e.target.value)} />
+      <input
+        type="date"
+        aria-label={label}
+        value={value}
+        max={max}
+        onChange={(e) => onChange(e.target.value)}
+        onClick={(e) => {
+          // klik w dowolne miejsce pola otwiera kalendarz (inaczej tylko w ikonę po prawej)
+          try {
+            e.currentTarget.showPicker()
+          } catch {
+            /* starsza przeglądarka — zostaje zwykłe pole */
+          }
+        }}
+      />
     </span>
   )
 }

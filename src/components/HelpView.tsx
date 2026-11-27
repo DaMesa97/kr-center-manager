@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.7: Wysyłki kurierem — tylko zamówienia z kurierem w BaseLinkerze</h4>
+        <ul>
+          <li>Lista <b>Do wysyłki</b> pokazuje tylko zamówienia, które w BaseLinkerze mają dostawę <b>„Kurier”</b> (program łączy nr BL zlecenia z zamówieniem w BL). Odbiór osobisty, montaż i zlecenia bez danych z BL są schowane — link „pokaż schowane” w opisie nad listą je odsłania (z plakietką, jaka dostawa).</li>
+          <li>Przy pozycjach numer zlecenia KR ma dopisek „zlec.” (np. „zlec. 7129”).</li>
+          <li>Pole daty: kliknięcie w dowolne miejsce pola otwiera kalendarz (wcześniej tylko obok).</li>
+        </ul>
         <h4>Wersja 1.1.6: załączniki maili w CRM, nowy wygląd Wysyłek kurierem</h4>
         <ul>
           <li><b>CRM — załączniki maili</b>: przy mailu (Maile i korespondencja na karcie klienta) pliki są teraz przyciskami — klik otwiera PDF, zdjęcie itp. Pierwsze otwarcie pobiera plik ze skrzynki pocztowej (chwilę trwa), kolejne są od razu. Obrazki ze stopki (image001.png itp.) są schowane pod „obrazki ze stopki”. Gdy mail zniknął ze skrzynki, program o tym napisze — wtedy otwórz go w poczcie.</li>

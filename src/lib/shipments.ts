@@ -103,6 +103,13 @@ export function dayLabel(iso: string | null | undefined): string {
 }
 
 /** Sekcja listy „Do wysyłki”: gotowe (produkcja skończona), w produkcji, stare do sprawdzenia (zamówione ponad 30 dni temu). */
+/** Metoda dostawy z BaseLinkera: kurier (Kurier, KURIER, Kurier (PoDrzwi)), inna (odbiór osobisty, montaż), brak danych (bez nr BL albo zamówienia nie ma w synchronizacji BL). */
+export type RodzajDostawy = 'kurier' | 'inna' | 'brak'
+export function rodzajDostawy(metoda: string | null | undefined, maBl: boolean): RodzajDostawy {
+  if (!maBl || metoda == null || !String(metoda).trim()) return 'brak'
+  return /kurier/i.test(String(metoda)) ? 'kurier' : 'inna'
+}
+
 export type PendingSection = 'gotowe' | 'produkcja' | 'stare'
 export const STARE_PO_DNIACH = 30
 

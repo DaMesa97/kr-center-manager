@@ -111,3 +111,16 @@ describe('daty SUUS i sekcje listy (27.11)', () => {
     expect(daysSince('2026-10-14', dzis)).toBe(44)
   })
 })
+
+describe('metoda dostawy z BaseLinkera (27.11)', () => {
+  it('kurier w każdej pisowni, odbiór i montaż to inna, bez BL / bez danych to brak', async () => {
+    const { rodzajDostawy } = await import('../lib/shipments')
+    expect(rodzajDostawy('Kurier', true)).toBe('kurier')
+    expect(rodzajDostawy('KURIER', true)).toBe('kurier')
+    expect(rodzajDostawy('Kurier (PoDrzwi)', true)).toBe('kurier')
+    expect(rodzajDostawy('Odbiór osobisty - Wodzisław Śląski', true)).toBe('inna')
+    expect(rodzajDostawy('USŁUGA MONTAŻU DRZWI zgodnie z umową 80/11/2026', true)).toBe('inna')
+    expect(rodzajDostawy(undefined, true)).toBe('brak')
+    expect(rodzajDostawy('Kurier', false)).toBe('brak')
+  })
+})

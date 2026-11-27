@@ -10662,3 +10662,5 @@ li.optima-item--kit-part { margin-left: 16px; }
 .crm-zal-rozmiar { color: #5b6470; font-size: 0.75rem; }
 .crm-zal-stopka { font-size: 0.78rem; }
 .crm-zal-blad { flex-basis: 100%; color: #b3261e; font-size: 0.8rem; }
+.shipments-link--inline { margin-top: 0; font-size: 13px; }
+.shipments-dostawa { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #fdf3dc; color: #7a4a06; font-size: 12px; font-weight: 600; }
