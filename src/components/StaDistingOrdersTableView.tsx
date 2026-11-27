@@ -146,7 +146,9 @@ function StaDistingOrdersTableView({
 
   // per wiersz raz: etapy + czy to STA Titana (szukanie po wszystkich zamówieniach jest drogie)
   const rowInfo = useMemo(() => {
-    const all = [...orders, ...linkedOrders]
+    // runda 6 (wydajność): Map zamiast tablicy — isStaTitanLinked robiło `find` dla każdego wiersza (O(n²))
+    const all = new Map<number, Order>()
+    for (const o of [...orders, ...linkedOrders]) if (o.id != null) all.set(o.id, o)
     return new Map(
       filteredOrders.map((o) => [
         o,
