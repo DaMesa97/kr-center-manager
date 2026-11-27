@@ -87,6 +87,14 @@ import {
 } from '../../hooks/useCrm'
 import { supabase } from '../../supabaseClient'
 import { appConfirm } from '../../lib/appDialogs'
+
+/** runda 4: dozwolone zmiany statusu dokumentu CRM (podpisanej/anulowanej nie cofamy; „Wysłana” tylko dla umowy). */
+function dozwoloneStatusyDokumentu(d: { status: string; rodzaj: string }): string[] {
+  if (d.status === 'anulowana') return []
+  if (d.status === 'podpisana') return ['anulowana']
+  const wszystkie = d.rodzaj === 'umowa' ? ['projekt', 'wyslana', 'podpisana', 'anulowana'] : ['blankiet', 'projekt', 'podpisana', 'anulowana']
+  return wszystkie.filter((k) => k !== d.status)
+}
 import { openExternalUrl } from '../../hooks/useAluOrders'
 import CrmTelefon from './CrmTelefon'
 import DataTable, { type DataTableColumn } from '../DataTable'
@@ -2243,6 +2251,17 @@ function LeadScreen({
   }
   const handleDokumentStatus = async (d: CrmDokument, status: string) => {
     if (status === d.status) return
+    // runda 4 (tester CRM): status przestawiał się jednym kliknięciem w każdą stronę — Podpisana / Anulowana → Projekt
+    // przywracało „generuj ponownie” i numer podpisanej umowy wracał do użycia
+    if (!dozwoloneStatusyDokumentu(d).includes(status)) {
+      pushToast('Tej zmiany statusu nie da się zrobić (podpisanej ani anulowanej umowy nie cofamy — przygotuj nową)', 'error')
+      return
+    }
+    if (d.status === 'podpisana' && status === 'anulowana') {
+      if (!(await appConfirm('Anulować PODPISANY dokument? Tego nie da się cofnąć.', { title: 'Anulowanie podpisanego', confirmLabel: 'Anuluj dokument', tone: 'danger' }))) return
+    } else if (d.status === 'wyslana' && status === 'projekt') {
+      if (!(await appConfirm('Klient dostał już tę umowę do podpisu (Autenti). Cofnąć na „Projekt”? Nowy PDF będzie się różnił od wysłanego.', { title: 'Cofnięcie wysłanej umowy', confirmLabel: 'Cofnij na projekt', tone: 'danger' }))) return
+    }
     const err = await updateDokumentStatus(d.id, status)
     if (err) {
       pushToast(`Nie udało się zmienić statusu: ${err.message}`, 'error')
@@ -2971,8 +2990,8 @@ function LeadScreen({
                       )}
                       <span className="crm-muted"> · {fmtDate(d.created_at)}{szczegol ? ` · ${szczegol}` : ''}</span>
                       <span className={`crm-status ${st.cls}`}>{st.label}</span>
-                      <select className="crm-dok-status" value={d.status} onChange={(e) => void handleDokumentStatus(d, e.target.value)} disabled={saving} aria-label={`Status: ${label}`} title="Status zmieniasz ręcznie: umowa → Wysłana po Autenti, Podpisana po podpisie; karta/protokół → Podpisana po skanie">
-                        {Object.entries(CRM_DOKUMENT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                      <select className="crm-dok-status" value={d.status} onChange={(e) => void handleDokumentStatus(d, e.target.value)} disabled={saving || d.status === 'anulowana'} aria-label={`Status: ${label}`} title="Status zmieniasz ręcznie: umowa → Wysłana po Autenti, Podpisana po podpisie; karta/protokół → Podpisana po skanie">
+                        {Object.entries(CRM_DOKUMENT_STATUS).filter(([k]) => k === d.status || dozwoloneStatusyDokumentu(d).includes(k)).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                       </select>
                       {d.status !== 'podpisana' && d.status !== 'anulowana' && (
                         <button type="button" className="crm-link" disabled={saving || Boolean(dokForm)} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: d.rodzaj as DokumentRodzaj, istniejacy: d }) }} title={d.rodzaj === 'umowa' ? 'Nowy PDF z poprawionymi polami, ten sam numer umowy' : 'Nowy PDF z poprawionymi polami'}>
