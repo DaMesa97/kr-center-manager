@@ -77,6 +77,8 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
     return out
   }, [widoczne, q])
   const byDate = useMemo(() => groupByDate(shipments), [shipments])
+  // liczba w zakładce: grupy BL bez starych i bez filtra szukania (nie skacze przy wpisywaniu)
+  const liczbaDoWysylki = useMemo(() => groupByBl(widoczne).filter((x) => !x.rows.every((r) => r.section === 'stare')).length, [widoczne])
   const nAktywne = useMemo(() => shipments.filter((s) => s.status !== 'anulowana').length, [shipments])
   /** Wysyłki (nieanulowane) na nr BL — ostrzeżenie w oknie planowania: druga wysyłka nie dostanie pobrania. */
   const wysylkiBl = useMemo(() => {
@@ -123,7 +125,7 @@ export default function ShipmentsView({ canEdit, pushToast }: Props) {
         <div className="shipments-head-actions">
           <div className="shipments-seg" role="tablist" aria-label="Widok">
             <button type="button" role="tab" aria-selected={tab === 'do'} className={tab === 'do' ? 'is-active' : undefined} onClick={() => setTab('do')}>
-              Do wysyłki ({sekcje.gotowe.length + sekcje.produkcja.length})
+              Do wysyłki ({liczbaDoWysylki})
             </button>
             <button type="button" role="tab" aria-selected={tab === 'plan'} className={tab === 'plan' ? 'is-active' : undefined} onClick={() => setTab('plan')}>
               Zaplanowane ({nAktywne})

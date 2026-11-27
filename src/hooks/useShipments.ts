@@ -326,9 +326,15 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
       const nr = s.orders.map((o) => o.order_number ?? `#${o.id}`).join(', ')
       const notes = [s.notes, nr ? `anulowana — zlecenia: ${nr}` : 'anulowana'].filter(Boolean).join(' | ')
       // anulowanie zostawia bl_status: anulowana wysyłka z przesyłką SUUS zostaje na liście z „Usunięta w BL” (kurier!)
-      const { error } = await supabase.from('order_shipments').update({ status: 'anulowana', notes }).eq('id', s.id).neq('status', 'nadana')
+      const { data: zm, error } = await supabase.from('order_shipments').update({ status: 'anulowana', notes }).eq('id', s.id).neq('status', 'nadana').select('id')
       if (error) {
         pushToast(`Nie anulowano: ${error.message}`, 'error')
+        return false
+      }
+      // recenzent (2. seria): ktoś inny zdążył kliknąć „Nadane” — nie odpinamy zleceń (wróciłyby do „Do wysyłki” = druga wysyłka)
+      if (!zm?.length) {
+        pushToast('Nie anulowano — wysyłka jest już nadana (ktoś zmienił ją w międzyczasie). Odświeżam listę.', 'error')
+        await load()
         return false
       }
       const un = await supabase.from('order_shipment_orders').delete().eq('shipment_id', s.id)
