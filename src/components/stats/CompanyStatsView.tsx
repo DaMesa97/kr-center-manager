@@ -17,6 +17,7 @@ import {
   companyKey,
   companyNames,
   computeCompanyStats,
+  dataWydaniaSzacunkowa,
   resolveCompanyGroups,
   suspectedCompanyClusters,
   type CompanyAliases,
@@ -92,9 +93,10 @@ const recentColumns: DataTableColumn<Order>[] = [
     label: 'Dni',
     title: 'Dni od zamówienia do wydania',
     align: 'right',
-    sortValue: (o) => (isReleaseDateEmpty(o.release_date) || !o.order_date ? -1 : daysBetween(o.order_date, String(o.release_date)) ?? -1),
+    sortValue: (o) => (isReleaseDateEmpty(o.release_date) || !o.order_date || dataWydaniaSzacunkowa(o) ? -1 : daysBetween(o.order_date, String(o.release_date)) ?? -1),
     render: (o) => {
       if (isReleaseDateEmpty(o.release_date) || !o.order_date) return '—'
+      if (dataWydaniaSzacunkowa(o)) return <span title="Data wydania z dnia synchronizacji Excela (sam znacznik „X”) — nie liczona do czasu realizacji">?</span>
       const d = daysBetween(o.order_date, String(o.release_date))
       return d == null ? '—' : d
     },

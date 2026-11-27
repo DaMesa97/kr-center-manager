@@ -99,6 +99,11 @@ export type CompanyGroup = {
  * Firmy z zleceń (bez anulowanych i bez nóg rekordów łączonych), od najczęstszej,
  * sklejone po companyKey + aliasach. Każda grupa pamięta swoje pisownie.
  */
+/** Data wydania wpisana przez excel-sync z dnia synchronizacji (sam znacznik „X”, bez daty) — nie do liczenia czasu realizacji. */
+export function dataWydaniaSzacunkowa(o: Pick<Order, 'extra_fields'>): boolean {
+  return (o.extra_fields as Record<string, unknown> | null | undefined)?.release_date_szacunkowa === true
+}
+
 export function companyNames(orders: Order[], aliases?: CompanyAliases): CompanyGroup[] {
   const groups = new Map<string, Map<string, number>>()
   for (const o of orders) {
@@ -292,7 +297,8 @@ export function computeCompanyStats(
     if (isReleaseDateEmpty(o.release_date)) open += 1
     else {
       released += 1
-      if (o.order_date && o.release_date) {
+      // runda 4 (recenzent): data z dnia synchronizacji Excela (sam znacznik „X”) fałszowała średnią firmy (59 dni zamiast 8)
+      if (o.order_date && o.release_date && !dataWydaniaSzacunkowa(o)) {
         const d = daysBetween(o.order_date, String(o.release_date))
         if (d != null) leadDays.push(d)
       }
