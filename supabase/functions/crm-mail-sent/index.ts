@@ -131,6 +131,14 @@ async function sprawdzSkrzynke(db: SupabaseClient, s: Skrzynka, wlasne: Set<stri
     for (const p of pominiete) {
       const { error } = await db.from('zdarzenia').insert({ typ: 'blad', opis: `Skrzynka ${s.login}: ${p}`.slice(0, 500), dane: { zrodlo: 'imap', skrzynka_id: s.id } })
       if (error) console.error('zdarzenie (pominięty mail):', error.message)
+      // runda 7 (recenzent): pominięty mail wychodzący zostawał „nowy” — w CRM wisiał jako „Czeka na analizę”, a ekran
+      // odświeżał się co 10 s bez końca. Status 'blad' pokazuje treść błędu.
+      const uidPom = Number(p.match(/UID (\d+)\]/)?.[1])
+      if (Number.isFinite(uidPom) && uidPom > 0) {
+        const { error: eSt } = await db.from('maile').update({ status_przetwarzania: 'blad' })
+          .eq('skrzynka_id', s.id).eq('uid', uidPom).eq('kierunek', 'wychodzacy').eq('status_przetwarzania', 'nowy')
+        if (eSt) console.error('status pominiętego maila:', eSt.message)
+      }
     }
   }
   try {
