@@ -68,7 +68,8 @@ export function opcjeZKarty(html) {
       const t = o[0]
       const v = atrybut(t, 'value')
       if (!v) continue
-      if (produkt) { const pid = Number(v); if (pid && !produkty.includes(pid)) produkty.push(pid); continue }
+      // lista rozwijana produktów (np. „Regulacja ościeżnicy” przy drzwiach od ręki) ma wartości „71393,71393”
+      if (produkt) { const pid = parseInt(v, 10); if (pid && !produkty.includes(pid)) produkty.push(pid); continue }
       wybory.push(wybor(v, atrybut(t, 'aria-label') ?? '', atrybut(t, 'data-price-type'), atrybut(t, 'data-price-amount'), /\sselected[=\s>]/.test(t)))
     }
     // pola z inputami (image_buttons, checkbox, radio, text_labels, product…): etykieta z najbliższego <label … aria-label/title>
@@ -293,7 +294,8 @@ async function main() {
       doZapisu.push({ id: gid, nazwa: `Grupa #${gid} (z karty sklepu)`, visibility: 'specific', menu_order: 0, products: gdzie.get(gid), exclude_products: [], categories: [], exclude_categories: [], options: nowe })
     } else if (zmiany.length) {
       raport.grupy.push({ id: gid, nazwa: stara.nazwa, zmiany })
-      doZapisu.push({ ...stara, options: nowe })
+      // same ostrzeżenia („!” — nie odczytano, zostaje z bazy) to nie zmiana — grupy nie zapisujemy
+      if (zmiany.some((z) => !z.startsWith('! '))) doZapisu.push({ ...stara, options: nowe })
     }
   }
   const nieodczytane = [...doPokrycia].map((g) => `#${g} ${poId.get(g)?.nazwa ?? ''}`)
