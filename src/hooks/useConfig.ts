@@ -282,6 +282,11 @@ export function useConfig({
           ;({ error } = await supabase.from('order_lead_time_rules').insert(rest))
         }
         if (error) {
+          // runda 4: unikalność warunków reguł (migracja 232700) — po polsku zamiast surowego 23505
+          if ((error as { code?: string }).code === '23505') {
+            pushToast('Reguła o tych samych warunkach (kategoria, szkło, ościeżnica) już istnieje — edytuj istniejącą zamiast dodawać nową', 'error')
+            return
+          }
           pushToast(`Błąd zapisu: ${error.message}`, 'error')
           return
         }
