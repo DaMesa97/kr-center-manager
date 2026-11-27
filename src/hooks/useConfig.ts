@@ -327,6 +327,11 @@ export function useConfig({
         .update({ is_active: isActive })
         .eq('id', id)
       if (error) {
+        if ((error as { code?: string }).code === '23505') {
+          // runda 5: włączenie wyłączonej reguły, gdy aktywna o tych samych warunkach już jest
+          pushToast('Aktywna reguła o tych samych warunkach już istnieje — wyłącz ją albo edytuj zamiast włączać drugą', 'error')
+          return
+        }
         pushToast(`Błąd: ${error.message}`, 'error')
         return
       }
