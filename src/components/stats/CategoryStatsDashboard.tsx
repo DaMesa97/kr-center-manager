@@ -266,7 +266,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
     <div className="stats-dashboard">
       <div className="stats-grid-full">
         <div className="stats-card">
-          <h3>Średni czas realizacji — {nazwa}</h3>
+          <h3>Średni czas realizacji — {nazwa} <span className="stats-period-note" style={{ fontWeight: 400, fontSize: '0.8em', color: '#6b7280' }}>(kafelki: cała historia; wykres: wybrany okres)</span></h3>
           {bezPrawdziwejDaty > 0 && (
             <p className="stats-note" style={{ color: '#b45309', margin: '0 0 8px' }}>
               Pominięto {bezPrawdziwejDaty} zleceń bez prawdziwej daty wydania (w Excelu był sam znacznik „X”, data jest z dnia synchronizacji) — czas realizacji i wykres produkcji liczone tylko z prawdziwych dat.
@@ -428,7 +428,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
         </div>
 
         <div className="stats-card">
-          <h3>Top 10 firm {nazwa}</h3>
+          <h3>Top 10 firm {nazwa} <span style={{ fontWeight: 400, fontSize: '0.8em', color: '#6b7280' }}>(cała historia, bez anulowanych)</span></h3>
           <ResponsiveContainer width="100%" height={400}>
             <BarChart data={topCompaniesData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
@@ -459,7 +459,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
 
       {!tylkoZlecenia && <div className="stats-grid-full">
         <div className="stats-card">
-          <h3>Rozkład per model — {nazwa}</h3>
+          <h3>Rozkład per model — {nazwa} <span style={{ fontWeight: 400, fontSize: '0.8em', color: '#6b7280' }}>(wszystkie nieanulowane)</span></h3>
           <ResponsiveContainer width="100%" height={450}>
             <BarChart data={byModel} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
@@ -474,7 +474,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
 
       {!tylkoZlecenia && <div className="stats-grid-full">
         <div className="stats-card">
-          <h3>Rozkład per kolor skrzydła — {nazwa}</h3>
+          <h3>Rozkład per kolor skrzydła — {nazwa} <span style={{ fontWeight: 400, fontSize: '0.8em', color: '#6b7280' }}>(wszystkie nieanulowane)</span></h3>
           <ResponsiveContainer width="100%" height={450}>
             <BarChart data={byWingColor} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
