@@ -282,6 +282,20 @@ Stan: `tsc` OK, **698 testów** OK.
 - **Poprawka**: commit f1cb07b — wzory `A/B/N/P/T/L-NNN(NN)`, `LUX-`, `STD-`; produkt wskazany numerem (`ID 48895`, `#48895`, `?p=…`) zawsze na pierwszym miejscu listy. Test `src/__tests__/crmOfertaKandydaci.test.ts` (5 przypadków; na starym kodzie 4 padają). Źródło v29 pobrane z serwera do repo (b2f4cb9, bez zmian), bo funkcja była tylko na serwerze.
 - **Wdrożenie**: NIE wdrożone (zasada nocy). Do wdrożenia: `supabase/functions/crm-oferta` (6 plików) — patrz DECISIONS D39. Po wdrożeniu: w ofercie kliknąć „Zapisz odpowiedzi i policz od nowa” (albo „Policz od nowa”).
 
+## Runda 6 (28.11 w nocy, pogłębiona) — przekrojowe scenariusze, wydajność, obsługa błędów
+Tryb nocny: branch `night-testing-2026-11-27`, warunek stopu wyłączony.
+
+### Obsługa błędów (tester: 385 zapisów w `src/`, 126 w Edge; 278/385 obsłużonych porządnie)
+| Waga | Problem | Poprawka | Commit |
+|---|---|---|---|
+| WYSOKI | kontrole przed zapisem przepuszczały przy nieudanym odczycie (dubel zlecenia, anulowane w wysyłce i wydaniu drzwi wewn., ta sama faktura PZ, partner przy przeliczeniu) — właśnie na słabym łączu | przerwanie z komunikatem / pytanie | 501aad8 |
+| ŚREDNI | data zamówienia szyby u partnera Disting Plus i intarsja zestawu Titan — błąd tylko w konsoli | komunikat na ekranie, bez lokalnego „zamówione” | cac3610 |
+| ŚREDNI | para reklamacji Disting Plus (etap, realizacja, pilność) rozjeżdżała się po cichu (komputer, Moje stanowisko, telefon) | komunikat „para nie zsynchronizowana” | db5679e |
+| ŚREDNI | usunięcie komponentu przechodziło, gdy kontrola rezerwacji / receptur / stanu nie dała się odczytać | przerwanie | 4dac423 |
+| WYSOKI | Edge: crm-mail-sent gubi mail przy błędzie (UID idzie dalej), crm-call-ingest bez limitów czasu i bez sprawdzania zapisów, orders-intake / excel-intake: noga Titana lub para Disting Plus po cichu nie powstaje, excel-sync: błąd etapów bez śladu | w toku (tor Edge) | — |
+
+Nie poprawione (opis w DECISIONS): edycja ręcznego zlecenia drzwi wewn. w 4 krokach bez transakcji (D40), wydanie z magazynu przy błędzie RPC zostawia rezerwacje bez śladu (D41), CRM: przy usuwaniu najpierw pliki, potem rekord (NISKI), ustawienia: zapisy dwukrokowe (NISKI), ok. 60 drobnych miejsc bez odczytu `error` (lista: `scratchpad/a6err/scan.txt` — do poprawy hurtem). Funkcje SQL: 13 `when others then null` obejmuje tylko wpis do audytu (nie dane) — NISKI.
+
 ## Do decyzji
 > Od 28.11 w nocy pełna, uporządkowana lista jest w `DECISIONS.md` (format: problem / opcje / rekomendacja / pilność / praca). Poniżej historyczna lista z rund 1–4.
 1. **Gdzie testować z zapisem danych.** Opcje: (a) gałąź Supabase (osobna baza, płatna godzinowo; dane trzeba zasiać skryptem seed), (b) zostać przy trybie bezpiecznym na produkcji (bez seeda i czyszczenia), (c) lokalny Supabase w Dockerze (Docker nie działa na tym komputerze). Koszt gałęzi wg Supabase: **0,01344 USD za godzinę** (ok. 0,32 USD na dobę); projekt nie ma dziś żadnej gałęzi. Gałąź startuje pusta (schemat z historii migracji, bez danych i bez funkcji Edge), więc potrzebny skrypt seed. Rekomendacja: (a) na czas sesji, potem usunąć gałąź.

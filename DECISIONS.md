@@ -16,7 +16,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 8. **D39 — Wdrożyć poprawkę CRM „Bastion P-110 nie jest na liście kandydatów”** (Twoje zgłoszenie z nocy): handlowiec nie wyceni żadnego Bastiona P-, N-, T-, L-, LUX-, STD- do czasu wdrożenia `crm-oferta`.
 
 ### Może poczekać (najważniejsze)
-D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów.
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu.
 
 ---
 
@@ -259,6 +259,18 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Opcje**: (a) audyt tylko przy zmianie `quantity` (nie `reserved_quantity`); (b) czyszczenie audytu starszego niż N miesięcy; (c) zostawić.
 - **Rekomendacja**: (a) — rezerwacje mają własną historię w `stock_reservations`.
 - **Pilność**: może poczekać (przed wgraniem 234300 warto zdecydować) · **Praca**: mały
+
+### D40. Edycja ręcznego zlecenia drzwi wewnętrznych bez transakcji
+- **Problem**: `InternalDoorOrderModal` zapisuje w 4 krokach (zlecenie → usunięcie pozycji → wstawienie → wydanie z magazynu). Zerwane łącze w środku = zlecenie bez pozycji z towarem zdjętym z magazynu; zwrot przy błędzie nie jest sprawdzany. Dziś 0 ręcznych zleceń (wszystkie z Optimy).
+- **Opcje**: (a) jedna funkcja bazy zapisująca pozycje i rozliczająca stan w transakcji; (b) zostawić, dopóki nikt nie zakłada ręcznych.
+- **Rekomendacja**: (a), zanim biuro zacznie zakładać ręczne zlecenia drzwi wewnętrznych.
+- **Pilność**: może poczekać · **Praca**: średni
+
+### D41. Wydanie przy błędzie zdjęcia z magazynu
+- **Problem**: przy oznaczeniu etapu / wydaniu błąd RPC zdjęcia daje tylko toast „Ostrzeżenie” (a wyjątek — nic), etap i data zapisują się, rezerwacje zostają bez śladu do poprawienia (dziś 0 takich zleceń).
+- **Opcje**: (a) oznaczenie zlecenia (np. `stock_status='release_failed'`) i lista w Weryfikacji; (b) blokować zapis etapu, gdy zdjęcie się nie uda.
+- **Rekomendacja**: (a) — hala nie może stać przez magazyn.
+- **Pilność**: może poczekać · **Praca**: mały–średni
 
 ---
 
