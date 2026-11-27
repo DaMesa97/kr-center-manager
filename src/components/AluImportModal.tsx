@@ -149,7 +149,11 @@ export default function AluImportModal({
           // firma z pliku; przy podmianie LP bez klienta w pliku — czyścimy firmę poprzedniego (do wyboru ręcznie)
           if (parsed.header.client) setCompany(parsed.header.client)
           else if (lp) setCompany('')
-          if (parsed.warnings.length > 0) pushToast(`LP: ${parsed.warnings.length} uwag parsera — sprawdź podgląd`, 'info')
+          // testy 27.11 (runda 3): toast liczył tylko uwagi do całego dokumentu — uwagi pozycji (np. „wymiary do sprawdzenia”) były pomijane
+          const uwagiPoz = parsed.positions.reduce((n, p) => n + p.warnings.length, 0)
+          if (parsed.warnings.length + uwagiPoz > 0) {
+            pushToast(`LP: ${parsed.warnings.length + uwagiPoz} uwag parsera${uwagiPoz ? ` (${uwagiPoz} w pozycjach — kolumna z liczbą przy pozycji)` : ''} — sprawdź podgląd`, parsed.warnings.length ? 'error' : 'info')
+          }
         } else {
           setLc(parsed)
           setPicked((p) => ({ ...p, lc: file }))

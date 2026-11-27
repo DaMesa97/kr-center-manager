@@ -421,6 +421,14 @@ function footerPositionNo(page: PdfTextPage, orderNumber: string): number | null
   return pick ? Number(pick.m[2]) : null
 }
 
+/** Numery zleceń ze stopki strony (`OF341/2026 (N)` → `OF341/2026`). */
+function footerOrderNumbers(page: PdfTextPage): string[] {
+  return page.items
+    .filter((it) => isFooterItem(page, it))
+    .map((it) => it.str.match(/^(.+?)\s+\((\d+)\)$/)?.[1]?.trim() ?? '')
+    .filter((s) => s !== '' && !/^\d+$/.test(s))
+}
+
 function pozLine(lines: Line[]): { posNo: number; description: string; line: Line } | null {
   for (const ln of lines) {
     const first = ln.items[0]
@@ -443,6 +451,11 @@ function groupPagesByPosition(pages: PdfTextPage[], orderNumber: string, warning
     const bodyLines = buildLines(page, page.items.filter((it) => !isFooterItem(page, it)))
     const poz = pozLine(bodyLines)
     const fromFooter = footerPositionNo(page, orderNumber)
+    // testy 27.11 (runda 3): do PDF bywa doklejona strona innego zlecenia — jej pozycje wchodziły jak własne
+    const obce = orderNumber ? footerOrderNumbers(page).filter((n) => n !== orderNumber) : []
+    if (obce.length && !footerOrderNumbers(page).includes(orderNumber)) {
+      warnings.push(`Strona ${page.pageNumber}: stopka ma inne zlecenie (${[...new Set(obce)].join(', ')}) niż nagłówek (${orderNumber}) — czy to nie strona z innej listy produkcyjnej?`)
+    }
     const posNo = fromFooter ?? poz?.posNo ?? null
     if (poz && fromFooter !== null && poz.posNo !== fromFooter) {
       warnings.push(`Strona ${page.pageNumber}: stopka wskazuje pozycję ${fromFooter}, a wiersz „Poz.” pozycję ${poz.posNo}`)

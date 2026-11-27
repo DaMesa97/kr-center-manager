@@ -27,6 +27,18 @@ describe('LP 0003/03 — AS52, dwie ościeżnice (drzwiowa + okienna)', () => {
   })
 })
 
+describe('strona innego zlecenia doklejona do PDF (testy 27.11, runda 3)', () => {
+  it('ostrzega, gdy stopka strony ma inny numer zlecenia niż nagłówek', () => {
+    const glowny = structuredClone(lpMulti) as PdfTextPage[]
+    const obca = (structuredClone(lpAs52) as PdfTextPage[]).map((p, i) => ({ ...p, pageNumber: glowny.length + i + 1 }))
+    const res = parseAluDocument([...glowny, ...obca]) as AluLpParseResult
+    expect(res.warnings.some((w) => w.includes('stopka ma inne zlecenie'))).toBe(true)
+  })
+  it('bez doklejonej strony — brak takiego ostrzeżenia', () => {
+    for (const f of [lpMulti, lpAs52, lpBlockB]) expect(lp(f).warnings.some((w) => w.includes('stopka ma inne zlecenie'))).toBe(false)
+  })
+})
+
 describe('LP 0002/04 — układ B (bez „Poz.:”, Wymiar zewnętrzny konstrukcji)', () => {
   const res = lp(lpBlockB)
   const p = res.positions[0]
