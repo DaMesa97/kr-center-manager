@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.2: Wysyłki kurierem (SUUS)</h4>
+        <ul>
+          <li>Nowa zakładka <b>Produkcja → Wysyłki kurierem</b> (magazyn, obsługa klienta, kierownik). <b>Do wysyłki</b>: zlecenia Po Drzwi jeszcze niewydane (albo z wydaniem od dziś) i nieprzypięte do wysyłki, pogrupowane po numerze BaseLinkera (np. RACINOWSKI_1 i _2 razem).</li>
+          <li><b>Wysyłka kurierem</b> na grupie albo zaznaczonych zleceniach: program podpowiada liczbę palet pionowych i poziomych, data domyślnie najbliższy dzień roboczy, palety poprawiasz przyciskami +/−.</li>
+          <li><b>Zaplanowane</b> po dniach: „Gotowe (spakowane)” zdejmuje palety ze stanu Bukowej, „Nadane”, „Anuluj” (palety wracają, zlecenia wracają do „Do wysyłki”). Zmiana liczby palet do czasu nadania — stan palet koryguje się sam. Numer paczki pojawi się, gdy uzupełni go BaseLinker. Na górze podsumowanie dnia: wysyłki i palety.</li>
+          <li>Palety (PALETA PIONOWA / POZIOMA, kategoria OPAKOWANIA) są w Magazyn → Stany na Bukowej jak zwykłe komponenty — ustaw im minimum, żeby działał alert.</li>
+        </ul>
         <h4>Wersja 1.1.1: drzwi wewnętrzne w dwóch magazynach, WZ reklamacyjny</h4>
         <ul>
           <li><b>Magazyn 1 i Magazyn 2</b> (kody WEW1, WEW2): te same kartoteki drzwi wewnętrznych leżą na obu, stany liczone osobno. <b>Stany → Wewnętrzne</b> pokazuje kolumny Magazyn 1, Magazyn 2, <b>Razem</b>, rezerwacje, dostępne i <b>W drodze</b> (wysłane zamówienia do dostawców). W układzie „Jak w Excelu” wybierasz, co pokazuje kratka: razem albo jeden magazyn.</li>
