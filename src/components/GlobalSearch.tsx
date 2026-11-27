@@ -38,6 +38,7 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [blad, setBlad] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -58,8 +59,10 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
   }, [open])
 
   const runSearch = useCallback(async (q: string) => {
-    const trimmed = q.trim()
+    // testy 27.11 (runda 3): bardzo długa fraza dawała 414 (za długi adres) — obcinamy
+    const trimmed = q.trim().slice(0, 100)
     const version = ++searchVersionRef.current
+    setBlad(false)
     if (trimmed.length < 1) {
       setResults([])
       setLoading(false)
@@ -67,9 +70,11 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
     }
     setLoading(true)
     // Szukamy po numerze zlecenia, firmie, nr klienta, modelu — we wszystkich kategoriach
-    // Escape wildcardów SQL (% _) i przecinka (separator w .or)
-    const escaped = trimmed.replace(/[%_,]/g, '\\$&')
-    const pattern = `%${escaped}%`
+    // testy 27.11 (runda 3): przecinek „escapowany” ukośnikiem psuł zapytanie (PGRST100) i pokazywało się
+    // „Brak wyników” — wartość idzie w cudzysłowie (przecinek i nawiasy są wtedy zwykłymi znakami),
+    // bez znaków, które w cudzysłowie mają znaczenie (" i \), oraz bez % (dowolny ciąg)
+    const escaped = trimmed.replace(/["\\%]/g, '')
+    const pattern = `"%${escaped}%"`
     const searchCols =
       'id, order_number, category, company, model, system, client_order_number, release_date, extra_fields'
     const orFilter = `order_number.ilike.${pattern},company.ilike.${pattern},client_order_number.ilike.${pattern},model.ilike.${pattern}`
@@ -95,6 +100,7 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
     if (activeRes.error) {
       console.error('[GlobalSearch]', activeRes.error)
       setResults([])
+      setBlad(true)
       return
     }
     if (archiveRes.error) console.error('[GlobalSearch archive]', archiveRes.error)
@@ -159,7 +165,10 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
 
         <div className="global-search-results">
           {loading && <div className="global-search-empty"><Spinner center label="Szukam…" /></div>}
-          {!loading && query.trim().length > 0 && results.length === 0 && (
+          {!loading && blad && (
+            <div className="global-search-empty">Błąd wyszukiwania — spróbuj jeszcze raz albo skróć frazę</div>
+          )}
+          {!loading && !blad && query.trim().length > 0 && results.length === 0 && (
             <div className="global-search-empty">Brak wyników dla „{query}"</div>
           )}
           {!loading && query.trim().length === 0 && (

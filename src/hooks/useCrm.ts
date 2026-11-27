@@ -498,9 +498,11 @@ export async function updateLeadDane(id: string, d: { nazwa: string; telefon: st
   // zamiast suchego błędu zwracamy 'duplikat' z danymi tamtego klienta, a ekran proponuje połączenie obu w jednego
   const warunki: string[] = []
   if (telefon) warunki.push(`telefon.eq.${telefon}`)
-  if (email) warunki.push(`email.ilike.${email}`)
+  // testy 27.11 (runda 3): adres bez cudzysłowu — przecinek psuł zapytanie, a błąd był pomijany (kontrola duplikatu znikała)
+  if (email) warunki.push(`email.ilike."${email.replace(/["\\%]/g, '')}"`)
   if (warunki.length) {
-    const { data: inni } = await crm().from('leady').select('id, nazwa, telefon, email, status').neq('id', id).or(warunki.join(',')).limit(1)
+    const { data: inni, error: blDup } = await crm().from('leady').select('id, nazwa, telefon, email, status').neq('id', id).or(warunki.join(',')).limit(1)
+    if (blDup) return { kind: 'other', message: `Nie sprawdzono, czy inny klient ma ten telefon / e-mail: ${blDup.message}` }
     const inny = (inni?.[0] ?? null) as CrmError['inny'] | null
     if (inny) {
       const czym = telefon && inny.telefon === telefon ? `numer ${telefon}` : `adres ${email}`
