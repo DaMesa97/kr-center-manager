@@ -694,11 +694,13 @@ export function useOrders({
           .map((o) => o.linked_order_id)
           .filter((id): id is number => id != null)
         if (linkedIds.length > 0) {
-          const { data: linkedData } = await supabase
-            .from('orders')
-            .select('*')
-            .in('id', linkedIds)
-          setLinkedOrders((linkedData || []) as Order[])
+          // runda 6 (wydajność): porcje po 150 — przy ok. 1000+ powiązanych adres zapytania przekroczyłby limit (414)
+          const linkedData: Order[] = []
+          for (let i = 0; i < linkedIds.length; i += 150) {
+            const { data } = await supabase.from('orders').select('*').in('id', linkedIds.slice(i, i + 150))
+            linkedData.push(...((data || []) as Order[]))
+          }
+          setLinkedOrders(linkedData)
         } else {
           setLinkedOrders([])
         }
@@ -713,11 +715,17 @@ export function useOrders({
           ),
         )
         if (groupIds.length > 0) {
-          const [staRes, stRes] = await Promise.all([
-            supabase.from('orders').select('id, order_number, category, release_date, extra_fields').in('id', groupIds),
-            supabase.from('orders').select('id, order_number, category, release_date, linked_order_id, extra_fields').in('linked_order_id', groupIds).eq('category', 'ST'),
-          ])
-          setLinkedOrders([...((staRes.data || []) as Order[]), ...((stRes.data || []) as Order[])])
+          // runda 6 (wydajność): porcje po 150 (limit długości adresu)
+          const rodzenstwo: Order[] = []
+          for (let i = 0; i < groupIds.length; i += 150) {
+            const czesc = groupIds.slice(i, i + 150)
+            const [staRes, stRes] = await Promise.all([
+              supabase.from('orders').select('id, order_number, category, release_date, extra_fields').in('id', czesc),
+              supabase.from('orders').select('id, order_number, category, release_date, linked_order_id, extra_fields').in('linked_order_id', czesc).eq('category', 'ST'),
+            ])
+            rodzenstwo.push(...((staRes.data || []) as Order[]), ...((stRes.data || []) as Order[]))
+          }
+          setLinkedOrders(rodzenstwo)
         } else {
           setLinkedOrders([])
         }
