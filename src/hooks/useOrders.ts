@@ -234,7 +234,16 @@ export function useOrders({
   }>({ open: false, order: null })
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null)
   const [editingOrderBaseline, setEditingOrderBaseline] = useState<Order | null>(null)
-  const [orderFormOpenSnapshot, setOrderFormOpenSnapshot] = useState<Record<string, unknown> | null>(null)
+  const [orderFormOpenSnapshot, setOrderFormOpenSnapshotRaw] = useState<Record<string, unknown> | null>(null)
+  // recenzent (runda 4, KRYTYCZNY): poprawki automatyczne (szerokość naświetla, wysokość dostawki, etykiety Bastion,
+  // zakres ościeżnicy) trafiają do zrzutu z otwarcia (żeby nie pytać o „niezapisane”) — ale łatka „tylko zmienione
+  // pola” (5753752) liczona z tego zrzutu uznawała je za „bez zmian” i NIE zapisywała. Osobny, nietknięty zrzut
+  // z chwili otwarcia jest bazą łatki; zrzut z poprawkami służy tylko do pytania o niezapisane zmiany.
+  const [zrzutDoLatki, setZrzutDoLatki] = useState<Record<string, unknown> | null>(null)
+  const setOrderFormOpenSnapshot = useCallback((v: Record<string, unknown> | null) => {
+    setOrderFormOpenSnapshotRaw(v)
+    setZrzutDoLatki(v)
+  }, [])
   const [isSaving, setIsSaving] = useState(false)
   const [formData, setFormData] = useState<NewOrderFormData>(INITIAL_FORM_DATA)
   const [staFormData, setStaFormData] = useState<StaOrderFormData>(INITIAL_STA_ORDER_FORM)
@@ -881,11 +890,11 @@ export function useOrders({
   // inaczej zamknięcie BEZ zmian zawsze pytało o „niezapisane dane”.
   const autoPatchStaForm = useCallback((patch: Partial<StaOrderFormData>) => {
     setStaFormData((prev) => ({ ...prev, ...patch }))
-    setOrderFormOpenSnapshot((s) => (s ? { ...s, ...patch } : s))
+    setOrderFormOpenSnapshotRaw((s) => (s ? { ...s, ...patch } : s))
   }, [])
   const autoPatchBastionForm = useCallback((patch: Partial<BastionOrderFormData>) => {
     setBastionFormData((prev) => ({ ...prev, ...patch }))
-    setOrderFormOpenSnapshot((s) => (s ? { ...s, ...patch } : s))
+    setOrderFormOpenSnapshotRaw((s) => (s ? { ...s, ...patch } : s))
   }, [])
 
   const handleStCompanySelect = (item: Company) => {
@@ -1373,7 +1382,7 @@ export function useOrders({
                 ? bastionFormData
                 : formData
       const qtyChanged =
-        !isEditing || String(activeForm.quantity ?? '').trim() !== String(orderFormOpenSnapshot?.quantity ?? '').trim()
+        !isEditing || String(activeForm.quantity ?? '').trim() !== String(zrzutDoLatki?.quantity ?? '').trim()
       if (qtyChanged) {
         const q = checkOrderQuantity(activeForm.quantity)
         if (!q.ok) {
@@ -1545,7 +1554,7 @@ export function useOrders({
         // testy 27.11 (runda 3): tylko pola zmienione względem stanu z chwili otwarcia —
         // update_order_form zmienia wyłącznie podane kolumny, więc zmiany innej osoby
         // w polach, których tu nie ruszano, zostają (wcześniej wygrywał ostatni zapis)
-        const openSta = orderFormOpenSnapshot as unknown as StaOrderFormData | null
+        const openSta = zrzutDoLatki as unknown as StaOrderFormData | null
         const changed = pickChangedFields(
           formFields,
           openSta ? omitKeys(buildStaMapped(openSta), staNotFields) : null,
@@ -1874,7 +1883,7 @@ export function useOrders({
         ] as const
         // testy 27.11 (runda 3): tylko pola zmienione względem stanu z chwili otwarcia
         // (te same pola idą do partnera STA i grupy Titana)
-        const openSt = orderFormOpenSnapshot as unknown as StOrderFormData | null
+        const openSt = zrzutDoLatki as unknown as StOrderFormData | null
         const stSyncFields = pickChangedFields(
           omitKeys(mapped, stNotFields),
           openSt ? omitKeys(buildStMapped(openSt), stNotFields) : null,
@@ -2114,7 +2123,7 @@ export function useOrders({
           'extension', 'info',
         ] as const
         // testy 27.11 (runda 3): tylko pola zmienione względem stanu z chwili otwarcia
-        const openTech = orderFormOpenSnapshot as unknown as TechniczneOrderFormData | null
+        const openTech = zrzutDoLatki as unknown as TechniczneOrderFormData | null
         const formFields = pickChangedFields(
           omitKeys(mapped, techNotFields),
           openTech ? omitKeys(buildTechMapped(openTech), techNotFields) : null,
@@ -2217,9 +2226,9 @@ export function useOrders({
         ] as const
         const formFields = omitKeys(mapped, bastionFormOnly)
         // Te same pola policzone ze stanu formularza z chwili otwarcia — do łatki zmian
-        const openFormFields = orderFormOpenSnapshot
+        const openFormFields = zrzutDoLatki
           ? omitKeys(
-              bastionFormToOrderFields(orderFormOpenSnapshot as unknown as BastionOrderFormData, { isTitanLeg }),
+              bastionFormToOrderFields(zrzutDoLatki as unknown as BastionOrderFormData, { isTitanLeg }),
               ['handle', 'top_light', 'top_light_glazing', 'side_panel', 'side_panel_glazing'],
             )
           : null
@@ -2289,7 +2298,7 @@ export function useOrders({
       })
       const mapped = buildLegacyMapped(formData)
       // testy 27.11 (runda 3): tylko pola zmienione względem stanu z chwili otwarcia
-      const openLegacy = orderFormOpenSnapshot as unknown as NewOrderFormData | null
+      const openLegacy = zrzutDoLatki as unknown as NewOrderFormData | null
       const changed = pickChangedFields(mapped, openLegacy ? buildLegacyMapped(openLegacy) : null)
       const payload = sanitizeOrderPayloadForDb(changed)
       const saved = await updateOrderPatch(editId, payload)
