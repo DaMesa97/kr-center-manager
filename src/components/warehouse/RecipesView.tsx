@@ -283,6 +283,11 @@ function RecipesView({
           </button>
         )}
       </div>
+      <p className="muted" style={{ margin: '-4px 0 10px', fontSize: '0.82rem' }}>
+        Z każdej części do zlecenia schodzi jedna receptura — ta z największą liczbą kryteriów (remis: nowsza).
+        Wyjątek: <b>Inne</b> — schodzą wszystkie pasujące (np. okapnik i samozamykacz razem); dwie receptury na tę samą rzecz
+        (np. „samozamykacz” i „samozamykacz + kierunek”) dalej się wykluczają i wygrywa dokładniejsza.
+      </p>
       {loading ? (
         <Spinner center label="Ładowanie receptur…" />
       ) : (

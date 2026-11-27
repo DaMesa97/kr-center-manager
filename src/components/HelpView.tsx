@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.0: magazyn wewnętrzne jak dawny Excel, receptury „Inne” razem</h4>
+        <ul>
+          <li><b>Kartka do inwentaryzacji magazynu wewnętrzne</b> (Inwentaryzacja → ↓ PDF) jest ułożona jak dawny plik „STAN WEWNĘTRZNE MAGAZYN”: każda zakładka (PŁYTOWE, BRAVO, CREDIS, MALEO, MODERNA…) od nowej strony, bloki model + kolor po dwa w rzędzie, w bloku SZEROKOŚĆ / KIERUNEK / STAN / UWAGI. Ościeżnice jako tabelka profil (OR1–OR7…) × BAZA LEWA/PRAWA i BELKA 60–90, osobno ćwierćwałki i listwy opaskowe.</li>
+          <li><b>Wpisywanie spisu</b> ma ten sam układ („Jak na kartce (Excel)”) — przepisujesz z kartki kratka po kratce, Enter idzie do następnej. Stary widok listy jest pod przyciskiem „Lista”.</li>
+          <li><b>Magazyn → Stany → Wewnętrzne</b> pokazuje stany w tym samym układzie („Jak w Excelu”), z rezerwacjami pod liczbą; kliknięcie liczby otwiera historię ruchów.</li>
+          <li><b>Receptury, część „Inne”</b>: do zlecenia schodzą wszystkie pasujące receptury (np. okapnik i samozamykacz razem). W pozostałych częściach bez zmian — jedna receptura. Dwie receptury na to samo (np. „samozamykacz” i „samozamykacz + kierunek”) dalej się wykluczają.</li>
+          <li>Od tej wersji numeracja bez „beta” — kolejne wydania 1.1.1, 1.1.2…</li>
+        </ul>
         <h4>Statystyki drzwi wewnętrznych: wróciły stare wykresy (beta.173)</h4>
         <ul>
           <li><b>Statystyki → Drzwi wewnętrzne</b> znów pokazują wykresy liczone ze zleceń: <b>Top 10 firm zamawiających</b>, status zamówień, czas realizacji, produkcję w czasie i rozkład per dzień tygodnia. Pod nimi zostają statystyki sprzedaży z bazy (modele, kolory, rozmiary).</li>
