@@ -362,7 +362,7 @@ export default function LogisticsDeskView({
             <div className="ldesk-firm__head">
               <div className="ldesk-firm__title">
                 <span className="ldesk-firm__name">{f.name}</span>
-                <span className="ldesk-muted">{f.rows.length} {f.rows.length === 1 ? 'zlecenie' : f.rows.length < 5 ? 'zlecenia' : 'zleceń'} · {f.marked} do fakturowania · {f.packed} na magazynie</span>
+                <span className="ldesk-muted">{ileOdm(f.rows.length, 'zlecenie', 'zlecenia', 'zleceń')} · {f.marked} do fakturowania · {f.packed} na magazynie</span>
               </div>
               {canInvoice && (
                 <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void markAll(f)}>

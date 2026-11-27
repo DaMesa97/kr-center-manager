@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ileOdm, odmiana } from '../utils/odmiana'
 import { AlertTriangle, X, ChevronRight } from 'lucide-react'
 
 type Props = {
@@ -21,12 +22,8 @@ export default function OverdueBanner({ overdueCount, warningCount = 0, onNaviga
   const buildText = () => {
     const parts: string[] = []
     if (overdueCount > 0) {
-      const label =
-        overdueCount === 1
-          ? '1 zamówienie przeterminowane'
-          : overdueCount < 5
-            ? `${overdueCount} zamówienia przeterminowane`
-            : `${overdueCount} zamówień przeterminowanych`
+      // noc 28.11: dawne „22 zamówień” / reguła < 5 — wspólna odmiana
+      const label = `${ileOdm(overdueCount, 'zamówienie', 'zamówienia', 'zamówień')} ${odmiana(overdueCount, 'przeterminowane', 'przeterminowane', 'przeterminowanych')}`
       parts.push(label)
     }
     if (warningCount > 0) {

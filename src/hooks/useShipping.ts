@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { isReleaseDateEmpty, orderRouteMark } from '../utils'
 import { cleanCompanyValue } from '../lib/companyMatch'
 import { fetchAllPages } from '../lib/fetchPaged'
+import { ileOdm } from '../utils/odmiana'
 import type { Order } from '../types'
 import type { ToastVariant } from '../types'
 import type React from 'react'
@@ -202,7 +203,7 @@ export function useShipping({
         prev.map((o) => (o.id !== undefined && ids.includes(o.id) ? { ...o, shipped_at: shipped ? now : null, shipped_route: shipped ? route : null } : o))
       setShippingOrders(apply)
       setShippingReleasedOrders(apply)
-      pushToast(shipped ? `Trasa ${route}: wyjechało ${n} ${n === 1 ? 'zlecenie' : n < 5 ? 'zlecenia' : 'zleceń'}` : 'Cofnięto wyjazd', 'success')
+      pushToast(shipped ? `Trasa ${route}: wyjechało ${ileOdm(n, 'zlecenie', 'zlecenia', 'zleceń')}` : 'Cofnięto wyjazd', 'success')
       return n
     },
     [pushToast],

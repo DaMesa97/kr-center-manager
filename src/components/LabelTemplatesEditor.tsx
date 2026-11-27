@@ -1,4 +1,5 @@
 import { appConfirm } from '../lib/appDialogs'
+import { ileOdm } from '../utils/odmiana'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
@@ -227,7 +228,7 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
                   onClick={() => {
                     const r = wrapRowsWithConditionals(form.html)
                     setForm((p) => ({ ...p, html: r.html }))
-                    pushToast(r.wrapped ? `Owinięto warunkami ${r.wrapped} ${r.wrapped === 1 ? 'wiersz' : r.wrapped < 5 ? 'wiersze' : 'wierszy'} tabeli — zapisz szablon` : 'Nie ma wierszy do owinięcia (każdy <tr> z jednym polem już ma warunek albo ma więcej pól)', r.wrapped ? 'success' : 'info')
+                    pushToast(r.wrapped ? `Owinięto warunkami ${ileOdm(r.wrapped, 'wiersz', 'wiersze', 'wierszy')} tabeli — zapisz szablon` : 'Nie ma wierszy do owinięcia (każdy <tr> z jednym polem już ma warunek albo ma więcej pól)', r.wrapped ? 'success' : 'info')
                   }}
                 >
                   Owiń wiersze tabeli warunkami
