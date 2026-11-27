@@ -66,7 +66,12 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
   )
 
   // ---- umowa ----
-  const [ofertaId, setOfertaId] = useState(istniejacy?.oferta_id ?? ofertyDoUmowy[0]?.id ?? '')
+  // runda 4 (tester CRM): domyślnie brana była najstarsza oferta z listy (inna kwota niż przyjęta) — najpierw
+  // zaakceptowana („Zamówił”), potem najnowsza
+  const ofertaDomyslna =
+    ofertyDoUmowy.find((o) => o.status === 'zaakceptowana') ??
+    [...ofertyDoUmowy].sort((a, b) => (Number(b.wersja) || 0) - (Number(a.wersja) || 0))[0]
+  const [ofertaId, setOfertaId] = useState(istniejacy?.oferta_id ?? ofertaDomyslna?.id ?? '')
   // 27.11: klient-firma — adres z danych firmy (NIP / GUS) jako podpowiedź
   const [klientAdres, setKlientAdres] = useState(str(d.klient_adres, adresFirmy(lead)))
   const [adresMontazu, setAdresMontazu] = useState(str(d.adres_montazu))
@@ -227,7 +232,7 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
                 <span className="crm-muted">Brak policzonej oferty oficjalnej z montażem — najpierw „Oferta z montażem”.</span>
               ) : (
                 <select value={ofertaId} onChange={(e) => setOfertaId(e.target.value)} disabled={busy || Boolean(istniejacy)}>
-                  {ofertyDoUmowy.map((o) => <option key={o.id} value={o.id}>nr {o.numer ?? '…'} v{o.wersja} · {fmtPln(o.brutto)} brutto{o.streszczenie ? ` · ${o.streszczenie}` : ''}</option>)}
+                  {ofertyDoUmowy.map((o) => <option key={o.id} value={o.id}>nr {o.numer ?? '…'} v{o.wersja} · {fmtPln(o.brutto)} brutto{o.status === 'zaakceptowana' ? ' · PRZYJĘTA' : ''}{o.streszczenie ? ` · ${o.streszczenie}` : ''}</option>)}
                 </select>
               )}
               {oferta && <span className="crm-pf-hint">Załącznik nr 1 = PDF tej oferty{(() => { const n = konfiguracjaPliki(oferta).filter((p) => p.toLowerCase().endsWith('.pdf')).length; return n === 0 ? '' : n === 1 ? ' + konfiguracja producenta' : ` + ${n} konfiguracje producenta` })()}. VAT {oferta.vat_stawka != null ? `${oferta.vat_stawka}%` : 'z oferty'}{Number(oferta.vat_stawka) === 8 ? ' → §3a (oświadczenie o budynku mieszkalnym) wstawi się sam' : ''}.</span>}
