@@ -5,7 +5,14 @@
 // =====================================================================
 import type { CrmDokument, CrmOferta } from '../types/crm'
 
-type OfertaDoUmowy = Pick<CrmOferta, 'rodzaj' | 'z_montazem' | 'brutto' | 'numer' | 'plik_pdf' | 'status'>
+type OfertaDoUmowy = Pick<CrmOferta, 'rodzaj' | 'z_montazem' | 'brutto' | 'numer' | 'plik_pdf' | 'status'> & Partial<Pick<CrmOferta, 'pozycje'>>
+
+/** Zero celowe (gratis, w cenie…) — ta sama reguła co w crm-oferta-pdf / crm-dokumenty. */
+const CELOWO_ZERO = /gratis|w cenie|w komplecie|wliczon|bez dopłat|bez dopłaty|bezpłatn/i
+/** Pozycje oferty z ceną 0 zł, które nie są celowo darmowe (testy 27.11, 2. seria: umowa z oferty po 0 zł). */
+export function pozycjeBezCeny(o: Partial<Pick<CrmOferta, 'pozycje'>>): number {
+  return (o.pozycje ?? []).filter((p) => Number(p.netto_szt ?? 0) === 0 && !CELOWO_ZERO.test(`${p.nazwa ?? ''} ${p.opis ?? ''}`)).length
+}
 
 /** Statusy oferty, z których wolno zrobić umowę (zaakceptowana — np. po „Zamówił” — też). */
 export const UMOWA_STATUSY_OFERTY = ['do_sprawdzenia', 'wyslana', 'zaakceptowana'] as const
@@ -15,7 +22,7 @@ const policzona = (o: OfertaDoUmowy) => o.brutto != null && Boolean(o.numer) && 
 
 export function ofertyDoUmowy<T extends OfertaDoUmowy>(oferty: T[]): T[] {
   return oferty.filter(
-    (o) => oficjalnaZMontazem(o) && policzona(o) && (UMOWA_STATUSY_OFERTY as readonly string[]).includes(String(o.status)),
+    (o) => oficjalnaZMontazem(o) && policzona(o) && pozycjeBezCeny(o) === 0 && (UMOWA_STATUSY_OFERTY as readonly string[]).includes(String(o.status)),
   )
 }
 
@@ -32,6 +39,9 @@ export function umowaZablokowanaPowod(oferty: OfertaDoUmowy[]): string | null {
   }
   if (zMontazem.some((o) => !policzona(o) || o.status === 'przelicz' || o.status === 'wstrzymana')) {
     return 'Oferta z montażem jeszcze nie jest gotowa (liczy się albo nie ma numeru, kwoty brutto lub PDF). Poczekaj, aż się policzy — przycisk „Umowa” odblokuje się sam.'
+  }
+  if (zMontazem.some((o) => policzona(o) && pozycjeBezCeny(o) > 0)) {
+    return 'Oferta z montażem ma pozycje z ceną 0 zł — popraw ją („Poproś o zmianę” z cenami albo „gratis”), potem zrobisz umowę.'
   }
   return 'Oferta z montażem jest odrzucona, wygasła albo to stara wersja. Przygotuj nową ofertę przyciskiem „Oferta z montażem” — z niej zrobisz umowę.'
 }

@@ -23,3 +23,16 @@ describe('umowa na montaż — kiedy można', () => {
     expect(umowyKlienta([{ rodzaj: 'umowa', status: 'wyslana' }, { rodzaj: 'umowa', status: 'anulowana' }, { rodzaj: 'protokol', status: 'projekt' }]).length).toBe(1)
   })
 })
+
+describe('umowa z oferty z cenami 0 zł (testy 27.11, 2. seria)', () => {
+  const baza = { rodzaj: 'oficjalna', z_montazem: true, brutto: 1845, numer: '2026/11/005', plik_pdf: 'x.pdf', status: 'wyslana' } as const
+  it('pozycja 0 zł blokuje umowę z podpowiedzią, „gratis” nie blokuje', () => {
+    const zera = { ...baza, pozycje: [{ nazwa: 'Drzwi Verona 02', netto_szt: 0 }, { nazwa: 'Montaż', netto_szt: 1500 }] }
+    expect(ofertyDoUmowy([zera])).toHaveLength(0)
+    expect(umowaZablokowanaPowod([zera])).toContain('0 zł')
+    const gratis = { ...baza, pozycje: [{ nazwa: 'Osłonki gratis', netto_szt: 0 }, { nazwa: 'Drzwi', netto_szt: 900 }] }
+    expect(ofertyDoUmowy([gratis])).toHaveLength(1)
+    expect(ofertyDoUmowy([baza])).toHaveLength(1)
+  })
+})
+
