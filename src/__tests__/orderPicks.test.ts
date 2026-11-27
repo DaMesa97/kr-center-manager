@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canPick, groupPicks, pickKey, pickProgress, type OrderPick } from '../lib/orderPicks'
+import { canPick, groupPicks, isPicked, pickChanged, pickKey, pickProgress, pickSig, type OrderPick } from '../lib/orderPicks'
 
 const pick = (order_id: number, line_key: string): OrderPick => ({ order_id, line_key, picked_at: '2026-11-26T15:00:00Z', picked_by: null, picked_initials: 'TW' })
 
@@ -38,5 +38,26 @@ describe('przygotowanie do pakowania', () => {
     expect(canPick({ role: 'worker', department: 'stalowe' }, false)).toBe(false)
     expect(canPick({ role: 'sprzedawca' }, false)).toBe(false)
     expect(canPick({ role: 'kierownik_magazynu' }, true)).toBe(true)
+  })
+})
+
+describe('poprawki po testach 27.11', () => {
+  const skrzydlo = { id: 55179, optima_element_id: 3492967, component_id: 3389, optima_code: 'MALEO06-JS-80', quantity: 1, notes: 'skrzydło przesuwne' }
+  const system = { id: 55180, optima_element_id: 3492967, component_id: 3386, optima_code: 'SYS-PRZ', quantity: 1, notes: 'Część kompletu MALEO 06 JESION SZARY 80 Z SYSTEMEM PRZESUWNYM' }
+  it('lista w telefonie (pełne pola): odhaczone samo skrzydło to 1/2, nie „komplet”', () => {
+    expect(pickProgress([skrzydlo, system], new Map([[pickKey(skrzydlo), pick(1, pickKey(skrzydlo))]]))).toEqual({ done: 1, total: 2, complete: false })
+  })
+  it('zmiana ilości albo kodu w Optimie po odhaczeniu = linia nieodhaczona', () => {
+    const odh = { ...pick(1, pickKey(skrzydlo)), line_sig: pickSig(skrzydlo) }
+    const m = new Map([[pickKey(skrzydlo), odh]])
+    expect(isPicked(m, skrzydlo)).toBe(true)
+    expect(isPicked(m, { ...skrzydlo, quantity: 2 })).toBe(false)
+    expect(pickChanged(m, { ...skrzydlo, quantity: 2 })).toBe(true)
+    expect(isPicked(m, { ...skrzydlo, optima_code: 'MALEO06-JS-90' })).toBe(false)
+  })
+  it('stare odhaczenie bez podpisu liczy się jak dotąd', () => {
+    const m = new Map([[pickKey(skrzydlo), pick(1, pickKey(skrzydlo))]])
+    expect(isPicked(m, { ...skrzydlo, quantity: 5 })).toBe(true)
+    expect(pickChanged(m, { ...skrzydlo, quantity: 5 })).toBe(false)
   })
 })

@@ -3039,7 +3039,7 @@ function App() {
           picks={intDoorPicks.get(internalDoorDetailsModal.order.id ?? -1)}
           onTogglePick={
             userCanPick && internalDoorDetailsModal.order.id != null
-              ? (keys, picked) => void toggleIntDoorPick(internalDoorDetailsModal.order!.id!, keys, picked, currentUser?.initials ?? '')
+              ? (keys, picked, sigs) => void toggleIntDoorPick(internalDoorDetailsModal.order!.id!, keys, picked, currentUser?.initials ?? '', sigs)
               : undefined
           }
           onClose={closeInternalDoorDetails}

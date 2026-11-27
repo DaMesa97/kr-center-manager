@@ -50,7 +50,7 @@ export function useOrderPicks(orderIds: number[], enabled: boolean, pushToast: (
   }, [enabled])
 
   const toggle = useCallback(
-    async (orderId: number, lineKeys: string[], picked: boolean, initials: string) => {
+    async (orderId: number, lineKeys: string[], picked: boolean, initials: string, sigs?: Map<string, string>) => {
       if (lineKeys.length === 0) return
       const now = new Date().toISOString()
       setPicks((prev) => {
@@ -58,14 +58,14 @@ export function useOrderPicks(orderIds: number[], enabled: boolean, pushToast: (
         const m = new Map(next.get(orderId) ?? [])
         for (const k of lineKeys) {
           if (picked) {
-            if (!m.has(k)) m.set(k, { order_id: orderId, line_key: k, picked_at: now, picked_by: null, picked_initials: initials || null } as OrderPick)
+            m.set(k, { ...(m.get(k) ?? { order_id: orderId, line_key: k, picked_at: now, picked_by: null }), picked_initials: initials || null, line_sig: sigs?.get(k) ?? null } as OrderPick)
           } else m.delete(k)
         }
         next.set(orderId, m)
         return next
       })
       try {
-        await savePicks(orderId, lineKeys, picked, initials)
+        await savePicks(orderId, lineKeys, picked, initials, sigs)
       } catch (e) {
         console.error('[przygotowanie] zapis', e)
         pushToast(`Nie zapisano przygotowania: ${e instanceof Error ? e.message : String(e)}`, 'error')

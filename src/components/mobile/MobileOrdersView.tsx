@@ -98,13 +98,14 @@ type PickProg = { done: number; total: number; complete: boolean }
 
 /** Postęp przygotowania dla listy Wewn. (pozycje + odznaczenia otwartych zleceń, porcjami po 150 id). */
 async function loadPickProgress(orderIds: number[]): Promise<Map<number, PickProg>> {
-  const items: Array<{ id: number; order_id: number; optima_element_id: number | null }> = []
+  const items: Array<{ id: number; order_id: number; optima_element_id: number | null; notes: string | null; component_id: number | null; optima_code: string | null; quantity: number }> = []
   const picks: OrderPick[] = []
   for (let i = 0; i < orderIds.length; i += 150) {
     const part = orderIds.slice(i, i + 150)
     const [it, pk] = await Promise.all([
-      supabase.from('order_internal_door_items').select('id, order_id, optima_element_id').in('order_id', part).limit(5000),
-      supabase.from('order_item_picks').select('order_id, line_key, picked_at, picked_by, picked_initials').in('order_id', part).limit(5000),
+      // 27.11 (testy): notes/component_id/optima_code — bez nich SYSTEM PRZESUWNY miał klucz skrzydła i lista mówiła „✓ komplet”
+      supabase.from('order_internal_door_items').select('id, order_id, optima_element_id, notes, component_id, optima_code, quantity').in('order_id', part).limit(5000),
+      supabase.from('order_item_picks').select('order_id, line_key, picked_at, picked_by, picked_initials, line_sig').in('order_id', part).limit(5000),
     ])
     items.push(...((it.data ?? []) as typeof items))
     picks.push(...((pk.data ?? []) as OrderPick[]))

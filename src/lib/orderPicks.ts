@@ -16,6 +16,8 @@ export type OrderPick = {
   picked_at: string
   picked_by: string | null
   picked_initials: string | null
+  /** 27.11 (testy): ilość | kod z chwili odhaczenia — po zmianie w Optimie linia wraca jako nieodhaczona (null = stare, liczy się) */
+  line_sig?: string | null
 }
 
 /** order_id → (line_key → odznaczenie) */
@@ -39,13 +41,36 @@ export function groupPicks(rows: OrderPick[]): PicksByOrder {
   return out
 }
 
-/** Ile pozycji zlecenia przygotowano. Odznaczenia linii, których już nie ma (zmiana RO), się nie liczą. */
-export function pickProgress(
-  items: Array<Pick<InternalDoorItem, 'id' | 'optima_element_id'>>,
-  picks: Map<string, OrderPick> | undefined,
-): { done: number; total: number; complete: boolean } {
+type PickItem = Pick<InternalDoorItem, 'id' | 'optima_element_id'> &
+  Partial<Pick<InternalDoorItem, 'notes' | 'component_id' | 'optima_code' | 'quantity'>>
+
+/** Podpis linii: ilość | kod Optimy (albo komponent). Zmiana ilości / rozmiaru / koloru w Optimie zmienia podpis. */
+export function pickSig(it: Partial<Pick<InternalDoorItem, 'quantity' | 'optima_code' | 'component_id'>>): string {
+  return `${Number(it.quantity) || 0}|${it.optima_code ?? it.component_id ?? ''}`
+}
+
+/** Linia odhaczona i nic się w niej nie zmieniło od odhaczenia (stare odhaczenia bez podpisu — liczą się). */
+export function isPicked(picks: Map<string, OrderPick> | undefined, it: PickItem): boolean {
+  const p = picks?.get(pickKey(it))
+  if (!p) return false
+  return p.line_sig == null || it.quantity === undefined || p.line_sig === pickSig(it)
+}
+
+/** Linia odhaczona, ale zlecenie zmieniło się potem w Optimie (ilość / kod) — do ponownego sprawdzenia. */
+export function pickChanged(picks: Map<string, OrderPick> | undefined, it: PickItem): boolean {
+  const p = picks?.get(pickKey(it))
+  return !!p && p.line_sig != null && it.quantity !== undefined && p.line_sig !== pickSig(it)
+}
+
+/** Mapa klucz linii → podpis (do zapisu odhaczenia). */
+export function sigsOf(items: PickItem[]): Map<string, string> {
+  return new Map(items.map((it) => [pickKey(it), pickSig(it)]))
+}
+
+/** Ile pozycji zlecenia przygotowano. Odznaczenia linii, których już nie ma (zmiana RO) albo które się zmieniły, się nie liczą. */
+export function pickProgress(items: PickItem[], picks: Map<string, OrderPick> | undefined): { done: number; total: number; complete: boolean } {
   const total = items.length
-  const done = picks ? items.filter((it) => picks.has(pickKey(it))).length : 0
+  const done = picks ? items.filter((it) => isPicked(picks, it)).length : 0
   return { done, total, complete: total > 0 && done === total }
 }
 
@@ -62,7 +87,7 @@ export async function fetchPicks(orderIds: number[]): Promise<OrderPick[]> {
   for (let i = 0; i < ids.length; i += CHUNK) {
     const { data, error } = await supabase
       .from('order_item_picks')
-      .select('order_id, line_key, picked_at, picked_by, picked_initials')
+      .select('order_id, line_key, picked_at, picked_by, picked_initials, line_sig')
       .in('order_id', ids.slice(i, i + CHUNK))
     if (error) throw new Error(error.message)
     out.push(...((data ?? []) as OrderPick[]))
@@ -71,14 +96,15 @@ export async function fetchPicks(orderIds: number[]): Promise<OrderPick[]> {
 }
 
 /** Odznacz / cofnij kilka linii jednego zlecenia naraz. */
-export async function savePicks(orderId: number, lineKeys: string[], picked: boolean, initials: string): Promise<void> {
+export async function savePicks(orderId: number, lineKeys: string[], picked: boolean, initials: string, sigs?: Map<string, string>): Promise<void> {
   if (lineKeys.length === 0) return
   if (picked) {
+    // z update (nie ignoreDuplicates): ponowne odhaczenie zmienionej linii zapisuje nowy podpis
     const { error } = await supabase
       .from('order_item_picks')
       .upsert(
-        lineKeys.map((line_key) => ({ order_id: orderId, line_key, picked_initials: initials || null })),
-        { onConflict: 'order_id,line_key', ignoreDuplicates: true },
+        lineKeys.map((line_key) => ({ order_id: orderId, line_key, picked_initials: initials || null, line_sig: sigs?.get(line_key) ?? null })),
+        { onConflict: 'order_id,line_key' },
       )
     if (error) throw new Error(error.message)
   } else {

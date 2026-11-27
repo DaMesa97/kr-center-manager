@@ -173,21 +173,21 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
         flash('NIE wydano — zamówienie jest już wydane albo nie masz uprawnień do wydania', true)
         return
       }
-      // DOPIERO teraz fizyczne wydanie pozostałych rezerwacji (WZ) — jak desktop.
-      // Drzwi wewnętrzne nie mają rezerwacji — no-op. Braki z force=true
+      // DOPIERO teraz fizyczne wydanie (WZ) — jak desktop. Braki z force=true
       // (zamówienie fizycznie wyjeżdża), błąd RPC nie cofa daty, ale krzyczy.
+      // 27.11 (testy): drzwi wewnętrzne nie mają rezerwacji — schodzą z Magazynu 1 / 2 przez
+      // issue_internal_door_stock (jak „Wydane” na komputerze); wcześniej telefon nic nie zdejmował.
       let warned = false
       try {
-        const { error: relErr } = await supabase.rpc('release_remaining_for_order', {
-          p_order_id: order.id!,
-          p_force: true,
-        })
+        const { error: relErr } = order.category === 'DrzwiWewnetrzne'
+          ? await supabase.rpc('issue_internal_door_stock', { p_order_id: order.id! })
+          : await supabase.rpc('release_remaining_for_order', { p_order_id: order.id!, p_force: true })
         if (relErr) {
-          console.error('release_remaining_for_order error:', relErr)
+          console.error('[wydanie z telefonu] WZ error:', relErr)
           warned = true
         }
       } catch (err) {
-        console.error('release_remaining_for_order error:', err)
+        console.error('[wydanie z telefonu] WZ error:', err)
         warned = true
       }
       if (!mountedRef.current) return

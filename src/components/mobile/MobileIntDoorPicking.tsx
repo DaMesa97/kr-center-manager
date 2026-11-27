@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 import { groupItemsByType, isKitPart } from '../../lib/optimaRo'
-import { groupPicks, pickKey, pickProgress, savePicks, type OrderPick } from '../../lib/orderPicks'
+import { groupPicks, isPicked, pickChanged, pickKey, pickProgress, savePicks, sigsOf, type OrderPick } from '../../lib/orderPicks'
 import type { InternalDoorItem } from '../../types'
 
 type Props = {
@@ -27,7 +27,7 @@ export default function MobileIntDoorPicking({ orderId, canEdit, initials }: Pro
   const load = useCallback(async () => {
     const [it, pk] = await Promise.all([
       supabase.from('order_internal_door_items').select(SELECT).eq('order_id', orderId).order('id'),
-      supabase.from('order_item_picks').select('order_id, line_key, picked_at, picked_by, picked_initials').eq('order_id', orderId),
+      supabase.from('order_item_picks').select('order_id, line_key, picked_at, picked_by, picked_initials, line_sig').eq('order_id', orderId),
     ])
     if (it.error || pk.error) {
       setError((it.error ?? pk.error)?.message ?? 'błąd')
@@ -61,13 +61,14 @@ export default function MobileIntDoorPicking({ orderId, canEdit, initials }: Pro
     if (keys.length === 0) return
     const before = picks
     const next = new Map(picks)
+    const sigs = sigsOf(items)
     for (const k of keys) {
-      if (picked) next.set(k, { order_id: orderId, line_key: k, picked_at: new Date().toISOString(), picked_by: null, picked_initials: initials || null })
+      if (picked) next.set(k, { order_id: orderId, line_key: k, picked_at: new Date().toISOString(), picked_by: null, picked_initials: initials || null, line_sig: sigs.get(k) ?? null })
       else next.delete(k)
     }
     setPicks(next)
     try {
-      await savePicks(orderId, keys, picked, initials)
+      await savePicks(orderId, keys, picked, initials, sigs)
     } catch (e) {
       setPicks(before)
       setError(`Nie zapisano: ${e instanceof Error ? e.message : String(e)}`)
@@ -90,12 +91,12 @@ export default function MobileIntDoorPicking({ orderId, canEdit, initials }: Pro
       {canEdit && (
         <div className="mpick-bulk">
           {!pr.complete && (
-            <button type="button" className="mpick-bulk-btn" onClick={() => void toggle(items.map(pickKey).filter((k) => !picks.has(k)), true)}>
+            <button type="button" className="mpick-bulk-btn" onClick={() => void toggle(items.filter((it) => !isPicked(picks, it)).map(pickKey), true)}>
               Zaznacz wszystkie
             </button>
           )}
           {pr.done > 0 && (
-            <button type="button" className="mpick-bulk-btn mpick-bulk-btn--ghost" onClick={() => void toggle(items.map(pickKey).filter((k) => picks.has(k)), false)}>
+            <button type="button" className="mpick-bulk-btn mpick-bulk-btn--ghost" onClick={() => void toggle(items.filter((it) => picks.has(pickKey(it))).map(pickKey), false)}>
               Odznacz wszystkie
             </button>
           )}
@@ -108,7 +109,8 @@ export default function MobileIntDoorPicking({ orderId, canEdit, initials }: Pro
           </div>
           {g.items.map((it) => {
             const k = pickKey(it)
-            const p = picks.get(k)
+            const zmiana = pickChanged(picks, it)
+            const p = isPicked(picks, it) ? picks.get(k) : undefined
             const kit = isKitPart(it)
             return (
               <label key={k} className={`mpick-row${p ? ' mpick-row--done' : ''}${canEdit ? '' : ' mpick-row--ro'}${kit ? ' mpick-row--kit-part' : ''}`}>
@@ -120,6 +122,7 @@ export default function MobileIntDoorPicking({ orderId, canEdit, initials }: Pro
                     {kit && <span className="optima-kit-badge">część kompletu</span>}
                   </span>
                   {it.notes && !kit && <span className="mpick-row-notes">{it.notes}</span>}
+                  {zmiana && <span className="mpick-row-notes" style={{ color: '#b45309' }}>zmienione w Optimie po odhaczeniu — sprawdź i odhacz ponownie</span>}
                   {p && (
                     <span className="mpick-row-who">
                       ✓ {p.picked_initials ?? ''} {new Date(p.picked_at).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
