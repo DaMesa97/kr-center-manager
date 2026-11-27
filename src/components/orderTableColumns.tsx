@@ -313,36 +313,6 @@ export const productionDayCol = (): DataTableColumn<Order> =>
 
 export const quantityCol = (): DataTableColumn<Order> => textCol('quantity', 'ILOŚĆ', (o) => o.quantity)
 
-/**
- * PILNE — checkbox (zmienia tylko kierownik); klik nie otwiera edycji.
- * Od beta.90 (#84) NIEUŻYWANA w tabelach zleceń: pilne ustawia się ⚡ w kolumnie
- * Akcje, a widać je po niebieskim tle wiersza (legenda nad tabelą).
- */
-export function rushCol(ctx: OrderTableCtx): DataTableColumn<Order> {
-  return {
-    key: 'rush',
-    label: 'PILNE',
-    title: 'PILNE',
-    className: 'rush-cell',
-    stopRowClick: true,
-    sortValue: (o) => (isRushOrderSequence(o.sequence) ? 0 : 1),
-    render: (o) => (
-      <input
-        type="checkbox"
-        className="rush-checkbox"
-        checked={isRushOrderSequence(o.sequence)}
-        disabled={!ctx.isManager || isCancelledOwn(o) || o.id === undefined || ctx.rushUpdatingOrderId === o.id}
-        title={ctx.isManager ? 'Pilne zamówienie' : 'Pilne (tylko kierownik może zmienić)'}
-        aria-label="Pilne"
-        onChange={(e) => {
-          e.stopPropagation()
-          void ctx.onHandleRushToggle(o, e.target.checked)
-        }}
-      />
-    ),
-  }
-}
-
 type ReleaseColOpts = {
   label?: string
   /** Rzeczownik w podpowiedziach: „wydanie” (domyślnie) albo „realizację” (Bastion). */

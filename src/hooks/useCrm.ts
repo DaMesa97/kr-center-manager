@@ -272,26 +272,6 @@ export async function fetchZadania(): Promise<Result<CrmZadanieRow[]>> {
   return { data: leads.map((l) => ({ ...l, oferta: byLead.get(l.id) ?? null })), error: null }
 }
 
-/** „Zrobione”: czyści akcję na leadzie + zdarzenie zadanie_zrobione. */
-export async function markZadanieZrobione(lead: CrmLead, userId: string): Promise<CrmError | null> {
-  const { error } = await crm()
-    .from('leady')
-    .update({ nastepna_akcja: null, nastepny_krok: null, akcja_opis: null })
-    .eq('id', lead.id)
-  if (error) return crmErrorFrom(error)
-  // dane.zrodlo='klik' — ingest zamyka „oddzwon” sam po rozmowie wychodzącej z Ringostatu
-  // (zrodlo='ringostat'); historia rozróżnia oba
-  const { error: zErr } = await crm().from('zdarzenia').insert({
-    lead_id: lead.id,
-    typ: 'zadanie_zrobione',
-    opis: `${lead.nastepna_akcja ?? 'zadanie'}: ${lead.akcja_opis ?? ''}`.trim(),
-    dane: { zrodlo: 'klik', akcja: lead.nastepna_akcja },
-    kto: userId,
-  })
-  if (zErr) console.warn('crm.zdarzenia zadanie_zrobione:', zErr.message)
-  return null
-}
-
 /**
  * „Zrobione” z następnym krokiem (brief pkt 20): rpc crm.zamknij_zadanie sam zapisuje zdarzenie zadanie_zrobione,
  * ustawia następne zadanie (nastepna_akcja + termin za N dni + opis) i przy wyslano_oferte status klienta 'oferta'.
