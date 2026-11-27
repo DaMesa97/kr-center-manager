@@ -368,13 +368,13 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
   )
 
   const handleExportPdf = (sd: SessionWithLines) => {
-    generateInventorySheet(sd.session, sd.lines.filter(naSpisie))
+    generateInventorySheet(sd.session, sd.lines.filter(naSpisie), undefined, warehouses.find((w) => w.id === sd.session.warehouse_id)?.name)
   }
 
   const handleExportPastPdf = async (session: InventorySession & { warehouse_id: number | null }) => {
     const { lines, error } = await fetchLines(session.id)
     if (error) { pushToast(`Nie pobrano pozycji spisu: ${error}`, 'error'); return }
-    generateInventorySheet(session, lines.filter(naSpisie))
+    generateInventorySheet(session, lines.filter(naSpisie), undefined, warehouses.find((w) => w.id === session.warehouse_id)?.name)
   }
 
   const activeComponentsSorted = useMemo(

@@ -104,7 +104,7 @@ export type WarehouseTab = (typeof WAREHOUSE_TABS)[number]
 export const WAREHOUSE_TAB_SUBTABS: Record<WarehouseTab, readonly WarehouseSubTab[]> = {
   Stany: ['Stany', 'Wewnętrzne', 'Rezerwacje', 'Ruchy'],
   Komponenty: ['Komponenty', 'Receptury', 'Kody Optimy'],
-  Dokumenty: ['Przyjęcia', 'Przesunięcia'],
+  Dokumenty: ['Przyjęcia', 'Przesunięcia', 'WZ reklamacyjne'],
   Zamawianie: ['Zamawianie', 'Alerty', 'Prognozy', 'Zamówienia'],
   Inwentaryzacja: ['Inwentaryzacja'],
 }
@@ -158,6 +158,7 @@ export const WAREHOUSE_SUB_TABS: WarehouseSubTab[] = [
   'Inwentaryzacja',
   'Kody Optimy',
   'Wewnętrzne',
+  'WZ reklamacyjne',
 ]
 
 export const PRODUCT_CATEGORY_LABELS: Record<string, string> = {

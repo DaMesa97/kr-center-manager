@@ -6,7 +6,19 @@
 // =====================================================================
 import type { WarehouseComponent } from '../types'
 
-export const INTERNAL_WAREHOUSE_ID = 3
+/** 27.11: drzwi wewnętrzne leżą w dwóch magazynach — WEW1 „Magazyn 1” (dawne WEWNETRZNE, id 3) i WEW2 „Magazyn 2”.
+ *  Stan drzwi = suma magazynów o kodzie WEW*; wydanie zlecenia (issue_internal_door_stock) zdejmuje najpierw z Magazynu 1. */
+export const INTERNAL_WAREHOUSE_CODE_PATTERN = 'WEW%'
+
+/** Suma stanów magazynów drzwi wewnętrznych per komponent (wiersze warehouse_stock z kodem magazynu). */
+export function sumInternalStock(rows: Array<{ component_id: number | string; quantity: number | string | null }>): Map<number, number> {
+  const m = new Map<number, number>()
+  for (const r of rows) {
+    const id = Number(r.component_id)
+    m.set(id, (m.get(id) ?? 0) + (Number(r.quantity) || 0))
+  }
+  return m
+}
 
 export const OPTIMA_IMPORT_NOTE_PREFIX = 'Import z kartotek Optimy'
 

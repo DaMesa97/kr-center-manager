@@ -5,6 +5,7 @@ import { supabase } from '../supabaseClient'
 import { componentLabel } from '../lib/componentLabel'
 import { OPTIMA_READONLY_HINT, isKitPart, isOptimaOrder, lowerFirst } from '../lib/optimaRo'
 import { pickKey } from '../lib/orderPicks'
+import { INTERNAL_WAREHOUSE_CODE_PATTERN } from '../lib/internalWarehouse'
 import type { Order, WarehouseComponent, InternalDoorItem, ToastVariant } from '../types'
 
 type Mode = 'create' | 'edit'
@@ -93,12 +94,12 @@ function InternalDoorOrderModal({
 
   const fetchStocksFor = useCallback(async (componentIds: number[]) => {
     if (componentIds.length === 0) return
-    // Tylko magazyn wewnętrzny (id 3) — z niego schodzą pozycje; sumowanie
-    // wszystkich magazynów pokazywało "Stan: 5", gdy na WEWNETRZNE było 0
+    // Tylko magazyny drzwi wewnętrznych (WEW1 Magazyn 1 + WEW2 Magazyn 2) — z nich schodzą pozycje;
+    // sumowanie wszystkich magazynów pokazywało "Stan: 5", gdy na wewnętrznych było 0
     const { data, error } = await supabase
       .from('warehouse_stock')
-      .select('component_id, quantity')
-      .eq('warehouse_id', 3)
+      .select('component_id, quantity, warehouses!inner(code)')
+      .ilike('warehouses.code', INTERNAL_WAREHOUSE_CODE_PATTERN)
       .in('component_id', componentIds)
     if (error) {
       console.error(error)

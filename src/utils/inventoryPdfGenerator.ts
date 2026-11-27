@@ -26,11 +26,13 @@ export function generateInventorySheet(
   session: InventorySession,
   lines: InventoryLine[],
   companyName = 'KR Center',
+  /** nazwa magazynu na kartce (Magazyn 1 / Magazyn 2 drzwi wewnętrznych) */
+  warehouseName?: string,
 ): void {
   const dateStr = session.counted_date
   // magazyn wewnętrzne (27.11): kartka ułożona jak dawny Excel „STAN WEWNĘTRZNE MAGAZYN”
   if (lines.some((l) => isDoorCategory(l.component_category))) {
-    generateDoorGridSheet(session, lines, companyName)
+    generateDoorGridSheet(session, lines, companyName, warehouseName ?? 'magazyn wewnętrzne')
     return
   }
 
@@ -236,7 +238,7 @@ function blockContent(b: GridBlock<InventoryLine>): Record<string, unknown> {
   return { stack, unbreakable: true }
 }
 
-function generateDoorGridSheet(session: InventorySession, lines: InventoryLine[], companyName: string): void {
+function generateDoorGridSheet(session: InventorySession, lines: InventoryLine[], companyName: string, warehouseName: string): void {
   const dateStr = session.counted_date
   const sheets = buildDoorGrid(lines, (l) => ({
     name: l.component_name,
@@ -252,7 +254,7 @@ function generateDoorGridSheet(session: InventorySession, lines: InventoryLine[]
       ...(si > 0 ? { pageBreak: 'before' } : {}),
       columns: [
         { text: sheet.name, fontSize: 15, bold: true, color: '#1b304a', width: '*' },
-        { text: `${companyName} · magazyn wewnętrzne · data: ${dateStr}`, fontSize: 9, color: '#475569', alignment: 'right', width: 'auto', margin: [0, 5, 0, 0] },
+        { text: `${companyName} · ${warehouseName} · data: ${dateStr}`, fontSize: 9, color: '#475569', alignment: 'right', width: 'auto', margin: [0, 5, 0, 0] },
       ],
       marginBottom: 8,
     })
@@ -285,7 +287,7 @@ function generateDoorGridSheet(session: InventorySession, lines: InventoryLine[]
     pageSize: 'A4',
     pageMargins: [24, 28, 24, 32],
     footer: (currentPage: number, pageCount: number) => ({
-      text: `Arkusz inwentaryzacyjny · magazyn wewnętrzne · ${dateStr} · strona ${currentPage} z ${pageCount} · pozycji ${lines.length}`,
+      text: `Arkusz inwentaryzacyjny · ${warehouseName} · ${dateStr} · strona ${currentPage} z ${pageCount} · pozycji ${lines.length}`,
       alignment: 'center',
       fontSize: 7.5,
       color: '#888',
@@ -294,5 +296,5 @@ function generateDoorGridSheet(session: InventorySession, lines: InventoryLine[]
     content,
     defaultStyle: { font: 'Roboto' },
   }
-  pdfMakeRuntime.createPdf(docDefinition as unknown as TDocumentDefinitions).download(`inwentaryzacja_wewnetrzne_${dateStr}.pdf`)
+  pdfMakeRuntime.createPdf(docDefinition as unknown as TDocumentDefinitions).download(`inwentaryzacja_${warehouseName.replace(/\s+/g, '_')}_${dateStr}.pdf`)
 }

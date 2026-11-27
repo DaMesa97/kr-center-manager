@@ -22,7 +22,7 @@ import {
   recipientAddress,
   unmappedItems,
 } from '../lib/optimaRo'
-import { INTERNAL_WAREHOUSE_ID, internalShortages, type Shortage } from '../lib/internalWarehouse'
+import { INTERNAL_WAREHOUSE_CODE_PATTERN, internalShortages, sumInternalStock, type Shortage } from '../lib/internalWarehouse'
 import { pickKey, pickProgress, type OrderPick } from '../lib/orderPicks'
 import type { InternalDoorItem, Order, ToastVariant, WarehouseComponent } from '../types'
 
@@ -122,7 +122,8 @@ function InternalDoorOrderDetailsModal({
       return
     }
     const [st, mv] = await Promise.all([
-      supabase.from('warehouse_stock').select('component_id, quantity').eq('warehouse_id', INTERNAL_WAREHOUSE_ID).in('component_id', componentIds),
+      // stan = Magazyn 1 + Magazyn 2 (magazyny WEW*)
+      supabase.from('warehouse_stock').select('component_id, quantity, warehouses!inner(code)').ilike('warehouses.code', INTERNAL_WAREHOUSE_CODE_PATTERN).in('component_id', componentIds),
       supabase.from('warehouse_movements').select('component_id, movement_type, quantity').eq('order_id', order.id).in('movement_type', ['WZ', 'ZWR']),
     ])
     if (st.error || mv.error) {
@@ -131,7 +132,7 @@ function InternalDoorOrderDetailsModal({
       return
     }
     setStockInfo({
-      stock: new Map((st.data ?? []).map((r) => [Number(r.component_id), Number(r.quantity) || 0])),
+      stock: sumInternalStock(st.data ?? []),
       issued: (mv.data ?? []) as Array<{ component_id: number; movement_type: string; quantity: number }>,
     })
   }, [fromOptima, order.id, componentIds, closedInOptima])

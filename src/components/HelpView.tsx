@@ -25,6 +25,14 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.1: drzwi wewnętrzne w dwóch magazynach, WZ reklamacyjny</h4>
+        <ul>
+          <li><b>Magazyn 1 i Magazyn 2</b> (kody WEW1, WEW2): te same kartoteki drzwi wewnętrznych leżą na obu, stany liczone osobno. <b>Stany → Wewnętrzne</b> pokazuje kolumny Magazyn 1, Magazyn 2, <b>Razem</b>, rezerwacje, dostępne i <b>W drodze</b> (wysłane zamówienia do dostawców). W układzie „Jak w Excelu” wybierasz, co pokazuje kratka: razem albo jeden magazyn.</li>
+          <li><b>Wydanie zlecenia</b> drzwi wewnętrznych zdejmuje towar automatycznie: najpierw z Magazynu 1, czego tam brakuje — z Magazynu 2. Korekta po edycji wraca tam, skąd towar zszedł.</li>
+          <li>Przerzuty między magazynami: <b>Dokumenty → Przesunięcia (MM)</b>; przyjęcia: <b>Dokumenty → Przyjęcia (PZ)</b> na wybrany magazyn; inwentaryzacja osobno dla Magazynu 1 i 2 (kartka z nazwą magazynu).</li>
+          <li><b>Dokumenty → WZ reklamacyjne</b>: wydanie towaru na reklamację z wybranego magazynu — firma, nr zlecenia, powód, opcjonalnie numer reklamacji z modułu Reklamacje. Zdejmuje stan od razu, numer WZR/2026/001…, PDF do podpisu (Wydał / Odebrał). „Anuluj” oddaje towar na ten sam magazyn.</li>
+          <li>Ze <b>Stanów</b> (surowce) zniknęła pusta pigułka magazynu wewnętrznego — drzwi wewnętrzne są w Stany → Wewnętrzne.</li>
+        </ul>
         <h4>Wersja 1.1.0: magazyn wewnętrzne jak dawny Excel, receptury „Inne” razem</h4>
         <ul>
           <li><b>Kartka do inwentaryzacji magazynu wewnętrzne</b> (Inwentaryzacja → ↓ PDF) jest ułożona jak dawny plik „STAN WEWNĘTRZNE MAGAZYN”: każda zakładka (PŁYTOWE, BRAVO, CREDIS, MALEO, MODERNA…) od nowej strony, bloki model + kolor po dwa w rzędzie, w bloku SZEROKOŚĆ / KIERUNEK / STAN / UWAGI. Ościeżnice jako tabelka profil (OR1–OR7…) × BAZA LEWA/PRAWA i BELKA 60–90, osobno ćwierćwałki i listwy opaskowe.</li>

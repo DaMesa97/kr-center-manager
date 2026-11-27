@@ -948,6 +948,7 @@ export type WarehouseSubTab =
   | 'Inwentaryzacja'
   | 'Kody Optimy'
   | 'Wewnętrzne'
+  | 'WZ reklamacyjne'
 
 export type InventorySession = {
   id: number

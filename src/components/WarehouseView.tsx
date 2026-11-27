@@ -37,8 +37,10 @@ import PurchaseOrdersView from './warehouse/PurchaseOrdersView'
 import InventoryView from './warehouse/InventoryView'
 import OptimaCodesView from './warehouse/OptimaCodesView'
 import InternalStockView from './warehouse/InternalStockView'
+import WzReklamacyjneView from './warehouse/WzReklamacyjneView'
 import { canMapOptimaCodes } from '../lib/optimaRo'
 import { canSetStocked } from '../lib/warehouseStocked'
+import { isInternalWarehouseCode } from '../utils'
 
 type WarehouseViewProps = {
   isManager: boolean
@@ -195,6 +197,12 @@ function WarehouseView({
 }: WarehouseViewProps) {
   // PZ / MM wg permissions.ts (warehouse.movements) — magazynier też, nie tylko kierownik
   const canMovements = isManager || can(currentUser?.role, 'warehouse.movements')
+  // Stany → Stany: tylko magazyny surowców; drzwi wewnętrzne (WEW1/WEW2) są w Stany → Wewnętrzne
+  const rawWarehouses = useMemo(() => warehouses.filter((w) => !isInternalWarehouseCode(w.code)), [warehouses])
+  const rawStockLevels = useMemo(() => {
+    const ids = new Set(rawWarehouses.map((w) => w.id))
+    return stockLevels.filter((r) => ids.has(Number(r.warehouse_id)))
+  }, [stockLevels, rawWarehouses])
   const warehouseTabs = useMemo(
     () =>
       (subTabs ?? WAREHOUSE_SUB_TABS).filter(
@@ -254,11 +262,11 @@ function WarehouseView({
         />
       ) : activeSubTab === 'Stany' ? (
         <StockView
-          warehouses={warehouses}
+          warehouses={rawWarehouses}
           components={components}
           suppliers={suppliers}
           smartRopData={smartRopData}
-          levels={stockLevels}
+          levels={rawStockLevels}
           loading={stockLoading}
           isManager={isManager}
           canEditMin={isManager || can(currentUser?.role, 'warehouse.manage')}
@@ -326,6 +334,14 @@ function WarehouseView({
           warehouses={warehouses}
           onCreate={onMmCreate}
           onPreview={onMmPreview}
+        />
+      ) : activeSubTab === 'WZ reklamacyjne' ? (
+        <WzReklamacyjneView
+          warehouses={warehouses}
+          components={components}
+          canEdit={canMovements}
+          pushToast={pushToast}
+          onStockChanged={onRefreshStock}
         />
       ) : activeSubTab === 'Prognozy' ? (
         <ForecastView components={components} suppliers={suppliers} isManager={isManager} />

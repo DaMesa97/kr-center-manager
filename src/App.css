@@ -10489,3 +10489,5 @@ li.optima-item--kit-part { margin-left: 16px; }
 .door-grid-stock-neg { color: #c62828; }
 .door-grid-res { display: block; font-size: 0.68rem; font-weight: 500; color: #854d0e; }
 .door-grid-mode { display: inline-flex; gap: 4px; }
+.door-grid-split { display: block; font-size: 0.66rem; font-weight: 500; color: #64748b; }
+.door-grid-inc { display: block; font-size: 0.66rem; font-weight: 500; color: #005faf; }
