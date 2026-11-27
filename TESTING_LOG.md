@@ -168,11 +168,65 @@ Stan po rundzie: `tsc` OK, **684 testy** OK (było 648; nowe testy: mapowanie Ba
 
 **Podsumowanie rundy 3:** znalezisk ok. 60 (krytyczne 4, wysokie ok. 15, średnie ok. 25, niskie ok. 15); poprawione 46 (w tym 9 uwag do poprawek z rund 1–2). Nowe KRYTYCZNE/WYSOKIE/ŚREDNIE były — warunek stopu (2 rundy bez nich) jeszcze niespełniony.
 
+## Runda 4 (28.11 w nocy) — 4 testerów (recenzent poprawek aplikacji z r3, recenzent migracji i Edge z r3, magazyn / wysyłka / telefon, CRM Po Drzwi) + tor naprawczy bazy
+
+### Znalezione
+Ok. 40 znalezisk: krytyczne 3 (regresja r3: edycja nie zapisywała pól przeliczanych automatycznie; Excel zdejmował z magazynu części etapów „nie dotyczy” — 7 ram w 5 zleceniach ST; klient ze sklepu zamykany przez automat jako przegrany), wysokie ok. 12, średnie ok. 15, niskie ok. 10. Recenzent migracji: wszystkie pliki 223000–232800 przechodzą na obecnej bazie, łatki trafiają.
+
+### Poprawione — aplikacja i Edge (repo)
+| Waga | Obszar | Problem | Commit |
+|---|---|---|---|
+| KRYTYCZNY | Zlecenia (regresja r3) | edycja nie zapisywała szerokości naświetla, wysokości dostawki, etykiet Bastion, zakresu ościeżnicy (łatka liczona ze zrzutu z poprawkami automatycznymi) | f550afa |
+| ŚREDNI | Statystyki (r3 niepełna) | karta firmy liczyła czas realizacji z dat z dnia synchronizacji Excela (59 dni zamiast 8) | 251760a |
+| WYSOKI | Zlecenia (regresja r3) | po zerwanym połączeniu ponowne „Dodaj” dostawało nowy numer = dubel z podwójną rezerwacją — teraz pytanie | d93df83 |
+| ŚREDNI | Aktualizacja | instalator zamyka program siłą — pytanie o niezapisane PRZED instalacją | 2c9c555 |
+| NISKI | Magazyn | zgłoszenie zniszczenia nie wstrzymywało zamknięcia programu | e8dce8a |
+| ŚREDNI | Pulpit | „Po terminie” liczył pary Disting Plus / Titan podwójnie | b927bf2 |
+| WYSOKI | CRM | „Wysłałem” kasował umówiony pomiar / montaż, „Zapytaj o decyzję” u klienta, który już zamówił | 20302d8 |
+| WYSOKI | CRM | formularz umowy podpowiadał najstarszą ofertę z inną kwotą | 5c39e4e |
+| ŚREDNI | CRM | status umowy przestawiany jednym kliknięciem (Podpisana → Projekt = numer wraca) | 4a1395b, 218a454 |
+| NISKI | CRM | szukanie klientów bez firmy i NIP | 4f1f472 |
+| WYSOKI | Wydanie / wysyłka | anulowane zlecenie dawało się wydać (telefon, komputer, drzwi wewn.) i wysłać kurierem | 63a4a26 |
+| ŚREDNI | Hala | P0409 (cofnięcie etapu na wydanym) — komunikat po ludzku | 9ac631a |
+| ŚREDNI | Ustawienia | zdublowana reguła terminów — surowy błąd | bd2d899 |
+| ŚREDNI | crm-call-ingest (r3 niepełna) | zamknięty klient dopasowany po numerze z podpisu — zmiana ceny, kategorii, etykiet, nowa oferta | 97cb7a8 |
+| NISKI | excel-sync | „ANUL” w kolumnie „zrobione” = wydanie | 271fe32 |
+| ŚREDNI | Telefon | wydanie drzwi wewn. bez „spakowane x/y” i ostrzeżeń | 8fc9f3f |
+
+### Poprawione — baza (pliki migracji, niewgrane; każda sprawdzona w transakcji z rollbackiem)
+| Waga | Problem | Plik | Commit |
+|---|---|---|---|
+| KRYTYCZNY | etap „nie dotyczy” (#ND) schodził przy wydaniu końcowym; #ND wpisany po wydaniu zwraca towar (ZWR) | `20261127233000_nd_etap_nie_wydawany_przy_wydaniu.sql` | fbfa0f3 |
+| — | korekta 7 ram (zlecenia 17431, 17437, 17588, 17589, 17625; BUKOWA) — **do decyzji** | `20261127233100_korekta_nd_ramy_zwrot.sql` | cb98c24 |
+| WYSOKI | cofnięcie zniszczenia przypiętego do zlecenia drzwi wewn. = drugie wydanie | `20261127233200_drzwi_wew_wydanie_bez_ruchow_zniszczen.sql` | 966ef90 |
+| WYSOKI | anulowane zlecenie: wydanie drzwi wewn. (P0410), trigger na dacie wydania (tylko użytkownik), `zlec_przesylke_bl` odmawia przed BaseLinkerem | `20261127233300_anulowane_bez_wydania_i_wysylki.sql` | 2c9d409 |
+| WYSOKI | przerwane „Przywróć” + edycja + drugi cykl = podwójne rezerwacje — świeże rezerwacje zastępują stare anulowania | poprawiony `20261127232200_…` | 9806eae |
+| ŚREDNI | wyłączona reguła terminów blokowała dodanie nowej — unikalność tylko aktywnych | poprawiony `20261127232700_…` | 6323da7 |
+| ŚREDNI | `crm.dodaj_etykiety` / `crm.nastepny_numer_oferty` dla każdego zalogowanego (także bez CRM) | `20261127233400_crm_etykiety_numer_oferty_uprawnienia.sql` | 5cb3645 |
+| KRYTYCZNY | porządki CRM zamknęłyby jako przegranego klienta z opłaconym zamówieniem sklepowym (10 klientów); przy automatycznym zamknięciu oferty wysłane → odrzucone | poprawiony `20261127225000_…` | 17a5cdb |
+| ŚREDNI | podpisana / anulowana umowa: trigger blokuje zmianę statusu i numeru | `20261127233500_crm_umowa_podpisana_bez_zmian.sql` | eb60328 |
+
+### Znalezione, nie poprawione (do decyzji / większe)
+- Spis z kartki + PZ w międzyczasie = dostawa znika ze stanu — **decyzja** (blokada ruchów przy otwartym spisie czy różnica od godziny liczenia).
+- Zmiana receptury pomija zlecenia, z których coś zeszło (STA 47/92, Disting 90/282); przeliczenie z przeglądarki po 15 s; zapis receptury w dwóch krokach — **decyzja** + przeniesienie do bazy.
+- MM towaru zarezerwowanego zostawia rezerwacje na starym magazynie — **decyzja**.
+- „Oznacz jako wydane” w Wysyłkach nie robi rozchodu od 7.11 (dziś nieużywane) — **decyzja** (granica daty).
+- Klient ze sklepu zostaje „Nowy” (crm-bl-sync nie zmienia statusu) — **decyzja** (czy samo zamówienie wystarcza).
+- Klient wracający po przegranej: oferty zostają odrzucone, „Zamówił” i umowa nie mają oferty — **decyzja**.
+- Duplikaty CRM: samo imię daje 85 % pewności mimo różnych telefonów / maili — do zrobienia.
+- Usunięcie klienta / oferty nie kasuje PDF-ów (brak polityki DELETE w buckecie, RODO) — **decyzja**.
+- Prognozy (232800) zmienią też Alerty: 19 krytycznych → „brak danych” — dopisane do decyzji 3.
+- Drobne: odhaczenia ręcznych drzwi wewn. kasowane przy edycji, telefon nie widzi zmian pozycji z Optimy w trakcie pakowania, brak plakietki CRM w menu, dostawa + odbiór po łączeniu, numer ręcznych drzwi wewn. „1, 2…” zamiast RB/…
+
+Stan po rundzie: `tsc` OK, **687 testów** OK, lint bez nowych problemów.
+
+**Podsumowanie rundy 4:** znalezisk ok. 40; poprawione 26 (w tym 2 regresje i 4 poprawki niepełne z rundy 3). Nowe KRYTYCZNE/WYSOKIE były — warunek stopu niespełniony.
+
 ## Do decyzji
 1. **Gdzie testować z zapisem danych.** Opcje: (a) gałąź Supabase (osobna baza, płatna godzinowo; dane trzeba zasiać skryptem seed), (b) zostać przy trybie bezpiecznym na produkcji (bez seeda i czyszczenia), (c) lokalny Supabase w Dockerze (Docker nie działa na tym komputerze). Koszt gałęzi wg Supabase: **0,01344 USD za godzinę** (ok. 0,32 USD na dobę); projekt nie ma dziś żadnej gałęzi. Gałąź startuje pusta (schemat z historii migracji, bez danych i bez funkcji Edge), więc potrzebny skrypt seed. Rekomendacja: (a) na czas sesji, potem usunąć gałąź.
 
 2. **Porządki starych rezerwacji** (`20261127232100_…superseded.sql`): oznaczyć 16 232 stare anulowane wiersze bez powodu (828 zleceń) jako zastąpione. Nic nie kasuje, nie zmienia stanów; samo podwajanie usuwa już plik 232000. Rekomendacja: wgrać razem z 232000 (porządek w historii, mniej pułapek na przyszłość).
-3. **Prognozy magazynowe** (`232800`): po wgraniu do końca grudnia wszystkie komponenty pokażą „za mało danych” (historia od 4.09). Rekomendacja: wgrać — dziś prognoza jest myląca (2 miesiące = „wystarczające dane”).
+3. **Prognozy magazynowe** (`232800`): po wgraniu do końca grudnia wszystkie komponenty pokażą „za mało danych” (historia od 4.09). Uwaga (runda 4): zmienią się też **Alerty magazynowe** — 32 pozycje (19 dziś krytycznych) przejdą w „brak danych”, a proponowana ilość do zamówienia spadnie do pokrycia ujemnego stanu. Rekomendacja: wgrać — dziś prognoza jest myląca (2 miesiące = „wystarczające dane”).
 4. **Reklamacje ↔ Excel**: przy różnych wartościach etapu wygrywa program, więc poprawka inicjałów w Excelu nie dociera. Rekomendacja: zostawić (program = źródło kliknięć), a różnice pokazać w raporcie Weryfikacji (osobne zadanie).
 5. **Druga umowa z tej samej oferty**: ten sam numer co projekt czy zawsze nowy? Teraz: ten sam tylko, gdy poprzednia jest projektem; podpisana/anulowana/wysłana — nowy numer. Rekomendacja: tak zostawić. Do tego: czy stary projekt oznaczać jako anulowany (dziś zostaje), czy protokół też ma dostać osobne pliki (dziś nadpisuje — jedna linia).
 6. **Numery central w podpisach maili**: dopięcie po telefonie z podpisu łączy maile kilku osób z firmy w jednego klienta. Rekomendacja: dopinać tylko numery komórkowe (9 cyfr zaczynające się od 4–8), stacjonarne pomijać.
@@ -182,6 +236,15 @@ Stan po rundzie: `tsc` OK, **684 testy** OK (było 648; nowe testy: mapowanie Ba
 10. **Pole „Kategoria” w nowym zleceniu** (zapis w innej zakładce z cudzym numerem) i **ręczny dzień produkcji** — czy biuro tego potrzebuje? Rekomendacja: kategoria tylko do odczytu w nowym zleceniu; dzień z listą i podpowiedzią z kartoteki.
 11. **Anulowanie Titana z zakładki Bastion** anuluje tylko nogę Bastion. Rekomendacja: pytać „anulować cały zestaw?”.
 12. **`orders.updated_at`**: bez tej kolumny nie da się ostrzec „ktoś zmienił zlecenie po otwarciu” (dziś wysyłane są tylko zmienione pola — to samo pole zmienione przez dwie osoby nadal: wygrywa ostatni). Rekomendacja: dodać kolumnę z triggerem w następnym etapie.
+
+13. **Korekta 7 ram** (`233100`): zwrot na BUKOWA ram zdjętych mimo etapu „nie dotyczy” (5 zleceń ST). Rekomendacja: wgrać razem z 233000.
+14. **Spis z kartki** (dostawa w trakcie znika ze stanu): blokować PZ/MM/zdjęcia na magazynie z otwartym spisem czy liczyć różnicę od godziny liczenia? Rekomendacja: ostrzeżenie + godzina liczenia na kartce.
+15. **Zmiana receptury na zleceniach w produkcji**: przeliczać tylko niezrobione etapy także tam, gdzie coś już zeszło? Rekomendacja: tak, w jednej funkcji bazy.
+16. **MM towaru zarezerwowanego**: przenosić rezerwacje razem z towarem czy blokować przesunięcie ponad wolny stan? Rekomendacja: pytanie w MM „przenieść też rezerwacje”.
+17. **Klient ze sklepu**: oznaczać jako wygranego po samym potwierdzonym zamówieniu czy po wpłacie? Rekomendacja: po potwierdzeniu (porządki już go nie zamykają).
+18. **Klient wracający po przegranej**: przywracać jego odrzucone oferty do „wysłanej”? Rekomendacja: tak, oferty odrzucone przy przegranej.
+19. **Odstąpienie od podpisanej umowy**: dziś trigger blokuje każdą zmianę podpisanej. Rekomendacja: dopuścić tylko „podpisana → anulowana” z potwierdzeniem, gdy będzie potrzebne.
+20. **Pliki PDF przy usuwaniu klienta** (RODO): dodać polityka DELETE / kasowanie w funkcji serwerowej? Rekomendacja: tak.
 
 ## Migracje do wdrożenia na produkcję
 1. ✅ już wgrane (regresja): `supabase/migrations/20261127221000_crm_bez_decyzji_po_wyniku_v2.sql`
@@ -203,6 +266,13 @@ Stan po rundzie: `tsc` OK, **684 testy** OK (było 648; nowe testy: mapowanie Ba
 17. ⏳ `supabase/migrations/20261127232600_stat_zew_braki_czas_realizacji.sql`
 18. ⏳ `supabase/migrations/20261127232700_reguly_terminow_bez_duplikatow.sql` — kasuje zdublowane reguły id 5–8
 19. ⏳ `supabase/migrations/20261127232800_prognozy_pelne_miesiace.sql` — po decyzji pkt 3 (zalecane)
+20. ⏳ `supabase/migrations/20261127233000_nd_etap_nie_wydawany_przy_wydaniu.sql` — **KRYTYCZNE**
+21. ⏳ `supabase/migrations/20261127233100_korekta_nd_ramy_zwrot.sql` — **po decyzji** (pkt 13), po 20
+22. ⏳ `supabase/migrations/20261127233200_drzwi_wew_wydanie_bez_ruchow_zniszczen.sql`
+23. ⏳ `supabase/migrations/20261127233300_anulowane_bez_wydania_i_wysylki.sql` — po 22
+24. ⏳ `supabase/migrations/20261127233400_crm_etykiety_numer_oferty_uprawnienia.sql`
+25. ⏳ `supabase/migrations/20261127233500_crm_umowa_podpisana_bez_zmian.sql`
+Pliki 225000, 232200 i 232700 zmienione w rundzie 4 (nadal niewgrane). 232000 + 232200 + 232300 wgrywać razem.
 Pliki 3–7 zostały w rundzie 3 poprawione (nadal niewgrane). Funkcje Edge 8–10 mają w rundzie 3 kolejne zmiany w repo — wgrywać najnowszą wersję z repo.
 Kolejność dowolna (zmiany niezależne); 3–7 to podmiany pojedynczych funkcji z kontrolą „już poprawione”.
 (migracje z 27.11 przed sesją są wgrane, lista w `TESTY_AGENTOW_27-11.md`, część 7)
