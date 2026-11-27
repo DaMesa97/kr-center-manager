@@ -335,6 +335,20 @@ Poprawione od razu (aplikacja): liczniki „po terminie” liczone raz na zmian�
 
 Nie poprawione (opis w DECISIONS): edycja ręcznego zlecenia drzwi wewn. w 4 krokach bez transakcji (D40), wydanie z magazynu przy błędzie RPC zostawia rezerwacje bez śladu (D41), CRM: przy usuwaniu najpierw pliki, potem rekord (NISKI), ustawienia: zapisy dwukrokowe (NISKI), ok. 60 drobnych miejsc bez odczytu `error` (lista: `scratchpad/a6err/scan.txt` — do poprawy hurtem). Funkcje SQL: 13 `when others then null` obejmuje tylko wpis do audytu (nie dane) — NISKI.
 
+## Runda 7 (28.11 w nocy) — recenzja poprawek rundy 6 i nocnych
+Brak KRYTYCZNYCH i WYSOKICH. Próba generalna: 28 plików 223000–235100 w kolejności nazw w jednej transakcji — bez błędu, skrypt kontroli pusty (z 4 nowymi znacznikami). Porównanie starej i nowej `kandydaci()` na 553 prawdziwych analizach CRM: 6 list lepszych, 0 gorszych.
+
+| Waga | Problem | Poprawka | Commit |
+|---|---|---|---|
+| ŚREDNI | crm-oferta: „→ id=48895” (tak napisał handlowiec), „ID produktu: …” i link `/produkt/<slug>/` nierozpoznane; wskazanie nie działało dla drzwi wewn.; dwie cyfry dla wszystkich liter Bastionu („b12”, „a10”) | rozpoznawane wszystkie formy + link po slugu, wskazany produkt zawsze pierwszy (także drzwi wewn.), 2 cyfry tylko L-/STD- (3 nowe testy) | 1d85ca7 |
+| ŚREDNI | crm-mail-sent: ponowienie maila do A i B zamykało cały mail po zdarzeniu A — B nigdy nie dopasowany | duplikat per adres (`dane.adres`) | 4d8775b |
+| ŚREDNI | crm-mail-sent: mail pominięty po 2 błędach wisiał jako „Czeka na analizę” (ekran odświeżał się co 10 s bez końca) | status „blad” | a79c1d1 |
+| NISKI | skrypt kontroli nie sprawdzał 235000 / 235100 | dopisane 4 znaczniki | a368b33 |
+| NISKI | liczniki „po terminie” nie przeliczały się po zmianie dnia (po memoizacji) | data w zależnościach | e87f51e |
+| — | lint: 3 brakujące zależności hooków po zmianie zrzutu formularza + 4 zbędne wyłączenia reguły | lint = 66 ze startu + 17 starych w `optima-ro-import` (plik z serwera) | fc4202e |
+
+Nie poprawione (NISKI): błąd etapów / reklamacji z excel-sync zapisany w historii, ale niewidoczny w aplikacji (`summary.blad`); orders-intake: błąd odczytu istniejących nóg Titana nadal tylko w logu + brak przycisku „dorób nogę” (decyzja); crm-call-ingest: ponowienie dubluje zdarzenie „oferta zlecona” z mylącym opisem.
+
 ## Upraszczanie kodu (DRY) — noc 28.11
 Analiza (tylko odczyt): `tsc` z `noUnusedLocals` — 0 nieużywanych importów, 0 osieroconych plików; ok. 20 martwych eksportów; 25 grup duplikatów; 15 miejsc, gdzie kopie RÓŻNIĄ SIĘ zachowaniem. Pełna lista refaktorów: `DECISIONS.md` → „Refaktory do rozważenia” (R1–R9), rozjazdy zachowania: D50, D51.
 
