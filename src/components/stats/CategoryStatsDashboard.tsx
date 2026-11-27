@@ -19,6 +19,7 @@ import {
 } from 'recharts'
 import type { Order } from '../../types'
 import { isReleaseDateEmpty } from '../../utils'
+import { isOptimaClosed } from '../../lib/optimaRo'
 import Spinner from '../Spinner'
 
 type Props = {
@@ -27,6 +28,11 @@ type Props = {
   loading: boolean
   /** nazwa firmy → nazwa grupy (warianty pisowni razem), z StatsView */
   canon?: (name: unknown) => string
+  /** nazwa kategorii w nagłówkach (np. „Drzwi wewnętrzne” zamiast „DrzwiWewnetrzne”) */
+  etykieta?: string
+  /** 27.11: tylko sekcje liczone ze zleceń (bez „per system / model / kolor”) — drzwi wewnętrzne z Optimy nie mają tych pól
+   *  w zleceniu; modele, kolory i rozmiary pokazuje pod spodem InternalDoorStatsDashboard */
+  tylkoZlecenia?: boolean
 }
 
 function isCancelled(o: Order): boolean {
@@ -34,7 +40,13 @@ function isCancelled(o: Order): boolean {
   return extra?.cancelled === true
 }
 
-export default function CategoryStatsDashboard({ category, orders, loading, canon }: Props) {
+/** Zlecenie zrealizowane: ma datę wydania albo jest zrealizowane / zamknięte w Optimie (RO bez wydania w programie). */
+function zrealizowane(o: Order): boolean {
+  return !isReleaseDateEmpty(o.release_date) || isOptimaClosed(o)
+}
+
+export default function CategoryStatsDashboard({ category, orders, loading, canon, etykieta, tylkoZlecenia = false }: Props) {
+  const nazwa = etykieta ?? category
   const filteredOrdersNonCancelled = useMemo(() => {
     return orders.filter((o) => {
       if (o.category !== category) return false
@@ -97,7 +109,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
       const q = Number(o.quantity) || 0
       if (extra?.cancelled === true) {
         cancelled += q
-      } else if (!isReleaseDateEmpty(o.release_date)) {
+      } else if (zrealizowane(o)) {
         done += q
       } else {
         inProgress += q
@@ -245,7 +257,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
     <div className="stats-dashboard">
       <div className="stats-grid-full">
         <div className="stats-card">
-          <h3>Średni czas realizacji — {category}</h3>
+          <h3>Średni czas realizacji — {nazwa}</h3>
 
           {avgRealizationDays === null ? (
             <p style={{ color: '#6b7280', padding: '20px 0' }}>Brak zrealizowanych zamówień w tej kategorii</p>
@@ -293,7 +305,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
       <div className="stats-grid">
         <div className="stats-card">
           <div className="stats-card-header">
-            <h3 title="Suma drzwi z wydanych zleceń wg miesiąca daty wydania">Produkcja w czasie {category}</h3>
+            <h3 title="Suma drzwi z wydanych zleceń wg miesiąca daty wydania">Produkcja w czasie {nazwa}</h3>
             <select
               className="day-filter"
               value={rangeMonths}
@@ -317,8 +329,8 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
           </ResponsiveContainer>
         </div>
 
-        <div className="stats-card">
-          <h3>Rozkład per system (zrealizowane) {category}</h3>
+        {!tylkoZlecenia && <div className="stats-card">
+          <h3>Rozkład per system (zrealizowane) {nazwa}</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={systemData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -329,10 +341,10 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
               <Bar dataKey="value" name="Ilość drzwi" fill="#8b5cf6" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </div>}
 
         <div className="stats-card">
-          <h3>Status zamówień {category}</h3>
+          <h3>Status zamówień {nazwa}</h3>
           {(() => {
             const total = statusData.reduce((s, d) => s + (Number(d.value) || 0), 0)
             return (
@@ -402,7 +414,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
         </div>
 
         <div className="stats-card">
-          <h3>Top 10 firm {category}</h3>
+          <h3>Top 10 firm {nazwa}</h3>
           <ResponsiveContainer width="100%" height={400}>
             <BarChart data={topCompaniesData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
@@ -418,7 +430,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
 
       <div className="stats-grid-full">
         <div className="stats-card">
-          <h3>Zamówienia per dzień tygodnia — {category}</h3>
+          <h3>Zamówienia per dzień tygodnia — {nazwa}</h3>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={byWeekday}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -431,9 +443,9 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
         </div>
       </div>
 
-      <div className="stats-grid-full">
+      {!tylkoZlecenia && <div className="stats-grid-full">
         <div className="stats-card">
-          <h3>Rozkład per model — {category}</h3>
+          <h3>Rozkład per model — {nazwa}</h3>
           <ResponsiveContainer width="100%" height={450}>
             <BarChart data={byModel} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
@@ -444,11 +456,11 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </div>}
 
-      <div className="stats-grid-full">
+      {!tylkoZlecenia && <div className="stats-grid-full">
         <div className="stats-card">
-          <h3>Rozkład per kolor skrzydła — {category}</h3>
+          <h3>Rozkład per kolor skrzydła — {nazwa}</h3>
           <ResponsiveContainer width="100%" height={450}>
             <BarChart data={byWingColor} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
@@ -459,7 +471,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

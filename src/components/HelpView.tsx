@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Statystyki drzwi wewnętrznych: wróciły stare wykresy (beta.173)</h4>
+        <ul>
+          <li><b>Statystyki → Drzwi wewnętrzne</b> znów pokazują wykresy liczone ze zleceń: <b>Top 10 firm zamawiających</b>, status zamówień, czas realizacji, produkcję w czasie i rozkład per dzień tygodnia. Pod nimi zostają statystyki sprzedaży z bazy (modele, kolory, rozmiary).</li>
+          <li>Zlecenie zrealizowane lub zamknięte w Optimie liczy się w statusie jako zrealizowane, także bez daty wydania w programie.</li>
+        </ul>
         <h4>Drzwi wewnętrzne: komplety przesuwne i spis magazynu (beta.172)</h4>
         <ul>
           <li><b>Komplety przesuwne z Optimy</b> („MALEO 06 … Z SYSTEMEM PRZESUWNYM”) rozbijają się na dwie pozycje: skrzydło przesuwne i <b>SYSTEM PRZESUWNY</b>. System stoi w zleceniu wcięty pod swoim skrzydłem ze znaczkiem „część kompletu”, odhacza się osobno przy pakowaniu, a wydanie zdejmuje ze stanu po 1 szt. obu.</li>

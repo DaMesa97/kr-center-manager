@@ -85,7 +85,14 @@ function StatsView({
           onRemoveAlias={remove}
         />
       )}
-      {activeSubTab === 'DrzwiWewnetrzne' && <InternalDoorStatsDashboard isManager={isManager} />}
+      {activeSubTab === 'DrzwiWewnetrzne' && (
+        <>
+          {/* 27.11 (Tymek: „zniknęło top 10 firm i stare statystyki”): sekcje ze zleceń — czas realizacji, produkcja w czasie,
+              status, top 10 firm, dzień tygodnia — wróciły nad statystyki sprzedaży; modele / kolory / rozmiary liczy niżej baza */}
+          <CategoryStatsDashboard category="DrzwiWewnetrzne" etykieta="Drzwi wewnętrzne" tylkoZlecenia orders={orders} loading={loading} canon={canonCompany} />
+          <InternalDoorStatsDashboard isManager={isManager} />
+        </>
+      )}
       {activeSubTab === 'Produktywność' && <ProductivityView />}
       {activeSubTab === 'Czas realizacji' && <LeadTimeStatsView />}
       {activeSubTab === 'Konfigurator' && <ConfiguratorShareView />}
