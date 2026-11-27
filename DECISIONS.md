@@ -17,7 +17,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 8. **D39 — Wdrożyć poprawkę CRM „Bastion P-110 nie jest na liście kandydatów”** (Twoje zgłoszenie z nocy): handlowiec nie wyceni żadnego Bastiona P-, N-, T-, L-, LUX-, STD- do czasu wdrożenia `crm-oferta`.
 
 ### Może poczekać (najważniejsze)
-D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA.
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy.
 
 ---
 
@@ -290,6 +290,40 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Problem**: 5 otwartych nóg Disting par Disting Plus (10376, 10378, 13071, 13357, 13407) ma STA anulowane hurtowo (21.10 i 6.11) i trzyma 95 rezerwacji (265 szt., w tym 22 szt. części skrzydła e3/e4). Para 13379↔13380: Disting wydany przy anulowanym STA.
 - **Opcje**: (a) anulować te nogi Disting (zwalnia rezerwacje); (b) zostawić, jeśli Disting faktycznie jest robiony bez STA.
 - **Rekomendacja**: sprawdzić z halą i zdecydować per zlecenie.
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D45. Ruch magazynowy, który zbija stan poniżej rezerwacji, przekroczy limit 8 s
+- **Problem**: `revalidate_orders_for_component` (wołane z PZ, MM, WZR) dla każdego otwartego zlecenia z rezerwacją komponentu dopasowuje receptury (18 ms) i zapisuje pełny audyt. Przy +500 zleceń na jednym komponencie: 8,4 s → dokument się nie zapisuje („statement timeout”). Dziś max 219 zleceń (≈3,5 s). PZ: każda pozycja przelicza wszystko osobno (+2000 z brakiem: 2,3 s i 8,8 MB audytu na pozycję).
+- **Opcje**: (a) przeliczać unikalne zlecenia raz na cały dokument, „część” brać z rezerwacji zamiast dopasowania receptur, braki dopisywać jednym zbiorczym UPDATE; (b) audyt pomija zmiany samych `stock_status`/`stock_issues` (przeliczenia automatu); (c) zostawić do wzrostu skali.
+- **Rekomendacja**: (a) + (b) — zanim liczba otwartych zleceń się podwoi.
+- **Pilność**: może poczekać (pilne przy wzroście) · **Praca**: średni
+
+### D46. Przeliczenie rezerwacji po zapisie receptury
+- **Problem**: 63 ms na zlecenie, 26 zmian `warehouse_stock` (każda = zdarzenie realtime do każdego otwartego komputera) i 13 nowych + 13 anulowanych wierszy rezerwacji na zlecenie. STA dziś ~6 s / ~2,4 tys. zdarzeń; przy +2000 zleceń ~126 s / ~53 tys. zdarzeń. `stock_reservations` ma 94% wierszy anulowanych (106 tys. z 116 tys.) po 2 miesiącach.
+- **Opcje**: (a) zmiany stanów liczone zbiorczo (jeden UPDATE na komponent), zastępowane rezerwacje kasowane albo archiwizowane; (b) `warehouse_stock` poza publikacją realtime (jedno zdarzenie „przeliczono”); (c) zostawić.
+- **Rekomendacja**: (a), potem (b). Decyzja: czy trzymać historię anulowanych rezerwacji.
+- **Pilność**: może poczekać · **Praca**: średni–duży
+
+### D47. Statystyki ładują całą tabelę zleceń (67 MB)
+- **Problem**: `useStats.ts` pobiera `select *` całej tabeli `orders` w 24 porcjach po kolei (OFFSET → seq scan + sort w każdej porcji): 67 MB, 4,3 s samej bazy, rośnie o ~100 RO dziennie. Wykresy używają ok. 12 pól (z samymi nimi ≈7 MB).
+- **Opcje**: (a) lista kolumn + stronicowanie po `id` (kursor) — mała zmiana w aplikacji; (b) agregaty w funkcjach bazy (jak `stat_wew_*`); (c) ograniczyć historię Statystyk.
+- **Rekomendacja**: (a) od razu (do zrobienia w nocy, jeśli test pokryje używane pola), docelowo (b).
+- **Pilność**: może poczekać · **Praca**: mały (a), duży (b)
+
+### D48. Wysyłka i zakładki: `select *` (3,8 kB na wiersz)
+- **Problem**: przy +2000 otwartych Wysyłka ładuje 13,4 MB, zakładka STA 7,9 MB. W bazie szybko, koszt to transfer i parsowanie.
+- **Opcje**: (a) lista kolumn używanych przez widok; (b) zostawić.
+- **Rekomendacja**: (a) przy okazji, z testem pól.
+- **Pilność**: może poczekać · **Praca**: mały–średni
+
+### D49. Trzy indeksy wydajnościowe (gotowe, nieutworzone)
+- **Problem**: trigger duplikatów przy każdym nowym zleceniu skanuje całą historię kategorii (95% czasu wstawienia); Ctrl+K = seq scan; Dziennik zmian zimny start 3 s.
+- **Opcje**: (a) utworzyć (poza transakcją, `concurrently`):
+  `create index concurrently idx_orders_category_created on public.orders (category, created_at desc);`
+  `create index concurrently idx_audit_log_user_created on public.audit_log (created_at desc, id desc) where user_id is not null;`
+  `create index concurrently idx_orders_search_trgm on public.orders using gin (order_number extensions.gin_trgm_ops, company extensions.gin_trgm_ops, client_order_number extensions.gin_trgm_ops, model extensions.gin_trgm_ops);`
+  (b) zostawić.
+- **Rekomendacja**: (a) — wpływ zmierzony dla pierwszego (trigger), szacowany dla dwóch pozostałych.
 - **Pilność**: może poczekać · **Praca**: mały
 
 ---

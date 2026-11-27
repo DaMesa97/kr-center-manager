@@ -296,14 +296,39 @@ Tryb nocny: branch `night-testing-2026-11-27`, warunek stopu wyłączony.
 
 ### Przekrojowe cykle życia (Titan, Disting Plus, bot+Excel+Optima, drzwi wewn., reklamacje, granice dat)
 - KRYTYCZNY — Excel zdejmuje drugi raz towar wydany przed spisem 6.11 (próg = dzień synchronizacji; 5 zleceń STA, 280 szt.) → **D42** (decyzja, pilne).
-- WYSOKI — wydane zlecenie po edycji / „Anuluj → Przywróć” dostaje rezerwacje, których nikt nie zdejmie (724 zlecenia narażone) → w toku (tor bazy r6).
-- WYSOKI — zdjęcie „nie dotyczy” na anulowanym zleceniu zakłada rezerwacje (poprawka 234400 dotyczy tylko wydanych) → w toku (tor bazy r6).
+- WYSOKI — wydane zlecenie po edycji / „Anuluj → Przywróć” dostaje rezerwacje, których nikt nie zdejmie (724 zlecenia narażone) → **poprawione** 4f64bf7 (plik 235000).
+- WYSOKI — zdjęcie „nie dotyczy” na anulowanym zleceniu zakłada rezerwacje (poprawka 234400 dotyczy tylko wydanych) → **poprawione** fdedf00 (plik 235100).
 - ŚREDNI — synchronizacja reklamacji cofa „Cofnij realizację” i cofnięcie etapu → rozszerzone D22.
 - ŚREDNI — „Anuluj” działa na wydanym zleceniu i przechodzi na wydanego partnera → **D43**.
 - ŚREDNI — `optima-ro-import`: RO anulowane i przywrócone w Optimie kasowało ręczne wydanie → **poprawione** cab1bcf (osobny znacznik `cancelled_by_import`, test na prawdziwej funkcji z pliku Edge; źródło v13 pobrane do repo 412e87a; niewgrane). Dziś 279 zleceń anulowanych importem ma stary znacznik, żadne z datą wydania — bez skutków.
 - ŚREDNI — archiwizacja zrywa powiązania (pary, reklamacje, partie) → rozszerzone D26.
 - NISKI — 5 nóg Disting z rezerwacjami przy anulowanym STA → **D44**.
 - Dobrze: `reserved_quantity` = suma aktywnych rezerwacji na wszystkich 872 półkach; brak rezerwacji na wydanych / anulowanych; kaskada anulowania Titana spójna; strefa czasowa bez problemu w praktyce.
+
+### Wydajność (+500 / +2000 otwartych zleceń, +10 tys. ruchów — w transakcjach cofanych)
+| Zapytanie | Dziś | Przy +N | Uwagi |
+|---|---|---|---|
+| Zakładka STA (niewydane) | 11 ms, 0,5 MB | +2000: 213 ms, 7,9 MB | indeks OK; ciężar = `select *` |
+| Pulpit | 21 ms | +2000: 77 ms | OK |
+| Weryfikacja | 5 ms | 5 ms | OK |
+| Wysyłka (otwarte) | 172 ms, 6 MB | +2000: 403 ms, 13,4 MB | lista kolumn → D48 |
+| **Statystyki** | **4,3 s, 67 MB** (24 porcje, seq scan + sort w każdej) | 74,5 MB | **WYSOKI** → D47 |
+| Ctrl+K | ~100 ms (seq scan) | 113 ms | indeks trigramowy → D49 |
+| Dziennik zmian (zimny start) | 3,0 s | rośnie liniowo | indeks częściowy → D49 |
+| `get_stock_alerts` | 135–205 ms | 166–195 ms | OK |
+| **MM / korekta / WZR zbijające stan poniżej rezerwacji** | ~3,5 s (219 zleceń) | **+500: 8,4 s → przekroczenie limitu, dokument się nie zapisuje** | **WYSOKI** → D45 |
+| **Przeliczenie po zapisie receptury** | STA ~6 s, ~2,4 tys. zdarzeń realtime | **+2000: ~126 s, ~53 tys. zdarzeń** | **WYSOKI** → D46 |
+| PZ (1 pozycja) | 442 ms | +2000 z brakiem: 2,3 s i 8,8 MB audytu | ŚREDNI → D45 |
+| Wstawienie zlecenia STA/Disting | 10–12 ms (trigger duplikatów 95%) | rośnie z historią | indeks (category, created_at) → D49 |
+| `sync_releases_from_excel` (próbnie) | 11 tys. wierszy 276 ms | — | OK |
+
+Poprawione od razu (aplikacja): liczniki „po terminie” liczone raz na zmianę listy zamiast przy każdym renderze (2b9ffd8); STA Titana w tabeli przez `Map` (O(n²) → O(n), 40e7add); powiązane zlecenia STA / rodzeństwo Titana porcjami po 150 (942d990). Skutek uboczny testów wydajności: luki w sekwencjach `id` (np. `orders_id_seq` 29 366 → 40 504) — tylko numery techniczne, `order_number` bez zmian.
+
+### Baza — poprawki rundy 6 (pliki, niewgrane)
+| Waga | Problem | Plik | Commit |
+|---|---|---|---|
+| WYSOKI | wydane zlecenie dostawało rezerwacje po edycji / „Anuluj → Przywróć” (724 narażone) | `20261127235000_wydane_zlecenie_bez_nowych_rezerwacji.sql` | 4f64bf7 |
+| WYSOKI | zdjęcie „nie dotyczy” na anulowanym zleceniu przywracało rezerwacje (+ lustro: #ND na anulowanym nie wraca przy „Przywróć”) | `20261127235100_nd_na_anulowanym_bez_przywracania.sql` (po 233000) | fdedf00 |
 
 Nie poprawione (opis w DECISIONS): edycja ręcznego zlecenia drzwi wewn. w 4 krokach bez transakcji (D40), wydanie z magazynu przy błędzie RPC zostawia rezerwacje bez śladu (D41), CRM: przy usuwaniu najpierw pliki, potem rekord (NISKI), ustawienia: zapisy dwukrokowe (NISKI), ok. 60 drobnych miejsc bez odczytu `error` (lista: `scratchpad/a6err/scan.txt` — do poprawy hurtem). Funkcje SQL: 13 `when others then null` obejmuje tylko wpis do audytu (nie dane) — NISKI.
 
@@ -364,6 +389,8 @@ Nie poprawione (opis w DECISIONS): edycja ręcznego zlecenia drzwi wewn. w 4 kro
 29. ⏳ `supabase/migrations/20261127234300_magazyn_stany_tylko_przez_funkcje_audyt.sql`
 30. ⏳ `supabase/migrations/20261127234400_etap_nd_na_wydanym_bez_przywracania.sql` — po 233000
 31. ⏳ `supabase/migrations/20261127234500_konta_crm_tylko_superadmin.sql`
+32. ⏳ `supabase/migrations/20261127235000_wydane_zlecenie_bez_nowych_rezerwacji.sql`
+33. ⏳ `supabase/migrations/20261127235100_nd_na_anulowanym_bez_przywracania.sql` — po 233000 (gdyby 233000 poszło później — puścić 235100 jeszcze raz)
 Po wgraniu: `scripts/kontrola-po-wdrozeniu.sql` (pusty wynik = OK). Próba generalna (runda 5): pliki do 233500 przechodzą razem w kolejności nazw, w jednej transakcji. Twarde zależności: 232000+232200 przed 232300; 232100 po 232000; 233100 po 233000; 233300 po 233200; 234400 po 233000.
 Pliki 225000, 232200 i 232700 zmienione w rundzie 4 (nadal niewgrane). 232000 + 232200 + 232300 wgrywać razem.
 Pliki 3–7 zostały w rundzie 3 poprawione (nadal niewgrane). Funkcje Edge 8–10 mają w rundzie 3 kolejne zmiany w repo — wgrywać najnowszą wersję z repo.
