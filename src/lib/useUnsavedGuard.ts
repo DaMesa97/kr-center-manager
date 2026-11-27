@@ -23,6 +23,9 @@ type Options = {
    * żeby zdążyły wejść dane z efektów wypełniających formularz przy otwarciu.
    */
   resetKey?: unknown
+  /** czy modal jest otwarty (do pytania przy zamykaniu programu); domyślnie = `escape` (runda 4: modal z Esc wyłączonym
+   *  nigdy nie zgłaszał niezapisanych zmian) */
+  open?: boolean
 }
 
 // testy 27.11 (runda 3): zamknięcie całego okna programu (X) gubiło wypełniony formularz bez pytania.
@@ -51,6 +54,29 @@ export function zarejestrujNiezapisane(czyZmieniony: () => boolean): () => void 
   return () => { niezapisane.delete(czyZmieniony) }
 }
 
+/** Czy któryś otwarty formularz ma niezapisane zmiany (np. przed instalacją aktualizacji). */
+export function czySaNiezapisane(): boolean {
+  for (const f of niezapisane) {
+    try {
+      if (f()) return true
+    } catch { /* pomijamy */ }
+  }
+  return false
+}
+
+/**
+ * runda 4 (recenzent): instalator aktualizacji zamyka program siłą (taskkill) — pytanie przy zamykaniu
+ * przychodziło za późno i „Wróć do formularza” nie ratowało danych. Pytamy PRZED instalacją.
+ * true = można instalować.
+ */
+export async function potwierdzInstalacjeMimoNiezapisanych(): Promise<boolean> {
+  if (!czySaNiezapisane()) return true
+  return appConfirm(
+    'Masz otwarty formularz z niezapisanymi zmianami. Instalacja aktualizacji zamknie program i te zmiany przepadną.\n\nNajpierw zapisz albo zamknij formularz — albo zainstaluj mimo to.',
+    { title: 'Niezapisane zmiany', confirmLabel: 'Zainstaluj mimo to', tone: 'danger' },
+  )
+}
+
 const DEFAULT_MESSAGE = 'Formularz zawiera niezapisane zmiany. Czy na pewno chcesz go zamknąć?'
 
 const snapshot = (value: unknown): string => {
@@ -62,7 +88,7 @@ const snapshot = (value: unknown): string => {
 }
 
 export function useUnsavedGuard<T>(value: T, onClose: () => void, options: Options = {}) {
-  const { enabled = true, message = DEFAULT_MESSAGE, escape = true, resetKey } = options
+  const { enabled = true, message = DEFAULT_MESSAGE, escape = true, resetKey, open } = options
   const initialRef = useRef<string>(snapshot(value))
   const latestRef = useRef<T>(value)
   latestRef.current = value
@@ -78,8 +104,8 @@ export function useUnsavedGuard<T>(value: T, onClose: () => void, options: Optio
   const isDirty = useCallback(() => snapshot(latestRef.current) !== initialRef.current, [])
 
   // modal trzymany w drzewie na stałe przekazuje `escape: open` — zamknięty nie liczy się jako niezapisany
-  const aktywnyRef = useRef(enabled && escape)
-  aktywnyRef.current = enabled && escape
+  const aktywnyRef = useRef(enabled && (open ?? escape))
+  aktywnyRef.current = enabled && (open ?? escape)
   useEffect(() => zarejestrujNiezapisane(() => aktywnyRef.current && isDirty()), [isDirty])
 
   const markSaved = useCallback(() => {

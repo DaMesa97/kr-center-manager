@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { potwierdzInstalacjeMimoNiezapisanych } from '../lib/useUnsavedGuard'
 import { Download, RefreshCw, X, Zap, AlertTriangle } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -104,7 +105,11 @@ export default function UpdateBanner() {
   }, [])
 
   const handleDownload = () => void getIpc()?.invoke('updater:download')
-  const handleInstall = () => void getIpc()?.invoke('updater:install')
+  // runda 4: przy niezapisanym formularzu pytamy przed instalacją (instalator zamyka program siłą)
+  const handleInstall = async () => {
+    if (!(await potwierdzInstalacjeMimoNiezapisanych())) return
+    void getIpc()?.invoke('updater:install')
+  }
   const handleCheckManual = () => {
     setState({ status: 'checking' })
     void getIpc()?.invoke('updater:check')

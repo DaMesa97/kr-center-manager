@@ -7,6 +7,9 @@ import os from 'node:os'
 import { execFile } from 'node:child_process'
 import * as Sentry from '@sentry/electron/main'
 
+/** runda 4: trwa instalacja aktualizacji — zamknięcie bez pytania o niezapisane (pytanie było przed instalacją) */
+let instalacjaAktualizacji = false
+
 let appVersion = '0.0.0'
 try {
   const pkgPath =
@@ -162,6 +165,8 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
   })
 
   ipcMain.handle('updater:install', () => {
+    // runda 4: o niezapisanych zmianach program pytał już przed instalacją (renderer) — przy zamykaniu bez drugiego pytania
+    instalacjaAktualizacji = true
     // false = nie czeka na wszystkie okna, true = restartuje
     autoUpdater.quitAndInstall(true, true)  // true = silent (bez okna instalatora), true = restart po instalacji
   })
@@ -501,6 +506,7 @@ function createWindow() {
   // w useUnsavedGuard) — pytamy, zamiast po cichu zamykać albo po cichu nie zamykać
   win.webContents.on('will-prevent-unload', (event) => {
     if (!win) return
+    if (instalacjaAktualizacji) { event.preventDefault(); return }
     const wybor = dialog.showMessageBoxSync(win, {
       type: 'question',
       buttons: ['Zamknij bez zapisu', 'Wróć do formularza'],

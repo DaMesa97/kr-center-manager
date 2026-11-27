@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { potwierdzInstalacjeMimoNiezapisanych } from '../lib/useUnsavedGuard'
 import { AlertTriangle, Download, RefreshCw, Zap } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -160,7 +161,11 @@ export default function UpdateBlocker({ required = false }: { required?: boolean
         if (r && r.ok === false) setState({ status: 'error', version, message: r.message ?? 'Nieznany błąd' })
       })
   }
-  const handleInstall  = () => void getIpc()?.invoke('updater:install')
+  // runda 4: przy niezapisanym formularzu pytamy przed instalacją (instalator zamyka program siłą)
+  const handleInstall = async () => {
+    if (!(await potwierdzInstalacjeMimoNiezapisanych())) return
+    void getIpc()?.invoke('updater:install')
+  }
   // awaryjnie przy wymaganej wersji: strona z instalatorem najnowszego wydania (shell:open-external przyjmuje https)
   const handleManual = () => void getIpc()?.invoke('shell:open-external', RELEASES_URL)
   // Wyjście awaryjne — tylko po błędzie. Wymuszenie wersji robi min_app_version
