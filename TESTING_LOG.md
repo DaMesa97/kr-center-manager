@@ -294,6 +294,17 @@ Tryb nocny: branch `night-testing-2026-11-27`, warunek stopu wyłączony.
 | ŚREDNI | usunięcie komponentu przechodziło, gdy kontrola rezerwacji / receptur / stanu nie dała się odczytać | przerwanie | 4dac423 |
 | WYSOKI | Edge: crm-mail-sent gubi mail przy błędzie (UID idzie dalej), crm-call-ingest bez limitów czasu i bez sprawdzania zapisów, orders-intake / excel-intake: noga Titana lub para Disting Plus po cichu nie powstaje, excel-sync: błąd etapów bez śladu | w toku (tor Edge) | — |
 
+### Przekrojowe cykle życia (Titan, Disting Plus, bot+Excel+Optima, drzwi wewn., reklamacje, granice dat)
+- KRYTYCZNY — Excel zdejmuje drugi raz towar wydany przed spisem 6.11 (próg = dzień synchronizacji; 5 zleceń STA, 280 szt.) → **D42** (decyzja, pilne).
+- WYSOKI — wydane zlecenie po edycji / „Anuluj → Przywróć” dostaje rezerwacje, których nikt nie zdejmie (724 zlecenia narażone) → w toku (tor bazy r6).
+- WYSOKI — zdjęcie „nie dotyczy” na anulowanym zleceniu zakłada rezerwacje (poprawka 234400 dotyczy tylko wydanych) → w toku (tor bazy r6).
+- ŚREDNI — synchronizacja reklamacji cofa „Cofnij realizację” i cofnięcie etapu → rozszerzone D22.
+- ŚREDNI — „Anuluj” działa na wydanym zleceniu i przechodzi na wydanego partnera → **D43**.
+- ŚREDNI — `optima-ro-import`: RO anulowane i przywrócone w Optimie kasuje ręczne wydanie → w toku (poprawka w repo).
+- ŚREDNI — archiwizacja zrywa powiązania (pary, reklamacje, partie) → rozszerzone D26.
+- NISKI — 5 nóg Disting z rezerwacjami przy anulowanym STA → **D44**.
+- Dobrze: `reserved_quantity` = suma aktywnych rezerwacji na wszystkich 872 półkach; brak rezerwacji na wydanych / anulowanych; kaskada anulowania Titana spójna; strefa czasowa bez problemu w praktyce.
+
 Nie poprawione (opis w DECISIONS): edycja ręcznego zlecenia drzwi wewn. w 4 krokach bez transakcji (D40), wydanie z magazynu przy błędzie RPC zostawia rezerwacje bez śladu (D41), CRM: przy usuwaniu najpierw pliki, potem rekord (NISKI), ustawienia: zapisy dwukrokowe (NISKI), ok. 60 drobnych miejsc bez odczytu `error` (lista: `scratchpad/a6err/scan.txt` — do poprawy hurtem). Funkcje SQL: 13 `when others then null` obejmuje tylko wpis do audytu (nie dane) — NISKI.
 
 ## Do decyzji

@@ -13,10 +13,11 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 5. **D5 — Korekta 7 ram** zdjętych mimo etapu „nie dotyczy” (5 zleceń ST, BUKOWA).
 6. **D6 — Porządki 16 232 starych wierszy rezerwacji** (oznaczenie jako zastąpione).
 7. **D7 — Prognozy magazynowe**: poprawka zmieni też Alerty (19 krytycznych → „brak danych” do grudnia/stycznia).
+9. **D42 — Excel zdejmuje drugi raz towar wydany przed spisem 6.11** (5 zleceń, 280 szt.; zagrożone 277 otwartych zleceń sprzed spisu) — decyzja: czy próg 7.11 liczyć od daty wydania z Excela.
 8. **D39 — Wdrożyć poprawkę CRM „Bastion P-110 nie jest na liście kandydatów”** (Twoje zgłoszenie z nocy): handlowiec nie wyceni żadnego Bastiona P-, N-, T-, L-, LUX-, STD- do czasu wdrożenia `crm-oferta`.
 
 ### Może poczekać (najważniejsze)
-D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu.
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA.
 
 ---
 
@@ -69,6 +70,12 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Opcje**: (a) wdrożyć `supabase/functions/crm-oferta` (6 plików, z repo) i w tej ofercie „Policz od nowa”; (b) do czasu wdrożenia — wycena ręczna.
 - **Rekomendacja**: (a) od razu rano. Zmiana dotyczy tylko wyboru kandydatów (lista dla AI), nie cen ani PDF.
 - **Pilność**: pilne · **Praca**: mały
+
+### D42. Excel zdejmuje z magazynu drugi raz towar wydany przed spisem 6.11
+- **Problem**: granica „od 7.11 zamknięcie = rozchód” liczy się od DNIA SYNCHRONIZACJI, nie od daty wydania. Wiersz z Excela z wydaniem 2–5.11, który utknął jako „duplikat” i został rozwiązany po 7.11, robi WZ dziś — a spis 6.11 już tego towaru nie widział. Dowód: 5 zleceń STA (14622, 15403, 15612, 15704, 15960) — 83 ruchy WZ z 9.11 i 21.11, 280 szt. (23 wymuszone). Zagrożone dalej: 277 otwartych zleceń sprzed 6.11 (ok. 10,5 tys. szt. w rezerwacjach). Etapy z Excela robią rozchód zawsze, bez progu.
+- **Opcje**: (a) próg osobno dla każdego wiersza: data wydania z Excela ≥ 7.11 → rozchód, wcześniejsza → tylko anulowanie rezerwacji (tak samo w `oznacz_wydane_wysylki`, D30); (b) zostawić (próg = dzień synchronizacji) i korygować ręcznie.
+- **Rekomendacja**: (a) + korekta ZWR dla tych 5 zleceń (plik do przygotowania po decyzji). Potrzebne potwierdzenie: czy liczy się data wydania z Excela.
+- **Pilność**: pilne (każda synchronizacja starych duplikatów dubluje rozchód) · **Praca**: mały–średni
 
 ---
 
@@ -159,8 +166,8 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Pilność**: może poczekać · **Praca**: mały
 
 ### D22. Reklamacje — poprawka w Excelu a program
-- **Problem**: przy różnych wartościach etapu wygrywa program, poprawka inicjałów w Excelu nie dociera.
-- **Opcje**: (a) zostawić + raport różnic w Weryfikacji; (b) Excel wygrywa dla wpisów, które przyszły z Excela.
+- **Problem**: przy różnych wartościach etapu wygrywa program, poprawka inicjałów w Excelu nie dociera. Runda 6: w drugą stronę — „Cofnij realizację” i cofnięcie etapu w programie wracają przy następnej synchronizacji (pusty klucz = Excel uzupełnia), a data realizacji ustawia się na dzień synchronizacji (reklamacja 440).
+- **Opcje**: (a) zostawić + raport różnic w Weryfikacji + zapamiętywanie cofnięć w programie (`extra_fields.cofniete`), których Excel nie uzupełnia; (b) Excel wygrywa dla wpisów, które przyszły z Excela.
 - **Rekomendacja**: (a).
 - **Pilność**: może poczekać · **Praca**: średni
 
@@ -183,8 +190,8 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Pilność**: może poczekać · **Praca**: mały (organizacyjny)
 
 ### D26. Archiwizacja po 12 miesiącach
-- **Problem**: archiwizacja po `created_at` — w czerwcu 2027 zniknie ze statystyk import 5243 zleceń.
-- **Opcje**: (a) archiwizować po `release_date` + statystyki z `orders ∪ orders_archive`; (b) zostawić.
+- **Problem**: archiwizacja po `created_at` — w czerwcu 2027 zniknie ze statystyk import 5243 zleceń. Runda 6 (symulacja): archiwizacja zrywa też powiązania — 195 otwartych nóg par traci partnera (`ON DELETE SET NULL`), reklamacje tracą `order_id` (111 → 6), partie Bastion tracą pozycje (kaskada), WZ tracą zlecenie.
+- **Opcje**: (a) archiwizować po `release_date`, parę / trójkę Titan tylko w całości (gdy wszystkie nogi zamknięte), reklamacje i partie zachowują id; statystyki z `orders ∪ orders_archive`; (b) zostawić.
 - **Rekomendacja**: (a).
 - **Pilność**: może poczekać (do maja 2027) · **Praca**: średni
 
@@ -271,6 +278,18 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Opcje**: (a) oznaczenie zlecenia (np. `stock_status='release_failed'`) i lista w Weryfikacji; (b) blokować zapis etapu, gdy zdjęcie się nie uda.
 - **Rekomendacja**: (a) — hala nie może stać przez magazyn.
 - **Pilność**: może poczekać · **Praca**: mały–średni
+
+### D43. Anulowanie wydanego zlecenia (i kaskada na wydanego partnera)
+- **Problem**: menu „Anuluj zlecenie” działa na wydanym zleceniu; kaskada (Disting Plus, Titan) oznacza też wydane nogi. Excel i reklamacje pomijają anulowane, po migracji 233300 nie da się potem ponownie ustawić daty wydania. Dziś 0 takich zleceń.
+- **Opcje**: (a) ukryć „Anuluj” dla wydanych, kaskada pomija wydane nogi; (b) pytanie „zlecenie jest wydane — na pewno?”.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D44. Nogi Disting po anulowaniu STA (dane)
+- **Problem**: 5 otwartych nóg Disting par Disting Plus (10376, 10378, 13071, 13357, 13407) ma STA anulowane hurtowo (21.10 i 6.11) i trzyma 95 rezerwacji (265 szt., w tym 22 szt. części skrzydła e3/e4). Para 13379↔13380: Disting wydany przy anulowanym STA.
+- **Opcje**: (a) anulować te nogi Disting (zwalnia rezerwacje); (b) zostawić, jeśli Disting faktycznie jest robiony bez STA.
+- **Rekomendacja**: sprawdzić z halą i zdecydować per zlecenie.
+- **Pilność**: może poczekać · **Praca**: mały
 
 ---
 
