@@ -98,7 +98,8 @@ export async function fetchOferta(id: string): Promise<Result<CrmOferta | null>>
 export async function fetchOfertyLeada(leadId: string): Promise<Result<CrmOferta[]>> {
   const { data, error } = await crm()
     .from('oferty')
-    .select(OFERTA_LIST_COLS)
+    // testy 27.11 (runda 3): bez `pozycje` blokada „Umowa” przy cenach 0 zł (pozycjeBezCeny) nigdy nie działała
+    .select(`${OFERTA_LIST_COLS}, pozycje`)
     .eq('lead_id', leadId)
     .order('wersja', { ascending: true })
     .order('created_at', { ascending: true })
