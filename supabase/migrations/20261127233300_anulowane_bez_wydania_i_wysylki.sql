@@ -1,7 +1,8 @@
 -- 27.11.2026 (testy 27.11, runda 3; WYSOKI): anulowane zlecenie dało się wydać i wysłać.
 --  a) issue_internal_door_stock — odmowa (P0410), gdy zlecenie drzwi wewnętrznych jest anulowane
 --     (extra_fields.cancelled = true). Anulowanie w aplikacji oddaje towar przez return_stock_for_order, nie przez
---     tę funkcję, więc nic legalnego jej po anulowaniu nie woła. Wymaga wcześniej 20261127233200.
+--     tę funkcję, więc nic legalnego jej po anulowaniu nie woła. Od poprawki z próby generalnej blokada jest
+--     w treści funkcji w 20261127233200 — tu tylko kontrola „już jest” (łata, gdy 233200 nie wgrano).
 --  b) trigger BEFORE UPDATE OF release_date na orders: data wydania (z pustej na wartość) dla anulowanego zlecenia
 --     jest odrzucana (P0410) — tylko dla zalogowanego użytkownika (auth.uid() is not null; także gdy woła funkcję
 --     SECURITY DEFINER, np. oznacz_wydane_wysylki). Sprawdzone 27.11: żadna funkcja ani import nie ustawia daty na

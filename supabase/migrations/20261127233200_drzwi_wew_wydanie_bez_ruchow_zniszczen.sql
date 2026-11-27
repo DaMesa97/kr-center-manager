@@ -8,6 +8,8 @@
 -- to też zwrot wydanych drzwi). Ruchy zniszczeń (ZN-…, ZWR-ZN-…) i inne nie wpływają na rozliczenie.
 -- Spójnie: return_stock_for_order__impl nie odejmuje od wydanego zwrotów zniszczeń (ZWR-ZN-…) — inaczej anulowanie
 -- po cofniętym zniszczeniu oddawało o tyle mniej, ile cofnięto.
+-- Poprawka (testy 27.11, runda 3; próba generalna): w treści funkcji także blokada P0410 dla anulowanych
+-- (z 20261127233300 a) — plik można uruchomić ponownie po 233300 bez utraty blokady.
 -- DO WDROŻENIA (nie wgrane w sesji).
 create or replace function public.issue_internal_door_stock(p_order_id bigint)
  returns table(r_component_id bigint, r_quantity numeric)
@@ -38,6 +40,12 @@ begin
   end if;
   -- jedno rozliczenie zlecenia naraz (drugie czeka i widzi już ruchy pierwszego)
   perform 1 from orders where id = p_order_id for update;
+  -- anulowanego zlecenia nie wydajemy (testy 27.11, runda 3) — ta sama blokada co w 20261127233300 (a), wpisana
+  -- tutaj, bo ten plik to pełne create or replace i ponowne uruchomienie po 233300 kasowałoby blokadę
+  if exists (select 1 from orders where id = p_order_id and extra_fields->>'cancelled' = 'true') then
+    raise exception 'Zlecenie jest anulowane — nie można wydać towaru z magazynu. Najpierw przywróć zlecenie.'
+      using errcode = 'P0410';
+  end if;
 
   for v_rec in
     with poz as (
