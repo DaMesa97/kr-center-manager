@@ -3,7 +3,7 @@
  * i ustalenia z analizy po polsku — tylko wypełnione pola.
  */
 
-import { CRM_BRAK_CEN_PREFIX, CRM_BRAK_DOBORU_PREFIXES } from '../types/crm'
+import { CRM_BRAK_CEN_PREFIX, CRM_BRAK_DOBORU_PREFIXES, CRM_SYSTEM_ERROR_PREFIX } from '../types/crm'
 
 /** 'dobor' (24.11): system nie dobrał produktu i zadał pytania — handlowiec odpowiada, oferta liczy się od nowa */
 /** 'ceny' (27.11): oferta z montażem zatrzymana, bo pozycje nie mają cen — PDF i mail nie powstały, handlowiec wpisuje ceny w poprawce */
@@ -125,4 +125,28 @@ export function tekstOdpowiedzi(pytania: string[], odpowiedzi: Record<number, st
   const u = uwagi.trim()
   if (u) linie.push(u)
   return linie.join('\n')
+}
+
+/** Stan oferty na liście (v3, makieta „Oferty — lista”): krótka nazwa, jedno zdanie, kolor pigułki i przycisk. */
+export type StanOferty = { label: string; opis: string; pill: '' | 'blue' | 'ok' | 'warn' | 'late'; przycisk: string; glowny: boolean }
+
+export function stanOferty(o: {
+  status: string; rodzaj?: string | null; sprawdz?: unknown[] | null; pytania?: unknown[] | null; produkt?: string | null; cena_razem?: number | null
+  wyslano_at?: string | null; liczenie_od?: string | null
+}, fmtData: (iso: string) => string = (iso) => iso.slice(0, 10)): StanOferty {
+  const pierwsze = Array.isArray(o.sprawdz) && typeof o.sprawdz[0] === 'string' ? o.sprawdz[0] : ''
+  if (o.status === 'wstrzymana') return { label: 'Sprawdź ustalenia', opis: 'system czeka na Twoje OK', pill: 'warn', przycisk: 'Sprawdź', glowny: true }
+  if (o.status === 'przelicz') return { label: 'Liczy się', opis: 'zwykle do minuty', pill: '', przycisk: 'Podgląd', glowny: false }
+  if (o.status === 'do_sprawdzenia') {
+    if (pierwsze.startsWith(CRM_SYSTEM_ERROR_PREFIX)) return { label: 'Błąd liczenia', opis: 'nie wysyłaj — ponów albo zgłoś', pill: 'late', przycisk: 'Otwórz', glowny: true }
+    if (brakCenOferty(o)) return { label: 'Brakuje cen', opis: 'PDF nie powstał — wpisz ceny', pill: 'late', przycisk: 'Wpisz ceny', glowny: true }
+    if (brakDoboruOferty(o)) return { label: 'Pytania systemu', opis: 'odpowiedz, żeby dobrać produkt', pill: 'late', przycisk: 'Odpowiedz', glowny: true }
+    return { label: 'Gotowa do wysłania', opis: o.rodzaj === 'oficjalna' ? 'dołącz PDF do maila' : 'sprawdź mail i wyślij', pill: 'warn', przycisk: 'Sprawdź i wyślij', glowny: true }
+  }
+  if (o.status === 'wyslana') return { label: 'Wysłana', opis: o.wyslano_at ? `czeka na decyzję od ${fmtData(o.wyslano_at)}` : 'czeka na decyzję', pill: 'blue', przycisk: 'Otwórz', glowny: false }
+  if (o.status === 'zaakceptowana') return { label: 'Przyjęta', opis: 'klient zamówił', pill: 'ok', przycisk: 'Otwórz', glowny: false }
+  if (o.status === 'odrzucona') return { label: 'Odrzucona', opis: '', pill: '', przycisk: 'Otwórz', glowny: false }
+  if (o.status === 'wygasla') return { label: 'Wygasła', opis: '', pill: '', przycisk: 'Otwórz', glowny: false }
+  if (o.status === 'robocza') return { label: 'Stara wersja', opis: 'klient dostał nowszą', pill: '', przycisk: 'Otwórz', glowny: false }
+  return { label: o.status, opis: '', pill: '', przycisk: 'Otwórz', glowny: false }
 }

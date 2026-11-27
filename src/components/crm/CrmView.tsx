@@ -103,7 +103,7 @@ import { etapyKlienta } from '../../lib/crmKarta'
 /** Kolor pigułki statusu klienta w nagłówku karty (v3) */
 const LEAD_PILL: Record<string, string> = { nowy: '', oferta: 'crm-pill--blue', wygrany: 'crm-pill--ok', przegrany: '' }
 import { ileOdm } from '../../utils/odmiana'
-import { KROKI_OFERTY, brakCenOferty, brakCenOpis, brakDoboruOferty, krokOferty, pytaniaOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../../lib/crmOferta'
+import { KROKI_OFERTY, brakCenOferty, brakCenOpis, brakDoboruOferty, krokOferty, pytaniaOferty, stanOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../../lib/crmOferta'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
@@ -644,11 +644,11 @@ function ZadaniaScreen({
 // ---- LISTA OFERT ----
 
 function OfertyList({ mode, onOpenOferta, onOpenLead }: { mode: CrmMode; onOpenOferta: (id: string) => void; onOpenLead: (id: string) => void }) {
-  const simple = mode === 'handlowiec'
   const [onlyOpen, setOnlyOpen] = useState(true)
   const [rows, setRows] = useState<CrmOferta[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<CrmError | null>(null)
+  const [q, setQ] = useState('')
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -666,6 +666,8 @@ function OfertyList({ mode, onOpenOferta, onOpenLead }: { mode: CrmMode; onOpenO
   const silentReload = useCallback(() => void load(true), [load])
   usePolling(rows.some((r) => r.status === 'przelicz'), silentReload)
 
+  // v3 (makieta „Oferty — lista”, 27.11): 6 kolumn — klient, oferta, brutto, stan (jedno zdanie), kiedy, jeden przycisk.
+  // Koszyk sklepu i wersja są w widoku oferty; liczba punktów „do sprawdzenia” tylko w trybie pełnym.
   const columns = useMemo<DataTableColumn<CrmOferta>[]>(() => {
     const all: DataTableColumn<CrmOferta>[] = [
       {
@@ -673,114 +675,111 @@ function OfertyList({ mode, onOpenOferta, onOpenLead }: { mode: CrmMode; onOpenO
         label: 'Klient',
         sortValue: (r) => leadName(r.lead),
         render: (r) => (
-          <button type="button" className="crm-link" onClick={() => r.lead_id && onOpenLead(r.lead_id)} title="Otwórz leada (kontakt, rozmowy)">
-            {leadName(r.lead)}
-          </button>
+          <span className="crm-of-klient">
+            <button type="button" className="crm-dz-klient" onClick={() => r.lead_id && onOpenLead(r.lead_id)} title="Otwórz kartę klienta">{leadName(r.lead)}</button>
+            {r.lead?.miejscowosc ? <span className="crm-muted">{r.lead.miejscowosc}</span> : null}
+          </span>
         ),
       },
-      { key: 'miejscowosc', label: 'Miejscowość', sortValue: (r) => r.lead?.miejscowosc ?? '', render: (r) => r.lead?.miejscowosc || '—' },
       {
-        key: 'produkt',
+        key: 'oferta',
         label: 'Oferta',
         sortValue: (r) => tytulOferty(r),
-        render: (r) =>
-          r.nazwa?.trim() ||
-          r.produkt ||
-          (r.rodzaj === 'oficjalna' && r.numer ? `Oferta nr ${r.numer}` : null) ||
-          (r.status === 'wstrzymana' ? (
-            <span className="crm-muted" title="Ustalenia czekają na Twoje sprawdzenie — otwórz i kliknij „Ustalenia OK”">czeka na sprawdzenie ustaleń</span>
-          ) : brakDoboruOferty(r) ? (
-            <span className="crm-text-bad" title="System nie dobrał produktu — otwórz ofertę i odpowiedz na pytania">czeka na odpowiedzi</span>
-          ) : r.status === 'przelicz' || r.cena_razem == null ? (
-            <span className="crm-muted" title="System jeszcze nie policzył tej oferty">w przygotowaniu</span>
-          ) : (
-            '—'
-          )),
-      },
-      // brief pkt 21: Sklep (cena z kalkulatora) vs PDF (oferta oficjalna z montażem, brutto z VAT wg obiektu)
-      {
-        key: 'rodzaj',
-        label: 'Rodzaj',
-        align: 'center',
-        sortValue: (r) => r.rodzaj ?? 'sklep',
-        render: (r) => {
-          const rd = CRM_OFERTA_RODZAJ[r.rodzaj ?? 'sklep'] ?? CRM_OFERTA_RODZAJ.sklep
-          return <span className={`crm-rodzaj crm-rodzaj--${r.rodzaj ?? 'sklep'}`} title={rd.title}>{rd.label}{r.rodzaj === 'oficjalna' && r.numer ? ` ${r.numer}` : ''}</span>
-        },
+        render: (r) => (
+          <span className="crm-of-klient">
+            <span>{r.status === 'wstrzymana' ? 'Ustalenia do sprawdzenia' : tytulOferty(r)}</span>
+            <span className="crm-muted">{r.rodzaj === 'oficjalna' ? `Z montażem${r.numer ? ` · nr ${r.numer}` : ''}` : 'Sklep'}</span>
+          </span>
+        ),
       },
       {
         key: 'cena',
-        label: 'Cena brutto',
+        label: 'Brutto',
         align: 'right',
         sortValue: (r) => (r.rodzaj === 'oficjalna' ? r.brutto : r.cena_razem) ?? -1,
-        render: (r) => (r.rodzaj === 'oficjalna' ? fmtPln(r.brutto) : fmtPln(r.cena_razem)),
+        render: (r) => <b className="crm-k3-oferta-kwota">{(r.rodzaj === 'oficjalna' ? r.brutto : r.cena_razem) != null ? fmtPln(r.rodzaj === 'oficjalna' ? r.brutto : r.cena_razem) : '—'}</b>,
       },
-      { key: 'koszyk', label: 'Koszyk', align: 'center', sortValue: (r) => (r.koszyk_zgodny === true ? 1 : r.koszyk_zgodny === false ? -1 : 0), render: (r) => <KoszykBadge value={r.koszyk_zgodny} compact /> },
-      {
-        key: 'sprawdz',
-        label: 'Do sprawdzenia',
-        align: 'center',
-        sortValue: (r) => asStrings(r.sprawdz).length,
-        render: (r) => {
-          const s = asStrings(r.sprawdz)
-          if (isSystemError(s)) return <span className="crm-text-bad" title={s[0]}>BŁĄD</span>
-          return s.length === 0 ? <span className="crm-muted" title="Konfiguracja w całości z rozmowy">0</span> : <span className="crm-count">{s.length}</span>
-        },
-      },
+      ...(mode === 'pelny'
+        ? [{
+            key: 'sprawdz',
+            label: 'Do spr.',
+            align: 'center',
+            sortValue: (r: CrmOferta) => asStrings(r.sprawdz).length,
+            render: (r: CrmOferta) => {
+              const s = asStrings(r.sprawdz)
+              if (isSystemError(s)) return <span className="crm-text-bad" title={s[0]}>BŁĄD</span>
+              return s.length === 0 ? <span className="crm-muted">0</span> : <span className="crm-count">{s.length}</span>
+            },
+          } as DataTableColumn<CrmOferta>]
+        : []),
       {
         key: 'status',
-        label: 'Status',
+        label: 'Stan',
         sortValue: (r) => r.status,
-        render: (r) => (
-          <>
-            <StatusBadge status={r.status} />
-            {r.status === 'przelicz' && r.liczenie_od && <span className="crm-muted"> liczy się od {fmtTime(r.liczenie_od)}</span>}
-          </>
-        ),
+        render: (r) => {
+          const st = stanOferty(r, fmtDate)
+          return (
+            <span className="crm-of-klient">
+              <span><span className={`crm-pill${st.pill ? ` crm-pill--${st.pill}` : ''}`}>{st.label}</span></span>
+              {st.opis ? <span className="crm-muted">{r.status === 'przelicz' && r.liczenie_od ? `od ${fmtTime(r.liczenie_od)}, ${st.opis}` : st.opis}</span> : null}
+            </span>
+          )
+        },
       },
-      { key: 'wersja', label: 'Wersja', align: 'center', sortValue: (r) => r.wersja, render: (r) => `v${r.wersja}` },
-      { key: 'data', label: 'Data', sortValue: (r) => r.created_at, render: (r) => fmtDateTime(r.created_at) },
+      { key: 'data', label: 'Kiedy', sortValue: (r) => r.created_at, render: (r) => <span className="crm-muted">{fmtDateTime(r.created_at)}</span> },
       {
         key: 'akcje',
         label: '',
-        render: (r) => (
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => onOpenOferta(r.id)}>
-            Otwórz
-          </button>
-        ),
+        align: 'right',
+        render: (r) => {
+          const st = stanOferty(r, fmtDate)
+          return (
+            <button type="button" className={`btn btn-sm ${st.glowny ? 'btn-primary' : 'btn-secondary'} crm-of-btn`} onClick={() => onOpenOferta(r.id)}>
+              {st.przycisk}
+            </button>
+          )
+        },
       },
     ]
-    // tryb handlowca: bez kolumn diagnostycznych (liczba punktów do sprawdzenia, numer wersji)
-    return simple ? all.filter((c) => !['sprawdz', 'wersja'].includes(c.key)) : all
-  }, [onOpenOferta, onOpenLead, simple])
+    return all
+  }, [onOpenOferta, onOpenLead, mode])
+
+  const fraza = q.trim().toLowerCase()
+  const widoczne = fraza
+    ? rows.filter((r) => [leadName(r.lead), r.lead?.miejscowosc, tytulOferty(r), r.numer, r.produkt].some((x) => String(x ?? '').toLowerCase().includes(fraza)))
+    : rows
+  const doWyslania = rows.filter((r) => r.status === 'do_sprawdzenia').length
 
   return (
-    <>
-      <div className="crm-toolbar">
-        <div className="crm-toolbar-group" role="tablist" aria-label="Filtr ofert">
-          <button type="button" className={`btn btn-sm ${onlyOpen ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOnlyOpen(true)}>
-            Do sprawdzenia
+    <div className="crm-dz">
+      <div className="crm-head">
+        <div className="crm-head-tekst">
+          <h2>Oferty</h2>
+          <span className="crm-head-sub">
+            {onlyOpen
+              ? loading ? '…' : rows.length === 0 ? 'Nic nie czeka — wszystkie oferty wysłane.' : `${ileOdm(rows.length, 'oferta czeka', 'oferty czekają', 'ofert czeka')} na Ciebie${doWyslania ? ` · ${doWyslania} do wysłania` : ''}`
+              : 'Wysłane, przyjęte i odrzucone — najnowsze na górze'}
+          </span>
+        </div>
+      </div>
+      <div className="crm-filtry">
+        <div className="crm-seg" role="group" aria-label="Które oferty">
+          <button type="button" className={`crm-seg-btn${onlyOpen ? ' crm-seg-btn--on' : ''}`} aria-pressed={onlyOpen} onClick={() => setOnlyOpen(true)}>
+            Do sprawdzenia{onlyOpen && !loading ? <span className="crm-seg-n">{rows.length}</span> : null}
           </button>
-          <button type="button" className={`btn btn-sm ${!onlyOpen ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOnlyOpen(false)}>
-            {simple ? 'Wysłane i starsze' : 'Wszystkie'}
+          <button type="button" className={`crm-seg-btn${!onlyOpen ? ' crm-seg-btn--on' : ''}`} aria-pressed={!onlyOpen} onClick={() => setOnlyOpen(false)}>
+            Wysłane i starsze
           </button>
         </div>
-        <span className="crm-toolbar-hint">
-          {onlyOpen
-            ? 'Oferty gotowe do wysłania i te, które system jeszcze liczy. Otwórz = mail do sprawdzenia i wysłania; Klient = kontakt i rozmowy.'
-            : 'Wszystkie wersje ofert, najnowsze na górze.'}
-        </span>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} title="Odśwież listę">
-          Odśwież
-        </button>
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Szukaj: klient, numer, produkt" aria-label="Szukaj oferty" className="crm-of-szukaj" />
       </div>
       {error && <ErrorBox error={error} />}
       {loading ? (
         <Spinner center label="Ładowanie ofert…" />
       ) : (
-        <DataTable rows={rows} rowKey={(r) => r.id} columns={columns} className="crm-table" emptyText={onlyOpen ? 'Nic do sprawdzenia — wszystkie oferty wysłane.' : 'Brak ofert w bazie.'} />
+        <DataTable rows={widoczne} rowKey={(r) => r.id} columns={columns} className="crm-table" emptyText={fraza ? 'Nic nie pasuje do szukania.' : onlyOpen ? 'Nic do sprawdzenia — wszystkie oferty wysłane.' : 'Brak ofert w bazie.'} />
       )}
-    </>
+    </div>
   )
 }
 

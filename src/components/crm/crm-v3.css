@@ -219,3 +219,9 @@
 .crm-k3-krok-dok-tekst .crm-muted { font-size: 0.78rem; }
 .crm-view .crm-menu-lista { border-radius: 10px; border-color: var(--crm-line); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); }
 .crm-view .crm-lead-wynik { font-size: 0.86rem; }
+
+/* Oferty — lista */
+.crm-of-klient { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.crm-of-klient .crm-muted { font-size: 0.78rem; }
+.crm-of-btn { white-space: nowrap; }
+.crm-of-szukaj { flex: 0 1 320px; min-width: 200px; }

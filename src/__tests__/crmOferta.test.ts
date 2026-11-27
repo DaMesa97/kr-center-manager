@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { brakCenOferty, brakCenOpis, brakDoboruOferty, etykietaUstalenia, krokOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../lib/crmOferta'
+import { stanOferty, brakCenOferty, brakCenOpis, brakDoboruOferty, etykietaUstalenia, krokOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../lib/crmOferta'
 
 describe('crmOferta — krok oferty', () => {
   it('status → krok i podświetlony etap', () => {
@@ -99,5 +99,16 @@ describe('crmOferta — oferta z montażem bez cen (27.11)', () => {
     expect(brakCenOferty({ ...o, sprawdz: ['VAT 23%'] })).toBe(false)
     expect(krokOferty('przelicz', { brakCen: true })).toEqual({ krok: 'liczenie', idx: 1 })
     expect(krokOferty('do_sprawdzenia', { brakCen: true, sysErr: true })).toEqual({ krok: 'blad', idx: 1 })
+  })
+})
+
+describe('crmOferta — stan oferty na liście (v3)', () => {
+  it('stan, zdanie i przycisk', () => {
+    expect(stanOferty({ status: 'wstrzymana' })).toMatchObject({ label: 'Sprawdź ustalenia', przycisk: 'Sprawdź', glowny: true })
+    expect(stanOferty({ status: 'do_sprawdzenia', rodzaj: 'oficjalna', sprawdz: [] })).toMatchObject({ label: 'Gotowa do wysłania', opis: 'dołącz PDF do maila' })
+    expect(stanOferty({ status: 'do_sprawdzenia', rodzaj: 'oficjalna', sprawdz: ['BRAK CEN: 2 pozycje'] })).toMatchObject({ label: 'Brakuje cen', przycisk: 'Wpisz ceny' })
+    expect(stanOferty({ status: 'do_sprawdzenia', sprawdz: ['BŁĄD systemu: x'] })).toMatchObject({ label: 'Błąd liczenia' })
+    expect(stanOferty({ status: 'wyslana', wyslano_at: '2026-11-18T10:00:00Z' })).toMatchObject({ label: 'Wysłana', opis: 'czeka na decyzję od 2026-11-18', glowny: false })
+    expect(stanOferty({ status: 'zaakceptowana' }).pill).toBe('ok')
   })
 })
