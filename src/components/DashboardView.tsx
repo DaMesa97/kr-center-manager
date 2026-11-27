@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Package, AlertTriangle, ClipboardCheck, Truck, RefreshCw, FileX2,
+  Package, AlertTriangle, ClipboardCheck, Truck, RefreshCw, FileX2, Clock,
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import { getOrderAgeStatus } from '../utils'
+import type { LeadTimeRule, Order } from '../types'
 import Spinner from './Spinner'
 import { fetchAllPages } from '../lib/fetchPaged'
 
@@ -16,6 +18,8 @@ type Props = {
   alertsBadgeCount: number
   /** drugi argument = sekcja Weryfikacji, do której przewinąć (#115) */
   onNavigate: (tab: string, focus?: 'review' | 'excel' | 'erp' | 'duplicates') => void
+  /** reguły terminów (order_lead_time_rules) — kafel „Po terminie” dla całej firmy */
+  leadTimeRules?: LeadTimeRule[]
 }
 
 const ORDER_CATEGORIES = [
@@ -59,6 +63,7 @@ export default function DashboardView({
   excelSync,
   alertsBadgeCount,
   onNavigate,
+  leadTimeRules = [],
 }: Props) {
   const [loading, setLoading] = useState(true)
   const [counts, setCounts] = useState<CategoryCount[]>([])
@@ -66,17 +71,23 @@ export default function DashboardView({
   const [ordersCount, setOrdersCount] = useState(0)
   /** testy 27.11 (runda 3): błąd pobierania pokazywał „0 aktywnych zleceń” albo liczbę częściową */
   const [blad, setBlad] = useState<string | null>(null)
+  // testy 27.11 (runda 3, prezes): pasek „N przeterminowanych” liczył tylko otwartą zakładkę, a na Pulpicie go nie było
+  const [poTerminie, setPoTerminie] = useState<Array<{ key: string; label: string; n: number }>>([])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       // Jedno zapytanie (porcjami po 1000) o wszystkie aktywne wiersze — tylko
       // kolumny potrzebne do liczenia. Przepuść cancelled NULL oraz false.
-      type ActiveRow = { id: number; category: string; linked_order_id: number | null; titan_group: string | null }
+      type ActiveRow = {
+        id: number; category: string; linked_order_id: number | null; titan_group: string | null
+        order_date: string | null; top_light: string | null; side_panel: string | null; side_panel_a: string | null; side_panel_b: string | null
+        bastion_frame_type: string | null
+      }
       const { data: active, error } = await fetchAllPages<ActiveRow>((from, to) =>
         supabase
           .from('orders')
-          .select('id, category, linked_order_id, titan_group:extra_fields->>titan_group')
+          .select('id, category, linked_order_id, titan_group:extra_fields->>titan_group, order_date, top_light, side_panel, side_panel_a, side_panel_b, bastion_frame_type')
           .is('release_date', null)
           .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.eq.false')
           .order('id', { ascending: true })
@@ -96,12 +107,21 @@ export default function DashboardView({
         })),
       )
       setOrdersCount(countActiveOrders(active))
+      setPoTerminie(
+        ORDER_CATEGORIES.map((cat) => ({
+          key: cat.key,
+          label: cat.label,
+          n: active.filter((o) => o.category === cat.key && getOrderAgeStatus({ ...o, release_date: null, extra_fields: null } as unknown as Order, leadTimeRules) === 'overdue').length,
+        })).filter((c) => c.n > 0),
+      )
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [leadTimeRules])
 
   useEffect(() => { void load() }, [load])
+  const poTerminieRazem = poTerminie.reduce((s, c) => s + c.n, 0)
+  const najwiecejPoTerminie = [...poTerminie].sort((a, b) => b.n - a.n)[0]
 
   return (
     <div className="dashboard-view">
@@ -160,6 +180,22 @@ export default function DashboardView({
                   ? `sync ${new Date(excelSync.lastSyncAt).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}${excelSync.stale ? ' ⚠' : ''}`
                   : 'brak synchronizacji'}
               </div>
+            </div>
+          </button>
+        )}
+
+        {leadTimeRules.length > 0 && (
+          <button
+            type="button"
+            className={`dashboard-alert-card ${poTerminieRazem > 0 ? 'dashboard-alert-card--warn' : ''}`}
+            onClick={() => najwiecejPoTerminie && onNavigate(najwiecejPoTerminie.key)}
+            title={`Niewydane zlecenia po terminie (reguły terminów z Ustawień), cała firma:\n${poTerminie.map((c) => `${c.label}: ${c.n}`).join('\n') || 'brak'}${najwiecejPoTerminie ? `\n\nKliknięcie otwiera ${najwiecejPoTerminie.label}` : ''}`}
+          >
+            <Clock size={22} />
+            <div className="dashboard-alert-num">{loading ? '…' : poTerminieRazem}</div>
+            <div className="dashboard-alert-label">
+              Po terminie
+              <div className="dashboard-alert-sub">{poTerminie.slice(0, 3).map((c) => `${c.label} ${c.n}`).join(' · ')}</div>
             </div>
           </button>
         )}

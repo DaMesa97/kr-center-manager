@@ -3557,6 +3557,7 @@ function App() {
             erpErrorCount={erpErrors.length}
             excelSync={{ openCount: excelSync.openCount, lastSyncAt: excelSync.lastSyncAt, stale: excelSync.stale }}
             alertsBadgeCount={alertsBadgeCount}
+            leadTimeRules={leadTimeRules}
             onNavigate={(tab, focus) => {
               setReviewFocus(focus ?? null)
               setActiveTab(tab as (typeof TABS)[number])
