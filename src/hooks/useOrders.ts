@@ -30,6 +30,9 @@ import {
   isReleaseDateEmpty,
   isRushOrderSequence,
   isStaTitanLinked,
+  isTitanBastionOrder,
+  bastionFormToOrderFields,
+  pickChangedFields,
   isStTitanSystemLabel,
   isTitanSystem,
   mergeOrderExtraFields,
@@ -2066,59 +2069,15 @@ export function useOrders({
       }
       setOrderFormErrors([])
 
-      const mapped = {
-        order_number: bastionFormData.order_number,
-        company: bastionFormData.company,
+      // testy 27.11 (runda 3): mapowanie w utils (testowane); noga Titana nie
+      // nadpisuje decorative_panel/extension (panel i dostawka z STA)
+      const isTitanLeg = isEditing && isTitanBastionOrder(editingOrderBaseline)
+      const mapped: Record<string, unknown> = {
+        ...bastionFormToOrderFields(bastionFormData, { isTitanLeg }),
         order_date: isEditing
           ? editingOrderBaseline.order_date
           : new Date().toLocaleDateString('sv-SE'),
-        production_day: bastionFormData.production_day,
-        quantity: bastionFormData.quantity,
         sequence: isEditing ? editingOrderBaseline.sequence : '',
-        system: bastionFormData.system,
-        model: bastionFormData.model,
-        wing_color: bastionFormData.wing_color,
-        frame_color: bastionFormData.frame_color,
-        threshold_color: bastionFormData.threshold_color,
-        width: bastionFormData.width,
-        direction: bastionFormData.direction,
-        opening: bastionFormData.opening,
-        height: bastionFormData.height,
-        glazing: bastionFormData.glazing,
-        decorative_panel: bastionFormData.frame_type,
-        hardware: bastionFormData.hardware,
-        handle: '',
-        peephole: bastionFormData.peephole,
-        top_light: '',
-        top_light_glazing: '',
-        side_panel: '',
-        side_panel_glazing: '',
-        extension: bastionFormData.frame_range,
-        notes: bastionFormData.notes,
-        client_order_number: bastionFormData.client_order_number,
-        info: bastionFormData.notes_2,
-        bastion_collection: bastionFormData.collection,
-        intarsja: bastionFormData.intarsja,
-        bastion_frame_type: bastionFormData.frame_type,
-        bastion_frame_range: bastionFormData.frame_range,
-        bastion_side_panel_k: bastionFormData.side_panel_k_w.trim()
-          ? `${bastionFormData.side_panel_k_w.trim()}×${bastionFormData.side_panel_h.trim()}`
-          : '',
-        bastion_side_panel_p: bastionFormData.side_panel_p_w.trim()
-          ? `${bastionFormData.side_panel_p_w.trim()}×${bastionFormData.side_panel_h.trim()}`
-          : '',
-        bastion_top_panel: bastionFormData.top_panel_w.trim()
-          ? `${bastionFormData.top_panel_w.trim()}×${bastionFormData.top_panel_h.trim()}`
-          : '',
-        bastion_sales_changes: bastionFormData.sales_changes,
-        bastion_rush_date: bastionFormData.rush_date,
-        bastion_day_of_week: bastionFormData.day_of_week,
-        bastion_is_promo: bastionFormData.is_promo,
-        bastion_is_production_rush: bastionFormData.is_production_rush,
-        bastion_production_priority: bastionFormData.production_priority,
-        bastion_label_qty: bastionFormData.label_qty,
-        bastion_notes_2: bastionFormData.notes_2,
-        category: bastionFormData.category || 'Bastion',
         production_stages: isEditing
           ? editingOrderBaseline.production_stages
           : createEmptyProductionStages('Bastion'),
@@ -2129,10 +2088,19 @@ export function useOrders({
         // otwarcia okna (kasował etapy oznaczone w międzyczasie przez halę)
         // i bez pól, których formularz Bastion nie ma (pusta klamka/naświetle
         // kasowały dane z konfiguratora).
-        const formFields = omitKeys(mapped, [
+        const bastionFormOnly = [
           'production_stages', 'sequence', 'order_date',
           'handle', 'top_light', 'top_light_glazing', 'side_panel', 'side_panel_glazing',
-        ])
+        ] as const
+        const formFields = omitKeys(mapped, bastionFormOnly)
+        // Te same pola policzone ze stanu formularza z chwili otwarcia — do łatki zmian
+        const openFormFields = orderFormOpenSnapshot
+          ? omitKeys(
+              bastionFormToOrderFields(orderFormOpenSnapshot as unknown as BastionOrderFormData, { isTitanLeg }),
+              ['handle', 'top_light', 'top_light_glazing', 'side_panel', 'side_panel_glazing'],
+            )
+          : null
+        const changedFields = pickChangedFields(formFields, openFormFields)
         const payload = sanitizeOrderPayloadForDb(formFields)
         const { error } = await supabase.from('orders').update(payload).eq('id', editId)
         if (error) {
@@ -2143,6 +2111,10 @@ export function useOrders({
         const merged = { ...editingOrderBaseline, ...payload } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, formFields)
+        // testy 27.11 (runda 3): jak przy edycji STA/ST Titana — wspólne pola idą na
+        // resztę grupy (STA + ST) i przeliczają ich rezerwacje. Tylko pola zmienione
+        // w tym formularzu (system/model z Bastionu nie nadpisują STA bez potrzeby).
+        if (isTitanLeg) await syncSharedFieldsToTitanGroup(editingOrderBaseline, changedFields)
         await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, formFields)
         if (isBotOrder(editingOrderBaseline)) {

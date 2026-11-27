@@ -1430,6 +1430,17 @@ export function orderToBastionForm(order: Order): BastionOrderFormData {
   const [sideKW, sideKH] = splitDim(bastion.bastion_side_panel_k)
   const [sidePW, sidePH] = splitDim(bastion.bastion_side_panel_p)
   const [topW, topH] = splitDim(bastion.bastion_top_panel)
+  // testy 27.11 (runda 3): noga Bastion Titana ma w decorative_panel/extension panel
+  // i dostawkę z STA — to NIE jest typ/zakres ościeżnicy (kolor panelu lądował jako typ).
+  // Zwykły Bastion: stary zapis trzymał typ w decorative_panel — fallback zostaje,
+  // ale przez || (pusty string też sięga po zapas).
+  const titanLeg = isTitanBastionOrder(order)
+  const frameType = titanLeg
+    ? String(bastion.bastion_frame_type ?? '')
+    : String(bastion.bastion_frame_type || order.decorative_panel || '')
+  const frameRange = titanLeg
+    ? String(bastion.bastion_frame_range ?? '')
+    : String(bastion.bastion_frame_range || order.extension || '')
   return {
     order_number: order.order_number ?? '',
     category: order.category ?? 'Bastion',
@@ -1452,8 +1463,8 @@ export function orderToBastionForm(order: Order): BastionOrderFormData {
     notes_2: String(bastion.bastion_notes_2 ?? order.info ?? ''),
     client_order_number: order.client_order_number ?? '',
     collection: String(bastion.bastion_collection ?? ''),
-    frame_type: String(bastion.bastion_frame_type ?? order.decorative_panel ?? ''),
-    frame_range: String(bastion.bastion_frame_range ?? order.extension ?? ''),
+    frame_type: frameType,
+    frame_range: frameRange,
     intarsja: order.intarsja ?? '',
     side_panel_k_w: sideKW,
     side_panel_p_w: sidePW,
@@ -1468,6 +1479,87 @@ export function orderToBastionForm(order: Order): BastionOrderFormData {
     production_priority: String(bastion.bastion_production_priority ?? ''),
     label_qty: Number(bastion.bastion_label_qty) || 0,
   }
+}
+
+/**
+ * Pola zlecenia z formularza Bastion (bez order_date / sequence / production_stages —
+ * te dokłada wołający). testy 27.11 (runda 3): dla nogi Bastion Titana NIE wysyłamy
+ * decorative_panel ani extension — trzymają panel i dostawkę z STA, a formularz
+ * Bastion nie ma tych pól (typ/zakres ościeżnicy idą tylko do bastion_frame_*).
+ */
+export function bastionFormToOrderFields(
+  f: BastionOrderFormData,
+  opts: { isTitanLeg: boolean },
+): Record<string, unknown> {
+  const dim = (w: string, h: string) => (w.trim() ? `${w.trim()}×${h.trim()}` : '')
+  const out: Record<string, unknown> = {
+    order_number: f.order_number,
+    company: f.company,
+    production_day: f.production_day,
+    quantity: f.quantity,
+    system: f.system,
+    model: f.model,
+    wing_color: f.wing_color,
+    frame_color: f.frame_color,
+    threshold_color: f.threshold_color,
+    width: f.width,
+    direction: f.direction,
+    opening: f.opening,
+    height: f.height,
+    glazing: f.glazing,
+    decorative_panel: f.frame_type,
+    hardware: f.hardware,
+    handle: '',
+    peephole: f.peephole,
+    top_light: '',
+    top_light_glazing: '',
+    side_panel: '',
+    side_panel_glazing: '',
+    extension: f.frame_range,
+    notes: f.notes,
+    client_order_number: f.client_order_number,
+    info: f.notes_2,
+    bastion_collection: f.collection,
+    intarsja: f.intarsja,
+    bastion_frame_type: f.frame_type,
+    bastion_frame_range: f.frame_range,
+    bastion_side_panel_k: dim(f.side_panel_k_w, f.side_panel_h),
+    bastion_side_panel_p: dim(f.side_panel_p_w, f.side_panel_h),
+    bastion_top_panel: dim(f.top_panel_w, f.top_panel_h),
+    bastion_sales_changes: f.sales_changes,
+    bastion_rush_date: f.rush_date,
+    bastion_day_of_week: f.day_of_week,
+    bastion_is_promo: f.is_promo,
+    bastion_is_production_rush: f.is_production_rush,
+    bastion_production_priority: f.production_priority,
+    bastion_label_qty: f.label_qty,
+    bastion_notes_2: f.notes_2,
+    category: f.category || 'Bastion',
+  }
+  if (opts.isTitanLeg) {
+    delete out.decorative_panel
+    delete out.extension
+  }
+  return out
+}
+
+/**
+ * testy 27.11 (runda 3): tylko pola, które różnią się od stanu z chwili otwarcia
+ * formularza (te same mapowanie na obu stanach). Pozostałych nie wysyłamy — nie
+ * nadpisujemy zmian, które ktoś inny zrobił w międzyczasie. Brak zrzutu = wszystko.
+ */
+export function pickChangedFields(
+  now: Record<string, unknown>,
+  open: Record<string, unknown> | null,
+): Record<string, unknown> {
+  if (!open) return { ...now }
+  const norm = (v: unknown) => JSON.stringify(v === undefined ? null : v)
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(now)) {
+    if (v === undefined) continue
+    if (norm(v) !== norm(open[k])) out[k] = v
+  }
+  return out
 }
 
 export function buildRecipeAutoName(form: RecipeFormState): string {
