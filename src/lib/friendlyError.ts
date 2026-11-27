@@ -9,6 +9,11 @@ type Rule = { re: RegExp; text: (m: RegExpMatchArray) => string }
 
 const RULES: Rule[] = [
   {
+    // runda 4 (tester hali): P0409 z revert_order_stage — data ISO, „rezerwacja”, a pracownik hali i tak nie cofa wydania
+    re: /Zlecenie jest już wydane \((\d{4})-(\d{2})-(\d{2})\)[^]*/i,
+    text: (m) => `zlecenie jest już wydane (${m[3]}.${m[2]}.${m[1]}) — etap cofa kierownik dopiero po cofnięciu wydania (jeśli wydanie przyszło z Excela, najpierw trzeba usunąć X w Excelu)`,
+  },
+  {
     re: /duplicate key value violates unique constraint/i,
     text: () => 'taki wpis już istnieje (duplikat) — odśwież listę, ktoś mógł go właśnie dodać',
   },

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { humanizeErrorText } from '../lib/friendlyError'
 
+describe('runda 4: P0409 cofnięcie etapu na wydanym', () => {
+  it('po ludzku, z polską datą', () => {
+    expect(
+      humanizeErrorText('Nie cofnięto etapu: Zlecenie jest już wydane (2026-11-27) — najpierw cofnij wydanie, potem etap (inaczej towar wróci na stan, a rezerwacja zostanie na zawsze).'),
+    ).toBe('Nie cofnięto etapu: zlecenie jest już wydane (27.11.2026) — etap cofa kierownik dopiero po cofnięciu wydania (jeśli wydanie przyszło z Excela, najpierw trzeba usunąć X w Excelu)')
+  })
+})
+
 describe('humanizeErrorText — techniczne błędy po ludzku', () => {
   it('zostawia prefiks, tłumaczy ogon (FK przy usuwaniu)', () => {
     expect(
