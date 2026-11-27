@@ -1306,6 +1306,8 @@ export function useOrders({
     return { ok: true, row: (data as Partial<Order> | null) ?? null }
   }
 
+  /** runda 5: kontrola „takie samo zlecenie zapisane przed chwilą” — raz na jedno kliknięcie „Zapisz” (pary / Titan) */
+  const dubelSprawdzonyRef = useRef(false)
   const insertOrderRow = async (
     payload: Record<string, unknown>,
     select: string,
@@ -1313,6 +1315,30 @@ export function useOrders({
     // testy 27.11 (runda 3): kolumna WPISAŁ — inicjały użytkownika (jak w Excelu), gdy formularz nic nie podał
     const enteredBy = String(currentUser?.initials || currentUser?.full_name || (currentUser?.email ?? '').split('@')[0] || '').trim()
     const row = String(payload.entered_by ?? '').trim() ? payload : { ...payload, entered_by: enteredBy }
+    // runda 5 (recenzent): nogi pary Disting Plus / Titana dostają numer przy zapisie, więc ponowne „Dodaj” po zerwanym
+    // połączeniu nie trafiało na zajęty numer i dubel powstawał bez pytania. Przed zapisem: identyczne zlecenie
+    // (kategoria, firma, model, wymiary, kierunek, ilość) zapisane z tego konta w ostatnich 15 min → pytanie (raz na zapis).
+    if (!dubelSprawdzonyRef.current) {
+      const od = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+      const { data: podobne } = await supabase.from('orders')
+        .select('order_number, company, model, width, height, direction, quantity, created_at, extra_fields')
+        .eq('category', String(row.category || activeTab)).eq('entered_by', String(row.entered_by ?? '')).gte('created_at', od).limit(50)
+      const norm = (v: unknown) => String(v ?? '').trim().toLowerCase()
+      const firmy = (x: { company?: unknown; extra_fields?: unknown }) => [norm(x.company), norm((x.extra_fields as Record<string, unknown> | null)?.company_as_received)].filter(Boolean)
+      const taki = ((podobne ?? []) as Array<Record<string, unknown>>).find((x) =>
+        firmy(x).some((f) => firmy(row as { company?: unknown; extra_fields?: unknown }).includes(f)) &&
+        (['model', 'width', 'height', 'direction'] as const).every((k) => norm(x[k]) === norm(row[k])) &&
+        Number(x.quantity) === Number(row.quantity),
+      )
+      if (taki) {
+        const ok = await appConfirm(
+          `Takie samo zlecenie (nr ${taki.order_number}, ${taki.company ?? ''}) zapisałeś z tego konta o ${new Date(String(taki.created_at)).toLocaleTimeString('pl-PL')}.\n\nJeśli poprzedni zapis pokazał błąd połączenia, to najpewniej on — dodać DRUGIE takie samo zlecenie?`,
+          { title: 'To zlecenie chyba już jest zapisane', confirmLabel: 'Dodaj drugie zlecenie', tone: 'danger' },
+        )
+        if (!ok) return { data: null, error: { message: `takie samo zlecenie już jest zapisane (nr ${taki.order_number}) — nie dodano drugiego; odśwież listę` } }
+      }
+      dubelSprawdzonyRef.current = true
+    }
     const res = await insertOrderWithNumberRetry(row, {
       fallbackCategory: activeTab,
       fetchNumber: (category) => fetchNextOrderNumber(category, { silent: true }),
@@ -1322,11 +1348,14 @@ export function useOrders({
       },
       // runda 4: zajęty numer z tą samą firmą, wpisany przez nas w ostatnich 15 min = najpewniej nasz poprzedni zapis
       confirmTaken: async (nr, r) => {
-        const { data: ist } = await supabase.from('orders').select('company, entered_by, created_at')
+        const { data: ist } = await supabase.from('orders').select('company, entered_by, created_at, extra_fields')
           .eq('category', String(r.category || activeTab)).eq('order_number', nr).maybeSingle()
-        const x = ist as { company?: string | null; entered_by?: string | null; created_at?: string | null } | null
+        const x = ist as { company?: string | null; entered_by?: string | null; created_at?: string | null; extra_fields?: Record<string, unknown> | null } | null
         if (!x) return true
-        const takaSamaFirma = String(x.company ?? '').trim().toLowerCase() === String(r.company ?? '').trim().toLowerCase()
+        // runda 5: trigger apply_company_alias zamienia pisownię na nazwę z kartoteki — porównujemy też z oryginałem
+        const wpisana = String(r.company ?? '').trim().toLowerCase()
+        const ef = (x as { extra_fields?: Record<string, unknown> | null }).extra_fields
+        const takaSamaFirma = String(x.company ?? '').trim().toLowerCase() === wpisana || String(ef?.company_as_received ?? '').trim().toLowerCase() === wpisana
         const nasz = String(x.entered_by ?? '').trim() === String(r.entered_by ?? '').trim()
         const swieze = x.created_at ? Date.now() - new Date(x.created_at).getTime() < 15 * 60 * 1000 : false
         if (!(takaSamaFirma && nasz && swieze)) return true
@@ -1344,6 +1373,7 @@ export function useOrders({
 
   const handleSaveOrderImpl = async () => {
     setIsSaving(true)
+    dubelSprawdzonyRef.current = false
 
     const isEditing = editingOrderId !== null && editingOrderBaseline !== null
     if (!isManager) {
