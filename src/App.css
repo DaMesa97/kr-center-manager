@@ -10491,3 +10491,54 @@ li.optima-item--kit-part { margin-left: 16px; }
 .door-grid-mode { display: inline-flex; gap: 4px; }
 .door-grid-split { display: block; font-size: 0.66rem; font-weight: 500; color: #64748b; }
 .door-grid-inc { display: block; font-size: 0.66rem; font-weight: 500; color: #005faf; }
+/* 27.11: Wysyłki kurierem (SUUS) — ekran magazyniera, duże przyciski (tablet) */
+.shipments-view { display: flex; flex-direction: column; gap: 12px; }
+.shipments-summary { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-card-bg); }
+.shipments-summary-date { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--color-text-muted); }
+.shipments-summary-date input { font-size: 1rem; padding: 8px 10px; min-height: 44px; }
+.shipments-summary-stat { display: flex; flex-direction: column; justify-content: center; min-width: 110px; padding: 6px 14px; border-radius: 8px; background: var(--color-bg-alt); }
+.shipments-summary-stat strong { font-size: 1.6rem; line-height: 1.1; color: var(--color-primary); }
+.shipments-summary-stat span { font-size: 0.8rem; color: var(--color-text-muted); }
+.shipments-summary > .shipments-btn { margin-left: auto; align-self: center; }
+.shipments-btn { min-height: 44px; padding: 8px 16px; font-size: 0.95rem; }
+.shipments-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.shipments-toolbar .search-input { flex: 1 1 260px; min-height: 44px; font-size: 1rem; }
+.shipments-groups { display: flex; flex-direction: column; gap: 12px; }
+.shipments-group { border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-card-bg); overflow: hidden; }
+.shipments-group-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: var(--color-bg-alt); border-bottom: 1px solid var(--color-border); }
+.shipments-group-bl { font-weight: 700; font-size: 1.05rem; color: var(--color-primary); }
+.shipments-group-client { font-size: 0.9rem; color: var(--color-text-muted); }
+.shipments-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.shipments-table th { text-align: left; font-size: 0.72rem; font-weight: 600; color: #64748b; padding: 6px 10px; border-bottom: 1px solid var(--color-border); }
+.shipments-table td { padding: 10px; border-bottom: 1px solid var(--color-border-light); vertical-align: top; }
+.shipments-table tbody tr { cursor: pointer; }
+.shipments-row--sel td { background: #e9f3fd; }
+.shipments-check { width: 22px; height: 22px; }
+.shipments-items { font-size: 0.85rem; }
+.shipments-days { display: flex; flex-direction: column; gap: 16px; }
+.shipments-day-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0 0 8px; font-size: 1.05rem; text-transform: capitalize; }
+.shipments-day-sum { margin-left: auto; font-size: 0.85rem; font-weight: 500; color: var(--color-text-muted); text-transform: none; }
+.shipments-card { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; padding: 12px; margin-bottom: 8px; border: 1px solid var(--color-border); border-left-width: 5px; border-radius: 8px; background: var(--color-card-bg); }
+.shipments-card--zaplanowana { border-left-color: #94a3b8; }
+.shipments-card--gotowa { border-left-color: #005faf; }
+.shipments-card--nadana { border-left-color: #1d6d45; opacity: 0.85; }
+.shipments-card-main { flex: 1 1 320px; display: flex; flex-direction: column; gap: 4px; }
+.shipments-card-title { font-size: 1rem; }
+.shipments-card-orders { font-size: 0.88rem; }
+.shipments-card-meta { font-size: 0.85rem; color: #475569; }
+.shipments-card-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.shipments-status { display: inline-block; margin-left: 8px; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: #e2e8f0; color: #334155; vertical-align: 1px; }
+.shipments-status--gotowa { background: #dbeafe; color: #005faf; }
+.shipments-status--nadana { background: #dcfce7; color: #1d6d45; }
+.shipments-modal { max-width: 560px; width: 100%; }
+.shipments-modal-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 4px 12px; }
+.shipments-modal-orders { margin: 0; font-size: 0.9rem; color: #475569; }
+.shipments-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #475569; }
+.shipments-field input { min-height: 44px; font-size: 1rem; padding: 8px 10px; }
+.shipments-counters { display: flex; flex-wrap: wrap; gap: 18px; }
+.shipments-counter { display: flex; flex-direction: column; gap: 4px; }
+.shipments-counter-label { font-size: 0.85rem; color: #475569; }
+.shipments-counter-row { display: flex; align-items: center; gap: 10px; }
+.shipments-counter-btn { width: 48px; height: 48px; font-size: 1.5rem; line-height: 1; padding: 0; }
+.shipments-counter-value { min-width: 36px; text-align: center; font-size: 1.6rem; font-weight: 700; }
+.shipments-counter-hint { font-size: 0.75rem; }

@@ -43,7 +43,7 @@ export const TAB_GROUPS: TabGroupDef[] = [
     id: 'production',
     label: 'Produkcja',
     Icon: Factory,
-    tabs: ['Wysyłka', 'Etykiety', 'ZKP'],
+    tabs: ['Wysyłka', 'Wysyłki', 'Etykiety', 'ZKP'],
   },
   {
     type: 'group',
@@ -81,6 +81,7 @@ const TAB_LABELS: Record<string, string> = {
   Archiwum: 'Zakończone',
   Etykiety: 'Etykiety i druk',
   ZKP: 'ZKP AS 75EI',
+  Wysyłki: 'Wysyłki kurierem',
   Dokumenty: 'Dokumenty PZ / MM',
 }
 

@@ -157,6 +157,9 @@ export function tabsForUserDepartment(
   hasCrm?: boolean,
 ): (typeof TABS)[number][] {
   const tabs = baseTabsForUser(dept, isMgr, role, categories)
+  // Wysyłki kurierem (SUUS): każdy, kto widzi Wysyłkę (odczyt wszyscy; zapis — rola, pilnuje RLS)
+  const wysylka = tabs.indexOf('Wysyłka')
+  if (wysylka >= 0 && !tabs.includes('Wysyłki')) tabs.splice(wysylka + 1, 0, 'Wysyłki')
   // ZKP AS 75EI: zakładka dla osób z rolą ZKP na koncie i admina (podgląd)
   if ((zkpRoles ?? []).length > 0 || isAdminRole(role)) {
     const at = tabs.indexOf('Zgłoszenia')
