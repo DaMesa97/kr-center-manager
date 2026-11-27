@@ -76,6 +76,7 @@ export function useWarehouse({
   const [mmSaving, setMmSaving] = useState(false)
   // testy 27.11 (runda 3): blokada przed podwójnym kliknięciem już przed sprawdzeniem stanu źródła (było: dwa MM)
   const mmWToku = useRef(false)
+  const pzWToku = useRef(false)
   const [doorComponentModal, setDoorComponentModal] = useState<{
     open: boolean
     mode: 'add' | 'edit'
@@ -1558,14 +1559,46 @@ export function useWarehouse({
       pushToast('Wybierz magazyn', 'error')
       return
     }
+    // testy 27.11 (runda 3): wiersze z ilością 0 (np. 0,4 szt. zaokrąglone) albo bez towaru były po cichu
+    // pomijane, a toast mówił „zapisane (2 poz.)” — teraz zatrzymujemy z listą pozycji do poprawy
+    const nazwaTowaru = (id: number) => warehouseComponents.find((c) => c.id === id)?.name ?? `#${id}`
+    const bezIlosci = pzFormData.items
+      .map((it, i) => ({ it, nr: i + 1 }))
+      .filter(({ it }) => it.component_id > 0 && !(it.quantity > 0))
+    const bezTowaru = pzFormData.items
+      .map((it, i) => ({ it, nr: i + 1 }))
+      .filter(({ it }) => !(it.component_id > 0) && it.quantity > 0)
+    if (bezIlosci.length || bezTowaru.length) {
+      const linie = [
+        ...bezIlosci.map(({ it, nr }) => `poz. ${nr} (${nazwaTowaru(it.component_id)}): ilość 0 — wpisz ilość albo usuń wiersz`),
+        ...bezTowaru.map(({ nr }) => `poz. ${nr}: wpisana ilość bez wybranego towaru`),
+      ]
+      pushToast(`Popraw pozycje przyjęcia: ${linie.join('; ')}`, 'error')
+      return
+    }
     const validItems = pzFormData.items.filter((it) => it.component_id > 0 && it.quantity > 0)
     if (validItems.length === 0) {
       pushToast('Dodaj co najmniej jedną pozycję', 'error')
       return
     }
-
+    if (pzWToku.current) return
+    pzWToku.current = true
     setPzSaving(true)
     try {
+      // testy 27.11 (runda 3): ten sam numer faktury drugi raz (np. ponowienie po zerwanym połączeniu) przechodził bez słowa
+      const ref = pzFormData.reference_doc.trim()
+      if (ref) {
+        const { data: juz } = await supabase.from('warehouse_movements').select('id, created_at')
+          .eq('movement_type', 'PZ').eq('reference_doc', ref).limit(1)
+        if (juz && juz.length > 0) {
+          const kiedy = new Date(String((juz[0] as { created_at: string }).created_at)).toLocaleString('pl-PL')
+          const ok = await appConfirm(
+            `Przyjęcie z dokumentem „${ref}” już jest w programie (zapisane ${kiedy}).\n\nJeśli poprzedni zapis pokazał błąd połączenia, mógł się jednak udać — sprawdź listę PZ. Zapisać drugie przyjęcie z tym samym dokumentem?`,
+            { title: 'Ten dokument już przyjęto', confirmLabel: 'Zapisz drugie przyjęcie', tone: 'danger' },
+          )
+          if (!ok) return
+        }
+      }
       const { data, error } = await supabase.rpc('create_pz_document', {
         p_warehouse_id: pzFormData.warehouse_id,
         p_items: validItems,
@@ -1596,9 +1629,10 @@ export function useWarehouse({
       await fetchOrdersNeedingReviewInternal()
       void fetchAlertsBadgeCount({ fresh: true }) // własna operacja — licznik od razu świeży, bez pamięci 15 s / 60 s
     } finally {
+      pzWToku.current = false
       setPzSaving(false)
     }
-  }, [pzFormData, pushToast, fetchPzGroups, fetchWarehouseStock, fetchOrders, fetchOrdersNeedingReviewInternal, fetchAlertsBadgeCount, touchSession])
+  }, [pzFormData, warehouseComponents, pushToast, fetchPzGroups, fetchWarehouseStock, fetchOrders, fetchOrdersNeedingReviewInternal, fetchAlertsBadgeCount, touchSession])
 
   const handlePzPreview = useCallback((referenceDoc: string) => {
     setDocDetailsModal({ open: true, referenceDoc, movementType: 'PZ' })
