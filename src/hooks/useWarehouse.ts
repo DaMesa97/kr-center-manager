@@ -565,9 +565,15 @@ export function useWarehouse({
 
   const fetchPurchaseOrders = useCallback(async () => {
     setPurchaseOrdersLoading(true)
+    // testy 27.11 (2. seria): bez stronicowania PostgREST ucinał do 1000 wierszy — przy rosnącym sortowaniu odpadałyby
+    // NAJNOWSZE pozycje ZD („Brak pozycji do przyjęcia”); obie listy dociągamy porcjami
     const [poRes, itemsRes] = await Promise.all([
-      supabase.from('purchase_orders').select('*').order('created_at', { ascending: false }),
-      supabase.from('purchase_order_items').select('*').order('id', { ascending: true }),
+      fetchAllPages<Record<string, unknown>>((from, to) =>
+        supabase.from('purchase_orders').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).range(from, to),
+      ),
+      fetchAllPages<Record<string, unknown>>((from, to) =>
+        supabase.from('purchase_order_items').select('*').order('id', { ascending: true }).range(from, to),
+      ),
     ])
     setPurchaseOrdersLoading(false)
     if (poRes.error) {
