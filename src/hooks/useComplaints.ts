@@ -598,7 +598,11 @@ export function useComplaints({
           p_stage_key: mirrorKey,
           p_stage_value: newValue,
         })
-        if (mErr) console.error('complaint mirror stage error:', mErr)
+        // runda 6 (tester błędów): błąd tylko w konsoli — STA widziało etap jako niezrobiony
+        if (mErr) {
+          console.error('complaint mirror stage error:', mErr)
+          pushToast(`Etap zapisany, ale para Disting Plus nie jest zsynchronizowana (${mErr.message}) — oznacz go też na drugiej reklamacji`, 'error')
+        }
       }
       void fetchComplaints()
     },
@@ -625,7 +629,12 @@ export function useComplaints({
       }
       // para Disting Plus kończy się razem
       if (complaint.linked_complaint_id != null) {
-        await supabase.from('complaints').update({ release_date: value }).eq('id', complaint.linked_complaint_id)
+        const { data: pData, error: pErr } = await supabase.from('complaints').update({ release_date: value }).eq('id', complaint.linked_complaint_id).select('id')
+        if (pErr || !pData || pData.length === 0) {
+          pushToast(`${done ? 'Zrealizowano' : 'Cofnięto realizację'}, ale para Disting Plus nie jest zsynchronizowana${pErr ? ` (${pErr.message})` : ''} — zrób to samo na drugiej reklamacji`, 'error')
+          void fetchComplaints()
+          return
+        }
       }
       pushToast(done ? 'Reklamacja oznaczona jako zrealizowana' : 'Cofnięto realizację reklamacji', 'success')
       void fetchComplaints()
@@ -653,8 +662,15 @@ export function useComplaints({
       }
       // para Disting Plus: pilność jedna dla obu wierszy (stanowisko liczy ją per wiersz)
       const linkedId = complaint.linked_complaint_id
-      if (linkedId != null) await supabase.from('complaints').update({ is_rush: checked }).eq('id', linkedId)
-      setComplaints((prev) => prev.map((c) => (c.id === id || (linkedId != null && c.id === linkedId) ? { ...c, is_rush: checked } : c)))
+      let paraOk = true
+      if (linkedId != null) {
+        const { data: pData, error: pErr } = await supabase.from('complaints').update({ is_rush: checked }).eq('id', linkedId).select('id')
+        if (pErr || !pData || pData.length === 0) {
+          paraOk = false
+          pushToast(`Pilność zmieniona, ale para Disting Plus nie jest zsynchronizowana${pErr ? ` (${pErr.message})` : ''}`, 'error')
+        }
+      }
+      setComplaints((prev) => prev.map((c) => (c.id === id || (paraOk && linkedId != null && c.id === linkedId) ? { ...c, is_rush: checked } : c)))
     },
     [isManager, pushToast],
   )

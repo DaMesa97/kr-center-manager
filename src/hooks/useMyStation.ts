@@ -285,7 +285,11 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
           p_stage_key: mirrorKey,
           p_stage_value: mark,
         })
-        if (mErr) console.error('complaint mirror stage error:', mErr)
+        if (mErr) {
+          console.error('complaint mirror stage error:', mErr)
+          // runda 6: błąd tylko w konsoli — druga reklamacja pary widziała etap jako niezrobiony
+          pushToast(`Etap zapisany, ale para Disting Plus nie jest zsynchronizowana (${mErr.message}) — oznacz go też na drugiej reklamacji`, 'error')
+        }
       }
 
       setMyStationComplaints((prev) =>

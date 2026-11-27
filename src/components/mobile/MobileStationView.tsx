@@ -418,7 +418,11 @@ export default function MobileStationView({ userId }: Props) {
             p_stage_key: mirrorKey,
             p_stage_value: mark,
           })
-          if (mErr) console.error('complaint mirror stage error:', mErr)
+          if (mErr) {
+            console.error('complaint mirror stage error:', mErr)
+            // runda 6: błąd tylko w konsoli — druga reklamacja pary widziała etap jako niezrobiony
+            flash(`Zapisane, ale druga reklamacja pary NIE — oznacz etap też na niej (${mErr.message})`, true)
+          }
         }
 
         setComplaints((prev) =>
