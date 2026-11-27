@@ -1809,6 +1809,20 @@ function App() {
       if (found.length) setBastionBatchExtra((prev) => [...prev.filter((o) => !found.some((f) => f.id === o.id)), ...found])
     })()
   }, [activeTab, orders, bastionBatches.batches, bastionBatchExtra])
+  // runda 6 (wydajność): liczone przy KAŻDYM renderze App (także przy pisaniu w formularzu), dwa przebiegi po liście —
+  // 5–19 ms na render przy 2–10 tys. zleceń; teraz raz na zmianę listy / reguł, jeden przebieg
+  const terminyLicznik = useMemo(() => {
+    let overdueCount = 0
+    let warningCount = 0
+    if (isManager) {
+      for (const o of orders) {
+        const st = getOrderAgeStatus(o, leadTimeRules)
+        if (st === 'overdue') overdueCount++
+        else if (st === 'warning') warningCount++
+      }
+    }
+    return { overdueCount, warningCount }
+  }, [isManager, orders, leadTimeRules])
   const bastionOrdersById = useMemo(
     () =>
       new Map(
@@ -2789,12 +2803,7 @@ function App() {
     )
   }
 
-  const overdueCount = isManager
-    ? orders.filter((o) => getOrderAgeStatus(o, leadTimeRules) === 'overdue').length
-    : 0
-  const warningCount = isManager
-    ? orders.filter((o) => getOrderAgeStatus(o, leadTimeRules) === 'warning').length
-    : 0
+  const { overdueCount, warningCount } = terminyLicznik
 
   return (
     <>
