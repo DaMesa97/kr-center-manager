@@ -103,7 +103,8 @@ export async function savePicks(orderId: number, lineKeys: string[], picked: boo
     const { error } = await supabase
       .from('order_item_picks')
       .upsert(
-        lineKeys.map((line_key) => ({ order_id: orderId, line_key, picked_initials: initials || null, line_sig: sigs?.get(line_key) ?? null })),
+        // recenzent (2. seria): ponowne odhaczenie zmienionej linii = nowa osoba i godzina (picked_by z bazy: auth.uid())
+        lineKeys.map((line_key) => ({ order_id: orderId, line_key, picked_initials: initials || null, line_sig: sigs?.get(line_key) ?? null, picked_at: new Date().toISOString() })),
         { onConflict: 'order_id,line_key' },
       )
     if (error) throw new Error(error.message)
