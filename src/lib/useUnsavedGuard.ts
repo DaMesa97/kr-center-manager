@@ -25,6 +25,32 @@ type Options = {
   resetKey?: unknown
 }
 
+// testy 27.11 (runda 3): zamknięcie całego okna programu (X) gubiło wypełniony formularz bez pytania.
+// Każdy otwarty formularz rejestruje tu swoje „czy zmieniony”; przy zamykaniu okna `beforeunload` wstrzymuje
+// zamknięcie, a Electron (main.ts, will-prevent-unload) pyta „Zamknij bez zapisu / Wróć do formularza”.
+const niezapisane = new Set<() => boolean>()
+let nasluchUstawiony = false
+/** Rejestruje sprawdzenie „formularz ma niezapisane zmiany” (np. okno zlecenia z własną logiką). Zwraca wyrejestrowanie. */
+export function zarejestrujNiezapisane(czyZmieniony: () => boolean): () => void {
+  niezapisane.add(czyZmieniony)
+  if (!nasluchUstawiony && typeof window !== 'undefined') {
+    nasluchUstawiony = true
+    window.addEventListener('beforeunload', (e) => {
+      let jest = false
+      for (const f of niezapisane) {
+        try {
+          if (f()) { jest = true; break }
+        } catch { /* sprawdzenie nie może blokować zamknięcia */ }
+      }
+      if (jest) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    })
+  }
+  return () => { niezapisane.delete(czyZmieniony) }
+}
+
 const DEFAULT_MESSAGE = 'Formularz zawiera niezapisane zmiany. Czy na pewno chcesz go zamknąć?'
 
 const snapshot = (value: unknown): string => {
@@ -50,6 +76,11 @@ export function useUnsavedGuard<T>(value: T, onClose: () => void, options: Optio
   }, [resetKey])
 
   const isDirty = useCallback(() => snapshot(latestRef.current) !== initialRef.current, [])
+
+  // modal trzymany w drzewie na stałe przekazuje `escape: open` — zamknięty nie liczy się jako niezapisany
+  const aktywnyRef = useRef(enabled && escape)
+  aktywnyRef.current = enabled && escape
+  useEffect(() => zarejestrujNiezapisane(() => aktywnyRef.current && isDirty()), [isDirty])
 
   const markSaved = useCallback(() => {
     initialRef.current = snapshot(latestRef.current)

@@ -497,6 +497,21 @@ function createWindow() {
     win?.maximize()
     win?.show()
   })
+  // testy 27.11 (runda 3): otwarty formularz z niezapisanymi zmianami wstrzymuje zamknięcie (beforeunload
+  // w useUnsavedGuard) — pytamy, zamiast po cichu zamykać albo po cichu nie zamykać
+  win.webContents.on('will-prevent-unload', (event) => {
+    if (!win) return
+    const wybor = dialog.showMessageBoxSync(win, {
+      type: 'question',
+      buttons: ['Zamknij bez zapisu', 'Wróć do formularza'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Niezapisane zmiany',
+      message: 'Otwarty formularz ma niezapisane zmiany.',
+      detail: 'Zamknięcie programu je skasuje.',
+    })
+    if (wybor === 0) event.preventDefault() // preventDefault = zignoruj blokadę i zamknij
+  })
 
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', new Date().toLocaleString())
