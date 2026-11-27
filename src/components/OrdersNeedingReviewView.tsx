@@ -244,7 +244,15 @@ export default function OrdersNeedingReviewView({
                   {stages && (
                     <span
                       className={stages.started ? 'badge badge-warning' : 'badge badge-success'}
-                      title={stages.started ? 'Ma postęp produkcji — ta kopia powinna zostać' : 'Bez postępu — bezpieczna do anulowania'}
+                      // testy 27.11 (runda 3): podpowiedź „ma postęp — ta kopia powinna zostać” kazała zostawić kopię z Excela
+                      // (etapy przychodzą z Excela), wbrew zasadzie właściciela: przy dublu bot + Excel zostaje wersja z bota
+                      title={
+                        order.source === 'bot'
+                          ? `Wersja z bota — zgodnie z zasadą ta zostaje${stages.started ? '' : ' (etapy dojdą z Excela)'}`
+                          : stages.started
+                            ? 'Kopia spoza bota z postępem — zasada: zostaje wersja z bota; przed anulowaniem tej kopii sprawdź, czy etapy są w wersji z bota'
+                            : 'Kopia spoza bota bez postępu — do anulowania (zostaje wersja z bota)'
+                      }
                     >
                       {stages.label} etap.
                     </span>
