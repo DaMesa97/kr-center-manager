@@ -70,7 +70,7 @@ export default function DamageReportModal({
   const [quantity, setQuantity] = useState('1')
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
-  const { requestClose } = useUnsavedGuard({ selectedStage, selectedKeys, qtyByKey, componentId, warehouseId, quantity, reason }, onClose, { enabled: !saving, escape: false, resetKey: open })
+  const { requestClose } = useUnsavedGuard({ selectedStage, selectedKeys, qtyByKey, componentId, warehouseId, quantity, reason }, onClose, { enabled: !saving, escape: false, resetKey: open, open })
 
   useEffect(() => {
     if (!open) return
