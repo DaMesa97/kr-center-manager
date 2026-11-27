@@ -301,7 +301,8 @@ Deno.serve(async (req) => {
           // Tylko wartość zaczynająca się od „anulowan” (w przebiegach widać „ANULOWANE”), żeby np. „ANUL. SKRZYDŁO” nie wyłączało wiersza.
           if (wyd === null) {
             const anulCols = [...cols.map((c) => c.header), ...(doneCol && !cols.some((c) => c.header === doneCol) ? [doneCol] : [])];
-            const anul = anulCols.find((h) => /^anulowan/i.test(String(x[h] ?? "").trim()));
+            // runda 4 (recenzent): w kolumnie „zrobione” każda niepusta wartość = wydanie, więc tam szerzej („ANUL”, „ANULACJA”)
+            const anul = anulCols.find((h) => (h === doneCol ? /^anul/i : /^anulowan/i).test(String(x[h] ?? "").trim()));
             if (anul) wyd = `ANULOWANE (kolumna ${anul})`;
           }
           if (wyd === null && doneCol) {
