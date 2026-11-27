@@ -1791,18 +1791,19 @@ function App() {
     const missing = [...new Set(bastionBatches.batches.flatMap((b) => b.order_ids))].filter((id) => !have.has(id) && !extraHave.has(id) && !bastionProbowaneRef.current.has(id))
     if (missing.length === 0) return
     for (const id of missing) bastionProbowaneRef.current.add(id)
-    let cancelled = false
+    // recenzent (runda 3): wynik był wyrzucany, gdy efekt przebiegł ponownie (zmiana listy / realtime), a id były już
+    // „próbowane” — wydane zlecenia partii nie wracały do końca sesji. Wynik zawsze trafia do stanu; przy błędzie
+    // id zdejmujemy z „próbowanych”, żeby kolejny przebieg spróbował jeszcze raz.
     void (async () => {
       const found: Order[] = []
       for (let i = 0; i < missing.length; i += 150) {
-        const { data } = await supabase.from('orders').select('*').in('id', missing.slice(i, i + 150))
+        const czesc = missing.slice(i, i + 150)
+        const { data, error } = await supabase.from('orders').select('*').in('id', czesc)
+        if (error) { for (const id of czesc) bastionProbowaneRef.current.delete(id); continue }
         found.push(...((data ?? []) as Order[]))
       }
-      if (!cancelled && found.length) setBastionBatchExtra((prev) => [...prev.filter((o) => !found.some((f) => f.id === o.id)), ...found])
+      if (found.length) setBastionBatchExtra((prev) => [...prev.filter((o) => !found.some((f) => f.id === o.id)), ...found])
     })()
-    return () => {
-      cancelled = true
-    }
   }, [activeTab, orders, bastionBatches.batches, bastionBatchExtra])
   const bastionOrdersById = useMemo(
     () =>
