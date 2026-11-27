@@ -335,6 +335,19 @@ Poprawione od razu (aplikacja): liczniki „po terminie” liczone raz na zmian�
 
 Nie poprawione (opis w DECISIONS): edycja ręcznego zlecenia drzwi wewn. w 4 krokach bez transakcji (D40), wydanie z magazynu przy błędzie RPC zostawia rezerwacje bez śladu (D41), CRM: przy usuwaniu najpierw pliki, potem rekord (NISKI), ustawienia: zapisy dwukrokowe (NISKI), ok. 60 drobnych miejsc bez odczytu `error` (lista: `scratchpad/a6err/scan.txt` — do poprawy hurtem). Funkcje SQL: 13 `when others then null` obejmuje tylko wpis do audytu (nie dane) — NISKI.
 
+## Upraszczanie kodu (DRY) — noc 28.11
+Analiza (tylko odczyt): `tsc` z `noUnusedLocals` — 0 nieużywanych importów, 0 osieroconych plików; ok. 20 martwych eksportów; 25 grup duplikatów; 15 miejsc, gdzie kopie RÓŻNIĄ SIĘ zachowaniem. Pełna lista refaktorów: `DECISIONS.md` → „Refaktory do rozważenia” (R1–R9), rozjazdy zachowania: D50, D51.
+
+Błędy znalezione przy okazji i poprawione (jako `fix`, nie refaktor):
+| Problem | Commit |
+|---|---|
+| anulowanie: try/catch wokół rpc nic nie łapał — błąd zwolnienia rezerwacji i nogi Bastion ginął; partner bez „kto / kiedy” | b7d7e65 |
+| „Zwolniono rezerwacje zlecenia” także po błędzie | af6dceb |
+| odmiana „22 zleceń” / „0 zlecenia” w 4 miejscach | 74ae676 |
+| zakładanie Titana: błąd oznaczenia grupy ignorowany | 01a3489 |
+
+**Licznik upraszczania:** ubyło 0 linii (refaktory czekają na wynik recenzji rundy 7 — przy otwartych błędach wysokich nie zaczynam).
+
 ## Do decyzji
 > Od 28.11 w nocy pełna, uporządkowana lista jest w `DECISIONS.md` (format: problem / opcje / rekomendacja / pilność / praca). Poniżej historyczna lista z rund 1–4.
 1. **Gdzie testować z zapisem danych.** Opcje: (a) gałąź Supabase (osobna baza, płatna godzinowo; dane trzeba zasiać skryptem seed), (b) zostać przy trybie bezpiecznym na produkcji (bez seeda i czyszczenia), (c) lokalny Supabase w Dockerze (Docker nie działa na tym komputerze). Koszt gałęzi wg Supabase: **0,01344 USD za godzinę** (ok. 0,32 USD na dobę); projekt nie ma dziś żadnej gałęzi. Gałąź startuje pusta (schemat z historii migracji, bez danych i bez funkcji Edge), więc potrzebny skrypt seed. Rekomendacja: (a) na czas sesji, potem usunąć gałąź.

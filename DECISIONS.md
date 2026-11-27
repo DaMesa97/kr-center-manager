@@ -17,7 +17,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 8. **D39 — Wdrożyć poprawkę CRM „Bastion P-110 nie jest na liście kandydatów”** (Twoje zgłoszenie z nocy): handlowiec nie wyceni żadnego Bastiona P-, N-, T-, L-, LUX-, STD- do czasu wdrożenia `crm-oferta`.
 
 ### Może poczekać (najważniejsze)
-D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy.
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy · D50 trzy znaczenia „anulowane” · D51 drobne rozjazdy kopii kodu.
 
 ---
 
@@ -326,7 +326,38 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Rekomendacja**: (a) — wpływ zmierzony dla pierwszego (trigger), szacowany dla dwóch pozostałych.
 - **Pilność**: może poczekać · **Praca**: mały
 
+### D50. Trzy różne znaczenia „zlecenie anulowane” w kodzie
+- **Problem**: większość kodu sprawdza `extra_fields.cancelled === true`; `useExcelSync.ts` i `shipments.ts` także tekst `'true'`; `parseOrderExtraFields` (`utils.ts`) — `Boolean(cancelled)`, więc tekst `'false'` albo `1` daje „anulowane” (używane w tabeli Bastion i w zamówieniach CRM). W bazie dziś `cancelled` jest zawsze boolean (352 × true, 1 × false), więc bez skutków.
+- **Opcje**: (a) jedna funkcja `isOrderCancelled` (tylko `true`) wszędzie + przeniesienie jej z modułu Optimy do neutralnego miejsca (refaktor ok. 30 miejsc); (b) zostawić.
+- **Rekomendacja**: (a) — po decyzji, że dopuszczalne jest tylko `true` (tak zapisuje aplikacja i baza).
+- **Pilność**: może poczekać · **Praca**: mały–średni
+
+### D51. Drobne rozjazdy zachowania między kopiami kodu
+- **Problem** (każde z osobna niewielkie, wykryte przy szukaniu duplikatów):
+  - stanowisko na komputerze zgaduje licznik sztuk aluminium (`min(ilość, zrobione+1)`), telefon bierze wynik z bazy; telefon nie oznacza lokalnego zapisu etapu przed zapisem (komputer tak);
+  - wykrywanie grupy Titan: trzy warunki (`!= null`, `> 0`, niepusty tekst) — różne wyniki dla `0` / `''`;
+  - anulowanie drzwi wewnętrznych w oknie szczegółów najpierw zwraca towar, potem oznacza zlecenie (odwrotnie niż w zakładce zleceń — przy błędzie drugiego kroku towar wraca, a zlecenie zostaje aktywne);
+  - świeży odczyt „czy anulowane”: przy braku wiersza raz blokuje zapis, raz przepuszcza;
+  - `handleProblemToggle` scala `extra_fields` lokalnie zamiast wziąć wynik z bazy (gubi równoległe zmiany);
+  - rola magazynier: zakładka Zamawianie jej nie pokazuje, a odhaczanie i ZD ją uwzględniają (może celowo);
+  - formaty dat ZKP / magazynu: „Invalid Date” przy złych danych, `''` vs `'—'` dla pustej daty; `median` pustej listy: `null` vs `0`; kolor Aluminium w dwóch odcieniach; `ShippingView` uznaje datę ze spacji za „wydane”.
+- **Opcje**: (a) ujednolicić każdą do wersji poprawnej przy okazji (po jednej, z testem); (b) zostawić.
+- **Rekomendacja**: (a) — kolejność: licznik aluminium i oznaczanie etapu na telefonie, kolejność anulowania drzwi wewn., reszta kosmetyka. Rola magazynier — potwierdzić.
+- **Pilność**: może poczekać · **Praca**: mały (każda)
+
 ---
 
 ## Refaktory do rozważenia
-(uzupełniane w nocy — tylko opisy, bez wdrażania)
+(uzupełniane w nocy — tylko opisy, bez wdrażania; zysk w liniach szacunkowy)
+
+| # | Co | Gdzie | Zysk | Ryzyko | Uwagi |
+|---|---|---|---|---|---|
+| R1 | Martwe eksporty i stary kod (ok. 20 pozycji) | `utils.ts` (m.in. `isOrderOverdue`, `getOrderTargetProductionDate`, `formatTodayDDMMYYYY`), `orderTableColumns.tsx` `rushCol` („od beta.90 nieużywana”), `constants.ts`, `useCrm.ts` `markZadanieZrobione` i inne | ~170 l. | niskie | robione w nocy po kolei, gdy brak otwartych błędów wysokich |
+| R2 | Nieużywane parametry hooków (`setOrders` w useShipping, `pushToast` w useStats, `archivedOrders`/`setDeleteConfirm` w useComplaints) | hooki + `App.tsx` | ~10 l. | niskie | jw. |
+| R3 | Rozwlekłe warunki (`x && !isReleaseDateEmpty(x)` → `!isReleaseDateEmpty(x)`, `isOrderCancelled` zamiast ręcznych wstawek) | ~15 miejsc | ~15 l. | niskie | jw. |
+| R4 | Wspólne formatery dat / kwot / ilości (dziś 3–9 kopii każdego) | komponenty magazynu, ZKP, CRM | ~110 l. | niskie | tylko identyczne kopie; różniące się → D51 |
+| R5 | Inicjalizacja pdfmake (6 kopii), wybór drukarki (4 kopie), IPC aktualizacji (2 kopie), stałe mobilne (`CAT_COLORS` ×4, `flash()` ×3) | utils PDF, modale druku, widoki mobilne | ~155 l. | niskie–średnie | |
+| R6 | `merge_order_extra_fields` + aktualizacja stanu (helper), `patchOrder(id, patch)`, ręczne pętle stronicowania → `fetchAllPages`, porcje po id → wspólny `chunk()` | `useShipping`, `useOrders`, kilka hooków | ~185 l. | średnie | pętle stronicowania różnią się obsługą błędu (część to poprawka — patrz D51) |
+| R7 | `MmView` / `PzView` (80% wspólne), 5 widoków tabel w `App.tsx` z tym samym zestawem ~20 propsów | widoki magazynu, `App.tsx` | ~175 l. | średnie | |
+| R8 | Końcówka zapisu edycji w `useOrders` (blok bota ×5, łatka zlecenia ×3), anulowanie / przywracanie | `useOrders.ts` | ~90 l. | średnie–wysokie | logika krytyczna — najpierw testy |
+| R9 | Oznaczanie etapu: komputer i telefon osobno (zlecenia, reklamacje, sztuki alu ×3) | `useMyStation`, `MobileStationView`, `useAluOrders` | ~70 l. | wysokie | najpierw ujednolicić zachowanie (D51) |
