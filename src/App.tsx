@@ -1707,7 +1707,6 @@ function App() {
   }
   const bastionTitanCount = useMemo(
     () => (activeTab === 'Bastion' ? categoryFilteredOrders.filter(isTitanOrderRow).length : 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeTab, categoryFilteredOrders],
   )
 
@@ -1739,7 +1738,6 @@ function App() {
       }
       return true
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryFilteredOrders, sourceFilter, wykonawcaFilter, activeTab, bastionTitanOnly, intDoorFilter, internalDoorItems])
 
   // Ile zleceń na liście ma pozycje bez komponentu (licznik przy filtrze „Tylko bez komponentu")

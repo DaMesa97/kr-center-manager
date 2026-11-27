@@ -2959,7 +2959,7 @@ export function useOrders({
           : 'Disting'
     setOrderFormOpenSnapshot(fillFormFromOrder(resolvedCategory, order))
     setIsModalOpen(true)
-  }, [isManager, pushToast, setShowCompanyDropdown, fillFormFromOrder])
+  }, [isManager, pushToast, setShowCompanyDropdown, fillFormFromOrder, setOrderFormOpenSnapshot])
 
   const handleDuplicateOrder = useCallback(async (order: Order) => {
     if (!isManager) return
@@ -2987,7 +2987,7 @@ export function useOrders({
     )
     setIsModalOpen(true)
     pushToast(`Duplikowanie zamówienia — nowy nr ${newNr}`, 'info')
-  }, [isManager, fetchNextOrderNumber, pushToast, setShowCompanyDropdown, fillFormFromOrder])
+  }, [isManager, fetchNextOrderNumber, pushToast, setShowCompanyDropdown, fillFormFromOrder, setOrderFormOpenSnapshot])
 
   const closeNewOrderModal = useCallback(() => {
     if (isSaving) {
@@ -3169,7 +3169,7 @@ export function useOrders({
       setOrderFormOpenSnapshot(fillFormFromOrder(category, order))
       setIsModalOpen(true)
     },
-    [isManager, openInternalDoorDetails, pushToast, setActiveTab, setActiveSubTab, setShowCompanyDropdown, fillFormFromOrder, onOpenAluOrder],
+    [isManager, openInternalDoorDetails, pushToast, setActiveTab, setActiveSubTab, setShowCompanyDropdown, fillFormFromOrder, onOpenAluOrder, setOrderFormOpenSnapshot],
   )
 
   const handleShowOrderHistory = useCallback((order: Order) => {

@@ -184,7 +184,6 @@ export default function InternalStockView({ components, onShowHistory, pushToast
             (r) => r,
           )
         : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [mode, shown],
   )
   const pageCount = Math.max(1, Math.ceil(shown.length / PAGE))

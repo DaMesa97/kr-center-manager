@@ -424,7 +424,6 @@ export default function AluImportModal({
         render: (p) => (p.warnings.length > 0 ? <span className="alu-warn-badge" title={p.warnings.join('\n')}>{p.warnings.length}</span> : ''),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [notesOpen],
   )
 
