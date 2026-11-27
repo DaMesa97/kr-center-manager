@@ -1562,6 +1562,36 @@ export function pickChangedFields(
   return out
 }
 
+// testy 27.11 (runda 3): ilość tylko całkowita ≥ 1; powyżej progu pytamy, powyżej limitu blokujemy
+// („1.5” dawało błąd integer z bazy, ujemna cicho → 1, 99999 rezerwowało recepturę ×99999)
+export const QUANTITY_CONFIRM_ABOVE = 50
+export const QUANTITY_MAX = 1000
+
+export type QuantityCheck =
+  | { ok: true; value: number; needsConfirm: boolean }
+  | { ok: false; message: string }
+
+export function checkOrderQuantity(raw: unknown, label = 'Ilość'): QuantityCheck {
+  const txt = String(raw ?? '').trim().replace(',', '.')
+  if (txt === '') return { ok: false, message: `${label}: wpisz liczbę sztuk (co najmniej 1).` }
+  const n = Number(txt)
+  if (!Number.isFinite(n)) return { ok: false, message: `${label}: „${String(raw)}” to nie jest liczba.` }
+  if (!Number.isInteger(n)) return { ok: false, message: `${label}: tylko pełne sztuki (liczba całkowita), nie ${txt}.` }
+  if (n < 1) return { ok: false, message: `${label}: co najmniej 1 szt. (wpisano ${n}).` }
+  if (n > QUANTITY_MAX) {
+    return { ok: false, message: `${label}: ${n} szt. to za dużo — limit to ${QUANTITY_MAX} szt. na zlecenie. Większe zamówienie podziel na kilka zleceń.` }
+  }
+  return { ok: true, value: n, needsConfirm: n > QUANTITY_CONFIRM_ABOVE }
+}
+
+/** Wartość z pola „Ilość” do stanu formularza: liczba, a puste/niepoprawne zostaje jak wpisane (walidacja przy zapisie). */
+export function quantityFromInput(v: string): number | string {
+  const t = String(v ?? '').trim()
+  if (t === '') return ''
+  const n = Number(t.replace(',', '.'))
+  return Number.isFinite(n) ? n : t
+}
+
 export const ORDER_NUMBER_UNIQUE_INDEX = 'orders_unique_number_per_category_new'
 
 type InsertErr = { message: string; code?: string }

@@ -32,6 +32,7 @@ import {
   isStaTitanLinked,
   isTitanBastionOrder,
   bastionFormToOrderFields,
+  checkOrderQuantity,
   insertOrderWithNumberRetry,
   pickChangedFields,
   isStTitanSystemLabel,
@@ -1319,6 +1320,42 @@ export function useOrders({
         )
         setIsSaving(false)
         return
+      }
+    }
+
+    // testy 27.11 (runda 3): ilość — tylko liczba całkowita 1…1000, powyżej 50 pytamy.
+    // Przy edycji sprawdzamy tylko, gdy ilość zmieniono (stare zlecenia nie blokują zapisu).
+    {
+      const activeForm: { quantity?: unknown } =
+        activeTab === 'STA' || activeTab === 'Disting'
+          ? staFormData
+          : activeTab === 'ST'
+            ? stFormData
+            : activeTab === 'Techniczne'
+              ? techniczneFormData
+              : activeTab === 'Bastion'
+                ? bastionFormData
+                : formData
+      const qtyChanged =
+        !isEditing || String(activeForm.quantity ?? '').trim() !== String(orderFormOpenSnapshot?.quantity ?? '').trim()
+      if (qtyChanged) {
+        const q = checkOrderQuantity(activeForm.quantity)
+        if (!q.ok) {
+          setOrderFormErrors(['quantity'])
+          pushToast(q.message, 'error')
+          setIsSaving(false)
+          return
+        }
+        if (q.needsConfirm) {
+          const sure = await appConfirm(`Na pewno ${q.value} szt.? Tyle sztuk zarezerwuje magazyn według receptury.`, {
+            title: 'Duża ilość',
+            confirmLabel: `Tak, ${q.value} szt.`,
+          })
+          if (!sure) {
+            setIsSaving(false)
+            return
+          }
+        }
       }
     }
 

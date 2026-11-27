@@ -6,6 +6,8 @@ import { componentLabel } from '../lib/componentLabel'
 import { OPTIMA_READONLY_HINT, isKitPart, isOptimaOrder, isOrderCancelled, lowerFirst } from '../lib/optimaRo'
 import { pickKey } from '../lib/orderPicks'
 import { INTERNAL_WAREHOUSE_CODE_PATTERN } from '../lib/internalWarehouse'
+import { appConfirm } from '../lib/appDialogs'
+import { checkOrderQuantity } from '../utils'
 import type { Order, WarehouseComponent, InternalDoorItem, ToastVariant } from '../types'
 
 type Mode = 'create' | 'edit'
@@ -187,9 +189,23 @@ function InternalDoorOrderModal({
       pushToast('Każda pozycja musi mieć wybrany komponent', 'error')
       return
     }
-    if (items.some((it) => !Number.isFinite(it.quantity) || it.quantity <= 0)) {
-      pushToast('Każda pozycja musi mieć poprawną ilość > 0', 'error')
-      return
+    // testy 27.11 (runda 3): ilość tylko całkowita 1…1000 (0 nie zamienia się już cicho na 1),
+    // powyżej 50 szt. pytamy
+    const bigQty: string[] = []
+    for (let i = 0; i < items.length; i++) {
+      const q = checkOrderQuantity(items[i].quantity, `Pozycja ${i + 1}`)
+      if (!q.ok) {
+        pushToast(q.message, 'error')
+        return
+      }
+      if (q.needsConfirm) bigQty.push(`pozycja ${i + 1}: ${q.value} szt.`)
+    }
+    if (bigQty.length > 0) {
+      const sure = await appConfirm(`Na pewno takie ilości? ${bigQty.join(', ')}.`, {
+        title: 'Duża ilość',
+        confirmLabel: 'Tak, zapisz',
+      })
+      if (!sure) return
     }
     if (items.some((it) => it.shorten_enabled && (!Number.isFinite(it.shorten_target_height) || (it.shorten_target_height ?? 0) <= 0))) {
       pushToast('Skrócenie wymaga poprawnego wymiaru docelowego', 'error')
@@ -471,8 +487,11 @@ function InternalDoorOrderModal({
                     <input
                       type="number"
                       min={1}
-                      value={it.quantity}
-                      onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) || 1 })}
+                      step={1}
+                      value={Number.isNaN(it.quantity) ? '' : it.quantity}
+                      onChange={(e) =>
+                        updateItem(idx, { quantity: e.target.value === '' ? Number.NaN : Number(e.target.value) })
+                      }
                       style={{ width: 70 }}
                     />
                     <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>szt.</span>

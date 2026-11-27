@@ -6,7 +6,7 @@ import SearchableConfigSelect from './SearchableConfigSelect'
 import CompanyAutocomplete from './CompanyAutocomplete'
 import FormInput from './FormInput'
 import { getBotMetadata, getBotWarnings, isBotOrder } from '../utils/botOrder'
-import { bastionFrameOptionForOrder, findBestCompanyMatch, isCompanyInBase, isTitanSystem } from '../utils'
+import { bastionFrameOptionForOrder, findBestCompanyMatch, isCompanyInBase, isTitanSystem, quantityFromInput } from '../utils'
 import StockWarningBanner from './StockWarningBanner'
 import OrderErpSection from './OrderErpSection'
 import DamageReportModal from './DamageReportModal'
@@ -172,7 +172,8 @@ function OrderFormModal(props: OrderFormModalProps) {
     if (activeTab !== 'Bastion') return
     const frameOption = bastionFrameOptionForOrder(bastionFormData.frame_type, bastionFrameOptions)
     const multiplier = frameOption?.label_multiplier ?? 1
-    const qty = Math.max(1, bastionFormData.quantity || 1)
+    // testy 27.11 (runda 3): ilość może być chwilowo niepoprawna (walidacja przy zapisie)
+    const qty = Math.max(1, Math.floor(Number(bastionFormData.quantity) || 1))
     const labelQty = multiplier * qty
     if (labelQty !== bastionFormData.label_qty) {
       autoPatchBastionForm({ label_qty: labelQty })
@@ -881,7 +882,7 @@ function OrderFormModal(props: OrderFormModalProps) {
                     type="number"
                     value={staFormData.quantity}
                     onChange={(v) =>
-                      handleStaFormChange('quantity', Math.max(1, Number(v) || 1))
+                      handleStaFormChange('quantity', quantityFromInput(v))
                     }
                   />
 
@@ -1142,7 +1143,7 @@ function OrderFormModal(props: OrderFormModalProps) {
                     type="number"
                     value={stFormData.quantity}
                     onChange={(v) =>
-                      handleStFormChange('quantity', Math.max(1, Number(v) || 1))
+                      handleStFormChange('quantity', quantityFromInput(v))
                     }
                   />
 
@@ -1367,7 +1368,7 @@ function OrderFormModal(props: OrderFormModalProps) {
                     type="number"
                     value={techniczneFormData.quantity}
                     onChange={(v) =>
-                      handleTechniczneFormChange('quantity', Math.max(1, Number(v) || 1))
+                      handleTechniczneFormChange('quantity', quantityFromInput(v))
                     }
                   />
 
@@ -1665,7 +1666,7 @@ function OrderFormModal(props: OrderFormModalProps) {
                     onChange={(v) =>
                       handleBastionFormChange(
                         'quantity',
-                        Math.max(1, Number(v) || 1),
+                        quantityFromInput(v),
                       )
                     }
                   />
