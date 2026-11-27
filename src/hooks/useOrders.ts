@@ -32,6 +32,7 @@ import {
   isStaTitanLinked,
   isTitanBastionOrder,
   bastionFormToOrderFields,
+  insertOrderWithNumberRetry,
   pickChangedFields,
   isStTitanSystemLabel,
   isTitanSystem,
@@ -513,7 +514,7 @@ export function useOrders({
   )
 
   const fetchNextOrderNumber = useCallback(
-    async (category: string): Promise<string> => {
+    async (category: string, opts: { silent?: boolean } = {}): Promise<string> => {
       touchSession()
       // RPC w SQL — bez limitu 1000 wierszy PostgREST (stary wariant liczył
       // MAX z obciętego tysiąca → duble numerów, np. STA 2388 x89)
@@ -522,10 +523,14 @@ export function useOrders({
       })
       if (error || !data) {
         console.error(error)
-        pushToast(
-          `Nie udało się pobrać numeru zlecenia: ${error?.message ?? 'brak danych'}. Uzupełnij numer ręcznie lub spróbuj ponownie.`,
-          'error',
-        )
+        // testy 27.11 (runda 3): pole numeru jest tylko do odczytu — nie każemy wpisywać
+        // ręcznie; zapis sam spróbuje pobrać numer jeszcze raz
+        if (!opts.silent) {
+          pushToast(
+            `Nie udało się pobrać numeru zlecenia: ${error?.message ?? 'brak danych'}. Numer zostanie pobrany przy zapisie.`,
+            'error',
+          )
+        }
         return ''
       }
       return String(data)
@@ -1255,6 +1260,28 @@ export function useOrders({
     await syncWarehouseStockAfterOrderEdit(partnerId, baseline, newData)
   }
 
+  // testy 27.11 (runda 3): wspólny zapis NOWEGO zlecenia (wszystkie formularze i nogi
+  // Titana / Disting Plus). Numer pobrany przy otwarciu okna mógł w międzyczasie zająć
+  // bot/Excel → surowy błąd 23505. Teraz: pusty numer pobieramy przy zapisie (bez numeru
+  // nie zapisujemy), a zajęty — pobieramy nowy i ponawiamy (do 3 razy).
+  const insertOrderRow = async (
+    payload: Record<string, unknown>,
+    select: string,
+  ): Promise<{ data: Record<string, unknown> | null; error: { message: string; code?: string } | null }> => {
+    const res = await insertOrderWithNumberRetry(payload, {
+      fallbackCategory: activeTab,
+      fetchNumber: (category) => fetchNextOrderNumber(category, { silent: true }),
+      insert: async (row) => {
+        const { data, error } = await supabase.from('orders').insert([row]).select(select).single()
+        return { data: (data as unknown as Record<string, unknown> | null) ?? null, error }
+      },
+    })
+    if (res.renumberedFrom) {
+      pushToast(`Numer ${res.renumberedFrom} był zajęty — zapisano jako ${res.orderNumber}`, 'info')
+    }
+    return { data: res.data, error: res.error }
+  }
+
   const handleSaveOrderImpl = async () => {
     setIsSaving(true)
 
@@ -1499,8 +1526,7 @@ export function useOrders({
       const isStaTitanNew = activeTab === 'STA' && isTitanSystem(staFormData.system)
       if (isStaTitanNew) {
         // 1) STA bazowy
-        const { data: staRow, error: staErr } = await supabase
-          .from('orders').insert([payload]).select('id, order_number').single()
+        const { data: staRow, error: staErr } = await insertOrderRow(payload, 'id, order_number')
         if (staErr || !staRow) {
           pushToast(`Wystąpił błąd: ${staErr?.message ?? 'brak danych'}`, 'error')
           setIsSaving(false)
@@ -1532,8 +1558,7 @@ export function useOrders({
           production_stages: createEmptyProductionStages('ST'),
           extra_fields: groupExtra('ST'),
         })
-        const { data: stRow, error: stErr } = await supabase
-          .from('orders').insert([stPayload]).select('id, order_number').single()
+        const { data: stRow, error: stErr } = await insertOrderRow(stPayload, 'id, order_number')
         if (stErr || !stRow) {
           await supabase.from('orders').delete().eq('id', staId)
           pushToast(`Nie udało się utworzyć powiązanego ST: ${stErr?.message ?? 'błąd'}`, 'error')
@@ -1553,8 +1578,7 @@ export function useOrders({
           production_stages: createEmptyProductionStages('Bastion'),
           extra_fields: groupExtra('Bastion'),
         })
-        const { data: bastionRow, error: bastionErr } = await supabase
-          .from('orders').insert([bastionPayload]).select('id').single()
+        const { data: bastionRow, error: bastionErr } = await insertOrderRow(bastionPayload, 'id, order_number')
         if (bastionErr) {
           pushToast(`ST i STA zapisane, ale Bastion nie: ${bastionErr.message}`, 'error')
         }
@@ -1572,7 +1596,8 @@ export function useOrders({
         // wcześniej noga powstawała bez id i bez rezerwacji
         if (bastionRow) await reserveStockForOrderWithToasts(Number((bastionRow as { id: number }).id))
 
-        pushToast(`Utworzono Titan: STA ${staNr} + ST ${stNr} + Bastion ${bastionNrNext}`, 'success')
+        const bastionNr = bastionRow ? String(bastionRow.order_number ?? bastionNrNext) : '—'
+        pushToast(`Utworzono Titan: STA ${staNr} + ST ${stNr} + Bastion ${bastionNr}`, 'success')
         setIsModalOpen(false)
         setStaFormData(INITIAL_STA_ORDER_FORM)
         await fetchOrders()
@@ -1592,11 +1617,7 @@ export function useOrders({
         const distMapped = { ...mapped, order_number: distNrNext }
         const distPayload = sanitizeOrderPayloadForDb({ ...emptyOrderMeta, ...distMapped })
 
-        const { data: distRow, error: distErr } = await supabase
-          .from('orders')
-          .insert([distPayload])
-          .select('*')
-          .single()
+        const { data: distRow, error: distErr } = await insertOrderRow(distPayload, '*')
 
         if (distErr || !distRow) {
           pushToast(`Wystąpił błąd: ${distErr?.message ?? 'brak danych'}`, 'error')
@@ -1617,11 +1638,7 @@ export function useOrders({
         }
         const staPayload = sanitizeOrderPayloadForDb({ ...emptyOrderMeta, ...staMapped })
 
-        const { data: staRow, error: staErr } = await supabase
-          .from('orders')
-          .insert([staPayload])
-          .select('*')
-          .single()
+        const { data: staRow, error: staErr } = await insertOrderRow(staPayload, '*')
 
         if (staErr || !staRow) {
           await supabase.from('orders').delete().eq('id', distId)
@@ -1660,11 +1677,7 @@ export function useOrders({
         return
       }
 
-      const { data: savedOrder, error } = await supabase
-        .from('orders')
-        .insert([payload])
-        .select('*')
-        .single()
+      const { data: savedOrder, error } = await insertOrderRow(payload, '*')
 
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -1804,11 +1817,7 @@ export function useOrders({
           sta_ref: '',
           st_sheet: '',
         })
-        const { data: stRow, error: stErr } = await supabase
-          .from('orders')
-          .insert([stInsertPayload])
-          .select('id, order_number')
-          .single()
+        const { data: stRow, error: stErr } = await insertOrderRow(stInsertPayload, 'id, order_number')
 
         if (stErr || !stRow) {
           pushToast(`Wystąpił błąd: ${stErr?.message ?? 'brak danych'}`, 'error')
@@ -1841,11 +1850,7 @@ export function useOrders({
           production_stages: createEmptyProductionStages('STA'),
         })
 
-        const { data: staRow, error: staErr } = await supabase
-          .from('orders')
-          .insert([staMapped])
-          .select('id, order_number')
-          .single()
+        const { data: staRow, error: staErr } = await insertOrderRow(staMapped, 'id, order_number')
 
         if (staErr || !staRow) {
           await supabase.from('orders').delete().eq('id', stId)
@@ -1884,8 +1889,7 @@ export function useOrders({
           production_stages: createEmptyProductionStages('Bastion'),
           extra_fields: { titan_group: group, titan_role: 'Bastion' },
         })
-        const { data: bastionRow, error: bastionErr } = await supabase
-          .from('orders').insert([bastionPayload]).select('id').single()
+        const { data: bastionRow, error: bastionErr } = await insertOrderRow(bastionPayload, 'id, order_number')
         if (bastionErr) {
           pushToast(`ST i STA zapisane, ale Bastion nie: ${bastionErr.message}`, 'error')
         }
@@ -1902,7 +1906,8 @@ export function useOrders({
         await reserveStockForOrderWithToasts(staId)
         if (bastionRow) await reserveStockForOrderWithToasts(Number((bastionRow as { id: number }).id))
 
-        pushToast(`Utworzono Titan: ST ${stNr} + STA ${staNr} + Bastion ${bastionNrNext}`, 'success')
+        const bastionNr = bastionRow ? String(bastionRow.order_number ?? bastionNrNext) : '—'
+        pushToast(`Utworzono Titan: ST ${stNr} + STA ${staNr} + Bastion ${bastionNr}`, 'success')
         setIsModalOpen(false)
         setStFormData(INITIAL_ST_ORDER_FORM)
         await fetchOrders()
@@ -1911,7 +1916,7 @@ export function useOrders({
       }
 
       const payload = sanitizeOrderPayloadForDb({ ...emptyOrderMeta, ...mapped })
-      const { data: stInserted, error } = await supabase.from('orders').insert([payload]).select('id').single()
+      const { data: stInserted, error } = await insertOrderRow(payload, 'id')
 
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -2028,7 +2033,7 @@ export function useOrders({
       }
 
       const payload = sanitizeOrderPayloadForDb({ ...emptyOrderMeta, ...mapped })
-      const { data: techInserted, error } = await supabase.from('orders').insert([payload]).select('id').single()
+      const { data: techInserted, error } = await insertOrderRow(payload, 'id')
 
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -2136,7 +2141,7 @@ export function useOrders({
       }
 
       const payload = sanitizeOrderPayloadForDb({ ...emptyOrderMeta, ...mapped })
-      const { data: bastionInserted, error } = await supabase.from('orders').insert([payload]).select('id').single()
+      const { data: bastionInserted, error } = await insertOrderRow(payload, 'id')
 
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -2189,19 +2194,16 @@ export function useOrders({
       return
     }
 
-    const { data: genericInserted, error } = await supabase
-      .from('orders')
-      .insert([
-        sanitizeOrderPayloadForDb({
-          ...formData,
-          ...emptyOrderMeta,
-          category: formData.category || activeTab,
-          order_date: formData.order_date || new Date().toLocaleDateString('sv-SE'),
-          production_stages: createEmptyProductionStages(activeTab),
-        } as Record<string, unknown>),
-      ])
-      .select('id')
-      .single()
+    const { data: genericInserted, error } = await insertOrderRow(
+      sanitizeOrderPayloadForDb({
+        ...formData,
+        ...emptyOrderMeta,
+        category: formData.category || activeTab,
+        order_date: formData.order_date || new Date().toLocaleDateString('sv-SE'),
+        production_stages: createEmptyProductionStages(activeTab),
+      } as Record<string, unknown>),
+      'id',
+    )
 
     if (error) {
       pushToast(`Wystąpił błąd: ${error.message}`, 'error')

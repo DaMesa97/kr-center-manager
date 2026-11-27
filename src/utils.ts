@@ -1562,6 +1562,64 @@ export function pickChangedFields(
   return out
 }
 
+export const ORDER_NUMBER_UNIQUE_INDEX = 'orders_unique_number_per_category_new'
+
+type InsertErr = { message: string; code?: string }
+
+/**
+ * testy 27.11 (runda 3): zapis NOWEGO zlecenia z pilnowaniem numeru. Numer pobrany
+ * przy otwarciu okna mógł w międzyczasie zająć bot/Excel (23505 na unikalnym indeksie).
+ * Pusty numer — pobieramy przy zapisie (bez numeru nie zapisujemy); zajęty — nowy
+ * numer i ponowienie (do maxRetries razy). renumberedFrom = numer, który był zajęty.
+ */
+export async function insertOrderWithNumberRetry(
+  payload: Record<string, unknown>,
+  deps: {
+    fallbackCategory: string
+    fetchNumber: (category: string) => Promise<string>
+    insert: (row: Record<string, unknown>) => Promise<{ data: Record<string, unknown> | null; error: InsertErr | null }>
+    maxRetries?: number
+  },
+): Promise<{ data: Record<string, unknown> | null; error: InsertErr | null; orderNumber: string; renumberedFrom: string | null }> {
+  const maxRetries = deps.maxRetries ?? 3
+  const row: Record<string, unknown> = { ...payload }
+  const category = String(row.category || deps.fallbackCategory)
+  const firstNr = String(row.order_number ?? '').trim()
+  const fail = (message: string, code?: string) => ({
+    data: null,
+    error: { message, ...(code ? { code } : {}) },
+    orderNumber: String(row.order_number ?? ''),
+    renumberedFrom: null,
+  })
+  if (!firstNr) {
+    const nr = (await deps.fetchNumber(category)).trim()
+    if (!nr) return fail('brak numeru zlecenia i nie udało się go pobrać z bazy — spróbuj zapisać ponownie za chwilę')
+    row.order_number = nr
+  } else {
+    row.order_number = firstNr
+  }
+  for (let attempt = 0; ; attempt++) {
+    const { data, error } = await deps.insert(row)
+    const current = String(row.order_number)
+    const numberTaken = error?.code === '23505' && String(error.message ?? '').includes(ORDER_NUMBER_UNIQUE_INDEX)
+    if (!numberTaken) {
+      return {
+        data: error ? null : data,
+        error,
+        orderNumber: current,
+        renumberedFrom: !error && firstNr && current !== firstNr ? firstNr : null,
+      }
+    }
+    if (attempt >= maxRetries) {
+      return fail(`numer ${current} jest zajęty, kolejne próby też trafiły na zajęte numery — spróbuj zapisać ponownie`, '23505')
+    }
+    const nr = (await deps.fetchNumber(category)).trim()
+    if (!nr) return fail(`numer ${current} jest zajęty, a nowego nie udało się pobrać — spróbuj ponownie`, '23505')
+    // get_next_order_number = MAX+1; gdyby zwrócił ten sam (zajęty) numer — o jeden dalej
+    row.order_number = nr === current && /^\d+$/.test(nr) ? String(Number(nr) + 1) : nr
+  }
+}
+
 export function buildRecipeAutoName(form: RecipeFormState): string {
   const parts: string[] = []
   parts.push(form.category)
