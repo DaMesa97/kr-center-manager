@@ -1,0 +1,19 @@
+-- 27.11.2026 (sesja testów, runda 2; tester CRM backend, WYSOKI): crm.codzienne_porzadki oznaczał klienta jako
+-- „przegrany – brak kontaktu” po 30 dniach bez aktywności, nawet gdy handlowiec ustawił mu zadanie na przyszłość
+-- (np. „odezwą się po Nowym Roku”, termin 11.01.2027) — i kasował to zadanie. Teraz klient z zadaniem na dziś lub
+-- później jest pomijany. Podmiana jednego warunku w istniejącej funkcji. DO WDROŻENIA (nie wgrane w sesji).
+do $$
+declare d text;
+  stare text := '    where l.status in (''nowy'', ''oferta'')
+  loop';
+  nowe text := '    where l.status in (''nowy'', ''oferta'')
+      and not (l.nastepna_akcja is not null and l.nastepny_krok >= dzis)
+  loop';
+begin
+  d := pg_get_functiondef('crm.codzienne_porzadki()'::regprocedure);
+  if position(stare in d) = 0 then
+    raise notice 'crm.codzienne_porzadki: warunek już poprawiony albo inny — bez zmian';
+    return;
+  end if;
+  execute replace(d, stare, nowe);
+end $$;
