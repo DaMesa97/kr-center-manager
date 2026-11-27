@@ -154,7 +154,7 @@ export function stanOferty(o: {
 /**
  * „Poproś o zmianę” (v3, Tymek 27.11: kilka pól — poprawka oferty, styl maila — było nieczytelne, a odpowiedź systemu
  * „nie umiałem” chowała się w „sprawdź”). Jedna lista próśb z wynikiem, z łańcucha wersji oferty:
- * wersja z `poprawka_wynik` = wynik prośby (tekst w `poprawka`), bieżąca w 'przelicz' z `poprawka` = prośba w toku.
+ * wersja z `poprawka_wynik` = wynik prośby (tekst w `poprawka` wersji poprzedniej), bieżąca w 'przelicz' z `poprawka` = prośba w toku.
  */
 export type ProsbaOferty = {
   id: string
@@ -173,16 +173,20 @@ type WersjaMin = {
 
 export function prosbyOferty(lancuch: WersjaMin[]): ProsbaOferty[] {
   const out: ProsbaOferty[] = []
-  const dzieci = new Map<string, WersjaMin[]>()
-  for (const w of lancuch) if (w.poprzednia_id) dzieci.set(w.poprzednia_id, [...(dzieci.get(w.poprzednia_id) ?? []), w])
+  const byId = new Map(lancuch.map((w) => [w.id, w]))
+  const maDzieci = new Set(lancuch.map((w) => w.poprzednia_id).filter(Boolean) as string[])
   for (const w of lancuch) {
     const tekst = (w.poprawka ?? '').trim()
     if (w.status === 'przelicz' && tekst) {
       out.push({ id: `${w.id}-w-toku`, wersja: w.wersja + 1, tekst, stan: 'w_toku', powody: [], streszczenie: null, kiedy: w.updated_at ?? w.created_at })
     }
     if (!w.poprawka_wynik) continue
-    // tekst prośby nadpisany kolejną prośbą do tej wersji — zostaje sam wynik (streszczenie)
-    const nadpisany = w.status === 'przelicz' || (dzieci.get(w.id) ?? []).some((c) => (c.poprawka ?? '').trim() === tekst)
+    // 27.11 (testy agentów): prośbę składa się na wersji POPRZEDNIEJ (jej `poprawka` już się nie zmienia, bo schodzi do
+    // 'robocza'), a `poprawka` tej wersji nadpisuje następna prośba — tekst do wyniku bierzemy więc z poprzedniej wersji.
+    // Bez poprzedniej w łańcuchu: własny tekst, o ile nikt go jeszcze nie nadpisał (brak nowszej wersji i nie w liczeniu).
+    const zRodzica = w.poprzednia_id ? (byId.get(w.poprzednia_id)?.poprawka ?? '').trim() : ''
+    const wlasny = w.status !== 'przelicz' && !maDzieci.has(w.id) ? tekst : ''
+    const tekstProsby = zRodzica || wlasny
     const pw = w.poprawka_wynik
     const niezrozumiane = Array.isArray(pw.niezrozumiane) ? (pw.niezrozumiane as unknown[]).map(String).filter(Boolean) : []
     const brakCen = brakCenOferty({ status: 'do_sprawdzenia', rodzaj: w.rodzaj, sprawdz: w.sprawdz })
@@ -190,7 +194,7 @@ export function prosbyOferty(lancuch: WersjaMin[]): ProsbaOferty[] {
     out.push({
       id: w.id,
       wersja: w.wersja,
-      tekst: nadpisany ? null : tekst || null,
+      tekst: tekstProsby || null,
       stan: brakCen ? 'nie' : niezrozumiane.length ? 'czesciowo' : 'zrobione',
       powody,
       streszczenie: typeof pw.streszczenie === 'string' && pw.streszczenie.trim() ? pw.streszczenie.trim() : null,

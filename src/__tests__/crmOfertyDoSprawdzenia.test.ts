@@ -13,3 +13,14 @@ describe('Oferty → Do sprawdzenia (27.11)', () => {
     expect(bezZamknietychKlientow(rows).map((r) => r.id)).toEqual(['a', 'd', 'e'])
   })
 })
+
+describe('Do sprawdzenia — oferta zrobiona po wyniku klienta (testy 27.11)', () => {
+  it('oferta po wyniku zostaje, sprzed wyniku znika', () => {
+    const rows = [
+      { id: 'po', created_at: '2026-11-27T12:00:00Z', lead: { status: 'wygrany', wynik_at: '2026-11-26T10:00:00Z' } },
+      { id: 'przed', created_at: '2026-11-25T12:00:00Z', lead: { status: 'wygrany', wynik_at: '2026-11-26T10:00:00Z' } },
+    ]
+    expect(bezZamknietychKlientow(rows).map((r) => r.id)).toEqual(['po'])
+  })
+})
+

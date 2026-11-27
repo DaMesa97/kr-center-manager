@@ -20,3 +20,16 @@ describe('karta klienta v3 — etapy sprawy', () => {
     expect(e[2].nazwa).toBe('Nie zamówił')
   })
 })
+
+describe('etapy — zamówienie ze sklepu bez oferty z montażem (testy 27.11)', () => {
+  it('bez oferty: oferta i decyzja pominięte, zamówienie w realizacji, umowa i montaż nie dotyczą', () => {
+    expect(stany(etapyKlienta('wygrany', [], []))).toBe('done,skip,skip,on,skip,skip')
+  })
+  it('z ofertą sklepową wysłaną: oferta i decyzja zrobione', () => {
+    expect(stany(etapyKlienta('wygrany', [{ status: 'zaakceptowana', rodzaj: 'sklep' }], []))).toBe('done,done,done,on,skip,skip')
+  })
+  it('z ofertą z montażem — jak dotąd (umowa i pomiar)', () => {
+    expect(stany(etapyKlienta('wygrany', [{ status: 'zaakceptowana', rodzaj: 'oficjalna' }], []))).toBe('done,done,done,done,on,todo')
+  })
+})
+

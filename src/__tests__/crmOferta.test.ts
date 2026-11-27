@@ -125,8 +125,20 @@ describe('crmOferta — prośby o zmianę (v3)', () => {
     const v2 = { id: 'b', wersja: 2, status: 'przelicz', poprzednia_id: 'a', created_at: '2026-11-21T10:00:00Z', updated_at: '2026-11-22T09:00:00Z', poprawka: 'Verona 610 zł', poprawka_wynik: { niezrozumiane: ['sprawdź ceny z ulotki'] }, rodzaj: 'oficjalna', sprawdz: ['BRAK CEN: 8 pozycji nie ma ceny'] }
     const p = prosbyOferty([v1, v2])
     expect(p[0]).toMatchObject({ stan: 'w_toku', tekst: 'Verona 610 zł', wersja: 3 })
-    expect(p[1]).toMatchObject({ stan: 'nie', tekst: null })
+    // wynik v2 dotyczy prośby złożonej na v1 („dolicz montaż”), nie nowej prośby „Verona 610 zł”
+    expect(p[1]).toMatchObject({ stan: 'nie', tekst: 'dolicz montaż 900 zł' })
     expect(p[1].powody.join(' ')).toContain('8 pozycji nie ma ceny')
     expect(p[1].powody.join(' ')).toContain('nie zrozumiałem: „sprawdź ceny z ulotki”')
+  })
+})
+
+describe('crmOferta — prośby o zmianę: łańcuch kilku próśb (testy 27.11)', () => {
+  it('każdy wynik przy swojej prośbie, także gdy nowsza prośba nadpisała pole poprawka', () => {
+    const v7 = { id: 'v7', wersja: 7, status: 'robocza', poprzednia_id: null, created_at: '2026-11-25T10:00:00Z', poprawka: 'W mailu dopisz 7% rabatu', poprawka_wynik: null }
+    const v8 = { id: 'v8', wersja: 8, status: 'robocza', poprzednia_id: 'v7', created_at: '2026-11-25T11:00:00Z', poprawka: 'dostawę rozbijamy na dwie', poprawka_wynik: { streszczenie: 'dopisano rabat 7%', niezrozumiane: [] } }
+    const v9 = { id: 'v9', wersja: 9, status: 'do_sprawdzenia', poprzednia_id: 'v8', created_at: '2026-11-25T12:00:00Z', poprawka: 'dostawę rozbijamy na dwie', poprawka_wynik: { streszczenie: 'rozbito dostawę', niezrozumiane: [] } }
+    const p = prosbyOferty([v7, v8, v9])
+    expect(p.find((x) => x.wersja === 8)).toMatchObject({ tekst: 'W mailu dopisz 7% rabatu', streszczenie: 'dopisano rabat 7%' })
+    expect(p.find((x) => x.wersja === 9)).toMatchObject({ tekst: 'dostawę rozbijamy na dwie', streszczenie: 'rozbito dostawę' })
   })
 })

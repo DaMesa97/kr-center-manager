@@ -23,3 +23,13 @@ describe('NIP', () => {
     expect(adresFirmy({})).toBe('')
   })
 })
+
+describe('NIP — poprawki po testach 27.11', () => {
+  it('same zera i NIP innego kraju są niepoprawne, PL przechodzi', () => {
+    expect(nipPoprawny('0000000000')).toBe(false)
+    expect(nipPoprawny('DE7740001454')).toBe(false)
+    expect(nipPoprawny('PL 774-000-14-54')).toBe(true)
+    expect(nipPoprawny('774-000-14-54')).toBe(true)
+  })
+})
+

@@ -117,6 +117,9 @@
 .crm-etap--done .crm-etap-nr { background: var(--crm-ok); color: #fff; }
 .crm-etap--on .crm-etap-nr { background: var(--crm-accent); color: #fff; }
 .crm-etap--stop .crm-etap-nr { background: var(--crm-muted); color: #fff; }
+/* 27.11 (testy): etap, którego nie było (zamówienie ze sklepu bez oferty z montażem) */
+.crm-etap--skip { opacity: 0.55; }
+.crm-etap--skip .crm-etap-nr { background: transparent; color: var(--crm-muted); border: 1px dashed var(--crm-muted); }
 .crm-etap-tekst { display: flex; flex-direction: column; min-width: 0; font-size: 0.84rem; color: var(--crm-muted); }
 .crm-etap--done .crm-etap-tekst { color: var(--crm-text2); font-weight: 500; }
 .crm-etap--on .crm-etap-tekst { color: var(--crm-text); font-weight: 700; }

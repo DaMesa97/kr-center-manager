@@ -101,7 +101,7 @@ import CrmZamowieniaScreen from './CrmZamowieniaScreen'
 import CrmKorespondencja from './CrmKorespondencja'
 import { ZADANIE_RODZAJE, ZADANIE_RODZAJ_KROTKO, terminZadania, zadaniePoCo, zadanieRodzaj, type ZadanieRodzaj } from '../../lib/crmZadania'
 import { telHref, zadzwonDo } from '../../lib/crmTelefon'
-import { etapyKlienta } from '../../lib/crmKarta'
+import { etapyKlienta, zamowilBezMontazu } from '../../lib/crmKarta'
 
 /** Kolor pigułki statusu klienta w nagłówku karty (v3) */
 const LEAD_PILL: Record<string, string> = { nowy: '', oferta: 'crm-pill--blue', wygrany: 'crm-pill--ok', przegrany: '' }
@@ -923,6 +923,14 @@ function OfertaScreen({
     if (!text) {
       pushToast('Wpisz, co poprawić — zwykłym językiem, np. „okucia zwykłe Haga, kolor antracyt struktura”', 'error')
       return
+    }
+    // 27.11 (testy agentów): poprawka oferty przyjętej / odrzuconej robi nową wersję, a ta traci status „przyjęta” — pytamy
+    if (oferta.status === 'zaakceptowana' || oferta.status === 'odrzucona') {
+      const ok = await appConfirm(
+        `Ta oferta jest ${oferta.status === 'zaakceptowana' ? 'PRZYJĘTA przez klienta' : 'odrzucona'}. Poprawka zrobi nową wersję do wysłania, a ta zejdzie do starych wersji (status „${oferta.status === 'zaakceptowana' ? 'przyjęta' : 'odrzucona'}” zniknie). Poprawić mimo to?`,
+        { title: 'Poprawić zamkniętą ofertę?', confirmLabel: 'Tak, popraw' },
+      )
+      if (!ok) return
     }
     setSaving(true)
     const err = await requestOfertaPrzelicz(oferta, text, currentUser?.id ?? null)
@@ -2329,6 +2337,7 @@ function LeadScreen({
     </li>
   )
   const etapy = etapyKlienta(lead.status, oferty, dokumenty)
+  const bezMontazu = zamowilBezMontazu(lead.status, oferty)
   const ofertyDoUmowy = wybierzOfertyDoUmowy(oferty)
   const umowy = umowyKlienta(dokumenty)
   const umowaPowod = umowaZablokowanaPowod(oferty)
@@ -2498,7 +2507,7 @@ function LeadScreen({
       <ol className="crm-etapy" aria-label="Etap sprawy">
         {etapy.map((e, i) => (
           <li key={e.nazwa + i} className={`crm-etap crm-etap--${e.stan}`} aria-current={e.stan === 'on' ? 'step' : undefined}>
-            <span className="crm-etap-nr" aria-hidden="true">{e.stan === 'done' ? '✓' : e.stan === 'stop' ? '×' : i + 1}</span>
+            <span className="crm-etap-nr" aria-hidden="true">{e.stan === 'done' ? '✓' : e.stan === 'stop' ? '×' : e.stan === 'skip' ? '–' : i + 1}</span>
             <span className="crm-etap-tekst">{e.nazwa}</span>
           </li>
         ))}
@@ -2539,15 +2548,16 @@ function LeadScreen({
             <div className="crm-k2-krok-tekst">
               <span className="crm-k2-krok-label">Co teraz</span>
               <span className="crm-k2-krok-tytul">
-                {lead.status === 'wygrany' ? (maUmowe ? 'Klient zamówił — umów pomiar albo montaż' : 'Przygotuj umowę na montaż i umów pomiar')
+                {lead.status === 'wygrany' ? (maUmowe ? 'Klient zamówił — umów pomiar albo montaż' : bezMontazu ? 'Klient zamówił w sklepie — zamówienie w realizacji (szczegóły w Zamówieniach)' : 'Przygotuj umowę na montaż i umów pomiar')
                   : lead.status === 'przegrany' ? 'Sprawa zamknięta — klient nie zamówił'
                   : 'Brak zadania — klient nie pojawia się w „Do zrobienia”'}
               </span>
-              {lead.status === 'wygrany' && !maUmowe && umowaPowod && <span className="crm-k2-krok-opis">{umowaPowod}</span>}
+              {lead.status === 'wygrany' && !maUmowe && !bezMontazu && umowaPowod && <span className="crm-k2-krok-opis">{umowaPowod}</span>}
+              {bezMontazu && !maUmowe && <span className="crm-k2-krok-opis">Bez oferty z montażem — umowy i pomiaru nie ma. Gdy klient zechce montaż, zrób ofertę z montażem.</span>}
             </div>
             <div className="crm-k3-teraz-akcje">
-              {lead.status === 'wygrany' && !maUmowe && przygotujUmoweBtn}
-              {lead.status !== 'przegrany' && <button type="button" className={lead.status === 'wygrany' && !maUmowe ? 'btn btn-secondary' : 'btn btn-primary'} disabled={saving} onClick={() => setZadanieDialog(true)}>{lead.status === 'wygrany' ? 'Umów pomiar / montaż' : 'Dodaj zadanie'}</button>}
+              {lead.status === 'wygrany' && !maUmowe && !bezMontazu && przygotujUmoweBtn}
+              {lead.status !== 'przegrany' && <button type="button" className={lead.status === 'wygrany' && !maUmowe && !bezMontazu ? 'btn btn-secondary' : 'btn btn-primary'} disabled={saving} onClick={() => setZadanieDialog(true)}>{lead.status === 'wygrany' && !bezMontazu ? 'Umów pomiar / montaż' : 'Dodaj zadanie'}</button>}
               {!zamkniety && zamowilBtn}
               {!zamkniety && nieZamowiBtn}
               {zamkniety && przywrocBtn}

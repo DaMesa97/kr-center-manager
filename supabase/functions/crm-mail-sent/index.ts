@@ -2,7 +2,7 @@
 //
 // Dla każdej aktywnej skrzynki (hasło z sejfu: rpc haslo_skrzynki):
 //   * folder Wysłane (czyta_wyslane): każdy nowy mail trafia do crm.maile (kierunek 'wychodzacy') i jest dopasowywany
-//     do ofert/leadów (oferta do_sprawdzenia → 'wyslana', zadanie dopytaj zamknięte → follow_up za 3 dni, follow_up zamknięte, historia leada);
+//     do ofert/leadów (oferta do_sprawdzenia → 'wyslana', zadanie dopytaj zamknięte → follow_up za 3 dni, follow_up zamknięte → kolejny follow_up za 5 dni (klient w grze), historia leada);
 //     27.11 (Tymek: „wysłałem ofertę, a zadanie wisi na dopytaj / wyślij ofertę”): mail wyglądający na ofertę (link do koszyka
 //     podrzwi.pl albo PDF oferty/wyceny — tylko we własnej treści, bez cytatu) zamyka zadanie przygotuj_oferte / dopytaj / follow_up
 //     (albo brak zadania) i planuje „Zapytaj o decyzję” za 3 dni robocze, jak trigger crm.po_wyslaniu_oferty; klient po
@@ -420,10 +420,19 @@ async function przetworzMail(db: SupabaseClient, body: Mail, zrodlo: Zrodlo): Pr
 async function dopasuj(db: SupabaseClient, adres: string, temat: string, data: Date, messageId: string | null, od: string | null, zrodlo: Zrodlo, jestOferta = false): Promise<Dopasowanie> {
   const dane = { zrodlo: 'imap', message_id: messageId, od, temat, data: data.toISOString(), mail_id: zrodlo?.mail_id ?? null, skrzynka_id: zrodlo?.skrzynka.id ?? null }
   const okno = { od: new Date(data.getTime() - 30 * 86400_000).toISOString(), do: new Date(data.getTime() + 10 * 60_000).toISOString() }
-  const { data: oferty } = await db.from('oferty').select('id, lead_id, wersja, mail_temat, created_at, handlowiec')
+  const { data: wszystkie } = await db.from('oferty').select('id, lead_id, wersja, mail_temat, created_at, handlowiec, rodzaj, brutto, plik_pdf, sprawdz')
     .ilike('mail_do', adres).eq('status', 'do_sprawdzenia').gte('created_at', okno.od).lte('created_at', okno.do)
     .order('created_at', { ascending: false }).limit(10)
-  if (oferty?.length) {
+  // 27.11 (testy agentów): tylko oferty, które da się wysłać — z kwotą, a oferta z montażem z PDF-em. Oferta „Brakuje cen”
+  // albo sklepowa bez produktu nie może sama zostać „wysłana” przez zwykły mail do klienta (np. pytanie o grubość muru).
+  const oferty = (wszystkie ?? []).filter((o: { rodzaj?: string | null; brutto?: number | null; plik_pdf?: string | null; sprawdz?: unknown }) => {
+    const s0 = Array.isArray(o.sprawdz) && typeof o.sprawdz[0] === 'string' ? String(o.sprawdz[0]) : ''
+    if (/^(BRAK CEN|BŁĄD|BLAD)/i.test(s0) || /nie znalazł w sklepie produktu/i.test(s0)) return false
+    if (!(Number(o.brutto) > 0)) return false
+    if (o.rodzaj === 'oficjalna' && !o.plik_pdf) return false
+    return true
+  })
+  if (oferty.length) {
     const t = normalizujTemat(temat)
     const zTematem = oferty.find((o) => { const mt = normalizujTemat(o.mail_temat ?? ''); return mt && t && (t.includes(mt) || mt.includes(t)) })
     const o = zTematem ?? oferty[0]
@@ -472,13 +481,19 @@ async function dopasuj(db: SupabaseClient, adres: string, temat: string, data: D
     }
   } else if (lead.nastepna_akcja === 'dopytaj' || lead.nastepna_akcja === 'follow_up') {
     // po odpowiedzi na „dopytaj” klient ma odpisać: jeśli nie odpisze, za 3 dni przypomnienie (szkic zrobi cron crm_szkice_dzis);
-    // odpowiedź klienta w międzyczasie nadpisze to zadanie przez analizę maila. Zamknięty follow_up nie planuje kolejnego.
+    // odpowiedź klienta w międzyczasie nadpisze to zadanie przez analizę maila.
+    // 27.11 (testy agentów): zamknięty follow_up klienta w grze planuje kolejne „Zapytaj o decyzję” za 5 dni roboczych —
+    // wcześniej czyścił zadanie i klient (także z ofertą) wypadał z „Do zrobienia” na zawsze (20 takich 27.11).
     const poDopytaniu = lead.nastepna_akcja === 'dopytaj'
-    const termin = await terminRoboczy(db, dataWarszawa(3, true))
+    const wGrze = !['wygrany', 'przegrany'].includes(String(lead.status ?? ''))
+    const termin = await terminRoboczy(db, dataWarszawa(poDopytaniu ? 3 : 5, true))
     const zmiany = poDopytaniu
       ? { nastepna_akcja: 'follow_up', nastepny_krok: termin, akcja_od: new Date().toISOString(),
           akcja_opis: `Klient nie odpowiedział na pytania z ${dataPL(data)}. Przypomnij się (szkic maila jest na karcie klienta).` }
-      : { nastepna_akcja: null, nastepny_krok: null, akcja_opis: null, akcja_od: null }
+      : wGrze
+        ? { nastepna_akcja: 'follow_up', nastepny_krok: termin, akcja_od: new Date().toISOString(),
+            akcja_opis: `Klient nie odpowiedział na mail z ${dataPL(data)} („${temat.slice(0, 60)}”). Zapytaj ponownie o decyzję albo zamknij sprawę („Nie zamówi”).` }
+        : { nastepna_akcja: null, nastepny_krok: null, akcja_opis: null, akcja_od: null }
     const { data: z } = await db.from('leady').update(zmiany).eq('id', lead.id).eq('nastepna_akcja', lead.nastepna_akcja).select('id')
     if (z?.length) {
       zamknieto = lead.nastepna_akcja
@@ -487,6 +502,10 @@ async function dopasuj(db: SupabaseClient, adres: string, temat: string, data: D
       if (poDopytaniu) {
         await db.from('zdarzenia').insert({ lead_id: lead.id, typ: 'follow_up_zaplanowany',
           opis: `Odpowiedź z pytaniami wysłana; jeśli klient nie odpisze, follow-up ${termin.split('-').reverse().slice(0, 2).join('.')}.`,
+          dane: { zrodlo: 'imap', message_id: messageId, termin } })
+      } else if (wGrze) {
+        await db.from('zdarzenia').insert({ lead_id: lead.id, typ: 'follow_up_zaplanowany',
+          opis: `Mail do klienta wysłany; kolejne „Zapytaj o decyzję” ${termin.split('-').reverse().slice(0, 2).join('.')}.`,
           dane: { zrodlo: 'imap', message_id: messageId, termin } })
       }
     }

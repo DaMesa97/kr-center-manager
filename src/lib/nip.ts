@@ -7,8 +7,10 @@ export function normalizujNip(s: string | null | undefined): string {
 
 /** 10 cyfr + suma kontrolna (wagi 6 5 7 2 3 4 5 6 7, mod 11). */
 export function nipPoprawny(s: string | null | undefined): boolean {
+  // 27.11 (testy): NIP unijny innego kraju (DE…, CZ…) nie jest polskim NIP-em; same zera przechodziły sumę kontrolną
+  if (/^\s*[A-Za-z]{2}/.test(String(s ?? '')) && !/^\s*PL/i.test(String(s ?? ''))) return false
   const nip = normalizujNip(s)
-  if (!/^\d{10}$/.test(nip)) return false
+  if (!/^\d{10}$/.test(nip) || /^0+$/.test(nip)) return false
   const w = [6, 5, 7, 2, 3, 4, 5, 6, 7]
   const suma = w.reduce((acc, x, i) => acc + x * Number(nip[i]), 0)
   return suma % 11 === Number(nip[9])

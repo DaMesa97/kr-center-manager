@@ -57,15 +57,23 @@ export function crmErrorFrom(e: { code?: string; message?: string } | null | und
   return { kind: 'other', message: e.message || 'Nieznany błąd' }
 }
 
-const LEAD_EMBED = 'lead:leady(id, nazwa, miejscowosc, telefon, email, kategoria, status, nastepna_akcja, nastepny_krok, akcja_opis)'
+const LEAD_EMBED = 'lead:leady(id, nazwa, miejscowosc, telefon, email, kategoria, status, nastepna_akcja, nastepny_krok, akcja_opis, wynik_at)'
 const OFERTA_LIST_COLS =
   'id, lead_id, rozmowa_id, wersja, poprzednia_id, status, produkt, cena_razem, dostawa, dostawa_koszt, koszyk_zgodny, sprawdz, mail_do, wyslano_at, liczenie_od, uwagi, created_at, updated_at, rodzaj, numer, brutto, netto, vat_stawka, plik_pdf, konfiguracja_plik, konfiguracja_pliki, z_montazem, streszczenie, nazwa'
 
 type Result<T> = { data: T; error: CrmError | null }
 
-/** Oferty do sprawdzenia bez tych, których klient ma już wynik (zamówił / przegrał) — tam nie ma czego wysyłać. */
-export function bezZamknietychKlientow<T extends { lead?: { status?: string | null } | null }>(rows: T[]): T[] {
-  return rows.filter((o) => o.lead?.status !== 'wygrany' && o.lead?.status !== 'przegrany')
+/**
+ * Oferty do sprawdzenia bez tych, których klient ma już wynik (zamówił / przegrał) — tam nie ma czego wysyłać.
+ * 27.11 (testy agentów): oferta zrobiona PO wyniku (np. klient zamówił w sklepie, potem oferta z montażem pod umowę) zostaje.
+ */
+export function bezZamknietychKlientow<T extends { created_at?: string | null; lead?: { status?: string | null; wynik_at?: string | null } | null }>(rows: T[]): T[] {
+  return rows.filter((o) => {
+    if (o.lead?.status !== 'wygrany' && o.lead?.status !== 'przegrany') return true
+    const wynik = o.lead?.wynik_at ? Date.parse(o.lead.wynik_at) : NaN
+    const powstala = o.created_at ? Date.parse(o.created_at) : NaN
+    return Number.isFinite(wynik) && Number.isFinite(powstala) && powstala > wynik
+  })
 }
 
 export async function fetchOferty(onlyOpen: boolean): Promise<Result<CrmOferta[]>> {

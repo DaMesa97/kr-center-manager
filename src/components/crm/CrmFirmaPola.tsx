@@ -20,6 +20,17 @@ type Props = {
 
 export default function CrmFirmaPolaForm({ value, onChange, disabled, onPobrano, pushToast }: Props) {
   const [busy, setBusy] = useState(false)
+  // 27.11 (testy agentów): poprawiony NIP po „Pobierz z GUS” zostawiał dane poprzedniej firmy (umowa: firma A z NIP-em B)
+  const [innyNip, setInnyNip] = useState(false)
+  const zmienNip = (nowy: string) => {
+    const zRejestru = value.firma_zrodlo === 'gus' || value.firma_zrodlo === 'mf'
+    if (zRejestru && normalizujNip(nowy) !== normalizujNip(value.nip)) {
+      onChange({ ...value, nip: nowy, regon: '', krs: '', vat_status: '', firma_zrodlo: 'reczne', firma_sprawdzono_at: null })
+      setInnyNip(true)
+    } else {
+      onChange({ ...value, nip: nowy })
+    }
+  }
   const set = (patch: Partial<CrmFirmaPola>) => onChange({ ...value, ...patch, ...(patch.firma_zrodlo === undefined && ('firma_nazwa' in patch || 'firma_ulica' in patch || 'firma_kod' in patch || 'firma_miasto' in patch) ? { firma_zrodlo: 'reczne' } : {}) })
   const nipOk = nipPoprawny(value.nip)
   const nipZly = value.nip.trim() !== '' && normalizujNip(value.nip).length >= 10 && !nipOk
@@ -33,6 +44,7 @@ export default function CrmFirmaPolaForm({ value, onChange, disabled, onPobrano,
       return
     }
     onChange(firmaZRejestru(firma))
+    setInnyNip(false)
     onPobrano?.(firma)
     pushToast(`Pobrano: ${firma.nazwa} (${ZRODLO_FIRMY[firma.zrodlo]})`, 'success')
   }
@@ -46,7 +58,7 @@ export default function CrmFirmaPolaForm({ value, onChange, disabled, onPobrano,
             type="text"
             inputMode="numeric"
             value={value.nip}
-            onChange={(e) => onChange({ ...value, nip: e.target.value })}
+            onChange={(e) => zmienNip(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && nipOk) { e.preventDefault(); void pobierz() } }}
             placeholder="np. 647-000-00-00"
             autoComplete="off"
@@ -58,6 +70,9 @@ export default function CrmFirmaPolaForm({ value, onChange, disabled, onPobrano,
           </button>
         </span>
         {nipZly && <span className="crm-pf-hint" style={{ color: '#b3261e' }}>NIP ma złą sumę kontrolną — sprawdź cyfry.</span>}
+        {innyNip && value.firma_nazwa.trim() !== '' && (
+          <span className="crm-pf-hint" style={{ color: '#b45309' }}>NIP zmieniony — nazwa i adres są z poprzedniego NIP-u. Kliknij „Pobierz z GUS” albo popraw je ręcznie.</span>
+        )}
         {value.firma_zrodlo && value.firma_zrodlo !== 'reczne' && (
           <span className="crm-pf-hint">
             {[value.regon && `REGON ${value.regon}`, value.krs && `KRS ${value.krs}`, value.vat_status && `VAT: ${value.vat_status}`].filter(Boolean).join(' · ')}
