@@ -21,7 +21,8 @@
 //
 // Ponawianie: { "akcja": "ponow", "rozmowa_id": "<uuid>" } przetwarza raz jeszcze rozmowę ze statusem 'blad' z zapisanego payloadu
 // (np. nagranie było jeszcze niedostępne); { "akcja": "ponow_bledy" } ponawia do 5 najstarszych błędów (woła to pg_cron co 15 min,
-// maksymalnie 6 prób na rozmowę).
+// maksymalnie 6 prób na rozmowę). Testy 27.11 (runda 3): także rozmowy zawieszone w 'nowa' dłużej niż 15 min (funkcja padła
+// w połowie, np. limit czasu Edge) i maile przychodzące zawieszone w 'nowy' (wywołanie z triggera nie doszło albo padło).
 // Test bez nagrania: w payloadzie pole `transkrypcja` (tekst) pomija pobieranie i ElevenLabs.
 // Sekrety: CRM_INGEST_KEY, ANTHROPIC_API_KEY, ANTHROPIC_WORKSPACE_ID (gdy klucz sk-ant-usr), ELEVENLABS_API_KEY.
 
@@ -37,6 +38,7 @@ import { przetworzNotatke, przetworzNotatkeAudio } from './notatka.ts'
 const JSON_H = { 'Content-Type': 'application/json' }
 const odp = (status: number, dane: unknown) => new Response(JSON.stringify(dane), { status, headers: JSON_H })
 const MAX_PROB = 6
+const ZAWIESZONA_PO_MS = 15 * 60_000
 let kluczWewnetrzny: string | null = null
 
 type Lead = {
@@ -140,7 +142,7 @@ async function przetworz(db: SupabaseClient, r: Rozmowa, payload: Record<string,
             // próba oddzwonienia bez odpowiedzi: zadanie zostaje, ale handlowiec widzi, że już próbował
             zmiany.akcja_opis = `Próba oddzwonienia ${godzinaPL(r.data_rozmowy)}, klient nie odebrał. Spróbuj ponownie.`
           }
-          await db.from('leady').update(zmiany).eq('id', lead.id)
+          await zapiszLeada(db, lead.id, zmiany)
           if (r.kierunek === 'wychodzaca' && r.odebrana) await zamknijOddzwon(db, lead, rozmowaId, r)
         }
         await zdarzenie(db, { lead_id: lead?.id ?? null, rozmowa_id: rozmowaId, typ: 'rozmowa', opis: decyzja.powod })
@@ -150,7 +152,7 @@ async function przetworz(db: SupabaseClient, r: Rozmowa, payload: Record<string,
         // Tymek 24.11: CRM nie prowadzi zadań „oddzwoń” — nieodebrana zostaje w historii klienta (lead + rozmowa + zdarzenie),
         // istniejące zadanie leada bez zmian (dotąd: zadanie „oddzwoń” na dziś, 7 takich wisiało w „Do zrobienia”)
         const l = lead ?? await nowyLead(db, telefon!, r)
-        await db.from('leady').update({ ostatnia_rozmowa_at: r.data_rozmowy }).eq('id', l.id)
+        await zapiszLeada(db, l.id, { ostatnia_rozmowa_at: r.data_rozmowy })
         await db.from('rozmowy').update({ lead_id: l.id, status_przetwarzania: 'bez_ai', podsumowanie: 'Nieodebrana przychodząca.', blad: null }).eq('id', rozmowaId)
         await zdarzenie(db, { lead_id: l.id, rozmowa_id: rozmowaId, typ: 'nieodebrana', opis: `Nieodebrana rozmowa ${godzinaPL(r.data_rozmowy)} (bez zadania).` })
         return { ok: true, rozmowa_id: rozmowaId, krok: 'nieodebrana', lead_id: l.id }
@@ -176,14 +178,18 @@ async function ponow(db: SupabaseClient, payload: Record<string, unknown>) {
     if (!id) throw new Error('Brak rozmowa_id')
     ids = [id]
   } else {
-    const { data } = await db.from('rozmowy').select('id, raw').eq('status_przetwarzania', 'blad').order('created_at').limit(20)
+    // testy 27.11 (runda 3): 'nowa' starsza niż 15 min = przetwarzanie przerwane (żywe trwa najwyżej kilka minut)
+    const granica = new Date(Date.now() - ZAWIESZONA_PO_MS).toISOString()
+    const { data, error } = await db.from('rozmowy').select('id, raw')
+      .or(`status_przetwarzania.eq.blad,and(status_przetwarzania.eq.nowa,created_at.lt.${granica})`).order('created_at').limit(20)
+    if (error) throw new Error('Odczyt rozmów do ponowienia: ' + error.message)
     ids = (data ?? []).filter((x) => liczbaProb(x.raw) < MAX_PROB).slice(0, 5).map((x) => x.id)
   }
   const wyniki = []
   for (const id of ids) {
     const { data: roz } = await db.from('rozmowy').select('id, raw, status_przetwarzania, lead_id').eq('id', id).maybeSingle()
     if (!roz) { wyniki.push({ rozmowa_id: id, blad: 'nie ma takiej rozmowy' }); continue }
-    if (roz.status_przetwarzania !== 'blad' && payload.akcja === 'ponow_bledy') continue
+    if (roz.status_przetwarzania !== 'blad' && roz.status_przetwarzania !== 'nowa' && payload.akcja === 'ponow_bledy') continue
     const raw = (roz.raw ?? {}) as Record<string, unknown>
     const proby = liczbaProb(raw) + 1
     await db.from('rozmowy').update({ status_przetwarzania: 'nowa', blad: null, raw: { ...raw, _proby: proby } }).eq('id', id)
@@ -267,7 +273,7 @@ async function analizuj(db: SupabaseClient, r: Rozmowa, rozmowaId: string, lead:
     // 24.11 (Tymek): cena podana klientowi w rozmowie od razu jest wartością klienta w lejku (do czasu oferty / wpisu ręcznego)
     const cena = cenaOrientacyjna(a)
     if (cena != null) zmiany.wartosc_wstepna = cena
-    await db.from('leady').update(zmiany).eq('id', l.id)
+    await zapiszLeada(db, l.id, zmiany)
     await db.from('rozmowy').update({ lead_id: l.id }).eq('id', rozmowaId)
     if (cena != null) await zdarzenie(db, { lead_id: l.id, rozmowa_id: rozmowaId, typ: 'wartosc_wstepna', opis: `Cena orientacyjna z rozmowy: ${cena.toLocaleString('pl-PL')} zł`, dane: { kwota: cena, zrodlo: 'rozmowa' } })
     const etykiety = etykietyZAnalizy(a)
@@ -278,13 +284,20 @@ async function analizuj(db: SupabaseClient, r: Rozmowa, rozmowaId: string, lead:
       const { data: otwarte } = await db.from('oferty').select('id, wersja').eq('lead_id', l.id).in('status', ['przelicz', 'do_sprawdzenia'])
         .order('wersja', { ascending: false })
       const { data: ostatnia } = await db.from('oferty').select('id, wersja').eq('lead_id', l.id).order('wersja', { ascending: false }).limit(1).maybeSingle()
-      const { data: of, error } = await db.from('oferty').insert({
-        lead_id: l.id, rozmowa_id: rozmowaId, wersja: (ostatnia?.wersja ?? 0) + 1, poprzednia_id: ostatnia?.id ?? null,
-        status: 'przelicz', analiza: a, mail_do: a.email || l.email || null,
-      }).select('id').single()
-      if (error) throw new Error('Nie utworzono oferty: ' + error.message)
-      ofertaId = of.id
-      if (otwarte?.length) await db.from('oferty').update({ status: 'robocza' }).in('id', otwarte.map((o) => o.id))
+      // testy 27.11 (runda 3): ponowienie po przerwanym przebiegu nie robi drugiej oferty z tej samej rozmowy
+      const { data: juzJest, error: eJuz } = await db.from('oferty').select('id').eq('rozmowa_id', rozmowaId).order('created_at').limit(1).maybeSingle()
+      if (eJuz) throw new Error('Odczyt ofert rozmowy: ' + eJuz.message)
+      if (juzJest) {
+        ofertaId = juzJest.id
+      } else {
+        const { data: of, error } = await db.from('oferty').insert({
+          lead_id: l.id, rozmowa_id: rozmowaId, wersja: (ostatnia?.wersja ?? 0) + 1, poprzednia_id: ostatnia?.id ?? null,
+          status: 'przelicz', analiza: a, mail_do: a.email || l.email || null,
+        }).select('id').single()
+        if (error) throw new Error('Nie utworzono oferty: ' + error.message)
+        ofertaId = of.id
+        if (otwarte?.length) await db.from('oferty').update({ status: 'robocza' }).in('id', otwarte.map((o) => o.id))
+      }
       await db.from('rozmowy').update({ oferta_id: ofertaId }).eq('id', rozmowaId)
       await zdarzenie(db, { lead_id: l.id, rozmowa_id: rozmowaId, oferta_id: ofertaId, typ: 'oferta_zlecona',
         opis: ostatnia ? `Nowa wersja oferty (${(ostatnia.wersja ?? 0) + 1}) po kolejnej rozmowie, czeka na przeliczenie.` : 'Oferta czeka na przeliczenie (status przelicz).' })
@@ -292,7 +305,7 @@ async function analizuj(db: SupabaseClient, r: Rozmowa, rozmowaId: string, lead:
     await zdarzenie(db, { lead_id: l.id, rozmowa_id: rozmowaId, typ: 'analiza', opis: `${a.typ}: ${a.podsumowanie}`.slice(0, 500), dane: { akcja, koszt_usd: ai.koszt_usd } })
   } else {
     if (lead) {
-      await db.from('leady').update({ ostatnia_rozmowa_at: r.data_rozmowy }).eq('id', lead.id)
+      await zapiszLeada(db, lead.id, { ostatnia_rozmowa_at: r.data_rozmowy })
       // Magda oddzwoniła, a rozmowa nie była sprzedażowa (np. status zamówienia): zadanie „oddzwoń” jest wykonane
       if (r.kierunek === 'wychodzaca') await zamknijOddzwon(db, lead, rozmowaId, r)
     }
@@ -307,7 +320,8 @@ async function analizuj(db: SupabaseClient, r: Rozmowa, rozmowaId: string, lead:
 /** Zadanie „oddzwoń” zamyka się samo, gdy Ringostat zarejestruje odebraną rozmowę wychodzącą do tego klienta. */
 async function zamknijOddzwon(db: SupabaseClient, lead: Lead, rozmowaId: string, r: Rozmowa) {
   if (lead.nastepna_akcja !== 'oddzwon') return
-  await db.from('leady').update({ nastepna_akcja: null, nastepny_krok: null, akcja_opis: null, akcja_od: null }).eq('id', lead.id).eq('nastepna_akcja', 'oddzwon')
+  const { error } = await db.from('leady').update({ nastepna_akcja: null, nastepny_krok: null, akcja_opis: null, akcja_od: null }).eq('id', lead.id).eq('nastepna_akcja', 'oddzwon')
+  if (error) throw new Error('Nie zamknięto zadania „oddzwoń”: ' + error.message)   // testy 27.11 (runda 3)
   await zdarzenie(db, { lead_id: lead.id, rozmowa_id: rozmowaId, typ: 'zadanie_zrobione', opis: `Oddzwoniono ${godzinaPL(r.data_rozmowy)} (rozmowa wychodząca z Ringostatu).`, dane: { zrodlo: 'ringostat', akcja: 'oddzwon' } })
 }
 
@@ -332,6 +346,12 @@ async function nowyLead(db: SupabaseClient, telefon: string, r: Rozmowa): Promis
   }
   await zdarzenie(db, { lead_id: data.id, typ: 'lead_utworzony', opis: `Nowy lead z telefonu ${telefon}` })
   return data as Lead
+}
+
+/** Zapis zmian klienta z kontrolą błędu (testy 27.11, runda 3): błąd rzuca wyjątek → rozmowa 'blad' → ponowienie przez cron. */
+async function zapiszLeada(db: SupabaseClient, id: string, zmiany: Record<string, unknown>) {
+  const { error } = await db.from('leady').update(zmiany).eq('id', id)
+  if (error) throw new Error('Nie zapisano klienta: ' + error.message)
 }
 
 async function zdarzenie(db: SupabaseClient, z: { lead_id?: string | null; rozmowa_id?: string; oferta_id?: string | null; typ: string; opis?: string; dane?: unknown }) {

@@ -3,12 +3,15 @@
 
 const CZEKAJ_MS = 15_000
 const PROBY = 3
+// testy 27.11 (runda 3): limity czasu zewnętrznych wywołań — zawieszony serwer nie może trzymać funkcji do limitu Edge
+const LIMIT_POBRANIA_MS = 60_000
+const LIMIT_STT_MS = 120_000
 
 export async function pobierzNagranie(url: string): Promise<Blob> {
   let ostatni = ''
   for (let i = 1; i <= PROBY; i++) {
     try {
-      const r = await fetch(url, { redirect: 'follow' })
+      const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(LIMIT_POBRANIA_MS) })
       if (r.ok) {
         const blob = await r.blob()
         if (blob.size > 1000) return blob
@@ -17,7 +20,7 @@ export async function pobierzNagranie(url: string): Promise<Blob> {
         ostatni = `HTTP ${r.status}`
       }
     } catch (e) {
-      ostatni = e instanceof Error ? e.message : String(e)
+      ostatni = e instanceof Error && e.name === 'TimeoutError' ? `brak odpowiedzi w ${LIMIT_POBRANIA_MS / 1000} s` : e instanceof Error ? e.message : String(e)
     }
     // nagranie bywa dostępne z opóźnieniem po zakończeniu rozmowy
     if (i < PROBY) await new Promise((res) => setTimeout(res, CZEKAJ_MS))
@@ -43,9 +46,15 @@ export async function transkrybuj(nagranie: Blob, nazwaPliku = 'nagranie.wav', m
   form.append('tag_audio_events', 'false')
   form.append('timestamps_granularity', 'word')
 
-  const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', { method: 'POST', headers: { 'xi-api-key': klucz }, body: form })
-  if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${(await r.text()).slice(0, 500)}`)
-  const j = await r.json()
+  let j: { words?: unknown; text?: unknown; language_code?: string }
+  try {
+    const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', { method: 'POST', headers: { 'xi-api-key': klucz }, body: form, signal: AbortSignal.timeout(LIMIT_STT_MS) })
+    if (!r.ok) throw new Error(`ElevenLabs ${r.status}: ${(await r.text()).slice(0, 500)}`)
+    j = await r.json()
+  } catch (e) {
+    if (e instanceof Error && e.name === 'TimeoutError') throw new Error(`ElevenLabs: brak odpowiedzi w ${LIMIT_STT_MS / 1000} s`)
+    throw e
+  }
   const slowa: Slowo[] = Array.isArray(j.words) ? j.words : []
   const tekst = mowcy > 1 ? (zlozWypowiedzi(slowa) || String(j.text ?? '').trim()) : String(j.text ?? '').trim()
   return { tekst, jezyk: j.language_code ?? null, mowcy: new Set(slowa.map((s) => s.speaker_id)).size }

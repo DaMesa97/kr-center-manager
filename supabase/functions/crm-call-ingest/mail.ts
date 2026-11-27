@@ -15,7 +15,7 @@ type MailWiersz = {
   id: string; skrzynka_id: string | null; message_id: string | null; od_adres: string | null; od_nazwa: string | null
   do_adresy: string[]; temat: string | null; tresc: string | null; tresc_ucieta: boolean; zalaczniki: { nazwa: string; typ: string }[]
   data: string | null; lead_id: string | null; oferta_id: string | null; odpowiedz_na: string | null
-  status_przetwarzania: string; proby: number; kanal: 'mail' | 'formularz' | null
+  status_przetwarzania: string; proby: number; kanal: 'mail' | 'formularz' | null; kierunek?: string
 }
 type Lead = {
   id: string; telefon: string | null; email: string | null; nazwa: string | null; miejscowosc: string | null
@@ -32,6 +32,8 @@ export async function przetworzMailAkcja(db: SupabaseClient, mailId: string) {
   const mail = m as MailWiersz | null
   if (!mail) return { ok: false, blad: 'Nie ma takiego maila' }
   if (mail.status_przetwarzania !== 'nowy' && mail.status_przetwarzania !== 'blad') return { ok: true, mail_id: mailId, pominieto: `mail ma status ${mail.status_przetwarzania}` }
+  // testy 27.11 (runda 3): mail wychodzący bywa chwilowo 'nowy' (crm-mail-sent dopasowuje go do oferty) — nie analizujemy go jak maila klienta
+  if (mail.kierunek === 'wychodzacy') return { ok: true, mail_id: mailId, pominieto: 'mail wychodzący (analizuje tylko przychodzące)' }
   const proba = (mail.proby ?? 0) + 1
   await db.from('maile').update({ proby: proba, blad: null }).eq('id', mailId)
   try {
@@ -48,9 +50,15 @@ export async function przetworzMailAkcja(db: SupabaseClient, mailId: string) {
   }
 }
 
-/** Ponawia do 5 najstarszych maili ze statusem 'blad' (woła ponow_bledy z pg_cron). */
+/** Ponawia do 5 najstarszych maili przychodzących ze statusem 'blad' albo zawieszonych w 'nowy' dłużej niż 15 min
+ *  (testy 27.11, runda 3: wywołanie z triggera nie doszło albo funkcja padła w połowie). Woła ponow_bledy z pg_cron.
+ *  Wychodzące 'nowy' (crm-mail-sent czeka na dopasowanie) nie idą do analizy AI. */
 export async function ponowMaile(db: SupabaseClient) {
-  const { data } = await db.from('maile').select('id, proby').eq('status_przetwarzania', 'blad').lt('proby', MAX_PROB_MAILA).order('created_at').limit(5)
+  const granica = new Date(Date.now() - 15 * 60_000).toISOString()
+  const { data, error } = await db.from('maile').select('id, proby').eq('kierunek', 'przychodzacy')
+    .or(`status_przetwarzania.eq.blad,and(status_przetwarzania.eq.nowy,updated_at.lt.${granica})`)
+    .lt('proby', MAX_PROB_MAILA).order('created_at').limit(5)
+  if (error) throw new Error('Odczyt maili do ponowienia: ' + error.message)
   const wyniki = []
   for (const m of data ?? []) wyniki.push(await przetworzMailAkcja(db, m.id))
   return wyniki
@@ -165,7 +173,7 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
     // 24.11 (Tymek): cena podana klientowi w mailu od razu jest wartością klienta w lejku (do czasu oferty / wpisu ręcznego)
     const cena = chronZamkniety ? null : cenaOrientacyjna(a)
     if (cena != null) zmiany.wartosc_wstepna = cena
-    await db.from('leady').update(zmiany).eq('id', l.id)
+    await zapiszLeada(db, l.id, zmiany)
     await db.from('maile').update({ lead_id: l.id }).eq('id', mail.id)
     if (cena != null) await zdarzenie(db, { lead_id: l.id, mail_id: mail.id, typ: 'wartosc_wstepna', opis: `Cena orientacyjna z maila: ${cena.toLocaleString('pl-PL')} zł`, dane: { kwota: cena, zrodlo: 'mail' } })
     const etykiety = chronZamkniety ? [] : etykietyZAnalizy(a)
@@ -174,13 +182,20 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
     if (sprzedazowa && a.nastepna_akcja === 'przygotuj_oferte' && !chronZamkniety) {
       const { data: otwarte } = await db.from('oferty').select('id, wersja').eq('lead_id', l.id).in('status', ['przelicz', 'do_sprawdzenia']).order('wersja', { ascending: false })
       const { data: ostatnia } = await db.from('oferty').select('id, wersja').eq('lead_id', l.id).order('wersja', { ascending: false }).limit(1).maybeSingle()
-      const { data: of, error } = await db.from('oferty').insert({
-        lead_id: l.id, mail_id: mail.id, wersja: (ostatnia?.wersja ?? 0) + 1, poprzednia_id: ostatnia?.id ?? null,
-        status: 'przelicz', analiza: a, mail_do: email,
-      }).select('id').single()
-      if (error) throw new Error('Nie utworzono oferty: ' + error.message)
-      ofertaId = of.id
-      if (otwarte?.length) await db.from('oferty').update({ status: 'robocza' }).in('id', otwarte.map((o) => o.id))
+      // testy 27.11 (runda 3): ponowienie po przerwanym przebiegu nie robi drugiej oferty z tego samego maila
+      const { data: juzJest, error: eJuz } = await db.from('oferty').select('id').eq('mail_id', mail.id).order('created_at').limit(1).maybeSingle()
+      if (eJuz) throw new Error('Odczyt ofert maila: ' + eJuz.message)
+      if (juzJest) {
+        ofertaId = juzJest.id
+      } else {
+        const { data: of, error } = await db.from('oferty').insert({
+          lead_id: l.id, mail_id: mail.id, wersja: (ostatnia?.wersja ?? 0) + 1, poprzednia_id: ostatnia?.id ?? null,
+          status: 'przelicz', analiza: a, mail_do: email,
+        }).select('id').single()
+        if (error) throw new Error('Nie utworzono oferty: ' + error.message)
+        ofertaId = of.id
+        if (otwarte?.length) await db.from('oferty').update({ status: 'robocza' }).in('id', otwarte.map((o) => o.id))
+      }
       await db.from('maile').update({ oferta_id: ofertaId }).eq('id', mail.id)
       await zdarzenie(db, { lead_id: l.id, mail_id: mail.id, oferta_id: ofertaId, typ: 'oferta_zlecona',
         opis: ostatnia ? `Nowa wersja oferty (${(ostatnia.wersja ?? 0) + 1}) po mailu klienta, czeka na przeliczenie.` : 'Oferta z maila czeka na przeliczenie (status przelicz).' })
@@ -252,7 +267,7 @@ async function obsluzZamowienie(db: SupabaseClient, mail: MailWiersz, zam: Zamow
       const { data: zajety } = await db.from('leady').select('id').eq('telefon', tel).maybeSingle()
       if (!zajety) zmiany.telefon = tel
     }
-    await db.from('leady').update(zmiany).eq('id', l.id)
+    await zapiszLeada(db, l.id, zmiany)
     await db.from('maile').update({ lead_id: l.id }).eq('id', mail.id)
     await zdarzenie(db, { lead_id: l.id, mail_id: mail.id, typ: 'analiza', opis: `mail, zamowienie: ${podsumowanie}`.slice(0, 500), dane: { akcja: 'dopytaj', koszt_usd: koszt, zamowienie: zam.numer } })
   } else {
@@ -283,6 +298,12 @@ async function nowyLead(db: SupabaseClient, email: string, nazwa: string | null,
   }
   await zdarzenie(db, { lead_id: data.id, mail_id: mailId, typ: 'lead_utworzony', opis: `Nowy lead z ${zrodlo === 'formularz' ? 'formularza kontaktowego' : 'maila'} ${email}` })
   return data as Lead
+}
+
+/** Zapis zmian klienta z kontrolą błędu (testy 27.11, runda 3): błąd rzuca wyjątek → mail 'blad' → ponowienie przez cron. */
+async function zapiszLeada(db: SupabaseClient, id: string, zmiany: Record<string, unknown>) {
+  const { error } = await db.from('leady').update(zmiany).eq('id', id)
+  if (error) throw new Error('Nie zapisano klienta: ' + error.message)
 }
 
 async function zdarzenie(db: SupabaseClient, z: { lead_id?: string | null; mail_id?: string; oferta_id?: string | null; typ: string; opis?: string; dane?: unknown }) {

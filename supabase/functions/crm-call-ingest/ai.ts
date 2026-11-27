@@ -3,6 +3,8 @@
 
 export const MODEL = 'claude-opus-5-5'
 const CENA_USD_MTOK: [number, number] = [4.0, 20.0]   // wejście / wyjście za milion tokenów (Opus 5.5)
+// testy 27.11 (runda 3): limit czasu jednej próby wywołania Claude API (mniej niż limit funkcji Edge)
+const LIMIT_AI_MS = 120_000
 
 export type Zuzycie = { input_tokens: number; output_tokens: number; model: string }
 
@@ -36,7 +38,14 @@ export async function claudeJson<T>(system: string, user: string, schema: unknow
 
   let ostatniBlad = ''
   for (let proba = 1; proba <= 3; proba++) {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: naglowki, body: JSON.stringify(body) })
+    let resp: Response
+    try {
+      resp = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: naglowki, body: JSON.stringify(body), signal: AbortSignal.timeout(LIMIT_AI_MS) })
+    } catch (e) {
+      // brak odpowiedzi w limicie: bez kolejnych prób (następna przekroczyłaby limit funkcji), ponowi cron ponow_bledy
+      if (e instanceof Error && e.name === 'TimeoutError') throw new Error(`Claude API: brak odpowiedzi w ${LIMIT_AI_MS / 1000} s`)
+      throw e
+    }
     if (resp.status === 429 || resp.status === 529 || resp.status >= 500) {
       ostatniBlad = `Claude API ${resp.status}: ${(await resp.text()).slice(0, 300)}`
       await new Promise((r) => setTimeout(r, 3000 * proba))

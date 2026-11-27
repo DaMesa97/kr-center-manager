@@ -119,7 +119,9 @@ async function analizujNotatke(db: SupabaseClient, lead: Lead, notatka: string, 
   // 24.11 (Tymek): cena z notatki handlowca od razu jest wartością klienta w lejku (do czasu oferty / wpisu ręcznego)
   const cena = cenaOrientacyjna(a)
   if (cena != null) zmiany.wartosc_wstepna = cena
-  await db.from('leady').update(zmiany).eq('id', lead.id)
+  // testy 27.11 (runda 3): błąd zapisu klienta przerywa (catch w przetworzNotatke zapisze błąd i zdarzenie 'blad')
+  const { error: eLead } = await db.from('leady').update(zmiany).eq('id', lead.id)
+  if (eLead) throw new Error('Nie zapisano klienta: ' + eLead.message)
   if (cena != null) await zdarzenie(db, { lead_id: lead.id, typ: 'wartosc_wstepna', kto, opis: `Cena orientacyjna z notatki: ${cena.toLocaleString('pl-PL')} zł`, dane: { kwota: cena, zrodlo: 'notatka' } })
   const etykiety = etykietyZAnalizy(a)
   if (etykiety.length) await db.rpc('dodaj_etykiety', { p_lead_id: lead.id, p_etykiety: etykiety })
