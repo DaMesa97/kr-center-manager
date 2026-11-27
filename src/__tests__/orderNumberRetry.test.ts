@@ -5,6 +5,29 @@ import { insertOrderWithNumberRetry } from '../utils'
 const taken = { code: '23505', message: 'duplicate key value violates unique constraint "orders_unique_number_per_category_new"' }
 
 describe('insertOrderWithNumberRetry', () => {
+  it('runda 4: zajęty numer to nasz poprzedni zapis — bez potwierdzenia nie dodaje drugiego', async () => {
+    const insert = vi.fn().mockResolvedValue({ data: null, error: taken })
+    const fetchNumber = vi.fn(async () => '101')
+    const confirmTaken = vi.fn(async () => false)
+    const r = await insertOrderWithNumberRetry({ category: 'STA', order_number: '100' }, { fallbackCategory: 'STA', fetchNumber, insert, confirmTaken })
+    expect(r.error?.message).toContain('już jest zapisane')
+    expect(insert).toHaveBeenCalledTimes(1)
+    expect(fetchNumber).not.toHaveBeenCalled()
+    expect(confirmTaken).toHaveBeenCalledWith('100', expect.objectContaining({ order_number: '100' }))
+  })
+  it('runda 4: potwierdzone — nowy numer i ponowienie', async () => {
+    const insert = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: taken })
+      .mockImplementationOnce(async (row: Record<string, unknown>) => ({ data: { id: 3, order_number: row.order_number }, error: null }))
+    const r = await insertOrderWithNumberRetry(
+      { category: 'STA', order_number: '100' },
+      { fallbackCategory: 'STA', fetchNumber: async () => '101', insert, confirmTaken: async () => true },
+    )
+    expect(r.error).toBeNull()
+    expect(r.orderNumber).toBe('101')
+  })
+
   it('wolny numer — jeden insert, bez zmiany numeru', async () => {
     const insert = vi.fn(async (row: Record<string, unknown>) => ({ data: { id: 1, order_number: row.order_number }, error: null }))
     const fetchNumber = vi.fn(async () => '999')

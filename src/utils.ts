@@ -1626,6 +1626,12 @@ export async function insertOrderWithNumberRetry(
     fetchNumber: (category: string) => Promise<string>
     insert: (row: Record<string, unknown>) => Promise<{ data: Record<string, unknown> | null; error: InsertErr | null }>
     maxRetries?: number
+    /**
+     * runda 4 (recenzent): zajęty numer bywa NASZYM poprzednim zapisem (połączenie zerwane po zapisie na serwerze,
+     * użytkownik kliknął „Dodaj” drugi raz) — wtedy nowy numer = podwójne zlecenie z podwójną rezerwacją.
+     * Wołane przy zajętym numerze; false = nie zapisuj drugiego (zwracamy błąd), true = nowy numer i ponowienie.
+     */
+    confirmTaken?: (takenNumber: string, row: Record<string, unknown>) => Promise<boolean>
   },
 ): Promise<{ data: Record<string, unknown> | null; error: InsertErr | null; orderNumber: string; renumberedFrom: string | null }> {
   const maxRetries = deps.maxRetries ?? 3
@@ -1656,6 +1662,9 @@ export async function insertOrderWithNumberRetry(
         orderNumber: current,
         renumberedFrom: !error && firstNr && current !== firstNr ? firstNr : null,
       }
+    }
+    if (deps.confirmTaken && !(await deps.confirmTaken(current, row))) {
+      return fail(`zlecenie nr ${current} już jest zapisane (najpewniej Twój poprzedni zapis po zerwanym połączeniu) — nie dodano drugiego; odśwież listę`, '23505')
     }
     if (attempt >= maxRetries) {
       return fail(`numer ${current} jest zajęty, kolejne próby też trafiły na zajęte numery — spróbuj zapisać ponownie`, '23505')

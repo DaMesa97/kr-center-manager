@@ -1321,6 +1321,21 @@ export function useOrders({
         const { data, error } = await supabase.from('orders').insert([row]).select(select).single()
         return { data: (data as unknown as Record<string, unknown> | null) ?? null, error }
       },
+      // runda 4: zajęty numer z tą samą firmą, wpisany przez nas w ostatnich 15 min = najpewniej nasz poprzedni zapis
+      confirmTaken: async (nr, r) => {
+        const { data: ist } = await supabase.from('orders').select('company, entered_by, created_at')
+          .eq('category', String(r.category || activeTab)).eq('order_number', nr).maybeSingle()
+        const x = ist as { company?: string | null; entered_by?: string | null; created_at?: string | null } | null
+        if (!x) return true
+        const takaSamaFirma = String(x.company ?? '').trim().toLowerCase() === String(r.company ?? '').trim().toLowerCase()
+        const nasz = String(x.entered_by ?? '').trim() === String(r.entered_by ?? '').trim()
+        const swieze = x.created_at ? Date.now() - new Date(x.created_at).getTime() < 15 * 60 * 1000 : false
+        if (!(takaSamaFirma && nasz && swieze)) return true
+        return appConfirm(
+          `Zlecenie nr ${nr} dla firmy „${x.company ?? ''}” zostało właśnie zapisane z Twojego konta (${new Date(x.created_at as string).toLocaleTimeString('pl-PL')}).\n\nTo najpewniej Twój poprzedni zapis, którego potwierdzenie nie doszło (zerwane połączenie). Dodać DRUGIE takie samo zlecenie z nowym numerem?`,
+          { title: 'To zlecenie chyba już jest zapisane', confirmLabel: 'Dodaj drugie zlecenie', tone: 'danger' },
+        )
+      },
     })
     if (res.renumberedFrom) {
       pushToast(`Numer ${res.renumberedFrom} był zajęty — zapisano jako ${res.orderNumber}`, 'info')
