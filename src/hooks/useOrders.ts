@@ -1114,22 +1114,29 @@ export function useOrders({
           }
           // Disting Plus: para dzieli te same naświetla/dostawki — stemplujemy
           // też partnera, żeby ta sama szyba nie wyszła drugi raz z drugiej zakładki
+          let partnerBezDaty = false
           if (order.linked_order_id != null) {
             const { error: linkStampErr } = await supabase
               .from('orders')
               .update({ glass_order_date: today })
               .eq('id', order.linked_order_id)
               .is('glass_order_date', null)
-            if (linkStampErr) console.error('glass_order_date (partner):', linkStampErr)
+            // runda 6 (tester błędów): błąd był tylko w konsoli, a partner lokalnie wyglądał na „zamówiony” —
+            // po odświeżeniu druga zakładka pokazywała szybę jako niezamówioną (ryzyko drugiego zamówienia)
+            if (linkStampErr) {
+              console.error('glass_order_date (partner):', linkStampErr)
+              partnerBezDaty = true
+            }
           }
           setOrders((prev) =>
             prev.map((o) =>
-              o.id === order.id || (order.linked_order_id != null && o.id === order.linked_order_id)
+              o.id === order.id || (!partnerBezDaty && order.linked_order_id != null && o.id === order.linked_order_id)
                 ? { ...o, glass_order_date: today }
                 : o,
             ),
           )
-          pushToast('Zamówienie szyby wysłane', 'success')
+          if (partnerBezDaty) pushToast('Zamówienie szyby wysłane — UWAGA: nie zapisano daty zamówienia u zlecenia powiązanego (Disting Plus); NIE zamawiaj szyby drugi raz z tamtej zakładki, odśwież listę', 'error')
+          else pushToast('Zamówienie szyby wysłane', 'success')
         } else {
           pushToast('Błąd wysyłania zamówienia szyby', 'error')
         }
@@ -1220,6 +1227,8 @@ export function useOrders({
       .eq('extra_fields->>titan_group', String(group))
     if (error) {
       console.error('syncIntarsjaAcrossTitanGroup:', error.message)
+      // runda 6: użytkownik dostawał „Zamówienie zaktualizowane”, a Bastion kleił starą intarsję
+      pushToast(`Intarsja nie została przepisana na pozostałe zlecenia zestawu Titan (${error.message}) — zmień ją tam ręcznie`, 'error')
       return
     }
     setOrders((prev) =>
