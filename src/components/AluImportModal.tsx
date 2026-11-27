@@ -7,6 +7,7 @@ import { extractPdfTextPages } from '../lib/pdfText'
 import { parseAluDocument } from '../lib/aluLpParser'
 import { appConfirm } from '../lib/appDialogs'
 import type { AluCancelledOrder } from '../hooks/useAluOrders'
+import { supabase } from '../supabaseClient'
 import type {
   AluConstructionType, AluLcParseResult, AluLpParseResult, AluLpPosition, AluProductionNotes, AluRealizacja,
   AluZmParseResult, OrderDocumentKind, ToastVariant,
@@ -49,6 +50,15 @@ const NOTE_FIELDS: Array<[keyof AluProductionNotes, string]> = [
   ['inne', 'Inne'],
 ]
 
+/** Błąd pdfjs po polsku (testy 27.11, runda 3: angielski komunikat bez nazwy pliku). */
+function bladPdf(err: unknown): string {
+  const m = err instanceof Error ? err.message : String(err)
+  if (/password/i.test(m)) return 'plik jest zabezpieczony hasłem'
+  if (/empty/i.test(m)) return 'plik jest pusty'
+  if (/invalid pdf|structure|corrupt|xref/i.test(m)) return 'plik jest uszkodzony albo to nie jest PDF'
+  return m
+}
+
 async function parseFile(file: File) {
   const pages = await extractPdfTextPages(await file.arrayBuffer())
   return parseAluDocument(pages)
@@ -71,6 +81,8 @@ export default function AluImportModal({
   const [notesOpen, setNotesOpen] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [existsPanel, setExistsPanel] = useState<AluImportResult | null>(null)
+  /** data wydania istniejącego zlecenia (panel „już jest”): wydanego nie nadpisujemy */
+  const [existingReleased, setExistingReleased] = useState<string | null>(null)
   // numer OF zajęty przez ANULOWANE zlecenie — baza odrzuca zwykły import,
   // więc pytamy wcześniej: przywrócić i wczytać z pliku, czy dodać jako nowe
   const [cancelledPanel, setCancelledPanel] = useState<AluCancelledOrder | null>(null)
@@ -95,14 +107,24 @@ export default function AluImportModal({
   // Rozpoznaj pliki po TREŚCI (nie po nazwie) — LP / LC w dowolnej kolejności
   const addFiles = async (files: File[]) => {
     const pdfs = files.filter((f) => /\.pdf$/i.test(f.name))
+    const inne = files.filter((f) => !/\.pdf$/i.test(f.name))
     if (pdfs.length === 0) {
       pushToast('Wgraj plik PDF (lista produkcyjna / lista cięcia z AluronCAD)', 'error')
       return
     }
+    if (inne.length) pushToast(`Pominięto pliki inne niż PDF: ${inne.map((f) => f.name).join(', ')}`, 'info')
     setParsing(true)
     try {
       for (const file of pdfs) {
-        const parsed = await parseFile(file)
+        // testy 27.11 (runda 3): jeden uszkodzony plik przerywał wczytywanie pozostałych — każdy plik osobno
+        let parsed: Awaited<ReturnType<typeof parseFile>>
+        try {
+          parsed = await parseFile(file)
+        } catch (err) {
+          console.error('alu import parse:', file.name, err)
+          pushToast(`${file.name}: nie udało się odczytać PDF — ${bladPdf(err)}`, 'error')
+          continue
+        }
         if (!parsed) {
           pushToast(`${file.name}: to nie jest lista produkcyjna, lista cięcia ani zamówienie szyb ZM GLASS`, 'error')
           continue
@@ -117,11 +139,16 @@ export default function AluImportModal({
           continue
         }
         if (parsed.kind === 'LP') {
+          // nowy LP w otwartym oknie: stary panel „już jest w programie” / „anulowane” dotyczył poprzedniego pliku
+          setExistsPanel(null)
+          setCancelledPanel(null)
           setLp(parsed)
           setPicked((p) => ({ ...p, lp: file }))
           setOrderNumber(parsed.header.order_number)
           setPositions(parsed.positions.map((pos) => ({ ...pos, notes: { ...pos.notes }, glass: pos.glass.map((g) => ({ ...g })) })))
-          if (parsed.header.client && !company) setCompany(parsed.header.client)
+          // firma z pliku; przy podmianie LP bez klienta w pliku — czyścimy firmę poprzedniego (do wyboru ręcznie)
+          if (parsed.header.client) setCompany(parsed.header.client)
+          else if (lp) setCompany('')
           if (parsed.warnings.length > 0) pushToast(`LP: ${parsed.warnings.length} uwag parsera — sprawdź podgląd`, 'info')
         } else {
           setLc(parsed)
@@ -270,6 +297,14 @@ export default function AluImportModal({
       const res = await onImport(parsed, { company: company.trim(), deadline, realizacja, mode })
       if (!res) return
       if (res.result === 'exists') {
+        // testy 27.11 (runda 3, KRYTYCZNY): „Nadpisz” brał termin +4 tyg. i „wysyłkę” z pustego okna — przesuwał termin
+        // i zmieniał montaż na wysyłkę. Wczytujemy termin, realizację i firmę z istniejącego zlecenia (do zmiany ręcznie).
+        const { data: ist } = await supabase.from('orders').select('company, release_date, extra_fields').eq('id', res.orderId).maybeSingle()
+        const alu = ((ist?.extra_fields ?? {}) as { alu?: { deadline?: string; realizacja?: AluRealizacja } }).alu
+        if (alu?.deadline) setDeadline(alu.deadline)
+        if (alu?.realizacja) setRealizacja(alu.realizacja)
+        if (ist?.company) setCompany(String(ist.company))
+        setExistingReleased(ist?.release_date ? String(ist.release_date) : null)
         setExistsPanel(res)
         return
       }
@@ -491,7 +526,7 @@ export default function AluImportModal({
             <div className="order-form-grid alu-import-header">
               <label>
                 <span className="order-field-label-text">Nr zlecenia (OF)</span>
-                <input value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} />
+                <input value={orderNumber} onChange={(e) => { setOrderNumber(e.target.value); setExistsPanel(null); setCancelledPanel(null) }} />
               </label>
               <label>
                 <span className="order-field-label-text">Lista produkcyjna</span>
@@ -594,9 +629,12 @@ export default function AluImportModal({
               <div className="alu-exists-panel" role="alert">
                 <div>
                   Zlecenie <strong>{existsPanel.orderNumber}</strong> już jest w programie. Co zrobić?
+                  {' '}Termin, realizacja i firma zostały wczytane z tego zlecenia — zmień je powyżej, jeśli nowa wersja LP ma inne.
+                  {existingReleased && <> <strong>Zlecenie jest już wydane ({existingReleased})</strong> — nadpisanie pozycji jest zablokowane (nowe sztuki nie dałyby się odhaczyć).</>}
                 </div>
                 <div className="alu-exists-actions">
-                  <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void save('overwrite')}>
+                  <button type="button" className="btn btn-primary" disabled={saving || Boolean(existingReleased)} onClick={() => void save('overwrite')}
+                    title={existingReleased ? 'Zlecenie wydane — nie nadpisujemy pozycji' : undefined}>
                     Nadpisz pozycje (oznaczone etapy zostają)
                   </button>
                   <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => void save('duplicate')}>
