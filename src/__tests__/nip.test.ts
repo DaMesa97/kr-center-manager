@@ -33,3 +33,12 @@ describe('NIP — poprawki po testach 27.11', () => {
   })
 })
 
+describe('NIP — przedrostek „NIP” ze stopki (recenzent, 2. seria)', () => {
+  it('„NIP 774-000-14-54” i „nip: 7740001454” są poprawne, „DE 774…” nie', () => {
+    expect(nipPoprawny('NIP 774-000-14-54')).toBe(true)
+    expect(nipPoprawny('nip: 7740001454')).toBe(true)
+    expect(normalizujNip('NIP: PL 774-000-14-54')).toBe('7740001454')
+    expect(nipPoprawny('DE 7740001454')).toBe(false)
+  })
+})
+

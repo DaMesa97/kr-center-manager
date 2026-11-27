@@ -2,13 +2,15 @@
 
 /** „PL 774-000-14-54” → „7740001454”; puste → '' */
 export function normalizujNip(s: string | null | undefined): string {
-  return String(s ?? '').trim().replace(/^PL/i, '').replace(/\D/g, '')
+  return String(s ?? '').trim().replace(/^NIP\s*:?\s*/i, '').replace(/^PL/i, '').replace(/\D/g, '')
 }
 
 /** 10 cyfr + suma kontrolna (wagi 6 5 7 2 3 4 5 6 7, mod 11). */
 export function nipPoprawny(s: string | null | undefined): boolean {
   // 27.11 (testy): NIP unijny innego kraju (DE…, CZ…) nie jest polskim NIP-em; same zera przechodziły sumę kontrolną
-  if (/^\s*[A-Za-z]{2}/.test(String(s ?? '')) && !/^\s*PL/i.test(String(s ?? ''))) return false
+  // recenzent (2. seria): „NIP 774-…” ze stopki maila nie jest kodem kraju — zagraniczny = dwie litery i od razu cyfry
+  const bezNip = String(s ?? '').trim().replace(/^NIP\s*:?\s*/i, '')
+  if (/^[A-Za-z]{2}\s*\d/.test(bezNip) && !/^PL/i.test(bezNip)) return false
   const nip = normalizujNip(s)
   if (!/^\d{10}$/.test(nip) || /^0+$/.test(nip)) return false
   const w = [6, 5, 7, 2, 3, 4, 5, 6, 7]
