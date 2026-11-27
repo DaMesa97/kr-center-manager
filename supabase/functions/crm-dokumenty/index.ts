@@ -124,8 +124,22 @@ async function dokument(db: SupabaseClient, body: Record<string, unknown>, userI
     if (o.brutto == null || !o.numer || !o.plik_pdf) throw new BladWejscia('Oferta nie jest jeszcze policzona (brak kwoty brutto, numeru albo PDF)')
     const vat8 = String(o.vat_stawka ?? '').includes('8%')
     if (vat8 && o.lokal_mieszkalny === false) throw new BladWejscia('VAT 8% w ofercie, a lokal oznaczony jako niemieszkalny: popraw ofertę albo dane o obiekcie')
+    // testy 27.11 (2. seria): umowa nie powstaje z oferty, w której towar ma cenę 0 zł (oferta sprzed blokady „Brakuje cen”);
+    // zero celowe (gratis, w cenie, w komplecie…) przechodzi — ta sama reguła co w crm-oferta-pdf
+    const CELOWO_ZERO = /gratis|w cenie|w komplecie|wliczon|bez dopłat|bez dopłaty|bezpłatn/i
+    const bezCeny = (Array.isArray(o.pozycje) ? o.pozycje as Array<{ nazwa?: string; opis?: string; netto_szt?: number | null }> : [])
+      .filter((p) => Number(p.netto_szt ?? 0) === 0 && !CELOWO_ZERO.test(`${p.nazwa ?? ''} ${p.opis ?? ''}`))
+    if (bezCeny.length) throw new BladWejscia(`W ofercie ${bezCeny.length} ${bezCeny.length === 1 ? 'pozycja ma' : 'pozycji ma'} cenę 0 zł (np. „${String(bezCeny[0].nazwa ?? '').slice(0, 60)}”) — popraw ofertę („Poproś o zmianę”), potem umowa`)
+    // braki danych klienta sprawdzamy PRZED nadaniem numeru — wcześniej każda nieudana próba zjadała numer z licznika
+    const brakiKlienta = [!klientNazwa && 'imię i nazwisko', !s('klient_adres') && 'adres klienta', !email && 'e-mail (do Autenti)', !telefon && 'telefon'].filter(Boolean)
+    if (brakiKlienta.length) throw new BladWejscia('Brakuje: ' + brakiKlienta.join(', '))
     let istniejacy: { numer: string | null } | null = null
     if (dokId) { const { data } = await db.from('dokumenty').select('numer').eq('id', dokId).eq('rodzaj', 'umowa').maybeSingle(); istniejacy = data }
+    // druga umowa z tej samej oferty: ten sam numer (jedna sprzedaż = jeden numer), zamiast nowego z licznika
+    if (!istniejacy?.numer && !s('numer')) {
+      const { data: zTejOferty } = await db.from('dokumenty').select('numer').eq('rodzaj', 'umowa').eq('lead_id', leadId).eq('oferta_id', ofertaId).not('numer', 'is', null).limit(1).maybeSingle()
+      if (zTejOferty?.numer) istniejacy = zTejOferty
+    }
     numer = istniejacy?.numer || s('numer') || null
     if (!numer) {
       const { data: n, error } = await db.rpc('nastepny_numer_umowy')
