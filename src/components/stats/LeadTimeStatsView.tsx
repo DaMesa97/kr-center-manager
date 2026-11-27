@@ -59,6 +59,7 @@ export default function LeadTimeStatsView() {
   const [stats, setStats] = useState<CategoryStat[]>([])
   const [buckets, setBuckets] = useState<Bucket[]>([])
   const [totalCount, setTotalCount] = useState(0)
+  const [pominieteSzac, setPominieteSzac] = useState(0)
 
   const load = useCallback(async (p: Preset) => {
     setLoading(true)
@@ -66,11 +67,11 @@ export default function LeadTimeStatsView() {
       const fromDate = presetFromDate(p)
       // Pobierz wydane zamówienia (release_date ustawiona) z zakresu
       // (porcjami po 1000 — .limit(10000) i tak dawało max 1000 wierszy)
-      type Row = { category: string; order_date: string | null; release_date: string | null; cancelled: unknown }
+      type Row = { category: string; order_date: string | null; release_date: string | null; cancelled: unknown; szac: unknown }
       const { data, error } = await fetchAllPages<Row>((rFrom, rTo) =>
         supabase
           .from('orders')
-          .select('id, category, order_date, release_date, cancelled:extra_fields->cancelled')
+          .select('id, category, order_date, release_date, cancelled:extra_fields->cancelled, szac:extra_fields->release_date_szacunkowa')
           .not('release_date', 'is', null)
           .gte('release_date', fromDate)
           .order('release_date', { ascending: false })
@@ -88,8 +89,11 @@ export default function LeadTimeStatsView() {
       const byCategory = new Map<string, number[]>()
       const allDays: number[] = []
 
+      let szacunkowe = 0
       for (const row of data) {
         if (row.cancelled === true) continue
+        // testy 27.11 (runda 3): data wydania wpisana przez excel-sync z dnia synchronizacji (sam znacznik „X”) — nie liczymy
+        if (row.szac === true) { szacunkowe++; continue }
         if (!row.order_date || !row.release_date) continue
         const d = daysBetween(row.order_date, row.release_date)
         if (d == null) continue
@@ -116,6 +120,7 @@ export default function LeadTimeStatsView() {
       }
       setStats(result)
       setTotalCount(allDays.length)
+      setPominieteSzac(szacunkowe)
 
       // Rozkład w przedziałach
       const b: Bucket[] = [
@@ -155,6 +160,7 @@ export default function LeadTimeStatsView() {
         {!loading && (
           <span className="leadtime-total">
             Przeanalizowano <strong>{totalCount}</strong> wydanych zamówień
+            {pominieteSzac > 0 && <> · pominięto {pominieteSzac} bez prawdziwej daty wydania (sam znacznik „X” w Excelu)</>}
           </span>
         )}
       </div>

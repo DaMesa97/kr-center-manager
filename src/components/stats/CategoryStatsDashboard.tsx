@@ -65,6 +65,13 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
   )
 
   const [rangeMonths, setRangeMonths] = useState(12)
+  // testy 27.11 (runda 3): excel-sync przy znaczniku „X” bez daty wpisuje datę synchronizacji i flagę release_date_szacunkowa
+  // (ST 1046 z 1047, Bastion 3220 z 3271 — wszystkie 06.11). Takie daty fałszowały czas realizacji („ST 64 dni”)
+  // i wykres produkcji (cały rok w jednym miesiącu) — pomijamy je i mówimy, ile pominięto
+  const bezPrawdziwejDaty = useMemo(
+    () => completedCategoryOrders.filter((o) => (o.extra_fields as Record<string, unknown> | null)?.release_date_szacunkowa === true).length,
+    [completedCategoryOrders],
+  )
 
   const productionData = useMemo(() => {
     const now = new Date()
@@ -77,6 +84,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
     }
 
     for (const o of completedCategoryOrders) {
+      if ((o.extra_fields as Record<string, unknown> | null)?.release_date_szacunkowa === true) continue
       // Produkcja = miesiąc WYDANIA (release_date to kolumna date 'YYYY-MM-DD'),
       // nie zamówienia — po order_date wykres pokazywał napływ, nie produkcję
       const key = String(o.release_date ?? '').slice(0, 7)
@@ -139,6 +147,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
 
     for (const o of filteredOrdersNonCancelled) {
       if (!o.release_date || isReleaseDateEmpty(o.release_date)) continue
+      if ((o.extra_fields as Record<string, unknown> | null)?.release_date_szacunkowa === true) continue
 
       const createdStr = o.order_date || (o as { created_at?: string }).created_at
       if (!createdStr) continue
@@ -258,9 +267,14 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
       <div className="stats-grid-full">
         <div className="stats-card">
           <h3>Średni czas realizacji — {nazwa}</h3>
+          {bezPrawdziwejDaty > 0 && (
+            <p className="stats-note" style={{ color: '#b45309', margin: '0 0 8px' }}>
+              Pominięto {bezPrawdziwejDaty} zleceń bez prawdziwej daty wydania (w Excelu był sam znacznik „X”, data jest z dnia synchronizacji) — czas realizacji i wykres produkcji liczone tylko z prawdziwych dat.
+            </p>
+          )}
 
           {avgRealizationDays === null ? (
-            <p style={{ color: '#6b7280', padding: '20px 0' }}>Brak zrealizowanych zamówień w tej kategorii</p>
+            <p style={{ color: '#6b7280', padding: '20px 0' }}>{bezPrawdziwejDaty > 0 ? 'Brak zamówień z prawdziwą datą wydania' : 'Brak zrealizowanych zamówień w tej kategorii'}</p>
           ) : (
             <>
               <div className="stats-kpi-row">
