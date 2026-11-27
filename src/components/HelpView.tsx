@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.4: NIP na umowie i protokole odbioru</h4>
+        <ul>
+          <li>Klient z NIP-em na karcie: <b>umowa</b> (PDF) ma w bloku „Zamawiający” wiersze <b>Firma</b> i <b>NIP</b> (774-000-14-54), a <b>protokół odbioru</b> bierze je z umowy. Klient bez NIP-u — dokumenty jak dotąd.</li>
+          <li>Starą umowę z NIP-em dostaniesz, generując ją ponownie z karty klienta (ten sam numer umowy).</li>
+        </ul>
         <h4>Wersja 1.1.3: CRM — NIP i dane firmy z GUS</h4>
         <ul>
           <li><b>Karta klienta → Edytuj dane</b> i <b>Dodaj klienta</b>: pole <b>NIP firmy</b> z przyciskiem <b>„Pobierz z GUS”</b> — wpisuje nazwę firmy, adres (ulica, kod, miejscowość), REGON, KRS i status VAT. Pustą nazwę klienta i miejscowość podpowiada z rejestru. NIP jest sprawdzany (suma kontrolna), wszystko można poprawić ręcznie.</li>
