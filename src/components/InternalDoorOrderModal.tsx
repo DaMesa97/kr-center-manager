@@ -307,21 +307,25 @@ function InternalDoorOrderModal({
       // Zwrot przed edycją NIEpotrzebny — issue_internal_door_stock rozlicza
       // na końcu RÓŻNICĘ netto (dośle brakujące / zwróci nadmiar ZWR-em)
 
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          company: companyName.trim(),
-          notes: notes.trim(),
-          wentylacja: wentylacja.trim(),
-          quantity: items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0),
-        })
-        .eq('id', orderId)
+      // testy 27.11 (runda 3): tylko pola zmienione względem stanu z chwili otwarcia —
+      // nie nadpisujemy firmy/uwag/wentylacji, które ktoś zmienił w międzyczasie
+      // (ilość to suma pozycji, liczona zawsze)
+      const orderPatch: Record<string, unknown> = {
+        quantity: items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0),
+      }
+      const initRec = initialOrder as unknown as Record<string, unknown>
+      if (companyName.trim() !== String(initialOrder.company ?? '').trim()) orderPatch.company = companyName.trim()
+      if (notes.trim() !== String(initialOrder.notes ?? '').trim()) orderPatch.notes = notes.trim()
+      if (wentylacja.trim() !== String(initRec.wentylacja ?? '').trim()) orderPatch.wentylacja = wentylacja.trim()
+      const { error } = await supabase.from('orders').update(orderPatch).eq('id', orderId)
       if (error) {
         setSaving(false)
         pushToast(`Błąd zapisu zamówienia: ${error.message}`, 'error')
         return
       }
 
+      // Kasowanie pozycji przed wstawieniem nowych — przy błędzie NIE wstawiamy
+      // (inaczej pozycje by się zdublowały)
       const { error: deleteErr } = await supabase.from('order_internal_door_items').delete().eq('order_id', orderId)
       if (deleteErr) {
         setSaving(false)

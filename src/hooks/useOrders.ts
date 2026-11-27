@@ -1265,6 +1265,18 @@ export function useOrders({
   // Titana / Disting Plus). Numer pobrany przy otwarciu okna mógł w międzyczasie zająć
   // bot/Excel → surowy błąd 23505. Teraz: pusty numer pobieramy przy zapisie (bez numeru
   // nie zapisujemy), a zajęty — pobieramy nowy i ponawiamy (do 3 razy).
+  // testy 27.11 (runda 3): zapis edycji jako łatka; pusta łatka nic nie wysyła
+  // (PostgREST nie przyjmuje pustego UPDATE), w odpowiedzi świeży wiersz z bazy
+  const updateOrderPatch = async (
+    orderId: number,
+    payload: Record<string, unknown>,
+  ): Promise<{ ok: true; row: Partial<Order> | null } | { ok: false; message: string }> => {
+    if (Object.keys(payload).length === 0) return { ok: true, row: null }
+    const { data, error } = await supabase.from('orders').update(payload).eq('id', orderId).select('*').maybeSingle()
+    if (error) return { ok: false, message: error.message }
+    return { ok: true, row: (data as Partial<Order> | null) ?? null }
+  }
+
   const insertOrderRow = async (
     payload: Record<string, unknown>,
     select: string,
@@ -1383,114 +1395,119 @@ export function useOrders({
       }
       setOrderFormErrors([])
 
-      const topLight =
-        staFormData.top_light_h_mm.trim()
-          ? `${staFormData.top_light_w_mm.trim()}×${staFormData.top_light_h_mm.trim()}`
-          : ''
-      const sidePanelA =
-        staFormData.side_panel_a_w_mm.trim()
-          ? `${staFormData.side_panel_a_w_mm.trim()}×${staFormData.side_panel_h_mm.trim()}`
-          : ''
-      const sidePanelB =
-        staFormData.side_panel_b_w_mm.trim()
-          ? `${staFormData.side_panel_b_w_mm.trim()}×${staFormData.side_panel_h_mm.trim()}`
-          : ''
-      const { sideDim, topDim } = calcExtensionDims(
-        staFormData.width,
-        staFormData.height,
-        activeTab,
-        dimensionMap,
-      )
-      const profileWidth = getProfileWidth(extensionProfileWidths, activeTab)
-      void profileWidth
-
-      const buildExtLabel = (side: string) => {
-        const sideQtys = staFormData.extension_qtys[side] ?? {}
-        return Object.entries(sideQtys)
-          .filter(([, qty]) => qty > 0)
-          .map(([w, qty]) => `${qty}×${w}mm`)
-          .join('+')
-      }
-
-      const extALabel = buildExtLabel('a')
-      const extBLabel = buildExtLabel('b')
-      const extTopLabel = buildExtLabel('top')
-
-      const mapped = {
-        order_number: staFormData.order_number,
-        company: staFormData.company,
-        order_date: isEditing
-          ? editingOrderBaseline.order_date
-          : new Date().toLocaleDateString('sv-SE'),
-        production_day: staFormData.production_day,
-        quantity: staFormData.quantity,
-        sequence: isEditing ? editingOrderBaseline.sequence : '',
-        system: staFormData.system,
-        model: staFormData.model,
-        wing_color: staFormData.wing_color,
-        frame_color: staFormData.frame_color,
-        threshold_color: staFormData.threshold_color,
-        width: staFormData.width,
-        direction: staFormData.direction,
-        opening: staFormData.opening,
-        height: staFormData.height,
-        glazing: staFormData.glazing,
-        decorative_panel: staFormData.decorative_panel,
-        hardware: staFormData.hardware,
-        handle: staFormData.handle,
-        peephole: staFormData.peephole,
-        top_light: topLight,
-        top_light_glazing: staFormData.top_light_glazing,
-        side_panel: sidePanelA,
-        side_panel_glazing: staFormData.side_panel_a_glazing,
-        side_panel_a: sidePanelA,
-        side_panel_b: sidePanelB,
-        side_panel_a_glazing: staFormData.side_panel_a_glazing,
-        side_panel_b_glazing: staFormData.side_panel_b_glazing,
-        extension_qtys: staFormData.extension_qtys,
-        extension_a_dim: isExtSideActive(staFormData.extension_qtys, 'a') ? sideDim : '',
-        extension_b_dim: isExtSideActive(staFormData.extension_qtys, 'b') ? sideDim : '',
-        extension_top_dim: isExtSideActive(staFormData.extension_qtys, 'top') ? topDim : '',
-        extension:
-          [
-            extALabel ? `A:${extALabel}(${sideDim}mm)` : '',
-            extBLabel ? `B:${extBLabel}(${sideDim}mm)` : '',
-            extTopLabel ? `G:${extTopLabel}(${topDim}mm)` : '',
-          ]
-            .filter(Boolean)
-            .join(' / ') || '',
-        notes: staFormData.notes,
-        client_order_number: staFormData.client_order_number,
-        category: staFormData.category || activeTab,
-        oslonki: staFormData.oslonki,
-        samozamykacz: staFormData.samozamykacz,
-        // #57: jedno pole "Zaczep" w UI zapisuje OBA (electric_strike = źródło
-        // dla tabeli/receptur/DoP; zaczep = legacy, trzymane w sync)
-        zaczep: staFormData.zaczep,
-        electric_strike: staFormData.zaczep,
-        intarsja: staFormData.intarsja,
-        extra_fields: mergeOrderExtraFields(
-          isEditing ? editingOrderBaseline.extra_fields : null,
-          { wykonawca: staFormData.wykonawca || '', podwalina: staFormData.podwalina.trim() },
-        ),
-        production_stages: productionStagesFromLegacyStageFormFields(
+      // testy 27.11 (runda 3): mapowanie jako funkcja — liczone też dla stanu z otwarcia (łatka zmian)
+      const buildStaMapped = (f: StaOrderFormData) => {
+        const topLight =
+          f.top_light_h_mm.trim()
+            ? `${f.top_light_w_mm.trim()}×${f.top_light_h_mm.trim()}`
+            : ''
+        const sidePanelA =
+          f.side_panel_a_w_mm.trim()
+            ? `${f.side_panel_a_w_mm.trim()}×${f.side_panel_h_mm.trim()}`
+            : ''
+        const sidePanelB =
+          f.side_panel_b_w_mm.trim()
+            ? `${f.side_panel_b_w_mm.trim()}×${f.side_panel_h_mm.trim()}`
+            : ''
+        const { sideDim, topDim } = calcExtensionDims(
+          f.width,
+          f.height,
           activeTab,
-          {
-            stage1: staFormData.stage1,
-            stage2_1: staFormData.stage2_1,
-            stage2_2: staFormData.stage2_2,
-            stage3: staFormData.stage3,
-            stage4: staFormData.stage4,
-            stage5: staFormData.stage5,
-          },
-          isEditing
-            ? parseProductionStages(
-                editingOrderBaseline.production_stages,
-                editingOrderBaseline.category,
-              )
-            : null,
-        ),
+          dimensionMap,
+        )
+        const profileWidth = getProfileWidth(extensionProfileWidths, activeTab)
+        void profileWidth
+
+        const buildExtLabel = (side: string) => {
+          const sideQtys = f.extension_qtys[side] ?? {}
+          return Object.entries(sideQtys)
+            .filter(([, qty]) => qty > 0)
+            .map(([w, qty]) => `${qty}×${w}mm`)
+            .join('+')
+        }
+
+        const extALabel = buildExtLabel('a')
+        const extBLabel = buildExtLabel('b')
+        const extTopLabel = buildExtLabel('top')
+
+        const mapped = {
+          order_number: f.order_number,
+          company: f.company,
+          order_date: isEditing
+            ? editingOrderBaseline.order_date
+            : new Date().toLocaleDateString('sv-SE'),
+          production_day: f.production_day,
+          quantity: f.quantity,
+          sequence: isEditing ? editingOrderBaseline.sequence : '',
+          system: f.system,
+          model: f.model,
+          wing_color: f.wing_color,
+          frame_color: f.frame_color,
+          threshold_color: f.threshold_color,
+          width: f.width,
+          direction: f.direction,
+          opening: f.opening,
+          height: f.height,
+          glazing: f.glazing,
+          decorative_panel: f.decorative_panel,
+          hardware: f.hardware,
+          handle: f.handle,
+          peephole: f.peephole,
+          top_light: topLight,
+          top_light_glazing: f.top_light_glazing,
+          side_panel: sidePanelA,
+          side_panel_glazing: f.side_panel_a_glazing,
+          side_panel_a: sidePanelA,
+          side_panel_b: sidePanelB,
+          side_panel_a_glazing: f.side_panel_a_glazing,
+          side_panel_b_glazing: f.side_panel_b_glazing,
+          extension_qtys: f.extension_qtys,
+          extension_a_dim: isExtSideActive(f.extension_qtys, 'a') ? sideDim : '',
+          extension_b_dim: isExtSideActive(f.extension_qtys, 'b') ? sideDim : '',
+          extension_top_dim: isExtSideActive(f.extension_qtys, 'top') ? topDim : '',
+          extension:
+            [
+              extALabel ? `A:${extALabel}(${sideDim}mm)` : '',
+              extBLabel ? `B:${extBLabel}(${sideDim}mm)` : '',
+              extTopLabel ? `G:${extTopLabel}(${topDim}mm)` : '',
+            ]
+              .filter(Boolean)
+              .join(' / ') || '',
+          notes: f.notes,
+          client_order_number: f.client_order_number,
+          category: f.category || activeTab,
+          oslonki: f.oslonki,
+          samozamykacz: f.samozamykacz,
+          // #57: jedno pole "Zaczep" w UI zapisuje OBA (electric_strike = źródło
+          // dla tabeli/receptur/DoP; zaczep = legacy, trzymane w sync)
+          zaczep: f.zaczep,
+          electric_strike: f.zaczep,
+          intarsja: f.intarsja,
+          extra_fields: mergeOrderExtraFields(
+            isEditing ? editingOrderBaseline.extra_fields : null,
+            { wykonawca: f.wykonawca || '', podwalina: f.podwalina.trim() },
+          ),
+          production_stages: productionStagesFromLegacyStageFormFields(
+            activeTab,
+            {
+              stage1: f.stage1,
+              stage2_1: f.stage2_1,
+              stage2_2: f.stage2_2,
+              stage3: f.stage3,
+              stage4: f.stage4,
+              stage5: f.stage5,
+            },
+            isEditing
+              ? parseProductionStages(
+                  editingOrderBaseline.production_stages,
+                  editingOrderBaseline.category,
+                )
+              : null,
+          ),
+        }
+        return mapped
       }
+      const mapped = buildStaMapped(staFormData)
 
       if (isEditing) {
         // UPDATE wysyła TYLKO pola formularza — bez snapshotu całego zamówienia
@@ -1499,8 +1516,22 @@ export function useOrders({
         // sequence/order_date to snapshot z chwili otwarcia okna (nie pola
         // formularza) — wysyłane nadpisywały PILNE ustawione w międzyczasie
         const mergedStages = mapped.production_stages
-        const formFields = omitKeys(mapped, ['production_stages', 'extra_fields', 'sequence', 'order_date'])
-        const payload = sanitizeOrderPayloadForDb(formFields)
+        const staNotFields = ['production_stages', 'extra_fields', 'sequence', 'order_date'] as const
+        const formFields = omitKeys(mapped, staNotFields)
+        // testy 27.11 (runda 3): tylko pola zmienione względem stanu z chwili otwarcia —
+        // update_order_form zmienia wyłącznie podane kolumny, więc zmiany innej osoby
+        // w polach, których tu nie ruszano, zostają (wcześniej wygrywał ostatni zapis)
+        const openSta = orderFormOpenSnapshot as unknown as StaOrderFormData | null
+        const changed = pickChangedFields(
+          formFields,
+          openSta ? omitKeys(buildStaMapped(openSta), staNotFields) : null,
+        )
+        const payload = sanitizeOrderPayloadForDb(changed)
+        const extraPatch: Record<string, string> = {}
+        const nextWykonawca = staFormData.wykonawca || ''
+        const nextPodwalina = staFormData.podwalina.trim()
+        if (!openSta || (openSta.wykonawca || '') !== nextWykonawca) extraPatch.wykonawca = nextWykonawca
+        if (!openSta || String(openSta.podwalina ?? '').trim() !== nextPodwalina) extraPatch.podwalina = nextPodwalina
         // Etapy: merge po stronie bazy TYLKO kluczy zmienionych w formularzu
         const baselineStages = parseProductionStages(
           editingOrderBaseline.production_stages,
@@ -1516,7 +1547,7 @@ export function useOrders({
           p_order_id: editId,
           p_fields: payload,
           p_stage_patch: stagePatch,
-          p_extra_patch: { wykonawca: staFormData.wykonawca || '', podwalina: staFormData.podwalina.trim() },
+          p_extra_patch: extraPatch,
         })
         if (error) {
           pushToast(`Wystąpił błąd: ${error.message}`, 'error')
@@ -1526,13 +1557,14 @@ export function useOrders({
         // RPC zwraca świeży wiersz z bazy (po merge'ach) — używamy go wprost
         const merged = { ...editingOrderBaseline, ...(updatedRow as Partial<Order>) } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
-        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, mapped)
-        await syncSharedFieldsToTitanGroup(editingOrderBaseline, mapped)
-        await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)
-        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
+        // Partner / grupa Titana dostają tylko zmienione pola (nie nadpisujemy ich starą kopią)
+        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, changed)
+        await syncSharedFieldsToTitanGroup(editingOrderBaseline, changed)
+        if ('intarsja' in changed) await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, changed.intarsja)
+        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, changed)
         // Partner (Disting Plus / Titan) dostał te same zmiany pól przez sync —
         // jego rezerwacje też trzeba przeliczyć (wcześniej trzymał stare)
-        await resyncLinkedPartnerStock(editingOrderBaseline, mapped)
+        await resyncLinkedPartnerStock(editingOrderBaseline, changed)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
           await fetchOrdersNeedingReview()
@@ -1761,45 +1793,50 @@ export function useOrders({
       }
       setOrderFormErrors([])
 
+      // testy 27.11 (runda 3): mapowanie jako funkcja — liczone też dla stanu z otwarcia (łatka zmian)
       const isTitanNew = !isEditing && isStTitanSystemLabel(stFormData.system)
-      const mapped = {
-        order_number: stFormData.order_number,
-        company: stFormData.company,
-        order_date: isEditing
-          ? editingOrderBaseline.order_date
-          : new Date().toLocaleDateString('sv-SE'),
-        production_day: stFormData.production_day,
-        quantity: stFormData.quantity,
-        sequence: isEditing ? editingOrderBaseline.sequence : '',
-        system: stFormData.system,
-        model: stFormData.model,
-        wing_color: stFormData.wing_color,
-        frame_color: '',
-        threshold_color: stFormData.threshold_color,
-        width: stFormData.width,
-        direction: stFormData.direction,
-        opening: stFormData.opening,
-        height: stFormData.height,
-        glazing: stFormData.glazing,
-        decorative_panel: '',
-        hardware: stFormData.hardware,
-        handle: stFormData.handle,
-        peephole: stFormData.peephole,
-        top_light: '',
-        top_light_glazing: '',
-        side_panel: '',
-        side_panel_glazing: '',
-        extension: stFormData.extension,
-        notes: stFormData.notes,
-        client_order_number: stFormData.client_order_number,
-        category: stFormData.category || 'ST',
-        linked_order_id: isEditing ? editingOrderBaseline.linked_order_id ?? null : null,
-        sta_ref: isEditing ? String(editingOrderBaseline.sta_ref ?? '').trim() : '',
-        st_sheet: isEditing ? String(editingOrderBaseline.st_sheet ?? '').trim() : '',
-        production_stages: isEditing
-          ? editingOrderBaseline.production_stages
-          : createEmptyProductionStages('ST'),
+      const buildStMapped = (f: StOrderFormData) => {
+        const mapped = {
+          order_number: f.order_number,
+          company: f.company,
+          order_date: isEditing
+            ? editingOrderBaseline.order_date
+            : new Date().toLocaleDateString('sv-SE'),
+          production_day: f.production_day,
+          quantity: f.quantity,
+          sequence: isEditing ? editingOrderBaseline.sequence : '',
+          system: f.system,
+          model: f.model,
+          wing_color: f.wing_color,
+          frame_color: '',
+          threshold_color: f.threshold_color,
+          width: f.width,
+          direction: f.direction,
+          opening: f.opening,
+          height: f.height,
+          glazing: f.glazing,
+          decorative_panel: '',
+          hardware: f.hardware,
+          handle: f.handle,
+          peephole: f.peephole,
+          top_light: '',
+          top_light_glazing: '',
+          side_panel: '',
+          side_panel_glazing: '',
+          extension: f.extension,
+          notes: f.notes,
+          client_order_number: f.client_order_number,
+          category: f.category || 'ST',
+          linked_order_id: isEditing ? editingOrderBaseline.linked_order_id ?? null : null,
+          sta_ref: isEditing ? String(editingOrderBaseline.sta_ref ?? '').trim() : '',
+          st_sheet: isEditing ? String(editingOrderBaseline.st_sheet ?? '').trim() : '',
+          production_stages: isEditing
+            ? editingOrderBaseline.production_stages
+            : createEmptyProductionStages('ST'),
+        }
+        return mapped
       }
+      const mapped = buildStMapped(stFormData)
 
       if (isEditing) {
         // UPDATE wysyła TYLKO pola formularza ST — bez snapshotu zamówienia
@@ -1807,20 +1844,25 @@ export function useOrders({
         // Formularz ST nie ma pól ościeżnicy/panelu/naświetla/dostawki — wysyłał
         // je jako puste stringi i KASOWAŁ dane z konfiguratora (bot: kolor
         // ościeżnicy, panel) u siebie i u partnera STA (Titan).
-        const stSyncFields = omitKeys(mapped, [
+        const stNotFields = [
           'frame_color', 'decorative_panel', 'top_light', 'top_light_glazing', 'side_panel', 'side_panel_glazing',
-        ])
-        const formFields = omitKeys(stSyncFields, [
           'production_stages', 'linked_order_id', 'sta_ref', 'st_sheet', 'sequence', 'order_date',
-        ])
-        const payload = sanitizeOrderPayloadForDb(formFields)
-        const { error } = await supabase.from('orders').update(payload).eq('id', editId)
-        if (error) {
-          pushToast(`Wystąpił błąd: ${error.message}`, 'error')
+        ] as const
+        // testy 27.11 (runda 3): tylko pola zmienione względem stanu z chwili otwarcia
+        // (te same pola idą do partnera STA i grupy Titana)
+        const openSt = orderFormOpenSnapshot as unknown as StOrderFormData | null
+        const stSyncFields = pickChangedFields(
+          omitKeys(mapped, stNotFields),
+          openSt ? omitKeys(buildStMapped(openSt), stNotFields) : null,
+        )
+        const payload = sanitizeOrderPayloadForDb(stSyncFields)
+        const saved = await updateOrderPatch(editId, payload)
+        if (!saved.ok) {
+          pushToast(`Wystąpił błąd: ${saved.message}`, 'error')
           setIsSaving(false)
           return
         }
-        const merged = { ...editingOrderBaseline, ...payload } as Order
+        const merged = { ...editingOrderBaseline, ...payload, ...(saved.row ?? {}) } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, stSyncFields)
         await syncSharedFieldsToTitanGroup(editingOrderBaseline, stSyncFields)
@@ -1994,60 +2036,71 @@ export function useOrders({
       }
       setOrderFormErrors([])
 
-      const mapped = {
-        order_number: techniczneFormData.order_number,
-        company: techniczneFormData.company,
-        order_date: isEditing
-          ? editingOrderBaseline.order_date
-          : new Date().toLocaleDateString('sv-SE'),
-        production_day: techniczneFormData.production_day,
-        quantity: techniczneFormData.quantity,
-        sequence: isEditing ? editingOrderBaseline.sequence : '',
-        system: techniczneFormData.system,
-        model: techniczneFormData.model,
-        wing_color: techniczneFormData.wing_color,
-        frame_color: '',
-        threshold_color: techniczneFormData.threshold_color,
-        width: techniczneFormData.width,
-        direction: techniczneFormData.direction,
-        opening: techniczneFormData.opening,
-        height: techniczneFormData.height,
-        glazing: techniczneFormData.glazing,
-        decorative_panel: '',
-        hardware: techniczneFormData.hardware,
-        handle: techniczneFormData.handle,
-        peephole: techniczneFormData.peephole,
-        wentylacja: techniczneFormData.wentylacja,
-        top_light: '',
-        top_light_glazing: '',
-        side_panel: '',
-        side_panel_glazing: '',
-        extension: '',
-        notes: techniczneFormData.notes,
-        client_order_number: techniczneFormData.client_order_number,
-        info: '',
-        category: techniczneFormData.category || 'Techniczne',
-        production_stages: createEmptyProductionStages('Techniczne'),
+      // testy 27.11 (runda 3): mapowanie jako funkcja — liczone też dla stanu z otwarcia (łatka zmian)
+      const buildTechMapped = (f: TechniczneOrderFormData) => {
+        const mapped = {
+          order_number: f.order_number,
+          company: f.company,
+          order_date: isEditing
+            ? editingOrderBaseline.order_date
+            : new Date().toLocaleDateString('sv-SE'),
+          production_day: f.production_day,
+          quantity: f.quantity,
+          sequence: isEditing ? editingOrderBaseline.sequence : '',
+          system: f.system,
+          model: f.model,
+          wing_color: f.wing_color,
+          frame_color: '',
+          threshold_color: f.threshold_color,
+          width: f.width,
+          direction: f.direction,
+          opening: f.opening,
+          height: f.height,
+          glazing: f.glazing,
+          decorative_panel: '',
+          hardware: f.hardware,
+          handle: f.handle,
+          peephole: f.peephole,
+          wentylacja: f.wentylacja,
+          top_light: '',
+          top_light_glazing: '',
+          side_panel: '',
+          side_panel_glazing: '',
+          extension: '',
+          notes: f.notes,
+          client_order_number: f.client_order_number,
+          info: '',
+          category: f.category || 'Techniczne',
+          production_stages: createEmptyProductionStages('Techniczne'),
+        }
+        return mapped
       }
+      const mapped = buildTechMapped(techniczneFormData)
 
       if (isEditing) {
         // UPDATE wysyła TYLKO pola formularza — bez etapów (stary kod wysyłał
         // tu PUSTE etapy createEmptyProductionStages i zerował oznaczone!)
         // i bez pól, których formularz Techniczne nie ma (puste stringi
         // kasowały np. INFO, przedłużenie, kolor ościeżnicy).
-        const formFields = omitKeys(mapped, [
+        const techNotFields = [
           'production_stages', 'sequence', 'order_date',
           'frame_color', 'decorative_panel', 'top_light', 'top_light_glazing', 'side_panel', 'side_panel_glazing',
           'extension', 'info',
-        ])
+        ] as const
+        // testy 27.11 (runda 3): tylko pola zmienione względem stanu z chwili otwarcia
+        const openTech = orderFormOpenSnapshot as unknown as TechniczneOrderFormData | null
+        const formFields = pickChangedFields(
+          omitKeys(mapped, techNotFields),
+          openTech ? omitKeys(buildTechMapped(openTech), techNotFields) : null,
+        )
         const payload = sanitizeOrderPayloadForDb(formFields)
-        const { error } = await supabase.from('orders').update(payload).eq('id', editId)
-        if (error) {
-          pushToast(`Wystąpił błąd: ${error.message}`, 'error')
+        const saved = await updateOrderPatch(editId, payload)
+        if (!saved.ok) {
+          pushToast(`Wystąpił błąd: ${saved.message}`, 'error')
           setIsSaving(false)
           return
         }
-        const merged = { ...editingOrderBaseline, ...payload } as Order
+        const merged = { ...editingOrderBaseline, ...payload, ...(saved.row ?? {}) } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
         await syncSharedFieldsToLinkedPartner(editingOrderBaseline, formFields)
         await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, formFields)
@@ -2143,22 +2196,23 @@ export function useOrders({
             )
           : null
         const changedFields = pickChangedFields(formFields, openFormFields)
-        const payload = sanitizeOrderPayloadForDb(formFields)
-        const { error } = await supabase.from('orders').update(payload).eq('id', editId)
-        if (error) {
-          pushToast(`Wystąpił błąd: ${error.message}`, 'error')
+        // testy 27.11 (runda 3): do bazy tylko pola zmienione względem stanu z chwili otwarcia
+        const payload = sanitizeOrderPayloadForDb(changedFields)
+        const saved = await updateOrderPatch(editId, payload)
+        if (!saved.ok) {
+          pushToast(`Wystąpił błąd: ${saved.message}`, 'error')
           setIsSaving(false)
           return
         }
-        const merged = { ...editingOrderBaseline, ...payload } as Order
+        const merged = { ...editingOrderBaseline, ...payload, ...(saved.row ?? {}) } as Order
         setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
-        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, formFields)
+        await syncSharedFieldsToLinkedPartner(editingOrderBaseline, changedFields)
         // testy 27.11 (runda 3): jak przy edycji STA/ST Titana — wspólne pola idą na
         // resztę grupy (STA + ST) i przeliczają ich rezerwacje. Tylko pola zmienione
         // w tym formularzu (system/model z Bastionu nie nadpisują STA bez potrzeby).
         if (isTitanLeg) await syncSharedFieldsToTitanGroup(editingOrderBaseline, changedFields)
-        await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, mapped.intarsja)
-        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, formFields)
+        if ('intarsja' in changedFields) await syncIntarsjaAcrossTitanGroup(editingOrderBaseline, changedFields.intarsja)
+        await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, changedFields)
         if (isBotOrder(editingOrderBaseline)) {
           await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
           await fetchOrdersNeedingReview()
@@ -2198,21 +2252,25 @@ export function useOrders({
     if (isEditing && editingOrderBaseline) {
       // UPDATE wysyła TYLKO pola formularza — etapy zostają nietknięte w bazie
       // (snapshot z chwili otwarcia kasował zmiany innych stanowisk).
-      const mapped = {
-        ...formData,
-        category: formData.category || activeTab,
-        order_date: formData.order_date || editingOrderBaseline.order_date,
-      }
-      const payload = sanitizeOrderPayloadForDb(mapped)
-      const { error } = await supabase.from('orders').update(payload).eq('id', editId)
-      if (error) {
-        pushToast(`Wystąpił błąd: ${error.message}`, 'error')
+      const buildLegacyMapped = (f: NewOrderFormData): Record<string, unknown> => ({
+        ...f,
+        category: f.category || activeTab,
+        order_date: f.order_date || editingOrderBaseline.order_date,
+      })
+      const mapped = buildLegacyMapped(formData)
+      // testy 27.11 (runda 3): tylko pola zmienione względem stanu z chwili otwarcia
+      const openLegacy = orderFormOpenSnapshot as unknown as NewOrderFormData | null
+      const changed = pickChangedFields(mapped, openLegacy ? buildLegacyMapped(openLegacy) : null)
+      const payload = sanitizeOrderPayloadForDb(changed)
+      const saved = await updateOrderPatch(editId, payload)
+      if (!saved.ok) {
+        pushToast(`Wystąpił błąd: ${saved.message}`, 'error')
         setIsSaving(false)
         return
       }
-      const merged = { ...editingOrderBaseline, ...payload } as Order
+      const merged = { ...editingOrderBaseline, ...payload, ...(saved.row ?? {}) } as Order
       setOrders((prev) => prev.map((o) => (o.id === editId ? merged : o)))
-      await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, mapped)
+      await syncWarehouseStockAfterOrderEdit(editId, editingOrderBaseline, changed)
       if (isBotOrder(editingOrderBaseline)) {
         await supabase.rpc('revalidate_bot_order', { p_order_id: editId })
         await fetchOrdersNeedingReview()
