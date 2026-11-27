@@ -74,6 +74,7 @@ import type {
   WarehouseMovementRow,
 } from '../types'
 import type React from 'react'
+import { zarejestrujNiezapisane } from '../lib/useUnsavedGuard'
 import type { StockReleaseRow } from './useMyStation'
 import { isOptimaClosed, isOrderCancelled } from '../lib/optimaRo'
 
@@ -2903,6 +2904,21 @@ export function useOrders({
     setEditingOrderId(null)
     setEditingOrderBaseline(null)
   }, [isSaving])
+
+  // testy 27.11 (runda 3): zamknięcie całego okna programu z otwartym, zmienionym formularzem zlecenia pyta
+  // (Electron: will-prevent-unload) — to samo porównanie co przy zamykaniu samego okna zlecenia
+  const zlecenieZmienioneRef = useRef<() => boolean>(() => false)
+  zlecenieZmienioneRef.current = () => {
+    if (!isModalOpen) return false
+    const active =
+      activeTab === 'STA' || activeTab === 'Disting' ? staFormData
+        : activeTab === 'ST' ? stFormData
+          : activeTab === 'Techniczne' ? techniczneFormData
+            : activeTab === 'Bastion' ? bastionFormData
+              : formData
+    return isOrderFormDirty(orderFormOpenSnapshot, active as Record<string, unknown>)
+  }
+  useEffect(() => zarejestrujNiezapisane(() => zlecenieZmienioneRef.current()), [])
 
   const handleRequestCloseOrderModal = useCallback(() => {
     if (isSaving) return
