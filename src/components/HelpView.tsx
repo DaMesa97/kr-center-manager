@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Drzwi wewnętrzne: komplety przesuwne i spis magazynu (beta.172)</h4>
+        <ul>
+          <li><b>Komplety przesuwne z Optimy</b> („MALEO 06 … Z SYSTEMEM PRZESUWNYM”) rozbijają się na dwie pozycje: skrzydło przesuwne i <b>SYSTEM PRZESUWNY</b>. System stoi w zleceniu wcięty pod swoim skrzydłem ze znaczkiem „część kompletu”, odhacza się osobno przy pakowaniu, a wydanie zdejmuje ze stanu po 1 szt. obu.</li>
+          <li><b>Inwentaryzacja magazynu wewnętrzne</b>: na spisie są tylko pozycje trzymane na magazynie (skrzydła, ościeżnice, opaski… — 934 pozycje), pogrupowane i po nazwie, tak samo na kartce do liczenia. Kartoteki „w tle” (towar na zamówienie) widać po zaznaczeniu „Kartoteki w tle”.</li>
+          <li>Pozycje zlecenia z towarem na zamówienie mają szary znaczek „na zamówienie” — to nie brak.</li>
+        </ul>
         <h4>CRM: ceny z ulotki KR Center (beta.171)</h4>
         <ul>
           <li><b>Oferta z montażem bez cen</b> (np. wklejony sam opis „5× Verona 02 black 80, OR 10–14, Iberia czarne…”) liczy się teraz z <b>ulotki KR Center „Sierpień 2026”</b> wczytanej do CRM: skrzydła, ościeżnice, klamki i szyldy, dopłaty, osłonki. System wskazuje pozycję cennika, a kwotę wstawia program — przy każdej pozycji w PDF jest dopisek „wg cennika KR Center, str. …”. Sprawdź dobór wariantu (okleina, zamek, przedział ościeżnicy).</li>

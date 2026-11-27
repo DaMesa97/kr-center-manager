@@ -8,6 +8,8 @@ import {
   groupItemsByType,
   groupUnmappedCodes,
   isIntDoorFilterActive,
+  isKitPart,
+  kitCodeOf,
   isOptimaClosed,
   isOptimaOrder,
   isSyncRunning,
@@ -164,6 +166,20 @@ describe('pozycje wg typu (ZLEC/1861/11/2026)', () => {
     const g = groupItemsByType([item({ component_category: 'door_hinge_cover', quantity: 2 }), item({ quantity: 1, unit: 'szt.' })])
     expect(g.map((x) => [x.label, x.total])).toEqual([['Osłonki', '2 szt.'], ['Pozostałe', '1 szt.']])
     expect(qtyByUnit([])).toBe('')
+  })
+  it('komplet przesuwny (ZLEC 29235): SYSTEM PRZESUWNY stoi pod swoim skrzydłem, nie w Akcesoriach, i nie wlicza się do sumy skrzydeł', () => {
+    const maleo = item({ id: 54886, optima_element_id: 3492258, item_type: 'door_wing', optima_code: 'MALEO 06 BIAŁY 80 Z SYSTEMEM PRZESUWNYM', component_id: 3391, notes: 'skrzydło przesuwne, prowadnica' })
+    const system = item({ id: 55044, optima_element_id: 3492258, item_type: 'door_accessory', optima_code: 'SYSTEM PRZESUWNY', component_id: 3386, notes: 'Część kompletu MALEO 06 BIAŁY 80 Z SYSTEMEM PRZESUWNYM' })
+    const prato = item({ id: 54881, optima_element_id: 3492253, item_type: 'door_wing', component_id: 952 })
+    const g = groupItemsByType([prato, system, maleo])
+    expect(g.map((x) => [x.label, x.items.map((i) => i.id), x.total])).toEqual([['Skrzydła', [54881, 54886, 55044], '2 szt.']])
+    expect(isKitPart(system)).toBe(true)
+    expect(isKitPart(maleo)).toBe(false)
+    expect(kitCodeOf(system)).toBe('MALEO 06 BIAŁY 80 Z SYSTEMEM PRZESUWNYM')
+    // część bez pozycji z RO (osierocona) — zostaje w grupie swojego typu
+    expect(groupItemsByType([system]).map((x) => x.label)).toEqual(['Akcesoria'])
+    // zwykłe uwagi z RO to nie część kompletu
+    expect(isKitPart(item({ optima_element_id: 1, notes: 'Część zamówienia klienta' }))).toBe(false)
   })
   it('trwa synchronizacja, gdy running_until > teraz', () => {
     const now = Date.parse('2026-11-26T12:00:00Z')

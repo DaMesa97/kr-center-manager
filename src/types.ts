@@ -252,7 +252,7 @@ export type InternalDoorItem = {
   quantity: number
   shorten_enabled: boolean
   shorten_target_height: number | null
-  /** przy pozycjach z Optimy: opis pozycji z dokumentu RO */
+  /** przy pozycjach z Optimy: opis pozycji z dokumentu RO; przy części kompletu: „Część kompletu <kod>” (lib/optimaRo isKitPart) */
   notes: string | null
   created_at: string
   // Pozycje z importu Optimy (source = 'optima_ro'); przy ręcznych NULL.
@@ -260,6 +260,7 @@ export type InternalDoorItem = {
   optima_code?: string | null
   optima_name?: string | null
   optima_group?: string | null
+  /** id linii RO w Optimie; części kompletu (optima_kit_parts) mają ten sam co ich pozycja z RO */
   optima_element_id?: number | null
   unit?: string | null
   /** typ pozycji z Optimy: door_wing / door_frame / door_handle / door_hinge_cover / door_accessory (przy ręcznych NULL) */
@@ -268,6 +269,16 @@ export type InternalDoorItem = {
   component_category?: string | null
   /** warehouse_components.is_stocked komponentu pozycji (false = na zamówienie, bez stanu) */
   component_is_stocked?: boolean | null
+}
+
+/** optima_kit_parts — rozbicie kodu kompletu z Optimy na części magazynu (np. „MALEO 06 … Z SYSTEMEM PRZESUWNYM”
+ *  = skrzydło przesuwne sort 1 + SYSTEM PRZESUWNY sort 2). Rozbija triggery bazy na order_internal_door_items:
+ *  sort 1 podmienia komponent pozycji z RO, sort > 1 to osobne pozycje „Część kompletu <kod>” z tym samym optima_element_id. */
+export type OptimaKitPart = {
+  optima_code: string
+  component_id: number
+  qty: number
+  sort: number
 }
 
 export type ProfileDepartment = 'all' | 'bastion' | 'stalowe' | 'magazyn'

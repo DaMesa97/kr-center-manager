@@ -9,6 +9,15 @@ describe('przygotowanie do pakowania', () => {
     expect(pickKey({ id: 12, optima_element_id: null })).toBe('item:12')
   })
 
+  it('część kompletu (SYSTEM PRZESUWNY) ma własny klucz — odhaczenie skrzydła nie odhacza systemu; klucz stały między importami', () => {
+    const skrzydlo = { id: 54886, optima_element_id: 3492258, component_id: 3391, notes: 'skrzydło przesuwne, prowadnica' }
+    const system = { id: 55044, optima_element_id: 3492258, component_id: 3386, notes: 'Część kompletu MALEO 06 BIAŁY 80 Z SYSTEMEM PRZESUWNYM' }
+    expect(pickKey(skrzydlo)).toBe('optima:3492258')
+    expect(pickKey(system)).toBe('optima:3492258:3386')
+    expect(pickKey({ ...system, id: 99999 })).toBe('optima:3492258:3386')
+    expect(pickProgress([skrzydlo, system], new Map([['optima:3492258', pick(1, 'optima:3492258')]]))).toEqual({ done: 1, total: 2, complete: false })
+  })
+
   it('postęp: 0/3 → 2/3 → komplet; odznaczenie linii, której już nie ma w RO, się nie liczy', () => {
     const items = [
       { id: 1, optima_element_id: 10 },

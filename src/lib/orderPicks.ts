@@ -8,6 +8,7 @@
 // =====================================================================
 import { supabase } from '../supabaseClient'
 import type { InternalDoorItem } from '../types'
+import { isKitPart } from './optimaRo'
 
 export type OrderPick = {
   order_id: number
@@ -20,8 +21,12 @@ export type OrderPick = {
 /** order_id → (line_key → odznaczenie) */
 export type PicksByOrder = Map<number, Map<string, OrderPick>>
 
-export function pickKey(it: Pick<InternalDoorItem, 'id' | 'optima_element_id'>): string {
-  return it.optima_element_id != null ? `optima:${it.optima_element_id}` : `item:${it.id}`
+export function pickKey(it: Pick<InternalDoorItem, 'id' | 'optima_element_id'> & Partial<Pick<InternalDoorItem, 'notes' | 'component_id' | 'optima_code'>>): string {
+  if (it.optima_element_id == null) return `item:${it.id}`
+  // część kompletu (np. SYSTEM PRZESUWNY pod skrzydłem przesuwnym) ma ten sam optima_element_id co skrzydło — własny klucz,
+  // stały między importami (id pozycji się zmieniają): element + komponent części
+  if (isKitPart(it)) return `optima:${it.optima_element_id}:${it.component_id ?? it.optima_code ?? 'czesc'}`
+  return `optima:${it.optima_element_id}`
 }
 
 export function groupPicks(rows: OrderPick[]): PicksByOrder {

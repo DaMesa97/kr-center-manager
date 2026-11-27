@@ -14,8 +14,12 @@ import { PRODUCT_CATEGORY_LABELS } from '../../constants'
 /** pozycji spisu na stronę — magazyn wewnętrzne ma kilka tysięcy komponentów z kartotek Optimy */
 const INV_PAGE = 100
 
-type LinesView = DoorFilter & { onlyCounted: boolean; page: number }
-const LINES_VIEW_EMPTY: LinesView = { ...DOOR_FILTER_EMPTY, onlyCounted: false, page: 0 }
+type LinesView = DoorFilter & { onlyCounted: boolean; page: number; showBackground: boolean }
+const LINES_VIEW_EMPTY: LinesView = { ...DOOR_FILTER_EMPTY, onlyCounted: false, page: 0, showBackground: false }
+
+/** Pozycja liczy się do spisu: trzymamy ją na magazynie (is_stocked) albo ktoś ją już policzył. Kartoteki w tle
+ *  (is_stocked = false, towar na zamówienie) widać tylko po włączeniu „Kartoteki w tle” — nie idą do postępu, kartki ani zamknięcia. */
+const naSpisie = (l: InventoryLine) => l.component_is_stocked !== false || l.counted_qty != null
 
 type Props = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -68,9 +72,8 @@ async function fetchLines(sessionId: number): Promise<LinesResult> {
         component_door_direction: wc?.door_direction ?? null,
         component_is_stocked: wc ? wc.is_stocked !== false : true,
       }
-    })
-      // kartoteki w tle (is_stocked = false) nie idą do spisu — chyba że ktoś już je policzył
-      .filter((l) => l.component_is_stocked || l.counted_qty != null)),
+    })),
+    // kartoteki w tle (is_stocked = false) zostają w danych, ale poza spisem (naSpisie) — widać je po włączeniu filtra
     // magazyn wewnętrzny: skrzydła, ościeżnice, klamki, akcesoria, osłonki — w grupie po nazwie
   }
 }
@@ -321,7 +324,7 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
       const { lines, error } = await fetchLines(sd.session.id)
       if (error) { pushToast(`Nie pobrano aktualnych pozycji spisu: ${error}`, 'error'); return }
       applyLines(sd.session.id, lines)
-      setCloseReview({ session: sd.session, lines })
+      setCloseReview({ session: sd.session, lines: lines.filter(naSpisie) })
     } finally {
       setClosing(null)
     }
@@ -352,13 +355,13 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
   )
 
   const handleExportPdf = (sd: SessionWithLines) => {
-    generateInventorySheet(sd.session, sd.lines)
+    generateInventorySheet(sd.session, sd.lines.filter(naSpisie))
   }
 
   const handleExportPastPdf = async (session: InventorySession & { warehouse_id: number | null }) => {
     const { lines, error } = await fetchLines(session.id)
     if (error) { pushToast(`Nie pobrano pozycji spisu: ${error}`, 'error'); return }
-    generateInventorySheet(session, lines)
+    generateInventorySheet(session, lines.filter(naSpisie))
   }
 
   const activeComponentsSorted = useMemo(
@@ -377,7 +380,8 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
 
   const lineNo = useMemo(() => {
     const m = new Map<number, number>()
-    for (const sd of openSessions) sd.lines.forEach((l, i) => m.set(l.id, i + 1))
+    // numeracja jak na kartce do liczenia (tylko pozycje spisu; kartoteki w tle bez numeru)
+    for (const sd of openSessions) sd.lines.filter(naSpisie).forEach((l, i) => m.set(l.id, i + 1))
     return m
   }, [openSessions])
 
@@ -503,8 +507,10 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
       {/* ── Aktywne sesje per magazyn ── */}
       {warehouses.map((wh) => {
         const sd = openSessions.find((s) => s.session.warehouse_id === wh.id)
-        const filledCount = sd?.lines.filter((l) => l.counted_qty != null).length ?? 0
-        const totalCount = sd?.lines.length ?? 0
+        const spis = sd ? sd.lines.filter(naSpisie) : []
+        const tlo = sd ? sd.lines.length - spis.length : 0
+        const filledCount = spis.filter((l) => l.counted_qty != null).length
+        const totalCount = spis.length
         const inSession = sd ? new Set(sd.lines.map((l) => l.component_id)) : null
         const addable = inSession ? activeComponentsSorted.filter((c) => !inSession.has(c.id)) : []
 
@@ -559,11 +565,13 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
                 <InventoryLinesFilters
                   lines={sd.lines}
                   view={viewOf(sd.session.id)}
+                  backgroundCount={tlo}
                   onChange={(patch) => patchView(sd.session.id, { ...patch, page: 0 })}
                 />
                 {(() => {
                   const v = viewOf(sd.session.id)
-                  const shown = sd.lines.filter((l) => {
+                  const base = v.showBackground ? sd.lines : spis
+                  const shown = base.filter((l) => {
                     if (v.onlyCounted) {
                       const p = parseCountInput(draftCounts[l.id] ?? '')
                       if (!p.ok || p.value == null || p.value <= 0) return false
@@ -589,11 +597,11 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
                         columns={lineColumns}
                         className="inventory-table"
                         emptyText={sd.lines.length === 0 ? 'Brak pozycji w spisie' : 'Brak pozycji dla wybranych filtrów'}
-                        rowClassName={(line) => (line.id === activeLineId ? 'inventory-row--active' : undefined)}
+                        rowClassName={(line) => [line.id === activeLineId ? 'inventory-row--active' : '', naSpisie(line) ? '' : 'inventory-row--background'].filter(Boolean).join(' ') || undefined}
                       />
                       <div className="inventory-pager">
                         <span className="muted">
-                          {shown.length === sd.lines.length ? `${shown.length} pozycji` : `${shown.length} z ${sd.lines.length} pozycji`}
+                          {shown.length === base.length ? `${shown.length} pozycji` : `${shown.length} z ${base.length} pozycji`}
                           {pageCount > 1 && ` · strona ${page + 1} z ${pageCount}`}
                           {' · Enter = następna pozycja'}
                         </span>
@@ -780,10 +788,13 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
 function InventoryLinesFilters({
   lines,
   view,
+  backgroundCount,
   onChange,
 }: {
   lines: InventoryLine[]
   view: LinesView
+  /** pozycje sesji z kartotek w tle (is_stocked = false, niepoliczone) — ukryte, dopóki nie włączysz filtra */
+  backgroundCount: number
   onChange: (patch: Partial<LinesView>) => void
 }) {
   const attrs = useMemo(
@@ -838,6 +849,12 @@ function InventoryLinesFilters({
         <input type="checkbox" checked={view.onlyCounted} onChange={(e) => onChange({ onlyCounted: e.target.checked })} />
         <span>Tylko z ilością &gt; 0</span>
       </label>
+      {backgroundCount > 0 && (
+        <label className="orders-filter-checkbox" title="Kartoteki „w tle” (towar na zamówienie, is_stocked = nie) — poza spisem; włącz, żeby je zobaczyć i ewentualnie policzyć">
+          <input type="checkbox" checked={view.showBackground} onChange={(e) => onChange({ showBackground: e.target.checked })} />
+          <span>Kartoteki w tle ({backgroundCount})</span>
+        </label>
+      )}
     </div>
   )
 }

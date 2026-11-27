@@ -5,7 +5,7 @@
 // =====================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabaseClient'
-import { groupItemsByType } from '../../lib/optimaRo'
+import { groupItemsByType, isKitPart } from '../../lib/optimaRo'
 import { groupPicks, pickKey, pickProgress, savePicks, type OrderPick } from '../../lib/orderPicks'
 import type { InternalDoorItem } from '../../types'
 
@@ -109,12 +109,17 @@ export default function MobileIntDoorPicking({ orderId, canEdit, initials }: Pro
           {g.items.map((it) => {
             const k = pickKey(it)
             const p = picks.get(k)
+            const kit = isKitPart(it)
             return (
-              <label key={k} className={`mpick-row${p ? ' mpick-row--done' : ''}${canEdit ? '' : ' mpick-row--ro'}`}>
+              <label key={k} className={`mpick-row${p ? ' mpick-row--done' : ''}${canEdit ? '' : ' mpick-row--ro'}${kit ? ' mpick-row--kit-part' : ''}`}>
                 <input type="checkbox" checked={Boolean(p)} disabled={!canEdit} onChange={(e) => void toggle([k], e.target.checked)} />
                 <span className="mpick-row-main">
-                  <span className="mpick-row-name">{it.optima_name || it.component_name || it.optima_code || 'Pozycja'}</span>
-                  {it.notes && <span className="mpick-row-notes">{it.notes}</span>}
+                  <span className="mpick-row-name">
+                    {kit && '↳ '}
+                    {it.optima_name || it.component_name || it.optima_code || 'Pozycja'}
+                    {kit && <span className="optima-kit-badge">część kompletu</span>}
+                  </span>
+                  {it.notes && !kit && <span className="mpick-row-notes">{it.notes}</span>}
                   {p && (
                     <span className="mpick-row-who">
                       ✓ {p.picked_initials ?? ''} {new Date(p.picked_at).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}

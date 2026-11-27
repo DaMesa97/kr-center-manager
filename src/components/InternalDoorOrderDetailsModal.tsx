@@ -11,6 +11,8 @@ import {
   cancelledReason,
   formatOptimaDateTime,
   groupItemsByType,
+  isKitPart,
+  kitCodeOf,
   isOptimaOrder,
   lowerFirst,
   optimaBaza,
@@ -103,6 +105,8 @@ function InternalDoorOrderDetailsModal({
 
   const componentById = useMemo(() => new Map(components.map((c) => [c.id, c])), [components])
   const groups = useMemo(() => groupItemsByType(items), [items])
+  // pozycje z RO rozbite na komplet (mają części) — komponent ustawia baza z optima_kit_parts, nie mapa kodów
+  const kitParents = useMemo(() => new Set(items.filter(isKitPart).map((it) => it.optima_element_id)), [items])
 
   // Stan magazynu wewnętrznego dla komponentów zlecenia + to, co już zeszło (WZ − ZWR)
   const [stockInfo, setStockInfo] = useState<{ stock: Map<number, number>; issued: Array<{ component_id: number; movement_type: string; quantity: number }> } | null>(null)
@@ -461,13 +465,23 @@ function InternalDoorOrderDetailsModal({
                         const sameName = !!compName && compName.trim() === String(item.optima_name ?? '').trim()
                         const sh = item.component_id != null ? shortages.get(item.component_id) : undefined
                         const st = item.component_id != null ? (stockInfo?.stock.get(item.component_id) ?? 0) : 0
+                        const kit = isKitPart(item)
+                        const zKompletu = kit || kitParents.has(item.optima_element_id)
                         return (
-                          <tr key={`${item.optima_element_id ?? item.id}`} className={[unmapped ? 'optima-item--unmapped' : '', picks?.has(pickKey(item)) ? 'int-door-item--picked' : ''].filter(Boolean).join(' ') || undefined}>
+                          <tr key={pickKey(item)} className={[unmapped ? 'optima-item--unmapped' : '', picks?.has(pickKey(item)) ? 'int-door-item--picked' : '', kit ? 'optima-item--kit-part' : ''].filter(Boolean).join(' ') || undefined}>
                             <td className="int-door-pick-col">{renderPick(item)}</td>
                             <td title={item.optima_group ? `Grupa w Optimie: ${item.optima_group}` : undefined}>
+                              {kit && <span className="optima-kit-arrow" aria-hidden>↳</span>}
                               <span className="optima-code">{item.optima_code || '—'}</span>
                             </td>
-                            <td className="optima-items-wrap">{item.optima_name || '—'}</td>
+                            <td className="optima-items-wrap">
+                              {item.optima_name || '—'}
+                              {kit && (
+                                <span className="optima-kit-badge" title={`Dopisane z rozbicia kompletu z Optimy: ${kitCodeOf(item) ?? ''}. Wydanie zdejmuje tę część osobno.`}>
+                                  część kompletu
+                                </span>
+                              )}
+                            </td>
                             <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                               {item.quantity} {item.unit || 'szt.'}
                             </td>
@@ -486,7 +500,7 @@ function InternalDoorOrderDetailsModal({
                                 <span className={sh && sh.toIssue > 0 ? 'optima-stock-ok' : 'muted'}>{st}</span>
                               )}
                             </td>
-                            <td className="optima-items-wrap optima-items-notes">{item.notes || '—'}</td>
+                            <td className="optima-items-wrap optima-items-notes">{kit ? <span className="muted">—</span> : item.notes || '—'}</td>
                             <td>
                               {unmapped ? (
                                 <div className="optima-item-link">
@@ -502,10 +516,13 @@ function InternalDoorOrderDetailsModal({
                                   <span className={sameName ? 'optima-stock-ok' : 'optima-items-wrap'} title={[compName, formatItemMeta(item)].filter(Boolean).join(' — ')}>
                                     {sameName ? '✓ powiązany' : compName || `#${item.component_id}`}
                                   </span>
-                                  {canMapCodes && item.optima_code && (
+                                  {canMapCodes && item.optima_code && !zKompletu && (
                                     <button type="button" className="btn btn-sm btn-ghost" onClick={() => setLinkItem(item)} title="Zmień powiązanie tego kodu (dla wszystkich pozycji z tym kodem)">
                                       zmień
                                     </button>
+                                  )}
+                                  {zKompletu && (
+                                    <span className="muted" title="Komplet z Optimy — części ustawia baza (tabela optima_kit_parts), nie mapa kodów">komplet</span>
                                   )}
                                 </div>
                               )}

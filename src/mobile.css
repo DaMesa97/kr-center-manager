@@ -775,5 +775,8 @@ html, body, #root {
 .mpick-row-name { font-size: 0.88rem; font-weight: 600; color: #1e293b; }
 .mpick-row--done .mpick-row-name { color: #94a3b8; text-decoration: line-through; }
 .mpick-row-notes { font-size: 0.75rem; color: #64748b; }
+.mpick-row--kit-part { margin-left: 18px; }
+.mpick-row--kit-part .mpick-row-name { font-weight: 500; }
+.optima-kit-badge { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 0.68rem; font-weight: 600; background: #e8eef9; color: #3b5b8f; white-space: nowrap; }
 .mpick-row-who { font-size: 0.7rem; color: #15803d; font-weight: 600; }
 .mpick-row-qty { font-size: 0.9rem; font-weight: 800; color: #1e293b; white-space: nowrap; }

@@ -59,19 +59,51 @@ export function qtyByUnit(items: Array<Pick<InternalDoorItem, 'quantity' | 'unit
   return [...byUnit].map(([u, n]) => `${n} ${u === 'szt' ? 'szt.' : u}`).join(' · ')
 }
 
-/** Pozycje w grupach wg typu, w stałej kolejności; nieznany typ na końcu jako „Pozostałe”. */
-export function groupItemsByType<T extends TypedItem>(items: T[]): Array<{ key: string; label: string; items: T[]; total: string }> {
+// ---------------------------------------------------------------------
+// Komplety z Optimy (27.11.2026): jeden kod RO = kilka części magazynu (tabela optima_kit_parts),
+// np. „MALEO 06 … Z SYSTEMEM PRZESUWNYM” = skrzydło przesuwne + SYSTEM PRZESUWNY. Rozbicie robią
+// triggery bazy na order_internal_door_items: pozycja z RO dostaje komponent pierwszej części, a każda
+// kolejna część to osobna pozycja z tym samym optima_element_id i notes „Część kompletu <kod>”.
+// Aplikacja niczego nie rozbija — tylko pokazuje część pod jej pozycją z RO.
+// ---------------------------------------------------------------------
+
+export const KIT_PART_PREFIX = 'Część kompletu '
+
+type KitItem = { notes?: string | null; optima_element_id?: number | null }
+
+/** Pozycja dopisana przez bazę jako dalsza część kompletu (nie ma jej w RO). */
+export function isKitPart(it: KitItem): boolean {
+  return it.optima_element_id != null && String(it.notes ?? '').startsWith(KIT_PART_PREFIX)
+}
+
+/** Kod kompletu, z którego jest część („MALEO 06 BIAŁY 80 Z SYSTEMEM PRZESUWNYM”). */
+export function kitCodeOf(it: KitItem): string | null {
+  return isKitPart(it) ? String(it.notes).slice(KIT_PART_PREFIX.length).trim() || null : null
+}
+
+/** Pozycje w grupach wg typu, w stałej kolejności; nieznany typ na końcu jako „Pozostałe”.
+ *  Części kompletu stoją zaraz pod swoją pozycją z RO (ten sam optima_element_id), w jej grupie, i nie liczą się
+ *  do sumy grupy (suma = to, co w RO). Część bez pozycji-rodzica zostaje w grupie swojego typu. */
+export function groupItemsByType<T extends TypedItem & Partial<KitItem>>(items: T[]): Array<{ key: string; label: string; items: T[]; total: string }> {
+  const parts = new Map<number, T[]>()
+  const parentIds = new Set(items.filter((it) => !isKitPart(it as KitItem) && it.optima_element_id != null).map((it) => it.optima_element_id as number))
   const by = new Map<string, T[]>()
   for (const it of items) {
+    if (isKitPart(it as KitItem) && parentIds.has(it.optima_element_id as number)) {
+      const eid = it.optima_element_id as number
+      parts.set(eid, [...(parts.get(eid) ?? []), it])
+      continue
+    }
     const k = itemTypeOf(it)
     by.set(k, [...(by.get(k) ?? []), it])
   }
+  const withParts = (list: T[]) => list.flatMap((it) => [it, ...(!isKitPart(it as KitItem) && it.optima_element_id != null ? parts.get(it.optima_element_id) ?? [] : [])])
   const known = ITEM_TYPE_GROUPS.filter((g) => by.has(g.key))
   const rest = [...by.keys()].filter((k) => !ITEM_TYPE_GROUPS.some((g) => g.key === k))
   return [
-    ...known.map((g) => ({ ...g, items: by.get(g.key)!, total: qtyByUnit(by.get(g.key)!) })),
+    ...known.map((g) => ({ ...g, items: withParts(by.get(g.key)!), total: qtyByUnit(by.get(g.key)!) })),
     ...(rest.length
-      ? [{ key: 'other', label: 'Pozostałe', items: rest.flatMap((k) => by.get(k)!), total: qtyByUnit(rest.flatMap((k) => by.get(k)!)) }]
+      ? [{ key: 'other', label: 'Pozostałe', items: withParts(rest.flatMap((k) => by.get(k)!)), total: qtyByUnit(rest.flatMap((k) => by.get(k)!)) }]
       : []),
   ]
 }

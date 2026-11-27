@@ -3,7 +3,8 @@ import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import { componentLabel } from '../lib/componentLabel'
-import { OPTIMA_READONLY_HINT, isOptimaOrder, lowerFirst } from '../lib/optimaRo'
+import { OPTIMA_READONLY_HINT, isKitPart, isOptimaOrder, lowerFirst } from '../lib/optimaRo'
+import { pickKey } from '../lib/orderPicks'
 import type { Order, WarehouseComponent, InternalDoorItem, ToastVariant } from '../types'
 
 type Mode = 'create' | 'edit'
@@ -404,9 +405,11 @@ function InternalDoorOrderModal({
             <h3 style={{ marginTop: 20, marginBottom: 8 }}>Pozycje (z Optimy)</h3>
             <ul className="optima-items-readonly">
               {(initialItems ?? []).map((it) => (
-                <li key={`${it.optima_element_id ?? it.id}`}>
+                <li key={pickKey(it)} className={isKitPart(it) ? 'optima-item--kit-part' : undefined}>
+                  {isKitPart(it) && <span className="optima-kit-arrow" aria-hidden>↳</span>}
                   <span className="optima-code">{it.optima_code || '—'}</span> {it.optima_name || it.component_name || '—'} —{' '}
                   {it.quantity} {it.unit || 'szt.'}
+                  {isKitPart(it) && <span className="optima-kit-badge">część kompletu</span>}
                   {it.component_id == null && <span className="optima-unmapped-badge" style={{ marginLeft: 6 }}>⚠ brak komponentu</span>}
                 </li>
               ))}
