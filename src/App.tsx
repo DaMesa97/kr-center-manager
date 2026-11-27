@@ -1775,12 +1775,15 @@ function App() {
   // otwarte, nieanulowane, ościeżnica z flagą partii, jeszcze bez partii (niezależnie od filtrów tabeli)
   // 27.11 (testy): lista ma tylko niewydane, a partia może mieć zlecenia już wydane — dociągamy je po id
   const [bastionBatchExtra, setBastionBatchExtra] = useState<Order[]>([])
+  // id już raz pobierane (także nieznalezione, np. w archiwum) — bez ponawiania przy każdej zmianie listy z realtime
+  const bastionProbowaneRef = useRef<Set<number>>(new Set())
   useEffect(() => {
     if (activeTab !== 'Bastion') return
     const have = new Set(orders.map((o) => o.id))
     const extraHave = new Set(bastionBatchExtra.map((o) => o.id))
-    const missing = [...new Set(bastionBatches.batches.flatMap((b) => b.order_ids))].filter((id) => !have.has(id) && !extraHave.has(id))
+    const missing = [...new Set(bastionBatches.batches.flatMap((b) => b.order_ids))].filter((id) => !have.has(id) && !extraHave.has(id) && !bastionProbowaneRef.current.has(id))
     if (missing.length === 0) return
+    for (const id of missing) bastionProbowaneRef.current.add(id)
     let cancelled = false
     void (async () => {
       const found: Order[] = []
@@ -3903,7 +3906,8 @@ function App() {
                   <span className="orders-count-bar--filtering">Filtrowanie…</span>
                 ) : (() => {
                   // 27.11 (testy): „niewydanych” = bez daty wydania i bez anulowanych (RO anulowane w Optimie to 279 z 611)
-                  const ile = hideCompletedOrders ? orders.filter((o) => isReleaseDateEmpty(o.release_date) && !isOrderCancelled(o)).length : orders.length
+                  // recenzent (2. seria): anulowane odejmujemy tylko, gdy lista ich nie pokazuje (inaczej „600 z 330”)
+                  const ile = hideCompletedOrders ? orders.filter((o) => isReleaseDateEmpty(o.release_date) && (showCancelledOrders || !isOrderCancelled(o))).length : orders.length
                   return filteredOrders.length === ile
                     ? <span>{hideCompletedOrders ? 'Niewydanych zleceń' : 'Zamówień'}: <strong>{ile}</strong></span>
                     : <span>Wyświetlane: <strong>{filteredOrders.length}</strong> z <strong>{ile}</strong>{hideCompletedOrders ? ' niewydanych' : ''}</span>
