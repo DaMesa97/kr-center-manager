@@ -2,6 +2,9 @@
 -- pozycje zdjęte przy wydaniu końcowym i przywracał rezerwacje do 'reserved' — zlecenie zostaje wydane, więc tych
 -- rezerwacji nic już nie zdejmie (łamie ARCHITEKTURA 11.13). Teraz cofnięcie etapu na wydanym zleceniu jest
 -- odrzucane z czytelnym komunikatem: najpierw cofnij wydanie (wyczyść datę wydania), potem etap.
+-- Poprawka (testy 27.11, runda 3; NISKI): ta sama blokada w public.return_stock_for_stage (EXECUTE dla authenticated —
+-- dało się nią obejść revert_order_stage). Nic w bazie ani w aplikacji nie woła tej nakładki (sprawdzone 27.11;
+-- return_remaining_for_order i inne wołają bezpośrednio return_stock_for_stage__impl), więc blokada niczego nie psuje.
 -- DO WDROŻENIA (nie wgrane w sesji).
 create or replace function public.revert_order_stage(p_order_id bigint, p_stage_key text)
  returns table(r_component_id bigint, r_component_name text, r_component_code text, r_quantity numeric, r_warehouse_code text)
@@ -32,5 +35,27 @@ begin
   update orders
   set production_stages = coalesce(production_stages, '{}'::jsonb) || jsonb_build_object(p_stage_key, '')
   where id = p_order_id;
+end;
+$function$;
+
+create or replace function public.return_stock_for_stage(p_order_id bigint, p_stage_key text)
+ returns table(r_component_id bigint, r_component_name text, r_component_code text, r_quantity numeric, r_warehouse_code text)
+ language plpgsql
+ security definer
+ set search_path to 'public'
+as $function$
+declare
+  v_wydane text;
+begin
+  if not public.can_write_order_stage(p_order_id) then
+    raise exception 'Brak uprawnień do cofania etapów tego zlecenia';
+  end if;
+  -- testy 27.11 (runda 3): na wydanym zleceniu najpierw cofnij wydanie
+  select nullif(trim(coalesce(release_date::text, '')), '') into v_wydane from orders where id = p_order_id;
+  if v_wydane is not null then
+    raise exception 'Zlecenie jest już wydane (%) — najpierw cofnij wydanie, potem etap (inaczej towar wróci na stan, a rezerwacja zostanie na zawsze).', v_wydane
+      using errcode = 'P0409';
+  end if;
+  return query select * from public.return_stock_for_stage__impl(p_order_id, p_stage_key);
 end;
 $function$;
