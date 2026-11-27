@@ -370,6 +370,8 @@ export const CRM_ZRODLO_LABEL: Record<string, string> = {
 export const CRM_SYSTEM_ERROR_PREFIX = 'BŁĄD systemu'
 /** 24.11: sprawdz[0] oferty, której system nie dobrał produktu (crm-oferta BRAK_DOBORU_TEKST; starsze oferty: „System nie znalazł w sklepie…”) */
 export const CRM_BRAK_DOBORU_PREFIXES = ['System nie dobrał produktu', 'System nie znalazł w sklepie'] as const
+/** 27.11: sprawdz[0] oferty oficjalnej zatrzymanej bez cen (crm-oferta-pdf BRAK_CEN_PREFIX) — PDF i mail nie powstały */
+export const CRM_BRAK_CEN_PREFIX = 'BRAK CEN:'
 /** Follow-up po wysłaniu oferty: termin = dziś + tyle dni (pilot: ustawia frontend) */
 export const CRM_FOLLOW_UP_DAYS = 3
 

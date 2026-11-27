@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { brakDoboruOferty, etykietaUstalenia, krokOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../lib/crmOferta'
+import { brakCenOferty, brakCenOpis, brakDoboruOferty, etykietaUstalenia, krokOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../lib/crmOferta'
 
 describe('crmOferta — krok oferty', () => {
   it('status → krok i podświetlony etap', () => {
@@ -83,5 +83,21 @@ describe('wersjeOferty', () => {
     const c = { id: 'c', poprzednia_id: 'zniknal' }
     expect(wersjeOferty([a, b, c], c).map((w) => w.id)).toEqual(['c'])
     expect(wersjeOferty([a, b, c], a).length).toBeGreaterThan(0)
+  })
+})
+
+describe('crmOferta — oferta z montażem bez cen (27.11)', () => {
+  const o = { status: 'do_sprawdzenia', rodzaj: 'oficjalna', sprawdz: ['BRAK CEN: 2 pozycje nie mają ceny: „Verona 02”, „OR-2”. PDF i mail nie powstały.', 'VAT 23%'] }
+  it('rozpoznaje ofertę zatrzymaną i daje krok „ceny”', () => {
+    expect(brakCenOferty(o)).toBe(true)
+    expect(krokOferty('do_sprawdzenia', { brakCen: true })).toEqual({ krok: 'ceny', idx: 1 })
+    expect(brakCenOpis(o.sprawdz as string[])).toBe('2 pozycje nie mają ceny: „Verona 02”, „OR-2”. PDF i mail nie powstały.')
+  })
+  it('nie myli z innymi stanami', () => {
+    expect(brakCenOferty({ ...o, rodzaj: 'sklep' })).toBe(false)
+    expect(brakCenOferty({ ...o, status: 'przelicz' })).toBe(false)
+    expect(brakCenOferty({ ...o, sprawdz: ['VAT 23%'] })).toBe(false)
+    expect(krokOferty('przelicz', { brakCen: true })).toEqual({ krok: 'liczenie', idx: 1 })
+    expect(krokOferty('do_sprawdzenia', { brakCen: true, sysErr: true })).toEqual({ krok: 'blad', idx: 1 })
   })
 })

@@ -3,10 +3,11 @@
  * i ustalenia z analizy po polsku — tylko wypełnione pola.
  */
 
-import { CRM_BRAK_DOBORU_PREFIXES } from '../types/crm'
+import { CRM_BRAK_CEN_PREFIX, CRM_BRAK_DOBORU_PREFIXES } from '../types/crm'
 
 /** 'dobor' (24.11): system nie dobrał produktu i zadał pytania — handlowiec odpowiada, oferta liczy się od nowa */
-export type KrokOferty = 'ustalenia' | 'liczenie' | 'dobor' | 'blad' | 'wysylka' | 'decyzja' | 'koniec' | 'stara'
+/** 'ceny' (27.11): oferta z montażem zatrzymana, bo pozycje nie mają cen — PDF i mail nie powstały, handlowiec wpisuje ceny w poprawce */
+export type KrokOferty = 'ustalenia' | 'liczenie' | 'dobor' | 'ceny' | 'blad' | 'wysylka' | 'decyzja' | 'koniec' | 'stara'
 
 export const KROKI_OFERTY: Array<{ key: string; nazwa: string; opis: string }> = [
   { key: 'ustalenia', nazwa: 'Ustalenia', opis: 'sprawdź, czego chce klient' },
@@ -16,15 +17,29 @@ export const KROKI_OFERTY: Array<{ key: string; nazwa: string; opis: string }> =
 ]
 
 /** Na którym kroku jest oferta i który z 4 kroków podświetlić (-1 = stara wersja, bez kroków). */
-export function krokOferty(status: string | null | undefined, f: { sysErr?: boolean; pending?: boolean; brakDoboru?: boolean }): { krok: KrokOferty; idx: number } {
+export function krokOferty(status: string | null | undefined, f: { sysErr?: boolean; pending?: boolean; brakDoboru?: boolean; brakCen?: boolean }): { krok: KrokOferty; idx: number } {
   if (status === 'robocza') return { krok: 'stara', idx: -1 }
   if (status === 'wstrzymana') return { krok: 'ustalenia', idx: 0 }
   if (f.sysErr) return { krok: 'blad', idx: 1 }
   if (f.brakDoboru) return { krok: 'dobor', idx: 1 }
+  if (f.brakCen && status === 'do_sprawdzenia') return { krok: 'ceny', idx: 1 }
   if (f.pending || status === 'przelicz') return { krok: 'liczenie', idx: 1 }
   if (status === 'wyslana') return { krok: 'decyzja', idx: 3 }
   if (status === 'zaakceptowana' || status === 'odrzucona') return { krok: 'koniec', idx: 3 }
   return { krok: 'wysylka', idx: 2 }
+}
+
+/** Oferta z montażem zatrzymana bez cen: crm-oferta-pdf nie zrobił PDF-a ani maila, w sprawdz[0] jest „BRAK CEN: …”. */
+export function brakCenOferty(o: { status?: string | null; rodzaj?: string | null; sprawdz?: unknown[] | null }): boolean {
+  if (o.status !== 'do_sprawdzenia' || o.rodzaj !== 'oficjalna') return false
+  const pierwsze = Array.isArray(o.sprawdz) && typeof o.sprawdz[0] === 'string' ? o.sprawdz[0] : ''
+  return pierwsze.startsWith(CRM_BRAK_CEN_PREFIX)
+}
+
+/** Treść komunikatu „BRAK CEN: …” bez prefiksu (do paska „Co teraz”). */
+export function brakCenOpis(sprawdz: string[]): string {
+  const s = sprawdz[0] ?? ''
+  return s.startsWith(CRM_BRAK_CEN_PREFIX) ? s.slice(CRM_BRAK_CEN_PREFIX.length).trim() : s
 }
 
 const ETYKIETY: Record<string, string> = {

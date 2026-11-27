@@ -98,7 +98,7 @@ import CrmZamowieniaScreen from './CrmZamowieniaScreen'
 import CrmKorespondencja from './CrmKorespondencja'
 import { ZADANIE_RODZAJE, zadaniePoCo, zadanieRodzaj, zadanieTytul, type ZadanieRodzaj } from '../../lib/crmZadania'
 import { ileOdm } from '../../utils/odmiana'
-import { KROKI_OFERTY, brakDoboruOferty, krokOferty, pytaniaOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../../lib/crmOferta'
+import { KROKI_OFERTY, brakCenOferty, brakCenOpis, brakDoboruOferty, krokOferty, pytaniaOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../../lib/crmOferta'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
@@ -953,7 +953,9 @@ function OfertaScreen({
   // pkt 28: pozycje oferty sklepowej (null = stara oferta, jedna pozycja z product_id/wybory)
   const pozycjeSklep = (Array.isArray(oferta.pozycje) ? oferta.pozycje : []) as CrmOfertaPozycja[]
   const sysErr = isSystemError(sprawdz)
-  const canSend = oferta.status === 'do_sprawdzenia' && !sysErr
+  // 27.11: oferta z montażem bez cen — nie ma PDF-a ani maila, wysłać się nie da
+  const brakCen = brakCenOferty(oferta)
+  const canSend = oferta.status === 'do_sprawdzenia' && !sysErr && !brakCen
   const leadZamkniety = oferta.lead?.status === 'wygrany' || oferta.lead?.status === 'przegrany'
   const handleWynikOferty = async (wynik: 'wygrany' | 'przegrany', opts: { powod?: string; notatka?: string } = {}) => {
     if (!oferta.lead_id) return
@@ -989,7 +991,7 @@ function OfertaScreen({
   const domyslne = asStrings(dobor.domyslne)
   const linkValid = oferta.link_wazny_do ? new Date(oferta.link_wazny_do).getTime() > Date.now() : null
   // ---- oferta v2: krok i pasek „Teraz” ----
-  const { krok, idx: krokIdx } = krokOferty(oferta.status, { sysErr, pending, brakDoboru })
+  const { krok, idx: krokIdx } = krokOferty(oferta.status, { sysErr, pending, brakDoboru, brakCen })
   const ustalenia = ustaleniaLista(analiza.dane && typeof analiza.dane === 'object' ? (analiza.dane as Record<string, unknown>) : null)
   const brakuje = Array.isArray(analiza.brakuje) ? (analiza.brakuje as unknown[]).map(String).filter(Boolean) : []
   const lancuch = wersjeOferty(wersje, oferta)
@@ -1046,6 +1048,13 @@ function OfertaScreen({
             tytul: 'System nie dobrał produktu — odpowiedz na pytania',
             opis: <>{sprawdz[1] ?? oferta.uwagi ?? 'Zabrakło danych do doboru.'} Odpowiedz niżej na pytania systemu (albo zadzwoń do klienta i dopytaj) — oferta policzy się od nowa od razu po zapisaniu.</>,
             akcje: <button type="button" className="btn btn-primary" onClick={() => document.querySelector('.crm-o2-pytania')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>Przejdź do pytań</button>,
+          }
+      : krok === 'ceny'
+        ? {
+            klasa: 'crm-k2-krok crm-k2-krok--late',
+            tytul: 'Brakuje cen — PDF i mail nie powstały',
+            opis: <>{brakCenOpis(sprawdz)}</>,
+            akcje: <button type="button" className="btn btn-primary" disabled={saving} onClick={otworzPoprawke}>Wpisz ceny</button>,
           }
       : krok === 'liczenie'
         ? {
@@ -1304,7 +1313,7 @@ function OfertaScreen({
             <p className="crm-check-clean">{oficjalna ? 'Pozycje przepisane z konfiguracji bez wątpliwości — sprawdź PDF i wyślij.' : 'Konfiguracja w całości z rozmowy — przeczytaj mail raz i wyślij.'}</p>
           ) : (
             <ol className="crm-check-list">
-              {sprawdz.map((s, i) => (
+              {(brakCen ? sprawdz.slice(1) : sprawdz).map((s, i) => (
                 <li key={i}>{s}</li>
               ))}
             </ol>
