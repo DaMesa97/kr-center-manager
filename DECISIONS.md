@@ -69,6 +69,7 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Problem**: zgłoszone w nocy — oferta z Bastion P-110 kończy się „nie jest na liście kandydatów”. Przyczyna: prefiltr znał tylko Bastiony A-/B- i ignorował ID produktu w tekście. Poprawione w repo (f1cb07b, test), funkcja na serwerze nadal v29.
 - **Opcje**: (a) wdrożyć `supabase/functions/crm-oferta` (6 plików, z repo) i w tej ofercie „Policz od nowa”; (b) do czasu wdrożenia — wycena ręczna.
 - **Rekomendacja**: (a) od razu rano. Zmiana dotyczy tylko wyboru kandydatów (lista dla AI), nie cen ani PDF.
+- **Przy okazji do wdrożenia (te same zasady, niepilne)**: `optima-ro-import` (cab1bcf — ręczne wydanie nie znika po anulowaniu i przywróceniu RO w Optimie) oraz pozostałe funkcje Edge z listy w TESTING_LOG.
 - **Pilność**: pilne · **Praca**: mały
 
 ### D42. Excel zdejmuje z magazynu drugi raz towar wydany przed spisem 6.11

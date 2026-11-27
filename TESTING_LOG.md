@@ -300,7 +300,7 @@ Tryb nocny: branch `night-testing-2026-11-27`, warunek stopu wyłączony.
 - WYSOKI — zdjęcie „nie dotyczy” na anulowanym zleceniu zakłada rezerwacje (poprawka 234400 dotyczy tylko wydanych) → w toku (tor bazy r6).
 - ŚREDNI — synchronizacja reklamacji cofa „Cofnij realizację” i cofnięcie etapu → rozszerzone D22.
 - ŚREDNI — „Anuluj” działa na wydanym zleceniu i przechodzi na wydanego partnera → **D43**.
-- ŚREDNI — `optima-ro-import`: RO anulowane i przywrócone w Optimie kasuje ręczne wydanie → w toku (poprawka w repo).
+- ŚREDNI — `optima-ro-import`: RO anulowane i przywrócone w Optimie kasowało ręczne wydanie → **poprawione** cab1bcf (osobny znacznik `cancelled_by_import`, test na prawdziwej funkcji z pliku Edge; źródło v13 pobrane do repo 412e87a; niewgrane). Dziś 279 zleceń anulowanych importem ma stary znacznik, żadne z datą wydania — bez skutków.
 - ŚREDNI — archiwizacja zrywa powiązania (pary, reklamacje, partie) → rozszerzone D26.
 - NISKI — 5 nóg Disting z rezerwacjami przy anulowanym STA → **D44**.
 - Dobrze: `reserved_quantity` = suma aktywnych rezerwacji na wszystkich 872 półkach; brak rezerwacji na wydanych / anulowanych; kaskada anulowania Titana spójna; strefa czasowa bez problemu w praktyce.
