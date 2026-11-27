@@ -460,13 +460,23 @@ async function przetworzMail(db: SupabaseClient, body: Mail, zrodlo: Zrodlo): Pr
   const od = String(body.od ?? '').trim().toLowerCase() || null
   if (!adresy.length) return { ok: true, pominieto: 'brak adresata spoza własnych skrzynek' }
 
+  // runda 7 (recenzent): duplikat liczony per adres — mail do A i B, gdzie B się nie udało: ponowienie trafiało na zdarzenie A,
+  // uznawało cały mail za zrobiony i B nigdy nie był dopasowany. Zdarzenia mają teraz `dane.adres`; stare zdarzenia
+  // (bez adresu) = jak dotąd: cały mail już przetworzony.
+  const zrobione = new Set<string>()
   if (messageId) {
-    const { data: juz } = await db.from('zdarzenia').select('id').in('typ', ['wyslano', 'mail_wyslany']).eq('dane->>message_id', messageId).limit(1)
-    if (juz?.length) return { ok: true, duplikat: true }
+    const { data: juz } = await db.from('zdarzenia').select('dane').in('typ', ['wyslano', 'mail_wyslany']).eq('dane->>message_id', messageId).limit(50)
+    for (const z of juz ?? []) {
+      const a = String((z as { dane?: Record<string, unknown> | null }).dane?.adres ?? '').toLowerCase()
+      if (!a) return { ok: true, duplikat: true }
+      zrobione.add(a)
+    }
+    if (zrobione.size && adresy.every((a) => zrobione.has(a.toLowerCase()))) return { ok: true, duplikat: true }
   }
 
   const wyniki: Dopasowanie[] = []
   for (const adres of adresy) {
+    if (zrobione.has(adres.toLowerCase())) { wyniki.push({ adres, pominieto: 'już dopasowany w poprzednim przebiegu' }); continue }
     try {
       wyniki.push(await dopasuj(db, adres, temat, data, messageId, od, zrodlo, body.oferta === true))
     } catch (e) {
@@ -477,7 +487,7 @@ async function przetworzMail(db: SupabaseClient, body: Mail, zrodlo: Zrodlo): Pr
 }
 
 async function dopasuj(db: SupabaseClient, adres: string, temat: string, data: Date, messageId: string | null, od: string | null, zrodlo: Zrodlo, jestOferta = false): Promise<Dopasowanie> {
-  const dane = { zrodlo: 'imap', message_id: messageId, od, temat, data: data.toISOString(), mail_id: zrodlo?.mail_id ?? null, skrzynka_id: zrodlo?.skrzynka.id ?? null }
+  const dane = { zrodlo: 'imap', message_id: messageId, adres: adres.toLowerCase(), od, temat, data: data.toISOString(), mail_id: zrodlo?.mail_id ?? null, skrzynka_id: zrodlo?.skrzynka.id ?? null }
   const okno = { od: new Date(data.getTime() - 30 * 86400_000).toISOString(), do: new Date(data.getTime() + 10 * 60_000).toISOString() }
   const { data: wszystkie } = await db.from('oferty').select('id, lead_id, wersja, mail_temat, created_at, handlowiec, rodzaj, brutto, cena_razem, plik_pdf, sprawdz')
     .ilike('mail_do', adres).eq('status', 'do_sprawdzenia').gte('created_at', okno.od).lte('created_at', okno.do)
