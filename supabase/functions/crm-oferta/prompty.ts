@@ -295,6 +295,11 @@ export function promptPoprawki(pozycje: PozycjaPoprawki[], kand: Kandydat[], pop
   return { system, user }
 }
 
+/** Wzory modeli Bastion w nazwach produktów i w rozmowie: A-104, P-110, N-201, T-…, L-01, LUX-401, STD-01 (myślnik opcjonalny). */
+const BASTION_WZOR = /\b(lux|std|[abnptl])-?(\d{2,3})\b/
+/** Numer produktu wpisany wprost przez handlowca: „ID 48895”, „#48895”, „id: 48895”, link z „?p=48895” / „product_id=48895”. */
+const ID_PRODUKTU = /(?:#|\bid\b[:.\s]*|[?&](?:p|post|product_id|add-to-cart)=)(\d{3,6})\b/gi
+
 /** Wzór drzwi z nazwy produktu: „otto 49”, „libre 31”, „otto 42b”, „g-05” (Titan), „a-104” (Bastion); null, gdy nazwa nie ma wzoru. */
 export function wzorProduktu(nazwa: string): string | null {
   const n = String(nazwa ?? '').toLowerCase()
@@ -303,7 +308,9 @@ export function wzorProduktu(nazwa: string): string | null {
   if (m) return `${m[1]} ${m[2]}${m[3]}`
   const g = n.match(/\bg-?(\d{2})\b/)
   if (g) return `g-${g[1]}`
-  const b = n.match(/\b([ab])-?(\d{3})\b/)
+  // 28.11 (Tymek: „wysłałem nazwę, link i ID, a on nadal nie umie wycenić Bastion P-110”): w cenniku są Bastiony A-, B-, N-, P-, T-
+  // (3 cyfry), L- (2 cyfry), LUX- i STD- — dotąd rozpoznawane były tylko A/B
+  const b = n.match(BASTION_WZOR)
   return b ? `${b[1]}-${b[2]}` : null
 }
 
@@ -369,7 +376,7 @@ export function kandydaci(produkty: Kandydat[], analiza: Analiza, limit = 8): Ka
   else if (linie.includes('alu extra')) linie = linie.filter((l) => l !== 'systemie alu')
   const model = String(d.model ?? '').toLowerCase()
   // wzory: Otto/Libre NN(litera), Titan G-NN, Bastion A-NNN / B-NNN (z myślnikiem lub bez) – wszystkie wystąpienia w modelu i tekście
-  const re = /\b(otto|libre)\s*(\d+)\s*([a-z]?)\b|\b(g)-?(\d{2})\b|\b([ab])-?(\d{3})\b/g
+  const re = new RegExp(`\\b(otto|libre)\\s*(\\d+)\\s*([a-z]?)\\b|\\b(g)-?(\\d{2})\\b|${BASTION_WZOR.source}`, 'g')
   const modele: { wz: string; nr: string; lit: string }[] = []
   for (const src of [model, tekst]) for (const mm of src.matchAll(re)) {
     const wz = (mm[1] ?? mm[4] ?? mm[6]) as string, nr = (mm[2] ?? mm[5] ?? mm[7]) as string, lit = mm[3] ?? ''
@@ -379,6 +386,8 @@ export function kandydaci(produkty: Kandydat[], analiza: Analiza, limit = 8): Ka
   const pochwyt = tekst.includes('pochwyt')
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const wyniki: [number, Kandydat][] = []
+  // 28.11: produkt wskazany numerem (ID z linku / z panelu sklepu) — zawsze na liście, na pierwszym miejscu
+  const wskazaneId = new Set([...tekst.matchAll(ID_PRODUKTU)].map((m) => Number(m[1])))
   // dokładne trafienie wzoru (indeks w `modele`) — do gwarancji miejsc na liście przy kilku wzorach w jednej ofercie
   const trafienie = new Map<number, number>()
   for (const p of produkty) {
@@ -393,7 +402,7 @@ export function kandydaci(produkty: Kandydat[], analiza: Analiza, limit = 8): Ka
     s += sLinia
     let sModel = 0
     for (const [mi, { wz, nr, lit }] of modele.entries()) {
-      const sep = wz.length === 1 ? '-?' : '\\s*'
+      const sep = wz === 'otto' || wz === 'libre' ? '\\s*' : '-?'
       if (new RegExp(`\\b${esc(wz)}${sep}${nr}${esc(lit)}\\b`).test(n)) { sModel = Math.max(sModel, 6); if (!trafienie.has(p.id)) trafienie.set(p.id, mi) }
       else if (new RegExp(`\\b${esc(wz)}${sep}${nr}\\w*`).test(n)) sModel = Math.max(sModel, 3)
       else if (wz.length > 1 && n.includes(wz)) sModel = Math.max(sModel, 1)
@@ -403,6 +412,7 @@ export function kandydaci(produkty: Kandydat[], analiza: Analiza, limit = 8): Ka
     else if (wariant.includes('gold') || wariant.includes('złot')) s += n.includes('gold') ? 2 : -1
     else if (wariant) s += (!n.includes('noir') && !n.includes('gold')) ? 1 : -1
     if (pochwyt !== n.includes('pochwyt')) s -= 2
+    if (wskazaneId.has(p.id)) s += 20
     if (s > 0) wyniki.push([s, p])
   }
   wyniki.sort((a, b) => b[0] - a[0] || a[1].id - b[1].id)
