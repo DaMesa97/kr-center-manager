@@ -910,18 +910,19 @@ function OfertaScreen({
   const handleWyslane = async () => {
     if (!oferta || !currentUser) return
     const ok = await appConfirm(
-      `Potwierdzić, że oferta v${oferta.wersja} dla ${leadName(oferta.lead)} została wysłana z Twojej poczty? Zniknie z listy do zrobienia, a za 3 dni pojawi się zadanie follow-up.`,
+      `Potwierdzić, że oferta v${oferta.wersja} dla ${leadName(oferta.lead)} została wysłana z Twojej poczty? Zniknie z listy do zrobienia, a za 3 dni pojawi się zadanie follow-up (chyba że klient ma już umówiony pomiar, montaż albo zamówił).`,
       { title: 'Wysłane', confirmLabel: 'Tak, wysłane' },
     )
     if (!ok) return
     setSaving(true)
-    const { error: err, bezFollowUpu } = await markOfertaWyslana(oferta, currentUser.id)
+    const { error: err, bezFollowUpu, zadanieBezZmian } = await markOfertaWyslana(oferta, currentUser.id)
     setSaving(false)
     if (err) {
       pushToast(`Nie udało się oznaczyć: ${err.message}`, 'error')
       return
     }
     if (bezFollowUpu) pushToast(`Oferta oznaczona jako wysłana, ale zadanie follow-up się nie zapisało (${bezFollowUpu}) — ustaw je ręcznie na karcie klienta`, 'error')
+    else if (zadanieBezZmian) pushToast('Oferta oznaczona jako wysłana — zadanie klienta (np. pomiar, montaż) zostaje bez zmian', 'success')
     else pushToast('Oferta oznaczona jako wysłana — follow-up za 3 dni', 'success')
     await load(true)
   }

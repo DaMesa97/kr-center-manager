@@ -140,7 +140,7 @@ const isoDatePlusDays = (days: number): string => {
  * Pilot (brief pkt 6): frontend czyści akcję na leadzie i ustawia follow_up za 3 dni.
  */
 /** error = status oferty się nie zmienił; bezFollowUpu = oferta wysłana, ale zadanie follow-up nie zapisało się (zwiad 21.11 — wcześniej tylko console.warn, a toast obiecywał follow-up) */
-export async function markOfertaWyslana(oferta: CrmOferta, userId: string): Promise<{ error: CrmError | null; bezFollowUpu?: string }> {
+export async function markOfertaWyslana(oferta: CrmOferta, userId: string): Promise<{ error: CrmError | null; bezFollowUpu?: string; zadanieBezZmian?: boolean }> {
   const { error } = await crm()
     .from('oferty')
     .update({ status: 'wyslana', wyslano_at: new Date().toISOString(), sprawdzil: userId })
@@ -157,7 +157,7 @@ export async function markOfertaWyslana(oferta: CrmOferta, userId: string): Prom
   if (zErr) console.warn('crm.zdarzenia wyslano:', zErr.message)
   if (oferta.lead_id) {
     const cena = oferta.cena_razem != null ? ` (${Math.round(Number(oferta.cena_razem))} zł)` : ''
-    const { error: lErr } = await crm()
+    const { data: lRows, error: lErr } = await crm()
       .from('leady')
       .update({
         nastepna_akcja: 'follow_up',
@@ -170,10 +170,13 @@ export async function markOfertaWyslana(oferta: CrmOferta, userId: string): Prom
       // o decyzję” klientowi, który już zamówił — te same warunki co trigger crm.po_wyslaniu_oferty, plus nie dla wygranego
       .or('nastepna_akcja.is.null,nastepna_akcja.in.(przygotuj_oferte,follow_up,dopytaj)')
       .neq('status', 'wygrany')
+      .select('id')
     if (lErr) {
       console.warn('crm.leady follow_up:', lErr.message)
       return { error: null, bezFollowUpu: lErr.message }
     }
+    // runda 5: warunek nie objął klienta (umówiony pomiar / montaż / reklamacja albo „Zamówił”) — mówimy to wprost
+    if (!lRows || lRows.length === 0) return { error: null, zadanieBezZmian: true }
   }
   return { error: null }
 }
