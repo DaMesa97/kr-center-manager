@@ -245,7 +245,14 @@ export default function PurchaseOrderDetailsModal({
       pushToast(`Błąd: ${error.message}`, 'error')
       return
     }
-    pushToast('Zamówienie anulowane', 'success')
+    // recenzent (runda 3): po częściowym przyjęciu ZD zamyka się jako „completed” (przyjęte zostaje), a toast mówił „anulowane”
+    const { data: po } = await supabase.from('purchase_orders').select('status').eq('id', purchaseOrder.id).maybeSingle()
+    pushToast(
+      (po as { status?: string } | null)?.status === 'completed'
+        ? 'Zamówienie zamknięte — przyjęta część zostaje, reszta pozycji anulowana'
+        : 'Zamówienie anulowane',
+      'success',
+    )
     onAfterAction()
   }
 
