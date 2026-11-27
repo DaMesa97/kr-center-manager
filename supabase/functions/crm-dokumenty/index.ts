@@ -134,10 +134,17 @@ async function dokument(db: SupabaseClient, body: Record<string, unknown>, userI
     const brakiKlienta = [!klientNazwa && 'imię i nazwisko', !s('klient_adres') && 'adres klienta', !email && 'e-mail (do Autenti)', !telefon && 'telefon'].filter(Boolean)
     if (brakiKlienta.length) throw new BladWejscia('Brakuje: ' + brakiKlienta.join(', '))
     let istniejacy: { numer: string | null } | null = null
-    if (dokId) { const { data } = await db.from('dokumenty').select('numer').eq('id', dokId).eq('rodzaj', 'umowa').maybeSingle(); istniejacy = data }
-    // druga umowa z tej samej oferty: ten sam numer (jedna sprzedaż = jeden numer), zamiast nowego z licznika
+    if (dokId) {
+      const { data } = await db.from('dokumenty').select('numer, status').eq('id', dokId).eq('rodzaj', 'umowa').maybeSingle()
+      // testy 27.11 (runda 3): podpisanej ani anulowanej umowy nie generujemy ponownie (aplikacja też chowa wtedy „generuj ponownie”)
+      if (data?.status === 'podpisana' || data?.status === 'anulowana') throw new BladWejscia(`Umowa nr ${data.numer ?? '?'} jest ${data.status} — nie generuję jej ponownie; przygotuj nową umowę`)
+      istniejacy = data
+    }
+    // druga umowa z tej samej oferty: ten sam numer (jedna sprzedaż = jeden numer), zamiast nowego z licznika.
+    // testy 27.11 (runda 3): numer bierzemy tylko z umowy tej oferty w statusie „projekt” — wysłana/podpisana/anulowana
+    // zostaje nietknięta, a nowa umowa dostaje nowy numer z licznika (numer anulowanej nie wraca do użycia)
     if (!istniejacy?.numer && !s('numer')) {
-      const { data: zTejOferty } = await db.from('dokumenty').select('numer').eq('rodzaj', 'umowa').eq('lead_id', leadId).eq('oferta_id', ofertaId).not('numer', 'is', null).limit(1).maybeSingle()
+      const { data: zTejOferty } = await db.from('dokumenty').select('numer').eq('rodzaj', 'umowa').eq('lead_id', leadId).eq('oferta_id', ofertaId).eq('status', 'projekt').not('numer', 'is', null).order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (zTejOferty?.numer) istniejacy = zTejOferty
     }
     numer = istniejacy?.numer || s('numer') || null
@@ -180,7 +187,9 @@ async function dokument(db: SupabaseClient, body: Record<string, unknown>, userI
     }
     pdf = await umowa(um, czcionki, logo, u, zalaczniki)
     migawka = { ...um, oferta_id: ofertaId }
-    sciezka = `${leadId}/umowa-${numer.replace(/\//g, '-')}.pdf`
+    // testy 27.11 (runda 3): każda wygenerowana umowa ma własny plik (znacznik czasu w nazwie) — wcześniej druga umowa
+    // z tym samym numerem nadpisywała PDF istniejącej (także podpisanej), a dwa wiersze wskazywały ten sam plik
+    sciezka = `${leadId}/umowa-${numer.replace(/\//g, '-')}-${znacznikCzasu()}.pdf`
     opis = `Umowa nr ${numer}: ${zl(brutto)} brutto (VAT ${um.stawka_vat}), zaliczka ${zl(zaliczka)}, po odbiorze ${zl(pozostalo)}; załącznik: oferta ${o.numer}`
     status = 'projekt'
   } else {
@@ -211,7 +220,8 @@ async function dokument(db: SupabaseClient, body: Record<string, unknown>, userI
     status = 'blankiet'
   }
 
-  const { error: eU } = await db.storage.from(BUCKET).upload(sciezka, pdf, { contentType: 'application/pdf', upsert: true })
+  // testy 27.11 (runda 3): umowa nigdy nie nadpisuje istniejącego pliku (upsert tylko dla blankietów karty/protokołu)
+  const { error: eU } = await db.storage.from(BUCKET).upload(sciezka, pdf, { contentType: 'application/pdf', upsert: rodzaj !== 'umowa' })
   if (eU) throw new Error('Nie zapisano PDF w buckecie: ' + eU.message)
   let dokumentId = dokId
   if (dokId) {
@@ -255,6 +265,11 @@ async function zaladujLogo(db: SupabaseClient): Promise<Logo> {
     if (data && data.size > 100) return { bajty: new Uint8Array(await data.arrayBuffer()), typ }
   }
   return null
+}
+
+/** Znacznik do nazwy pliku: 20261127-213045-123 (UTC, z milisekundami — dwie umowy w tej samej sekundzie też się nie zderzą). testy 27.11 (runda 3) */
+function znacznikCzasu(): string {
+  return new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').replace('.', '-').replace('Z', '')
 }
 
 /** NIP do druku: 7740001454 → 774-000-14-54; pusty → null */
