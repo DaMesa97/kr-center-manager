@@ -93,8 +93,8 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
         <label className="crm-pf-field crm-pf-field--short">
           <span className="crm-pf-label">Skąd klient</span>
           <select value={k.kanal} onChange={(e) => set('kanal', e.target.value === 'social' ? 'social' : 'wizyta')}>
-            <option value="wizyta">🚪 Wizyta w salonie</option>
-            <option value="social">💬 Facebook / Instagram</option>
+            <option value="wizyta">Wizyta w salonie</option>
+            <option value="social">Facebook / Instagram</option>
           </select>
         </label>
         <label className="crm-pf-field">

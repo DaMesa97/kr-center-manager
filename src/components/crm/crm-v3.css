@@ -172,3 +172,50 @@
 .crm-view .crm-zadanie-opcja { background: var(--crm-card); border-color: #d3d8df; }
 .crm-view .crm-zadanie-opcja--on { border-color: var(--crm-accent); background: var(--crm-card); }
 .crm-view .crm-tag.crm-kanal { background: var(--crm-pill); color: var(--crm-text2); border: 0; font-weight: 500; }
+
+/* =====================================================================
+   Karta klienta v3 (makieta „Karta klienta — propozycja”)
+   ===================================================================== */
+.crm-view .crm-k3 { gap: 16px; }
+.crm-k3-okruchy { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.crm-k3-okruchy .crm-link { font-weight: 500; padding: 6px 0; }
+.crm-k3-head { background: var(--crm-card); border: 1px solid var(--crm-line); border-radius: 12px; padding: 20px 24px; display: flex; align-items: center; gap: 16px 24px; flex-wrap: wrap; }
+.crm-k3-head-main { display: flex; flex-direction: column; gap: 6px; flex: 1 1 340px; min-width: 0; }
+.crm-k3-head-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.crm-k3-head-title h2 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
+.crm-k3-head-sub { color: var(--crm-muted); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.crm-k3-wartosc { display: flex; flex-direction: column; gap: 2px; padding: 0 24px; border-left: 1px solid var(--crm-line); min-width: 170px; }
+.crm-k3-label { font-size: 0.75rem; color: var(--crm-muted); font-weight: 500; }
+.crm-k3-kwota { font-size: 1.35rem; font-weight: 700; }
+.crm-k3-wartosc-skad { font-size: 0.76rem; color: var(--crm-muted); }
+.crm-k3-head-akcje { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.crm-k3-teraz-akcje { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.crm-k3-cols { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.crm-k3-lewa { flex: 1 1 250px; max-width: 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.crm-k3-historia { flex: 999 1 480px; min-width: 0; }
+.crm-k3-prawa { flex: 1 1 300px; max-width: 380px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+@media (max-width: 1100px) { .crm-k3-lewa, .crm-k3-prawa { max-width: none; } }
+.crm-k3-dl { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.crm-k3-dl dt { font-size: 0.75rem; color: var(--crm-muted); }
+.crm-k3-dl dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.crm-k3-etykiety { display: flex; flex-direction: column; gap: 6px; }
+.crm-k3-dup { flex-direction: column; align-items: flex-start; gap: 6px; }
+.crm-k3-dup-row { display: flex; flex-direction: column; gap: 2px; font-size: 0.84rem; }
+.crm-k3-composer { border-bottom: 1px solid var(--crm-line2); padding-bottom: 12px; }
+.crm-k3-composer .crm-szkic { border: 0; padding: 0; background: transparent; }
+.crm-k3-czego { margin: 0; color: var(--crm-text2); white-space: pre-line; }
+.crm-k3-brakuje { padding: 8px 12px; font-size: 0.86rem; }
+.crm-k3-oferty { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.crm-k3-oferta { border: 1px solid var(--crm-line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.crm-k3-oferta--old { opacity: 0.8; }
+.crm-k3-oferta-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.84rem; }
+.crm-k3-oferta-tytul { all: unset; cursor: pointer; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 0.9rem; }
+.crm-k3-oferta-tytul:hover { text-decoration: underline; }
+.crm-k3-oferta-kwota { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.crm-k3-kroki-dok { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.crm-k3-kroki-dok li { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid var(--crm-line); border-radius: 8px; padding: 10px 12px; }
+.crm-k3-kroki-dok li.crm-k3-krok-dok--locked { background: #fafbfc; }
+.crm-k3-krok-dok-tekst { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 0.86rem; }
+.crm-k3-krok-dok-tekst .crm-muted { font-size: 0.78rem; }
+.crm-view .crm-menu-lista { border-radius: 10px; border-color: var(--crm-line); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); }
+.crm-view .crm-lead-wynik { font-size: 0.86rem; }

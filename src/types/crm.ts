@@ -453,24 +453,24 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
   // brief pkt 27: mail od nowego adresu dopisany do klienta po domenie firmowej / adresie z połączonego kontaktu
   if (typ === 'dopasowano') {
     const powod = dane?.powod === 'domena' ? 'ta sama domena firmowa' : dane?.powod === 'inne_kontakty' ? 'adres z połączonego kontaktu' : null
-    return `🔗 Dopisano do klienta${powod ? ` (${powod})` : ''}`
+    return `Dopisano do klienta${powod ? ` (${powod})` : ''}`
   }
   if (typ === 'dokument') {
     const rodzaj = typeof dane?.rodzaj === 'string' ? CRM_DOKUMENT_RODZAJ[dane.rodzaj]?.label ?? dane.rodzaj : 'Dokument'
     const numer = typeof dane?.numer === 'string' && dane.numer ? ` nr ${dane.numer}` : ''
-    return `📄 ${rodzaj}${numer}`
+    return `${rodzaj}${numer}`
   }
   // brief pkt 23: zdarzenie `szkic` z dane.rodzaj / dane.auto
   if (typ === 'szkic') {
     const rodzaj = typeof dane?.rodzaj === 'string' ? CRM_SZKIC_RODZAJ[dane.rodzaj] : null
-    return `✍️ Szkic odpowiedzi${rodzaj ? `: ${rodzaj}` : ''}${dane?.auto === true ? ' (automatycznie)' : ''}`
+    return `Szkic odpowiedzi${rodzaj ? `: ${rodzaj}` : ''}${dane?.auto === true ? ' (automatycznie)' : ''}`
   }
   // brief pkt 31: wynik klienta z powodem przegranej
   if (typ === 'przegrany') {
     const p = typeof dane?.powod === 'string' ? CRM_WYNIK_POWOD[dane.powod] ?? dane.powod : null
-    return `✖ Przegrany${p ? `: ${p}` : ''}${typeof dane?.notatka === 'string' && dane.notatka ? ` — ${dane.notatka}` : ''}`
+    return `Przegrany${p ? `: ${p}` : ''}${typeof dane?.notatka === 'string' && dane.notatka ? ` — ${dane.notatka}` : ''}`
   }
-  if (typ === 'wygrany') return '✔ Zamówił'
+  if (typ === 'wygrany') return 'Zamówił'
   // przywrócenie: ręcznie albo samo (klient zadzwonił / napisał / wysłano ofertę), z poprzednim powodem
   if (typ === 'przywrocony') {
     const skad = typeof dane?.zrodlo === 'string' && dane.zrodlo ? dane.zrodlo : null
@@ -478,7 +478,7 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
     return `↺ Przywrócono do gry${skad ? ` (${skad})` : ''}${pop ? ` · wcześniej: ${pop}` : ''}`
   }
   if (typ === 'przegrany_automatycznie' && typeof dane?.powod === 'string') {
-    return `✖ Przegrany automatycznie: ${CRM_WYNIK_POWOD[dane.powod] ?? dane.powod} (30 dni bez kontaktu)`
+    return `Przegrany automatycznie: ${CRM_WYNIK_POWOD[dane.powod] ?? dane.powod} (30 dni bez kontaktu)`
   }
   return CRM_ZDARZENIE_LABEL[typ] ?? typ
 }

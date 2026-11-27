@@ -149,7 +149,7 @@ function ChipZlecenia({ o }: { o: Order }) {
   return (
     <span className={`crm-zam-kr${s === 'anulowane' ? ' crm-zam-kr--anul' : ''}`} title={`${o.category} ${o.order_number} · ${o.model ?? ''}${o.erp_ro_number ? ` · RO ${o.erp_ro_number}` : ''}`}>
       <b>{o.category}</b> {o.order_number} <PasekEtapow o={o} />
-      {s === 'wyslane' ? ' 🚚' : s === 'gotowe' ? ' ✓' : ''}
+      {s === 'wyslane' ? '' : s === 'gotowe' ? ' ✓' : ''}
     </span>
   )
 }
@@ -244,7 +244,7 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
         <span className="crm-zam-nr">
           <b>{w.z.bl_id}</b>
           <span className="crm-muted">{fmtDateTime(w.z.data_zlozenia)}</span>
-          {w.uwagi.length > 0 && <span className="crm-zam-uwaga-txt" title={w.uwagi.join('\n')}>⚠ {w.uwagi[0]}{w.uwagi.length > 1 ? ` (+${w.uwagi.length - 1})` : ''}</span>}
+          {w.uwagi.length > 0 && <span className="crm-zam-uwaga-txt" title={w.uwagi.join('\n')}>{w.uwagi[0]}{w.uwagi.length > 1 ? ` (+${w.uwagi.length - 1})` : ''}</span>}
         </span>
       ),
     },
@@ -320,7 +320,7 @@ export default function CrmZamowieniaScreen({ pushToast, onOpenLead, onOpenOrder
         <div className="crm-zam-uwagi-bar">
           {uwagiLista.length > 0 && (
             <button type="button" className={`crm-chip crm-zam-uwagi-chip${filtr === 'uwaga' ? ' crm-chip--on' : ''}`} onClick={() => setFiltr(filtr === 'uwaga' ? 'wszystkie' : 'uwaga')} title="Pokaż tylko zamówienia z uwagą (powód w wierszu)">
-              ⚠ {uwagiLista.length} {uwagiLista.length === 1 ? 'zamówienie wymaga' : uwagiLista.length < 5 ? 'zamówienia wymagają' : 'zamówień wymaga'} uwagi
+              {uwagiLista.length} {uwagiLista.length === 1 ? 'zamówienie wymaga' : uwagiLista.length < 5 ? 'zamówienia wymagają' : 'zamówień wymaga'} uwagi
             </button>
           )}
           {sieroty.length > 0 && (
@@ -437,7 +437,7 @@ function KartaZamowienia({ w, pola, busy, onClose, onOdswiez, onKlient, onPowiaz
           <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onKlient} title={z.lead_id ? 'Klient jest już w CRM' : 'Znajdzie klienta po telefonie / mailu albo założy nowego (wygrany)'}>Klient w CRM</button>
         </div>
 
-        {w.uwagi.length > 0 && <div className="crm-zam-alert">{w.uwagi.map((u, i) => <div key={i}>⚠ {u}</div>)}</div>}
+        {w.uwagi.length > 0 && <div className="crm-zam-alert">{w.uwagi.map((u, i) => <div key={i}>{u}</div>)}</div>}
 
         <section className="crm-k2-card">
           <h4>Klient i dostawa</h4>
