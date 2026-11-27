@@ -20,6 +20,8 @@ export type CrmLead = {
   zrodlo: string | null
   /** #166: profil / nick z Facebooka lub Instagrama — kontakt, gdy klient nie zostawił telefonu ani maila */
   profil_social?: string | null
+  /** 27.11 (CRM v3): szczegół źródła klienta dodanego ręcznie — na który nasz numer dzwonił, kto polecił, skąd dokładnie */
+  zrodlo_szczegol?: string | null
   kampania: string | null
   podsumowanie: string | null
   brakuje: string | null
@@ -345,6 +347,8 @@ export const CRM_KANAL: Record<string, { label: string; icon: string }> = {
   wizyta: { label: 'Wizyta (walk-in)', icon: '🚪' },
   /** #166: zapytanie z Messengera / Instagrama — klient ma profil, często bez telefonu i maila */
   social: { label: 'Facebook / Instagram', icon: '💬' },
+  /** 27.11 (CRM v3): klient z polecenia — kto polecił w leady.zrodlo_szczegol */
+  polecenie: { label: 'Polecenie', icon: '' },
   inne: { label: 'Inne', icon: '•' },
 }
 /** maile.kanal: mail zwykły albo zgłoszenie z formularza kontaktowego strony (Contact Form 7) */

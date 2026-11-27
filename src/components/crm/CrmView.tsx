@@ -2166,7 +2166,7 @@ function LeadScreen({
   const handleZrobione = () => setZadanieDialog(true)
 
   // edycja danych kontaktowych (brief pkt 20)
-  const [dane, setDane] = useState<{ nazwa: string; telefon: string; email: string; miejscowosc: string; profil_social: string } | null>(null)
+  const [dane, setDane] = useState<{ nazwa: string; telefon: string; email: string; miejscowosc: string; profil_social: string; zrodlo: string; zrodlo_szczegol: string } | null>(null)
   const saveDane = async () => {
     if (!lead || !dane) return
     setSaving(true)
@@ -2337,7 +2337,7 @@ function LeadScreen({
     setZakladka('korespondencja')
     window.setTimeout(() => document.querySelector('.crm-k3-historia')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
-  const edytujDane = () => setDane({ nazwa: lead.nazwa ?? '', telefon: lead.telefon ?? '', email: lead.email ?? '', miejscowosc: lead.miejscowosc ?? '', profil_social: lead.profil_social ?? '' })
+  const edytujDane = () => setDane({ nazwa: lead.nazwa ?? '', telefon: lead.telefon ?? '', email: lead.email ?? '', miejscowosc: lead.miejscowosc ?? '', profil_social: lead.profil_social ?? '', zrodlo: lead.zrodlo ?? '', zrodlo_szczegol: lead.zrodlo_szczegol ?? '' })
   const usunZadanieKlienta = async () => {
     if (!(await appConfirm('Usunąć to zadanie? Klient zniknie z listy „Do zrobienia”, w historii zostanie ślad.'))) return
     setSaving(true)
@@ -2621,6 +2621,8 @@ function LeadScreen({
             <label className="crm-pf-field"><span className="crm-pf-label">Telefon</span><input type="tel" value={dane.telefon} onChange={(e) => setDane({ ...dane, telefon: e.target.value })} disabled={saving} autoComplete="off" /></label>
             <label className="crm-pf-field"><span className="crm-pf-label">E-mail</span><input type="email" value={dane.email} onChange={(e) => setDane({ ...dane, email: e.target.value })} disabled={saving} autoComplete="off" /></label>
             <label className="crm-pf-field"><span className="crm-pf-label">Profil Facebook / Instagram</span><input type="text" value={dane.profil_social} onChange={(e) => setDane({ ...dane, profil_social: e.target.value })} disabled={saving} autoComplete="off" placeholder="link albo @nazwa" /></label>
+            <label className="crm-pf-field"><span className="crm-pf-label">Skąd klient</span><select value={dane.zrodlo} onChange={(e) => setDane({ ...dane, zrodlo: e.target.value })} disabled={saving}><option value="">—</option>{Object.entries(CRM_KANAL).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></label>
+            <label className="crm-pf-field"><span className="crm-pf-label">Szczegół źródła</span><input type="text" value={dane.zrodlo_szczegol} onChange={(e) => setDane({ ...dane, zrodlo_szczegol: e.target.value })} disabled={saving} autoComplete="off" placeholder="np. na który numer dzwonił, kto polecił" /></label>
             <label className="crm-pf-field"><span className="crm-pf-label">Miejscowość</span><input type="text" value={dane.miejscowosc} onChange={(e) => setDane({ ...dane, miejscowosc: e.target.value })} disabled={saving} autoComplete="off" /></label>
           </div>
           <div className="crm-poczta-actions">
@@ -2673,7 +2675,7 @@ function LeadScreen({
               <div><dt>E-mail</dt><dd>{lead.email ? <span className="crm-copy-value">{lead.email}</span> : <span className="crm-muted">brak</span>}</dd></div>
               {lead.profil_social ? <div><dt>Facebook / Instagram</dt><dd className="crm-copy-value">{lead.profil_social}</dd></div> : null}
               <div><dt>Miejscowość</dt><dd>{lead.miejscowosc || <span className="crm-muted">—</span>}</dd></div>
-              <div><dt>Skąd przyszedł</dt><dd>{lead.zrodlo ? CRM_KANAL[lead.zrodlo]?.label ?? lead.zrodlo : '—'}{lead.kampania ? `, kampania „${lead.kampania}”` : ''}</dd></div>
+              <div><dt>Skąd przyszedł</dt><dd>{lead.zrodlo ? CRM_KANAL[lead.zrodlo]?.label ?? lead.zrodlo : '—'}{lead.zrodlo_szczegol ? ` — ${lead.zrodlo_szczegol}` : ''}{lead.kampania ? `, kampania „${lead.kampania}”` : ''}</dd></div>
               <div><dt>Pierwszy kontakt</dt><dd>{fmtDate(lead.created_at)}</dd></div>
               {lead.ostatnia_rozmowa_at && <div><dt>Ostatnia rozmowa</dt><dd>{fmtDateTime(lead.ostatnia_rozmowa_at)}</dd></div>}
               {(lead.inne_kontakty?.length ?? 0) > 0 && (

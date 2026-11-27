@@ -8,7 +8,7 @@
 import { useMemo, useState } from 'react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, type CrmEtykieta } from '../../types/crm'
-import { createLeadWizyta, zlecOferteZNagrania, type NowyKlient } from '../../hooks/useCrm'
+import { createLeadWizyta, zlecOferteZNagrania, type NowyKlient, type NowyKlientKanal } from '../../hooks/useCrm'
 import { isoLocal, terminHintForIso } from '../../utils/crmTermin'
 import { useDniWolne } from '../../hooks/useDniWolne'
 import { EtykietaBadge } from './CrmEtykiety'
@@ -29,8 +29,18 @@ const AKCJE_WIZYTA = ['follow_up', 'przygotuj_oferte', 'dopytaj', 'pomiar', 'mon
 
 
 // 21.11 (test UX): domyślnie „Zapytaj o decyzję” za 3 dni — „bez zadania” jako domyślne gubiło klientów (nie trafiali do „Do zrobienia”)
+/** v3 (makieta „Dodaj klienta”, 27.11): źródło do wyboru + pole szczegółu tam, gdzie ma sens */
+const ZRODLA: Array<{ k: NowyKlientKanal; label: string; szczegol?: { label: string; placeholder: string } }> = [
+  { k: 'wizyta', label: 'Wizyta w salonie' },
+  { k: 'telefon', label: 'Telefon (komórka, inny numer niż Ringostat)', szczegol: { label: 'Na który nasz numer zadzwonił', placeholder: 'np. komórka handlowca, stacjonarny w salonie' } },
+  { k: 'mail', label: 'Mail (z innej skrzynki)', szczegol: { label: 'Na którą skrzynkę napisał', placeholder: 'np. prywatna skrzynka handlowca' } },
+  { k: 'social', label: 'Facebook / Instagram' },
+  { k: 'polecenie', label: 'Polecenie', szczegol: { label: 'Kto polecił', placeholder: 'np. pan Nowak z Pruszcza, montażysta, architekt' } },
+  { k: 'inne', label: 'Inne', szczegol: { label: 'Skąd dokładnie', placeholder: 'np. targi, baner na budowie, ulotka' } },
+]
+
 const za3dni = () => { const d = new Date(); d.setDate(d.getDate() + 3); return isoLocal(d) }
-const empty = (): NowyKlient => ({ kanal: 'wizyta', nazwa: '', telefon: '', email: '', profil_social: '', miejscowosc: '', notatka: '', nastepna_akcja: 'follow_up', nastepny_krok: za3dni(), etykiety: [] })
+const empty = (): NowyKlient => ({ kanal: 'wizyta', zrodlo_szczegol: '', nazwa: '', telefon: '', email: '', profil_social: '', miejscowosc: '', notatka: '', nastepna_akcja: 'follow_up', nastepny_krok: za3dni(), etykiety: [] })
 
 export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreated, onOpenExisting, onCancel }: Props) {
   const [k, setK] = useState<NowyKlient>(empty)
@@ -39,6 +49,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
   // brief pkt 18: nagranie trzymane do zapisu — najpierw insert leada, potem upload + rpc zlec_oferte_z_nagrania
   const [nagranie, setNagranie] = useState<Nagranie | null>(null)
   const dniWolne = useDniWolne()
+  const szczegol = ZRODLA.find((z) => z.k === k.kanal)?.szczegol
   const set = <F extends keyof NowyKlient>(f: F, v: NowyKlient[F]) => setK((s) => ({ ...s, [f]: v }))
 
   const grupy = useMemo(
@@ -88,15 +99,21 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
 
   return (
     <section className="crm-box crm-pf crm-nowy-klient">
-      <h4>{k.kanal === 'social' ? 'Nowy klient — Facebook / Instagram' : 'Nowy klient — wizyta w salonie'}</h4>
+      <h4>Dodaj klienta</h4>
+      <p className="crm-muted crm-nowy-opis">Klient, którego system nie złapał sam. Rozmowy z Ringostatu i maile ze skrzynek w CRM dodają się same.</p>
       <div className="crm-pf-grid">
         <label className="crm-pf-field crm-pf-field--short">
           <span className="crm-pf-label">Skąd klient</span>
-          <select value={k.kanal} onChange={(e) => set('kanal', e.target.value === 'social' ? 'social' : 'wizyta')}>
-            <option value="wizyta">Wizyta w salonie</option>
-            <option value="social">Facebook / Instagram</option>
+          <select value={k.kanal} onChange={(e) => set('kanal', e.target.value as NowyKlientKanal)}>
+            {ZRODLA.map((z) => <option key={z.k} value={z.k}>{z.label}</option>)}
           </select>
         </label>
+        {szczegol && (
+          <label className="crm-pf-field">
+            <span className="crm-pf-label">{szczegol.label}</span>
+            <input type="text" value={k.zrodlo_szczegol} onChange={(e) => set('zrodlo_szczegol', e.target.value)} placeholder={szczegol.placeholder} autoComplete="off" />
+          </label>
+        )}
         <label className="crm-pf-field">
           <span className="crm-pf-label">Imię i nazwisko / firma</span>
           <input type="text" value={k.nazwa} onChange={(e) => set('nazwa', e.target.value)} placeholder="np. Jan Kowalski" autoComplete="off" autoFocus />
@@ -122,7 +139,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
           <input type="text" value={k.miejscowosc} onChange={(e) => set('miejscowosc', e.target.value)} autoComplete="off" />
         </label>
         <label className="crm-pf-field crm-pf-field--wide">
-          <span className="crm-pf-label">{k.kanal === 'social' ? 'Notatka z wiadomości (czego chce)' : 'Notatka z rozmowy (czego chce)'}</span>
+          <span className="crm-pf-label">Czego chce <span className="crm-muted">(z tego system policzy ofertę)</span></span>
           <textarea value={k.notatka} onChange={(e) => set('notatka', e.target.value)} rows={3} placeholder="np. drzwi zewnętrzne 90 prawe, antracyt, z montażem, termin do końca miesiąca" />
           <span className="crm-pf-hint crm-pf-hint--rec">
             albo powiedz do mikrofonu:{' '}
@@ -152,7 +169,7 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
 
       <div className="crm-pf-grid crm-pf-grid--folders">
         <label className="crm-pf-field">
-          <span className="crm-pf-label">{k.kanal === 'social' ? 'Zadanie po wiadomości' : 'Zadanie po wizycie'}</span>
+          <span className="crm-pf-label">Następny krok</span>
           <select value={k.nastepna_akcja ?? ''} onChange={(e) => set('nastepna_akcja', e.target.value || null)}>
             {AKCJE_WIZYTA.map((a) => (
               <option key={a} value={a}>

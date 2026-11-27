@@ -470,7 +470,7 @@ export async function fetchKontakty(): Promise<Result<CrmKontaktRow[]>> {
 }
 
 /** Dane kontaktowe klienta (karta klienta, edycja): telefon normalizowany do +48…, 23505 = numer już jest u innego klienta. */
-export async function updateLeadDane(id: string, d: { nazwa: string; telefon: string; email: string; miejscowosc: string; profil_social?: string }): Promise<CrmError | null> {
+export async function updateLeadDane(id: string, d: { nazwa: string; telefon: string; email: string; miejscowosc: string; profil_social?: string; zrodlo?: string | null; zrodlo_szczegol?: string }): Promise<CrmError | null> {
   const telefon = d.telefon.trim() ? normalizePlPhone(d.telefon) : null
   if (d.telefon.trim() && !telefon) return { kind: 'other', message: 'Nieprawidłowy numer telefonu — wpisz 9 cyfr albo z prefiksem +48.' }
   const email = d.email.trim().toLowerCase() || null
@@ -492,7 +492,12 @@ export async function updateLeadDane(id: string, d: { nazwa: string; telefon: st
   }
   const { error } = await crm()
     .from('leady')
-    .update({ nazwa: d.nazwa.trim() || null, telefon, email, miejscowosc: d.miejscowosc.trim() || null, profil_social })
+    .update({
+      nazwa: d.nazwa.trim() || null, telefon, email, miejscowosc: d.miejscowosc.trim() || null, profil_social,
+      // 27.11 (CRM v3): źródło i jego szczegół poprawiane w „Edytuj dane klienta” (tylko gdy ekran je przysłał)
+      ...(d.zrodlo !== undefined ? { zrodlo: d.zrodlo || null } : {}),
+      ...(d.zrodlo_szczegol !== undefined ? { zrodlo_szczegol: d.zrodlo_szczegol.trim() || null } : {}),
+    })
     .eq('id', id)
   if (error?.code === '23505') return { kind: 'other', message: 'Inny klient ma już ten numer telefonu.' }
   return crmErrorFrom(error)
@@ -838,9 +843,23 @@ export async function fetchMaileLeada(leadId: string, opts: { zTrescia?: boolean
 
 // ---- Walk-in: „Dodaj klienta” (brief pkt 13.1) ----
 
+export type NowyKlientKanal = 'wizyta' | 'telefon' | 'mail' | 'social' | 'polecenie' | 'inne'
+
+/** Opis zdarzenia „Nowy klient” wg źródła (historia klienta) */
+export const NOWY_KLIENT_OPIS: Record<NowyKlientKanal, string> = {
+  wizyta: 'Nowy klient z wizyty w salonie',
+  telefon: 'Nowy klient z telefonu (inny numer niż Ringostat)',
+  mail: 'Nowy klient z maila (inna skrzynka)',
+  social: 'Nowy klient z Facebooka / Instagrama',
+  polecenie: 'Nowy klient z polecenia',
+  inne: 'Nowy klient dodany ręcznie',
+}
+
 export type NowyKlient = {
-  /** kanał (leady.zrodlo): wizyta w salonie albo zapytanie z Facebooka / Instagrama (#166) */
-  kanal: 'wizyta' | 'social'
+  /** kanał (leady.zrodlo): wizyta, Facebook / Instagram (#166), a od 27.11 też telefon spoza Ringostatu, mail z innej skrzynki, polecenie, inne */
+  kanal: NowyKlientKanal
+  /** na który nasz numer dzwonił / kto polecił / skąd dokładnie (leady.zrodlo_szczegol) */
+  zrodlo_szczegol: string
   nazwa: string
   telefon: string
   email: string
@@ -878,12 +897,13 @@ export async function createLeadWizyta(k: NowyKlient, userId: string): Promise<{
       telefon,
       email,
       profil_social,
+      zrodlo_szczegol: k.zrodlo_szczegol.trim() || null,
       miejscowosc: k.miejscowosc.trim() || null,
       podsumowanie: notatka,
       nastepna_akcja: k.nastepna_akcja,
       nastepny_krok: k.nastepna_akcja ? k.nastepny_krok : null,
       // 21.11: bez notatki „Zapytaj o decyzję” pokazywał podpowiedź „Oferta wysłana…”, a klient z salonu oferty nie dostał
-      akcja_opis: k.nastepna_akcja ? notatka?.slice(0, 200) ?? (k.nastepna_akcja === 'follow_up' ? (k.kanal === 'social' ? 'Klient z Facebooka/Instagrama — zapytaj, czy się zdecydował.' : 'Klient z salonu — zapytaj, czy się zdecydował.') : null) : null,
+      akcja_opis: k.nastepna_akcja ? notatka?.slice(0, 200) ?? (k.nastepna_akcja === 'follow_up' ? (k.kanal === 'social' ? 'Klient z Facebooka/Instagrama — zapytaj, czy się zdecydował.' : k.kanal === 'wizyta' ? 'Klient z salonu — zapytaj, czy się zdecydował.' : 'Zapytaj klienta, czy się zdecydował.') : null) : null,
       akcja_od: k.nastepna_akcja ? new Date().toISOString() : null,
       etykiety: k.etykiety,
     })
@@ -900,7 +920,7 @@ export async function createLeadWizyta(k: NowyKlient, userId: string): Promise<{
   await crm().from('zdarzenia').insert({
     lead_id: id,
     typ: 'lead_utworzony',
-    opis: k.kanal === 'social' ? 'Nowy klient z Facebooka / Instagrama' : 'Nowy klient z wizyty w salonie',
+    opis: `${NOWY_KLIENT_OPIS[k.kanal]}${k.zrodlo_szczegol.trim() ? ` (${k.zrodlo_szczegol.trim()})` : ''}`,
     kto: userId,
     dane: { zrodlo: 'klik', kanal: k.kanal },
   })
