@@ -150,3 +150,52 @@ export function stanOferty(o: {
   if (o.status === 'robocza') return { label: 'Stara wersja', opis: 'klient dostał nowszą', pill: '', przycisk: 'Otwórz', glowny: false }
   return { label: o.status, opis: '', pill: '', przycisk: 'Otwórz', glowny: false }
 }
+
+/**
+ * „Poproś o zmianę” (v3, Tymek 27.11: kilka pól — poprawka oferty, styl maila — było nieczytelne, a odpowiedź systemu
+ * „nie umiałem” chowała się w „sprawdź”). Jedna lista próśb z wynikiem, z łańcucha wersji oferty:
+ * wersja z `poprawka_wynik` = wynik prośby (tekst w `poprawka`), bieżąca w 'przelicz' z `poprawka` = prośba w toku.
+ */
+export type ProsbaOferty = {
+  id: string
+  wersja: number
+  tekst: string | null
+  stan: 'w_toku' | 'zrobione' | 'czesciowo' | 'nie'
+  powody: string[]
+  streszczenie: string | null
+  kiedy: string
+}
+
+type WersjaMin = {
+  id: string; wersja: number; status: string; poprzednia_id?: string | null; created_at: string; updated_at?: string | null
+  poprawka?: string | null; poprawka_wynik?: Record<string, unknown> | null; rodzaj?: string | null; sprawdz?: unknown[] | null
+}
+
+export function prosbyOferty(lancuch: WersjaMin[]): ProsbaOferty[] {
+  const out: ProsbaOferty[] = []
+  const dzieci = new Map<string, WersjaMin[]>()
+  for (const w of lancuch) if (w.poprzednia_id) dzieci.set(w.poprzednia_id, [...(dzieci.get(w.poprzednia_id) ?? []), w])
+  for (const w of lancuch) {
+    const tekst = (w.poprawka ?? '').trim()
+    if (w.status === 'przelicz' && tekst) {
+      out.push({ id: `${w.id}-w-toku`, wersja: w.wersja + 1, tekst, stan: 'w_toku', powody: [], streszczenie: null, kiedy: w.updated_at ?? w.created_at })
+    }
+    if (!w.poprawka_wynik) continue
+    // tekst prośby nadpisany kolejną prośbą do tej wersji — zostaje sam wynik (streszczenie)
+    const nadpisany = w.status === 'przelicz' || (dzieci.get(w.id) ?? []).some((c) => (c.poprawka ?? '').trim() === tekst)
+    const pw = w.poprawka_wynik
+    const niezrozumiane = Array.isArray(pw.niezrozumiane) ? (pw.niezrozumiane as unknown[]).map(String).filter(Boolean) : []
+    const brakCen = brakCenOferty({ status: 'do_sprawdzenia', rodzaj: w.rodzaj, sprawdz: w.sprawdz })
+    const powody = [...(brakCen ? [brakCenOpis(w.sprawdz as string[])] : []), ...niezrozumiane.map((n) => `nie zrozumiałem: „${n}”`)]
+    out.push({
+      id: w.id,
+      wersja: w.wersja,
+      tekst: nadpisany ? null : tekst || null,
+      stan: brakCen ? 'nie' : niezrozumiane.length ? 'czesciowo' : 'zrobione',
+      powody,
+      streszczenie: typeof pw.streszczenie === 'string' && pw.streszczenie.trim() ? pw.streszczenie.trim() : null,
+      kiedy: w.created_at,
+    })
+  }
+  return out.sort((a, b) => b.kiedy.localeCompare(a.kiedy))
+}

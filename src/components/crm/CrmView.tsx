@@ -103,7 +103,7 @@ import { etapyKlienta } from '../../lib/crmKarta'
 /** Kolor pigułki statusu klienta w nagłówku karty (v3) */
 const LEAD_PILL: Record<string, string> = { nowy: '', oferta: 'crm-pill--blue', wygrany: 'crm-pill--ok', przegrany: '' }
 import { ileOdm } from '../../utils/odmiana'
-import { KROKI_OFERTY, brakCenOferty, brakCenOpis, brakDoboruOferty, krokOferty, pytaniaOferty, stanOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../../lib/crmOferta'
+import { KROKI_OFERTY, brakCenOferty, brakCenOpis, brakDoboruOferty, krokOferty, prosbyOferty, pytaniaOferty, stanOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../../lib/crmOferta'
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
@@ -1005,11 +1005,21 @@ function OfertaScreen({
   const ustalenia = ustaleniaLista(analiza.dane && typeof analiza.dane === 'object' ? (analiza.dane as Record<string, unknown>) : null)
   const brakuje = Array.isArray(analiza.brakuje) ? (analiza.brakuje as unknown[]).map(String).filter(Boolean) : []
   const lancuch = wersjeOferty(wersje, oferta)
+  const prosby = prosbyOferty(lancuch)
   const najnowsza = [...lancuch].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
   const kwotaTeraz = oficjalna ? oferta.brutto : oferta.cena_razem
   const otworzPoprawke = () => {
-    setPoprawOpen(true)
-    window.setTimeout(() => document.querySelector('.crm-o2-poprawka')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60)
+    // ustalenia (oferta wstrzymana) mają własne pole w sekcji „Ustalenia”; policzona oferta — pole „Poproś o zmianę”
+    if (wstrzymana) {
+      setPoprawOpen(true)
+      window.setTimeout(() => document.querySelector('.crm-o2-poprawka')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60)
+      return
+    }
+    window.setTimeout(() => {
+      const pole = document.querySelector<HTMLTextAreaElement>('.crm-k3-prosby textarea')
+      pole?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      pole?.focus()
+    }, 60)
   }
   const handleUstaleniaOk = async () => {
     setSaving(true)
@@ -1125,9 +1135,17 @@ function OfertaScreen({
 
   return (
     <div className="crm-screen crm-o2">
-      <div className="crm-screen-head">
-        <button type="button" className="btn btn-sm btn-secondary" onClick={onBack}>Wróć</button>
-        <div className="crm-screen-title">
+      <nav className="crm-k3-okruchy" aria-label="Ścieżka">
+        <button type="button" className="crm-link" onClick={onBack}>← Wróć</button>
+        <span className="crm-muted">/</span>
+        {oferta.lead_id ? (
+          <button type="button" className="crm-link" onClick={() => onOpenLead(oferta.lead_id as string)}>{leadName(oferta.lead)}</button>
+        ) : (
+          <span className="crm-muted">bez klienta</span>
+        )}
+      </nav>
+      <header className="crm-k3-head">
+        <div className="crm-k3-head-main">
           {nazwaEdit != null ? (
             <form
               className="crm-oferta-nazwa-form"
@@ -1147,45 +1165,37 @@ function OfertaScreen({
               <button type="button" className="btn btn-sm btn-secondary" disabled={nazwaBusy} onClick={() => setNazwaEdit(null)}>Anuluj</button>
             </form>
           ) : (
-            <h3 className="crm-oferta-tytul">
-              {tytulOferty(oferta)}
-              <button type="button" className="crm-wartosc-edytuj" aria-label="Zmień tytuł oferty" title="Zmień tytuł oferty — przydaje się, gdy klient ma kilka ofert naraz" onClick={() => setNazwaEdit(oferta.nazwa ?? '')}>
-                Edytuj
-              </button>
-            </h3>
+            <div className="crm-k3-head-title">
+              <h2>{tytulOferty(oferta)}</h2>
+              {(() => {
+                const st = stanOferty(oferta, fmtDate)
+                return <span className={`crm-pill${st.pill ? ` crm-pill--${st.pill}` : ''}`}>{st.label}</span>
+              })()}
+              <button type="button" className="crm-link" onClick={() => setNazwaEdit(oferta.nazwa ?? '')} title="Zmień tytuł oferty — przydaje się, gdy klient ma kilka ofert naraz">zmień tytuł</button>
+            </div>
           )}
-          <div className="crm-screen-sub crm-oferta-szczegol">
-            {oficjalna
-              ? `Oferta PDF nr ${oferta.numer ?? '…'} · wersja ${oferta.wersja}${pending ? ' · w przygotowaniu' : ` · ${fmtPln(oferta.brutto)} brutto`}`
-              : pending
-              ? `Oferta ze sklepu · wersja ${oferta.wersja} · w przygotowaniu`
-              : brakDoboru
-              ? `Oferta ze sklepu · wersja ${oferta.wersja} · produkt nie dobrany`
-              : oferta.cena_razem == null
-              ? `Oferta ze sklepu · wersja ${oferta.wersja} · jeszcze nie policzona`
-              : `Oferta ze sklepu · wersja ${oferta.wersja} · ${fmtPln(oferta.cena_razem)}${
-                  oferta.dostawa_koszt != null && oferta.cena_razem != null
-                    ? ` + ${CRM_DOSTAWA_LABEL[oferta.dostawa ?? ''] ?? 'dostawa'} ${fmtPln(oferta.dostawa_koszt)} = ${fmtPln(Number(oferta.cena_razem) + Number(oferta.dostawa_koszt))}`
-                    : ''
-                }`}
-          </div>
-          <div className="crm-screen-sub">
-            <button type="button" className="crm-link" onClick={() => oferta.lead_id && onOpenLead(oferta.lead_id)}>
-              ← {leadName(oferta.lead)}
-            </button>
-            {' · '}
-            <StatusBadge status={oferta.status} />
-            {' · utworzona '}
-            {fmtDateTime(oferta.created_at)}
+          <div className="crm-k3-head-sub">
+            {oficjalna ? `Oferta z montażem nr ${oferta.numer ?? '…'}` : 'Oferta ze sklepu'}
+            {` · wersja ${oferta.wersja} · utworzona ${fmtDateTime(oferta.created_at)}`}
             {/* sprawdzil null przy wyslano_at = wykryte automatycznie w folderze Wysłane (crm-mail-sent) */}
             {oferta.wyslano_at ? ` · wysłana ${fmtDateTime(oferta.wyslano_at)} (${oferta.sprawdzil ? names.get(oferta.sprawdzil) ?? '…' : 'wykryto automatycznie w poczcie'})` : ''}
           </div>
+        </div>
+        <div className="crm-k3-wartosc">
+          <span className="crm-k3-label">{oficjalna ? 'Brutto' : 'Cena'}</span>
+          <b className="crm-k3-kwota">{pending ? '…' : kwotaTeraz != null ? fmtPln(kwotaTeraz) : '—'}</b>
+          <span className="crm-k3-wartosc-skad">
+            {oficjalna
+              ? oferta.vat_stawka ? `VAT ${oferta.vat_stawka}` : 'z konfiguracji producenta'
+              : oferta.dostawa_koszt != null && oferta.cena_razem != null
+                ? `+ ${CRM_DOSTAWA_LABEL[oferta.dostawa ?? ''] ?? 'dostawa'} ${fmtPln(oferta.dostawa_koszt)} = ${fmtPln(Number(oferta.cena_razem) + Number(oferta.dostawa_koszt))}`
+                : brakDoboru ? 'produkt nie dobrany' : pending ? 'w przygotowaniu' : 'koszyk sklepu'}
+          </span>
         </div>
         <div className="crm-menu">
           <button type="button" className="btn btn-secondary crm-menu-btn" aria-label="Więcej akcji oferty" aria-haspopup="menu" aria-expanded={menuOferty} onClick={() => setMenuOferty((v) => !v)}>…</button>
           {menuOferty && (
             <div className="crm-menu-lista" role="menu">
-              <button type="button" role="menuitem" className="crm-menu-item" onClick={() => { setMenuOferty(false); void load() }}>Odśwież</button>
               {oferta.plik_pdf && (
                 <button type="button" role="menuitem" className="crm-menu-item" onClick={() => { setMenuOferty(false); void handleOpenDokument(oferta.plik_pdf as string) }}>Pobierz PDF</button>
               )}
@@ -1212,26 +1222,29 @@ function OfertaScreen({
             </div>
           )}
         </div>
-      </div>
+      </header>
 
-      {/* oferta v2: kroki i pasek „Teraz” — co zrobić w tym kroku */}
+      {/* etapy tej oferty i pasek „Co teraz” — co zrobić w tym kroku */}
       {krokIdx >= 0 && (
-        <ol className="crm-o2-kroki" aria-label="Etap tej oferty">
+        <ol className="crm-etapy" aria-label="Etap tej oferty">
           {KROKI_OFERTY.map((k, i) => (
-            <li key={k.key} className={`crm-o2-krok${i < krokIdx ? ' crm-o2-krok--done' : i === krokIdx ? ' crm-o2-krok--teraz' : ''}`} aria-current={i === krokIdx ? 'step' : undefined}>
-              <span className="crm-o2-krok-nr" aria-hidden="true">{i < krokIdx ? '✓' : i + 1}</span>
-              <span className="crm-o2-krok-tekst"><b>{k.nazwa}</b><span>{k.opis}</span></span>
+            <li key={k.key} className={`crm-etap${i < krokIdx ? ' crm-etap--done' : i === krokIdx ? ' crm-etap--on' : ''}`} aria-current={i === krokIdx ? 'step' : undefined}>
+              <span className="crm-etap-nr" aria-hidden="true">{i < krokIdx ? '✓' : i + 1}</span>
+              <span className="crm-etap-tekst">{k.nazwa}<span className="crm-etap-opis">{k.opis}</span></span>
             </li>
           ))}
         </ol>
       )}
-      <section className={teraz.klasa} aria-label="Teraz">
+      <section className={teraz.klasa} aria-label="Co teraz">
         <div className="crm-k2-krok-tekst">
-          <span className="crm-k2-krok-label">Teraz</span>
+          <span className="crm-k2-krok-label">Co teraz</span>
           <span className="crm-k2-krok-tytul">{teraz.tytul}</span>
           <span className="crm-k2-krok-opis crm-k2-krok-opis--pelny">{teraz.opis}</span>
+          {prosby[0] && (prosby[0].stan === 'nie' || prosby[0].stan === 'czesciowo') && krok === 'wysylka' && (
+            <span className="crm-k3-ostrzezenie">Ostatnia prośba nie została w całości zrobiona — zobacz „Poproś o zmianę” niżej, zanim wyślesz.</span>
+          )}
         </div>
-        {teraz.akcje && <div className="crm-mail-actions">{teraz.akcje}</div>}
+        {teraz.akcje && <div className="crm-k3-teraz-akcje">{teraz.akcje}</div>}
       </section>
       {odmowa && (
         <WynikPrzegranyForm
@@ -1244,6 +1257,38 @@ function OfertaScreen({
 
       <div className="crm-k2-cols">
       <div className="crm-k2-main crm-o2-main">
+
+      {/* POPROŚ O ZMIANĘ (v3, 27.11): jedno pole na wszystko — cena, pozycje, ustalenia, treść maila — i pod nim każda prośba z odpowiedzią systemu */}
+      {!wstrzymana && !brakDoboru && krok !== 'stara' && (
+        <section className="crm-k3-prosby" aria-label="Poproś o zmianę">
+          <h4>Poproś o zmianę</h4>
+          <p className="crm-muted crm-k3-prosby-opis">
+            Jedno pole na wszystko: cena, pozycje, ustalenia albo treść maila. System sam rozpozna, co zmienić. Zmiana w ofercie = nowa wersja (30–90 s).
+          </p>
+          <textarea className="crm-fix-textarea" rows={2} value={poprawka} onChange={(e) => setPoprawka(e.target.value)} disabled={saving || pending} aria-label="Co zmienić" placeholder={oficjalna ? 'np. Verona 02: 610 zł netto za szt. · dolicz montaż 900 zł · osłonki gratis · krótszy mail' : 'np. okucia zwykłe Haga, nie Premium · kolor antracyt struktura · krótszy mail, bez „Szanowna Pani”'} />
+          <div className="crm-k3-prosby-akcje">
+            <button type="button" className="btn btn-primary" disabled={saving || pending || !poprawka.trim()} onClick={() => void handlePrzelicz()}>Wyślij prośbę</button>
+          </div>
+          {prosby.length > 0 && (
+            <ol className="crm-k3-prosby-lista" aria-label="Twoje prośby i odpowiedzi systemu">
+              {prosby.map((p) => (
+                <li key={p.id} className={`crm-k3-prosba crm-k3-prosba--${p.stan}`}>
+                  <div className="crm-k3-prosba-top">
+                    <b>{p.stan === 'w_toku' ? 'W toku — system liczy nową wersję' : p.stan === 'zrobione' ? `Zrobione · wersja ${p.wersja}` : p.stan === 'czesciowo' ? `Zrobione częściowo · wersja ${p.wersja}` : `Nie zrobione · wersja ${p.wersja}`}</b>
+                    <span className="crm-muted">{fmtDateTime(p.kiedy)}</span>
+                  </div>
+                  {p.tekst && <span className="crm-k3-prosba-tekst">„{p.tekst}”</span>}
+                  {p.streszczenie && p.stan !== 'nie' && <span className="crm-muted">{p.streszczenie}</span>}
+                  {p.powody.length > 0 && (
+                    <span className="crm-k3-prosba-powod"><b>Dlaczego:</b> {p.powody.join(' · ')}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
+
 
       {/* 0b. USTALENIA (automat ofert wyłączony): po polsku, tylko wypełnione pola; akcje w „Teraz” */}
       {wstrzymana && (
@@ -1359,23 +1404,6 @@ function OfertaScreen({
           <h4>Notatka handlowca</h4>
           <pre className="crm-pre">{oferta.notatka}</pre>
         </section>
-      )}
-
-      {/* 3. POPRAWKA policzonej oferty — nowa wersja; zwinięta, żeby nie mylić z wysyłką */}
-      {!pending && !wstrzymana && !brakDoboru && krok !== 'stara' && (
-        <details className="crm-details crm-o2-poprawka" open={poprawOpen} onToggle={(e) => setPoprawOpen((e.target as HTMLDetailsElement).open)}>
-          <summary>Poprawić coś w ofercie? (powstanie nowa wersja)</summary>
-          <div className="crm-details-body">
-            <p className="user-modal-hint">
-              Napisz zwykłym językiem, co zmienić (np. „okucia zwykłe Haga nie Premium, kolor antracyt struktura, dopisz że mogę podjechać na pomiar”).
-              System przeliczy cenę, zrobi nowy koszyk i napisze mail od nowa jako kolejną wersję.
-            </p>
-            <textarea className="crm-fix-textarea" rows={3} value={poprawka} onChange={(e) => setPoprawka(e.target.value)} disabled={saving} placeholder="Co poprawić?" />
-            <div className="crm-mail-actions">
-              <button type="button" className="btn btn-secondary" disabled={saving || !poprawka.trim()} onClick={() => void handlePrzelicz()}>Przelicz z poprawką</button>
-            </div>
-          </div>
-        </details>
       )}
 
       {/* 4. DANE TECHNICZNE */}
@@ -1577,23 +1605,19 @@ function stylLabel(s: { handlowiec?: string | null; probki?: number | null; prob
  * jest już wysłana (zapisano=false), pokazujemy tekst do skopiowania zamiast nadpisywać ofertę.
  */
 function MailOfertyStyl({ oferta, pushToast, onCopied, onSaved }: { oferta: CrmOferta; pushToast: Props['pushToast']; onCopied: (ok: boolean, label: string) => void; onSaved: () => void }) {
-  const [form, setForm] = useState(false)
-  const [uwagi, setUwagi] = useState('')
   const [gen, setGen] = useState(false)
   const [niezapisany, setNiezapisany] = useState<CrmMailOfertyOdp['mail'] | null>(null)
   const styl = oferta.mail_styl ?? null
 
   const run = async () => {
     setGen(true)
-    const r = await napiszMailOferty(oferta.id, uwagi)
+    const r = await napiszMailOferty(oferta.id)
     setGen(false)
     if (r.error || !r.data?.mail) {
       pushToast(`Nie udało się napisać maila: ${r.error?.message ?? 'brak odpowiedzi'}`, 'error')
       return
     }
     const m = r.data.mail
-    setForm(false)
-    setUwagi('')
     if (!r.data.zapisano) {
       setNiezapisany(m)
       pushToast('Oferta jest już po sprawdzeniu — nowy mail pokazany poniżej do skopiowania, oferta bez zmian', 'success')
@@ -1612,27 +1636,12 @@ function MailOfertyStyl({ oferta, pushToast, onCopied, onSaved }: { oferta: CrmO
             {stylLabel(styl)}{styl.auto === false ? ' · przepisany przyciskiem' : styl.auto ? ' · przy liczeniu oferty' : ''}{styl.utworzono ? ` · ${fmtDateTime(styl.utworzono)}` : ''}
           </span>
         )}
-        {!form && (
-          <button type="button" className="btn btn-sm btn-secondary" disabled={gen} onClick={() => setForm(true)} title="Przepisz mail tej oferty Twoim stylem — fakty (pozycje, kwota, link, dostawa) zostają z oferty">
-            Napisz w moim stylu
-          </button>
-        )}
+        {/* v3 (27.11): bez osobnego pola „co zmienić” — zmiany w treści idą przez „Poproś o zmianę”; tu tylko jedno kliknięcie */}
+        <button type="button" className="btn btn-sm btn-secondary" disabled={gen} onClick={() => void run()} title="Przepisz mail tej oferty Twoim stylem — fakty (pozycje, kwota, link, dostawa) zostają z oferty">
+          {gen ? <Spinner inline size={14} /> : null} Przepisz moim stylem
+        </button>
+        {gen && <span className="crm-muted">System pisze Twoim stylem — zwykle 10–40 s…</span>}
       </div>
-      {form && (
-        <div className="crm-szkic-form">
-          <label className="crm-pf-field crm-szkic-uwagi">
-            <span className="crm-pf-label">Co zmienić (opcjonalnie)</span>
-            <textarea value={uwagi} onChange={(e) => setUwagi(e.target.value)} rows={2} disabled={gen} placeholder="np. „krócej”, „dopisz, że montaż możliwy w przyszłym tygodniu”" />
-          </label>
-          <div className="crm-mail-actions">
-            <button type="button" className="btn btn-primary" disabled={gen} onClick={() => void run()}>
-              {gen ? <Spinner inline size={14} /> : null} Napisz w moim stylu
-            </button>
-            <button type="button" className="btn btn-sm btn-secondary" disabled={gen} onClick={() => setForm(false)}>Anuluj</button>
-            {gen && <span className="crm-muted">System pisze Twoim stylem — zwykle 10–40 s…</span>}
-          </div>
-        </div>
-      )}
       {niezapisany && (
         <div className="crm-mail-niezapisany">
           <p className="crm-muted">Oferta jest już po sprawdzeniu, więc nowej treści nie zapisaliśmy — skopiuj ją stąd ({stylLabel(niezapisany)}).</p>

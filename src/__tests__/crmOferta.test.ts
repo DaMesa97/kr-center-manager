@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { stanOferty, brakCenOferty, brakCenOpis, brakDoboruOferty, etykietaUstalenia, krokOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../lib/crmOferta'
+import { prosbyOferty, stanOferty, brakCenOferty, brakCenOpis, brakDoboruOferty, etykietaUstalenia, krokOferty, tekstOdpowiedzi, ustaleniaLista, wersjeOferty } from '../lib/crmOferta'
 
 describe('crmOferta — krok oferty', () => {
   it('status → krok i podświetlony etap', () => {
@@ -110,5 +110,23 @@ describe('crmOferta — stan oferty na liście (v3)', () => {
     expect(stanOferty({ status: 'do_sprawdzenia', sprawdz: ['BŁĄD systemu: x'] })).toMatchObject({ label: 'Błąd liczenia' })
     expect(stanOferty({ status: 'wyslana', wyslano_at: '2026-11-18T10:00:00Z' })).toMatchObject({ label: 'Wysłana', opis: 'czeka na decyzję od 2026-11-18', glowny: false })
     expect(stanOferty({ status: 'zaakceptowana' }).pill).toBe('ok')
+  })
+})
+
+describe('crmOferta — prośby o zmianę (v3)', () => {
+  const v1 = { id: 'a', wersja: 1, status: 'robocza', poprzednia_id: null, created_at: '2026-11-20T10:00:00Z', poprawka: 'dolicz montaż 900 zł', poprawka_wynik: null }
+  it('wynik prośby z wersji, bez duplikatu w starej wersji', () => {
+    const v2 = { id: 'b', wersja: 2, status: 'do_sprawdzenia', poprzednia_id: 'a', created_at: '2026-11-21T10:00:00Z', poprawka: 'dolicz montaż 900 zł', poprawka_wynik: { streszczenie: 'Dodano montaż 900 zł', niezrozumiane: [] }, rodzaj: 'oficjalna', sprawdz: [] }
+    const p = prosbyOferty([v1, v2])
+    expect(p).toHaveLength(1)
+    expect(p[0]).toMatchObject({ stan: 'zrobione', wersja: 2, tekst: 'dolicz montaż 900 zł', streszczenie: 'Dodano montaż 900 zł' })
+  })
+  it('niezrozumiane i brak cen widać jako „nie zrobione” z powodem; prośba w toku na górze', () => {
+    const v2 = { id: 'b', wersja: 2, status: 'przelicz', poprzednia_id: 'a', created_at: '2026-11-21T10:00:00Z', updated_at: '2026-11-22T09:00:00Z', poprawka: 'Verona 610 zł', poprawka_wynik: { niezrozumiane: ['sprawdź ceny z ulotki'] }, rodzaj: 'oficjalna', sprawdz: ['BRAK CEN: 8 pozycji nie ma ceny'] }
+    const p = prosbyOferty([v1, v2])
+    expect(p[0]).toMatchObject({ stan: 'w_toku', tekst: 'Verona 610 zł', wersja: 3 })
+    expect(p[1]).toMatchObject({ stan: 'nie', tekst: null })
+    expect(p[1].powody.join(' ')).toContain('8 pozycji nie ma ceny')
+    expect(p[1].powody.join(' ')).toContain('nie zrozumiałem: „sprawdź ceny z ulotki”')
   })
 })

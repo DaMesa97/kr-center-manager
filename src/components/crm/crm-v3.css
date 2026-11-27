@@ -225,3 +225,25 @@
 .crm-of-klient .crm-muted { font-size: 0.78rem; }
 .crm-of-btn { white-space: nowrap; }
 .crm-of-szukaj { flex: 0 1 320px; min-width: 200px; }
+
+/* Oferta — widok: „Poproś o zmianę” z odpowiedziami systemu */
+.crm-view .crm-k3-prosby { display: flex; flex-direction: column; gap: 10px; }
+.crm-view .crm-k3-prosby h4 { margin: 0; }
+.crm-k3-prosby-opis { margin: 0; font-size: 0.84rem; }
+.crm-k3-prosby .crm-fix-textarea { width: 100%; box-sizing: border-box; }
+.crm-k3-prosby-akcje { display: flex; justify-content: flex-end; }
+.crm-k3-prosby-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.crm-k3-prosba { border: 1px solid var(--crm-line); border-radius: 10px; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+.crm-k3-prosba-top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 0.86rem; }
+.crm-k3-prosba--zrobione .crm-k3-prosba-top b { color: var(--crm-ok-text); }
+.crm-k3-prosba--w_toku .crm-k3-prosba-top b { color: var(--crm-accent-dark); }
+.crm-k3-prosba--czesciowo, .crm-k3-prosba--nie { border-color: var(--crm-late-line); background: var(--crm-late-bg); }
+.crm-k3-prosba--czesciowo .crm-k3-prosba-top b, .crm-k3-prosba--nie .crm-k3-prosba-top b { color: #7a1d12; }
+.crm-k3-prosba-tekst { color: var(--crm-text2); }
+.crm-k3-prosba-powod { color: #7a1d12; font-size: 0.86rem; }
+.crm-k3-ostrzezenie { color: var(--crm-late); font-weight: 600; font-size: 0.84rem; }
+.crm-view .crm-o2-main { background: transparent; border: 0; padding: 0; }
+/* stare sekcje oferty: bez grubych kolorowych krawędzi — kolor tylko w „Co teraz” i w prośbach, które się nie udały */
+.crm-view .crm-check, .crm-view .crm-check--clean, .crm-view .crm-ofic, .crm-view .crm-mail, .crm-view .crm-notatka-src { border-left: 1px solid var(--crm-line) !important; }
+.crm-view .crm-check--bad { border-color: var(--crm-late-line) !important; background: var(--crm-late-bg) !important; }
+.crm-view .crm-check-clean { color: var(--crm-ok-text); }
