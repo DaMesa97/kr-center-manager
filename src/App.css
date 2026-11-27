@@ -10542,3 +10542,7 @@ li.optima-item--kit-part { margin-left: 16px; }
 .shipments-counter-btn { width: 48px; height: 48px; font-size: 1.5rem; line-height: 1; padding: 0; }
 .shipments-counter-value { min-width: 36px; text-align: center; font-size: 1.6rem; font-weight: 700; }
 .shipments-counter-hint { font-size: 0.75rem; }
+/* 27.11: NIP firmy w CRM */
+.crm-nip-row { display: flex; gap: 6px; align-items: center; }
+.crm-nip-row input { flex: 1; min-width: 0; }
+.crm-firma-linia { display: block; font-size: 0.85rem; }

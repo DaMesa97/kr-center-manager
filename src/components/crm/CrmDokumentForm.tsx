@@ -7,6 +7,7 @@
 // =====================================================================
 import { useState } from 'react'
 import type { ToastVariant } from '../../types'
+import { adresFirmy, formatNip } from '../../lib/nip'
 import { CRM_DOKUMENT_RODZAJ, CRM_KARTA_OTWORY_MAX, CRM_OTWOR_RODZAJ, type CrmDokument, type CrmDokumentOdp, type CrmLead, type CrmOferta } from '../../types/crm'
 import { generujDokument, type GenerujDokument, konfiguracjaPliki } from '../../hooks/useCrm'
 import Spinner from '../Spinner'
@@ -66,7 +67,8 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
 
   // ---- umowa ----
   const [ofertaId, setOfertaId] = useState(istniejacy?.oferta_id ?? ofertyDoUmowy[0]?.id ?? '')
-  const [klientAdres, setKlientAdres] = useState(str(d.klient_adres))
+  // 27.11: klient-firma — adres z danych firmy (NIP / GUS) jako podpowiedź
+  const [klientAdres, setKlientAdres] = useState(str(d.klient_adres, adresFirmy(lead)))
   const [adresMontazu, setAdresMontazu] = useState(str(d.adres_montazu))
   const [zaliczka, setZaliczka] = useState(num(d.zaliczka_proc, 40))
   const [terminTryb, setTerminTryb] = useState<'tygodnie' | 'data'>(typeof d.termin_data === 'string' && d.termin_data ? 'data' : 'tygodnie')
@@ -127,6 +129,9 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
         oferta_id: ofertaId,
         dane: {
           klient_adres: klientAdres.trim(),
+          // 27.11: firma klienta z karty (NIP / GUS) — do umowy z firmą
+          ...(lead.nip ? { klient_nip: formatNip(lead.nip) } : {}),
+          ...(lead.firma_nazwa ? { klient_firma: lead.firma_nazwa } : {}),
           adres_montazu: adresMontazu.trim() || klientAdres.trim(),
           zaliczka_proc: zaliczka,
           ...(terminTryb === 'data' ? { termin_data: toPl(terminData) } : { termin_tygodnie: terminTyg }),
@@ -228,7 +233,7 @@ export default function CrmDokumentForm({ rodzaj, lead, ofertyDoUmowy, umowy, is
               {oferta && <span className="crm-pf-hint">Załącznik nr 1 = PDF tej oferty{(() => { const n = konfiguracjaPliki(oferta).filter((p) => p.toLowerCase().endsWith('.pdf')).length; return n === 0 ? '' : n === 1 ? ' + konfiguracja producenta' : ` + ${n} konfiguracje producenta` })()}. VAT {oferta.vat_stawka != null ? `${oferta.vat_stawka}%` : 'z oferty'}{Number(oferta.vat_stawka) === 8 ? ' → §3a (oświadczenie o budynku mieszkalnym) wstawi się sam' : ''}.</span>}
             </label>
             <label className="crm-pf-field crm-pf-field--wide">
-              <span className="crm-pf-label">Adres klienta * <span className="crm-muted">(karta klienta nie ma ulicy)</span></span>
+              <span className="crm-pf-label">Adres klienta * <span className="crm-muted">{adresFirmy(lead) ? `(z danych firmy, NIP ${formatNip(lead.nip)})` : '(karta klienta nie ma ulicy — wpisz albo dodaj NIP firmy na karcie)'}</span></span>
               <input type="text" value={klientAdres} onChange={(e) => setKlientAdres(e.target.value)} placeholder="ul. …, kod, miejscowość" disabled={busy} />
             </label>
             <label className="crm-pf-field crm-pf-field--wide">

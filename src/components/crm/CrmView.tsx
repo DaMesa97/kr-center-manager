@@ -10,6 +10,9 @@
 // =====================================================================
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CrmActiveContext, useCrmActive, useOnCrmReshow } from './crmActive'
+import CrmFirmaPolaForm from './CrmFirmaPola'
+import { FIRMA_PUSTA, firmaZLeada, type CrmFirmaPola } from '../../hooks/useCrm'
+import { ZRODLO_FIRMY, adresFirmy, formatNip } from '../../lib/nip'
 import './crm-v3.css'
 import type { CurrentUser, Order, ToastVariant } from '../../types'
 import {
@@ -2166,7 +2169,7 @@ function LeadScreen({
   const handleZrobione = () => setZadanieDialog(true)
 
   // edycja danych kontaktowych (brief pkt 20)
-  const [dane, setDane] = useState<{ nazwa: string; telefon: string; email: string; miejscowosc: string; profil_social: string; zrodlo: string; zrodlo_szczegol: string } | null>(null)
+  const [dane, setDane] = useState<{ nazwa: string; telefon: string; email: string; miejscowosc: string; profil_social: string; zrodlo: string; zrodlo_szczegol: string; firma: CrmFirmaPola } | null>(null)
   const saveDane = async () => {
     if (!lead || !dane) return
     setSaving(true)
@@ -2337,7 +2340,7 @@ function LeadScreen({
     setZakladka('korespondencja')
     window.setTimeout(() => document.querySelector('.crm-k3-historia')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
-  const edytujDane = () => setDane({ nazwa: lead.nazwa ?? '', telefon: lead.telefon ?? '', email: lead.email ?? '', miejscowosc: lead.miejscowosc ?? '', profil_social: lead.profil_social ?? '', zrodlo: lead.zrodlo ?? '', zrodlo_szczegol: lead.zrodlo_szczegol ?? '' })
+  const edytujDane = () => setDane({ nazwa: lead.nazwa ?? '', telefon: lead.telefon ?? '', email: lead.email ?? '', miejscowosc: lead.miejscowosc ?? '', profil_social: lead.profil_social ?? '', zrodlo: lead.zrodlo ?? '', zrodlo_szczegol: lead.zrodlo_szczegol ?? '', firma: lead.nip || lead.firma_nazwa ? firmaZLeada(lead) : { ...FIRMA_PUSTA } })
   const usunZadanieKlienta = async () => {
     if (!(await appConfirm('Usunąć to zadanie? Klient zniknie z listy „Do zrobienia”, w historii zostanie ślad.'))) return
     setSaving(true)
@@ -2624,6 +2627,13 @@ function LeadScreen({
             <label className="crm-pf-field"><span className="crm-pf-label">Skąd klient</span><select value={dane.zrodlo} onChange={(e) => setDane({ ...dane, zrodlo: e.target.value })} disabled={saving}><option value="">—</option>{Object.entries(CRM_KANAL).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></label>
             <label className="crm-pf-field"><span className="crm-pf-label">Szczegół źródła</span><input type="text" value={dane.zrodlo_szczegol} onChange={(e) => setDane({ ...dane, zrodlo_szczegol: e.target.value })} disabled={saving} autoComplete="off" placeholder="np. na który numer dzwonił, kto polecił" /></label>
             <label className="crm-pf-field"><span className="crm-pf-label">Miejscowość</span><input type="text" value={dane.miejscowosc} onChange={(e) => setDane({ ...dane, miejscowosc: e.target.value })} disabled={saving} autoComplete="off" /></label>
+            <CrmFirmaPolaForm
+              value={dane.firma}
+              onChange={(f) => setDane((d) => (d ? { ...d, firma: f } : d))}
+              disabled={saving}
+              pushToast={pushToast}
+              onPobrano={(r) => setDane((d) => (d ? { ...d, nazwa: d.nazwa.trim() ? d.nazwa : r.nazwa, miejscowosc: d.miejscowosc.trim() ? d.miejscowosc : (r.miasto ?? '') } : d))}
+            />
           </div>
           <div className="crm-poczta-actions">
             <button type="button" className="btn btn-sm btn-primary" disabled={saving} onClick={() => void saveDane()}>{saving ? <Spinner inline size={14} /> : null} Zapisz</button>
@@ -2668,13 +2678,28 @@ function LeadScreen({
           <section className="crm-karta">
             <div className="crm-karta-head">
               <h3>Klient</h3>
-              {!dane && <button type="button" className="crm-link" disabled={saving} onClick={edytujDane} title="Popraw nazwę, telefon, e-mail, profil, miejscowość">Edytuj</button>}
+              {!dane && <button type="button" className="crm-link" disabled={saving} onClick={edytujDane} title="Popraw nazwę, telefon, e-mail, profil, miejscowość, NIP i dane firmy">Edytuj</button>}
             </div>
             <dl className="crm-k3-dl">
               <div><dt>Telefon</dt><dd>{lead.telefon ? <CrmTelefon telefon={lead.telefon} nazwa={lead.nazwa} /> : <span className="crm-muted">brak</span>}</dd></div>
               <div><dt>E-mail</dt><dd>{lead.email ? <span className="crm-copy-value">{lead.email}</span> : <span className="crm-muted">brak</span>}</dd></div>
               {lead.profil_social ? <div><dt>Facebook / Instagram</dt><dd className="crm-copy-value">{lead.profil_social}</dd></div> : null}
               <div><dt>Miejscowość</dt><dd>{lead.miejscowosc || <span className="crm-muted">—</span>}</dd></div>
+              {(lead.nip || lead.firma_nazwa) && (
+                <div>
+                  <dt>Firma</dt>
+                  <dd>
+                    {lead.firma_nazwa ? <span className="crm-copy-value">{lead.firma_nazwa}</span> : null}
+                    {lead.nip ? <span className="crm-firma-linia">NIP <span className="crm-copy-value">{formatNip(lead.nip)}</span>{lead.regon ? ` · REGON ${lead.regon}` : ''}{lead.krs ? ` · KRS ${lead.krs}` : ''}</span> : null}
+                    {adresFirmy(lead) ? <span className="crm-firma-linia crm-copy-value">{adresFirmy(lead)}</span> : null}
+                    {(lead.vat_status || lead.firma_zrodlo) && (
+                      <span className="crm-firma-linia crm-muted">
+                        {lead.vat_status ? `VAT: ${lead.vat_status} · ` : ''}{ZRODLO_FIRMY[lead.firma_zrodlo ?? ''] ?? lead.firma_zrodlo}{lead.firma_sprawdzono_at ? `, ${fmtDate(lead.firma_sprawdzono_at)}` : ''}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              )}
               <div><dt>Skąd przyszedł</dt><dd>{lead.zrodlo ? CRM_KANAL[lead.zrodlo]?.label ?? lead.zrodlo : '—'}{lead.zrodlo_szczegol ? ` — ${lead.zrodlo_szczegol}` : ''}{lead.kampania ? `, kampania „${lead.kampania}”` : ''}</dd></div>
               <div><dt>Pierwszy kontakt</dt><dd>{fmtDate(lead.created_at)}</dd></div>
               {lead.ostatnia_rozmowa_at && <div><dt>Ostatnia rozmowa</dt><dd>{fmtDateTime(lead.ostatnia_rozmowa_at)}</dd></div>}

@@ -47,6 +47,19 @@ export type CrmLead = {
   szkic?: CrmSzkic | null
   /** brief pkt 26: dane kontaktowe klientów połączonych w tego (rpc polacz_leady) */
   inne_kontakty?: CrmInnyKontakt[] | null
+  // ---- firma klienta (27.11): NIP + dane z rejestru (crm-firma: GUS REGON / wykaz VAT MF) ----
+  nip?: string | null
+  firma_nazwa?: string | null
+  firma_ulica?: string | null
+  firma_kod?: string | null
+  firma_miasto?: string | null
+  regon?: string | null
+  krs?: string | null
+  /** z wykazu VAT MF: Czynny / Zwolniony / … */
+  vat_status?: string | null
+  /** gus | mf | reczne */
+  firma_zrodlo?: string | null
+  firma_sprawdzono_at?: string | null
   // ---- wynik klienta (brief pkt 31, rpc oznacz_wynik) ----
   /** powód przegranej: klucz z CRM_WYNIK_POWOD (lib/crmWynik); null przy wygranym i otwartym */
   wynik_powod?: string | null

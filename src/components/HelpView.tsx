@@ -25,6 +25,13 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.3: CRM — NIP i dane firmy z GUS</h4>
+        <ul>
+          <li><b>Karta klienta → Edytuj dane</b> i <b>Dodaj klienta</b>: pole <b>NIP firmy</b> z przyciskiem <b>„Pobierz z GUS”</b> — wpisuje nazwę firmy, adres (ulica, kod, miejscowość), REGON, KRS i status VAT. Pustą nazwę klienta i miejscowość podpowiada z rejestru. NIP jest sprawdzany (suma kontrolna), wszystko można poprawić ręcznie.</li>
+          <li>Na karcie klienta w sekcji <b>Klient</b> pokazuje się <b>Firma</b>: nazwa, NIP, adres, REGON/KRS, status VAT i skąd dane.</li>
+          <li><b>Umowa</b>: adres klienta podpowiada się z adresu firmy, a NIP i nazwa firmy idą do danych umowy.</li>
+          <li>Dane pobiera się teraz z wykazu podatników VAT Ministerstwa Finansów (firmy bez VAT-u tam nie ma). Pełny rejestr GUS włączy się sam po dodaniu klucza GUS.</li>
+        </ul>
         <h4>Wersja 1.1.2: Wysyłki kurierem (SUUS)</h4>
         <ul>
           <li>Nowa zakładka <b>Produkcja → Wysyłki kurierem</b> (magazyn, obsługa klienta, kierownik). <b>Do wysyłki</b>: zlecenia Po Drzwi jeszcze niewydane (albo z wydaniem od dziś) i nieprzypięte do wysyłki, pogrupowane po numerze BaseLinkera (np. RACINOWSKI_1 i _2 razem).</li>

@@ -8,7 +8,8 @@
 import { useMemo, useState } from 'react'
 import type { CurrentUser, ToastVariant } from '../../types'
 import { CRM_AKCJA, CRM_ETYKIETA_GRUPA, CRM_ETYKIETA_GRUPY, type CrmEtykieta } from '../../types/crm'
-import { createLeadWizyta, zlecOferteZNagrania, type NowyKlient, type NowyKlientKanal } from '../../hooks/useCrm'
+import { FIRMA_PUSTA, createLeadWizyta, zlecOferteZNagrania, type NowyKlient, type NowyKlientKanal } from '../../hooks/useCrm'
+import CrmFirmaPolaForm from './CrmFirmaPola'
 import { isoLocal, terminHintForIso } from '../../utils/crmTermin'
 import { useDniWolne } from '../../hooks/useDniWolne'
 import { EtykietaBadge } from './CrmEtykiety'
@@ -40,7 +41,7 @@ const ZRODLA: Array<{ k: NowyKlientKanal; label: string; szczegol?: { label: str
 ]
 
 const za3dni = () => { const d = new Date(); d.setDate(d.getDate() + 3); return isoLocal(d) }
-const empty = (): NowyKlient => ({ kanal: 'wizyta', zrodlo_szczegol: '', nazwa: '', telefon: '', email: '', profil_social: '', miejscowosc: '', notatka: '', nastepna_akcja: 'follow_up', nastepny_krok: za3dni(), etykiety: [] })
+const empty = (): NowyKlient => ({ kanal: 'wizyta', zrodlo_szczegol: '', nazwa: '', telefon: '', email: '', profil_social: '', miejscowosc: '', notatka: '', nastepna_akcja: 'follow_up', nastepny_krok: za3dni(), etykiety: [], firma: { ...FIRMA_PUSTA } })
 
 export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreated, onOpenExisting, onCancel }: Props) {
   const [k, setK] = useState<NowyKlient>(empty)
@@ -138,6 +139,14 @@ export default function CrmNowyKlient({ currentUser, slownik, pushToast, onCreat
           <span className="crm-pf-label">Miejscowość</span>
           <input type="text" value={k.miejscowosc} onChange={(e) => set('miejscowosc', e.target.value)} autoComplete="off" />
         </label>
+        {/* 27.11: klient-firma — NIP i dane z GUS (do zamówień i umów) */}
+        <CrmFirmaPolaForm
+          value={k.firma ?? FIRMA_PUSTA}
+          onChange={(f) => set('firma', f)}
+          disabled={busy}
+          pushToast={pushToast}
+          onPobrano={(r) => setK((s) => ({ ...s, nazwa: s.nazwa.trim() ? s.nazwa : r.nazwa, miejscowosc: s.miejscowosc.trim() ? s.miejscowosc : (r.miasto ?? '') }))}
+        />
         <label className="crm-pf-field crm-pf-field--wide">
           <span className="crm-pf-label">Czego chce <span className="crm-muted">(z tego system policzy ofertę)</span></span>
           <textarea value={k.notatka} onChange={(e) => set('notatka', e.target.value)} rows={3} placeholder="np. drzwi zewnętrzne 90 prawe, antracyt, z montażem, termin do końca miesiąca" />

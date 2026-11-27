@@ -27,6 +27,7 @@ import { CRM_AKCJA } from '../types/crm'
 import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_EDGE_SZKIC, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES, CRM_PROBKI_STYLU_ILE } from '../types/crm'
 import type { CrmDokument, CrmDokumentOdp, CrmDuplikat, CrmDuplikatLeada, CrmDzienWolny, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmMailOfertyOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
+import { normalizujNip, nipPoprawny } from '../lib/nip'
 import { normalizePlPhone } from '../utils/crmPhone'
 import { isoLocal } from '../utils/crmTermin'
 import { fetchAllPages } from '../lib/fetchPaged'
@@ -477,7 +478,8 @@ export async function fetchKontakty(): Promise<Result<CrmKontaktRow[]>> {
 }
 
 /** Dane kontaktowe klienta (karta klienta, edycja): telefon normalizowany do +48…, 23505 = numer już jest u innego klienta. */
-export async function updateLeadDane(id: string, d: { nazwa: string; telefon: string; email: string; miejscowosc: string; profil_social?: string; zrodlo?: string | null; zrodlo_szczegol?: string }): Promise<CrmError | null> {
+export async function updateLeadDane(id: string, d: { nazwa: string; telefon: string; email: string; miejscowosc: string; profil_social?: string; zrodlo?: string | null; zrodlo_szczegol?: string; firma?: CrmFirmaPola }): Promise<CrmError | null> {
+  if (d.firma && d.firma.nip.trim() && !nipPoprawny(d.firma.nip)) return { kind: 'other', message: 'NIP jest niepoprawny — 10 cyfr, sprawdź, czy nie ma literówki.' }
   const telefon = d.telefon.trim() ? normalizePlPhone(d.telefon) : null
   if (d.telefon.trim() && !telefon) return { kind: 'other', message: 'Nieprawidłowy numer telefonu — wpisz 9 cyfr albo z prefiksem +48.' }
   const email = d.email.trim().toLowerCase() || null
@@ -504,6 +506,8 @@ export async function updateLeadDane(id: string, d: { nazwa: string; telefon: st
       // 27.11 (CRM v3): źródło i jego szczegół poprawiane w „Edytuj dane klienta” (tylko gdy ekran je przysłał)
       ...(d.zrodlo !== undefined ? { zrodlo: d.zrodlo || null } : {}),
       ...(d.zrodlo_szczegol !== undefined ? { zrodlo_szczegol: d.zrodlo_szczegol.trim() || null } : {}),
+      // 27.11: firma klienta (NIP + dane z rejestru) — tylko gdy ekran je przysłał
+      ...(d.firma ? firmaDoZapisu(d.firma) : {}),
     })
     .eq('id', id)
   if (error?.code === '23505') return { kind: 'other', message: 'Inny klient ma już ten numer telefonu.' }
@@ -879,6 +883,73 @@ export type NowyKlient = {
   /** YYYY-MM-DD */
   nastepny_krok: string | null
   etykiety: string[]
+  /** 27.11: NIP i dane firmy (opcjonalnie) */
+  firma?: CrmFirmaPola
+}
+
+// ---- Firma klienta: NIP + dane z rejestru (27.11.2026) ----
+
+/** Pola firmy na karcie klienta (crm.leady). nip jako wpisany; zapis normalizuje do 10 cyfr. */
+export type CrmFirmaPola = {
+  nip: string
+  firma_nazwa: string
+  firma_ulica: string
+  firma_kod: string
+  firma_miasto: string
+  regon: string
+  krs: string
+  vat_status: string
+  /** gus | mf | reczne | '' */
+  firma_zrodlo: string
+  firma_sprawdzono_at: string | null
+}
+
+export const FIRMA_PUSTA: CrmFirmaPola = { nip: '', firma_nazwa: '', firma_ulica: '', firma_kod: '', firma_miasto: '', regon: '', krs: '', vat_status: '', firma_zrodlo: '', firma_sprawdzono_at: null }
+
+export function firmaZLeada(l: Pick<CrmLead, 'nip' | 'firma_nazwa' | 'firma_ulica' | 'firma_kod' | 'firma_miasto' | 'regon' | 'krs' | 'vat_status' | 'firma_zrodlo' | 'firma_sprawdzono_at'>): CrmFirmaPola {
+  return {
+    nip: l.nip ?? '', firma_nazwa: l.firma_nazwa ?? '', firma_ulica: l.firma_ulica ?? '', firma_kod: l.firma_kod ?? '', firma_miasto: l.firma_miasto ?? '',
+    regon: l.regon ?? '', krs: l.krs ?? '', vat_status: l.vat_status ?? '', firma_zrodlo: l.firma_zrodlo ?? '', firma_sprawdzono_at: l.firma_sprawdzono_at ?? null,
+  }
+}
+
+function firmaDoZapisu(f: CrmFirmaPola) {
+  const t = (x: string) => x.trim() || null
+  const nip = normalizujNip(f.nip) || null
+  return {
+    nip,
+    firma_nazwa: t(f.firma_nazwa), firma_ulica: t(f.firma_ulica), firma_kod: t(f.firma_kod), firma_miasto: t(f.firma_miasto),
+    regon: t(f.regon), krs: t(f.krs), vat_status: t(f.vat_status),
+    firma_zrodlo: nip || t(f.firma_nazwa) ? (['gus', 'mf', 'reczne'].includes(f.firma_zrodlo) ? f.firma_zrodlo : 'reczne') : null,
+    firma_sprawdzono_at: f.firma_sprawdzono_at,
+  }
+}
+
+/** Odpowiedź funkcji crm-firma. */
+export type CrmFirmaRejestr = {
+  nip: string; nazwa: string; ulica: string | null; kod: string | null; miasto: string | null; adres: string | null
+  regon: string | null; krs: string | null; status_vat: string | null; zrodlo: 'gus' | 'mf'; pobrano: string
+}
+
+/** Dane firmy po NIP z rejestru (GUS REGON, a bez klucza GUS — wykaz podatników VAT MF). */
+export async function pobierzFirmeNip(nip: string): Promise<{ firma: CrmFirmaRejestr | null; error: string | null }> {
+  if (!nipPoprawny(nip)) return { firma: null, error: 'NIP jest niepoprawny — 10 cyfr, sprawdź, czy nie ma literówki.' }
+  try {
+    const { data, error } = await supabase.functions.invoke<{ ok?: boolean; firma?: CrmFirmaRejestr; error?: string }>('crm-firma', { body: { nip: normalizujNip(nip) } })
+    if (error) return { firma: null, error: await fnErrorMessage(error, 'Rejestr firm nie odpowiada — wpisz dane ręcznie') }
+    if (!data?.firma) return { firma: null, error: data?.error ?? 'Nie znaleziono firmy' }
+    return { firma: data.firma, error: null }
+  } catch (e) {
+    return { firma: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** Dane z rejestru → pola karty klienta. */
+export function firmaZRejestru(r: CrmFirmaRejestr): CrmFirmaPola {
+  return {
+    nip: r.nip, firma_nazwa: r.nazwa ?? '', firma_ulica: r.ulica ?? '', firma_kod: r.kod ?? '', firma_miasto: r.miasto ?? '',
+    regon: r.regon ?? '', krs: r.krs ?? '', vat_status: r.status_vat ?? '', firma_zrodlo: r.zrodlo, firma_sprawdzono_at: r.pobrano,
+  }
 }
 
 /**
@@ -894,6 +965,7 @@ export async function createLeadWizyta(k: NowyKlient, userId: string): Promise<{
   if (!telefon && !email && !profil_social) {
     return { id: null, error: { kind: 'other', message: k.kanal === 'social' ? 'Podaj profil (link albo @nazwa), telefon albo e-mail klienta.' : 'Podaj telefon albo e-mail klienta.' } }
   }
+  if (k.firma && k.firma.nip.trim() && !nipPoprawny(k.firma.nip)) return { id: null, error: { kind: 'other', message: 'NIP jest niepoprawny — 10 cyfr, sprawdź, czy nie ma literówki.' } }
   const notatka = k.notatka.trim() || null
   const { data, error } = await crm()
     .from('leady')
@@ -913,6 +985,7 @@ export async function createLeadWizyta(k: NowyKlient, userId: string): Promise<{
       akcja_opis: k.nastepna_akcja ? notatka?.slice(0, 200) ?? (k.nastepna_akcja === 'follow_up' ? (k.kanal === 'social' ? 'Klient z Facebooka/Instagrama — zapytaj, czy się zdecydował.' : k.kanal === 'wizyta' ? 'Klient z salonu — zapytaj, czy się zdecydował.' : 'Zapytaj klienta, czy się zdecydował.') : null) : null,
       akcja_od: k.nastepna_akcja ? new Date().toISOString() : null,
       etykiety: k.etykiety,
+      ...(k.firma && (k.firma.nip.trim() || k.firma.firma_nazwa.trim()) ? firmaDoZapisu(k.firma) : {}),
     })
     .select('id')
     .single()
