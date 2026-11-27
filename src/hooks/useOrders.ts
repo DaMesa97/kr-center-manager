@@ -238,13 +238,19 @@ export function useOrders({
   const [orderModalConfigRows, setOrderModalConfigRows] = useState<StaConfigRow[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProductionDay, setSelectedProductionDay] = useState('Wszystkie dni')
-  const [hideCompletedOrders, setHideCompletedOrders] = useState(true)
+  const [hideCompletedOrders, setHideCompletedOrdersState] = useState(true)
   // 26.11: z serwera ciągniemy tylko to, co lista i tak pokaże. Przy włączonym „Ukryj wydane” (domyślnie)
   // = zlecenia bez daty wydania (ok. 2,2 tys. zamiast 23,6 tys.; same RO drzwi wewnętrznych zamknięte
   // w Optimie to 11 tys. wierszy / 10 MB). Wydane dociągają się po odznaczeniu filtra.
   // Ref, nie domknięcie: fetchOrders woła też kanał realtime ze starym closure (deps [authUserId, activeTab]).
   const hideCompletedRef = useRef(hideCompletedOrders)
   hideCompletedRef.current = hideCompletedOrders
+  // testy 27.11 (2. seria): ref ustawiamy od razu — efekt zmiany zakładki woła fetchOrders w tym samym przebiegu,
+  // zanim render zaktualizuje ref (powrót „Ukryj wydane” po Ctrl+K ładował całą kategorię)
+  const setHideCompletedOrders = useCallback((v: boolean) => {
+    hideCompletedRef.current = v
+    setHideCompletedOrdersState(v)
+  }, [])
   const loadedOnlyOpenRef = useRef(true)
   const [showCancelledOrders, setShowCancelledOrders] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'bot'>('all')
