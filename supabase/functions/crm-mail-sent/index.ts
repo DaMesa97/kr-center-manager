@@ -51,6 +51,7 @@ type Skrzynka = {
   czyta_wyslane: boolean; folder_wyslane: string; uidvalidity_wyslane: number | null; ostatni_uid_wyslane: number | null
   czyta_odebrane: boolean; folder_odebrane: string; uidvalidity_odebrane: number | null; ostatni_uid_odebrane: number | null
   przetworzono_maili: number
+  ostatni_blad?: string | null
 }
 type Mail = { do: unknown; temat: unknown; data: unknown; message_id: unknown; od: unknown; oferta?: boolean }
 type Kto = 'system' | 'superadmin' | 'uzytkownik'
@@ -124,28 +125,41 @@ async function sprawdzSkrzynke(db: SupabaseClient, s: Skrzynka, wlasne: Set<stri
   let imap: Imap | null = null
   const wynik: Record<string, unknown> = { ok: true }
   let przetworzono = 0
+  // testy 27.11 (runda 3): błąd jednego maila zatrzymuje folder na tym mailu (UID nie idzie dalej) i trafia do ostatni_blad
+  const bledyFolderow: string[] = []
+  const zapiszPominiete = async (pominiete: string[]) => {
+    for (const p of pominiete) {
+      const { error } = await db.from('zdarzenia').insert({ typ: 'blad', opis: `Skrzynka ${s.login}: ${p}`.slice(0, 500), dane: { zrodlo: 'imap', skrzynka_id: s.id } })
+      if (error) console.error('zdarzenie (pominięty mail):', error.message)
+    }
+  }
   try {
     imap = new Imap(await polaczTls(s.host, s.port))
     await imap.powitanie()
     await imap.login(s.login, haslo)
 
     if (s.czyta_wyslane) {
-      const w = await synchronizujFolder(imap, s.folder_wyslane, s.uidvalidity_wyslane, s.ostatni_uid_wyslane, LIMIT_BAJTOW_WYSLANE,
+      const w = await synchronizujFolder(imap, s.folder_wyslane, s.uidvalidity_wyslane, s.ostatni_uid_wyslane, LIMIT_BAJTOW_WYSLANE, s.ostatni_blad ?? null,
         (uid, naglowki, cialo, ucieta, internal) => przetworzWychodzacy(db, s, uid, naglowki, cialo, ucieta, internal))
       await zapisz({ uidvalidity_wyslane: w.uidvalidity, ostatni_uid_wyslane: w.ostatni_uid })
       przetworzono += w.nowych
       wynik.wyslane = w.odpowiedz
+      if (w.blad) bledyFolderow.push(w.blad)
+      await zapiszPominiete(w.pominiete)
     }
     if (s.czyta_odebrane) {
-      const w = await synchronizujFolder(imap, s.folder_odebrane, s.uidvalidity_odebrane, s.ostatni_uid_odebrane, LIMIT_BAJTOW_ODEBRANE,
+      const w = await synchronizujFolder(imap, s.folder_odebrane, s.uidvalidity_odebrane, s.ostatni_uid_odebrane, LIMIT_BAJTOW_ODEBRANE, s.ostatni_blad ?? null,
         (uid, naglowki, cialo, ucieta, internal) => przetworzPrzychodzacy(db, s, wlasne, uid, naglowki, cialo, ucieta, internal))
       await zapisz({ uidvalidity_odebrane: w.uidvalidity, ostatni_uid_odebrane: w.ostatni_uid })
       przetworzono += w.nowych
       wynik.odebrane = w.odpowiedz
+      if (w.blad) bledyFolderow.push(w.blad)
+      await zapiszPominiete(w.pominiete)
     }
-    await zapisz({ ostatnie_sprawdzenie_at: teraz, ostatni_sukces_at: teraz, ostatni_blad: null, ostatni_blad_at: null,
+    const bladMaili = bledyFolderow.join(' | ').slice(0, 500) || null
+    await zapisz({ ostatnie_sprawdzenie_at: teraz, ...(bladMaili ? {} : { ostatni_sukces_at: teraz }), ostatni_blad: bladMaili, ostatni_blad_at: bladMaili ? teraz : null,
       przetworzono_maili: (s.przetworzono_maili ?? 0) + przetworzono })
-    return wynik
+    return bladMaili ? { ...wynik, ok: false, blad: bladMaili } : wynik
   } catch (e) {
     const blad = e instanceof Error ? e.message : String(e)
     await zapisz({ ostatnie_sprawdzenie_at: teraz, ostatni_blad: blad.slice(0, 500), ostatni_blad_at: teraz })
@@ -157,33 +171,50 @@ async function sprawdzSkrzynke(db: SupabaseClient, s: Skrzynka, wlasne: Set<stri
 
 type Przetwarzacz = (uid: number, naglowki: string, cialo: Uint8Array, ucieta: boolean, internal: Date | null) => Promise<unknown>
 
-/** Wspólna pętla dla folderu: punkt startu przy pierwszym razie / zmianie UIDVALIDITY, potem nowe UID-y po kolei. */
-async function synchronizujFolder(imap: Imap, folder: string, uidvalidity: number | null, ostatniUid: number | null, limitBajtow: number, przetworz: Przetwarzacz) {
+/** Wspólna pętla dla folderu: punkt startu przy pierwszym razie / zmianie UIDVALIDITY, potem nowe UID-y po kolei.
+ *  testy 27.11 (runda 3): błąd maila zatrzymuje pętlę — ostatni_uid zostaje na ostatnim udanym, błąd wraca w `blad`
+ *  (ze znacznikiem „[folder UID n]”), następne sprawdzenie próbuje ten mail jeszcze raz. Gdy ten sam mail zawiedzie drugi raz
+ *  z rzędu (znacznik jest już w poprzednim ostatni_blad), pomijamy go (wpis w `pominiete` → zdarzenie 'blad'),
+ *  żeby jeden zepsuty mail nie zatrzymał skrzynki na zawsze. */
+async function synchronizujFolder(imap: Imap, folder: string, uidvalidity: number | null, ostatniUid: number | null, limitBajtow: number,
+  poprzedniBlad: string | null, przetworz: Przetwarzacz) {
   const stan = await imap.wybierz(folder)
   const ostatniNaSerwerze = stan.uidnext - 1
   if (uidvalidity !== stan.uidvalidity || ostatniUid === null) {
-    return { uidvalidity: stan.uidvalidity, ostatni_uid: ostatniNaSerwerze, nowych: 0,
+    return { uidvalidity: stan.uidvalidity, ostatni_uid: ostatniNaSerwerze, nowych: 0, blad: null as string | null, pominiete: [] as string[],
       odpowiedz: { start: true, folder, maili_w_folderze: stan.exists, od_uid: ostatniNaSerwerze + 1 } }
   }
-  if (ostatniNaSerwerze <= ostatniUid) return { uidvalidity: stan.uidvalidity, ostatni_uid: ostatniUid, nowych: 0, odpowiedz: { folder, nowych: 0 } }
+  if (ostatniNaSerwerze <= ostatniUid) return { uidvalidity: stan.uidvalidity, ostatni_uid: ostatniUid, nowych: 0, blad: null as string | null, pominiete: [] as string[], odpowiedz: { folder, nowych: 0 } }
 
   const lista = await imap.naglowki(ostatniUid + 1, MAKS_MAILI_NA_RAZ)
   const wyniki: unknown[] = []
+  const pominiete: string[] = []
+  let blad: string | null = null
   let uid = ostatniUid
+  let nowych = 0
   for (const m of lista) {
     try {
       const w = await imap.wiadomosc(m.uid, limitBajtow)
       if (w) wyniki.push({ uid: m.uid, ...(await przetworz(m.uid, w.naglowki, w.cialo, w.ucieta, w.internaldate) as Record<string, unknown>) })
       else wyniki.push({ uid: m.uid, pominieto: 'serwer nie zwrócił wiadomości' })
     } catch (e) {
-      // jeden zepsuty mail nie zatrzymuje reszty; zapisujemy błąd i idziemy dalej
-      wyniki.push({ uid: m.uid, blad: e instanceof Error ? e.message : String(e) })
+      const msg = e instanceof Error ? e.message : String(e)
+      const znacznik = `[${folder} UID ${m.uid}]`
+      if (poprzedniBlad?.includes(znacznik)) {
+        wyniki.push({ uid: m.uid, blad: msg, pominieto: 'drugi błąd z rzędu — mail pominięty' })
+        pominiete.push(`${znacznik} mail pominięty po drugim błędzie z rzędu: ${msg}`.slice(0, 400))
+      } else {
+        wyniki.push({ uid: m.uid, blad: msg })
+        blad = `${znacznik} ${msg}`.slice(0, 400)
+        break
+      }
     }
     uid = m.uid
+    nowych++
   }
-  // gdy było więcej niż MAKS, resztę weźmie następne sprawdzenie; inaczej skaczemy na koniec folderu
-  if (lista.length < MAKS_MAILI_NA_RAZ) uid = Math.max(uid, ostatniNaSerwerze)
-  return { uidvalidity: stan.uidvalidity, ostatni_uid: uid, nowych: lista.length, odpowiedz: { folder, nowych: lista.length, wyniki } }
+  // gdy było więcej niż MAKS albo pętlę przerwał błąd, resztę weźmie następne sprawdzenie; inaczej skaczemy na koniec folderu
+  if (!blad && lista.length < MAKS_MAILI_NA_RAZ) uid = Math.max(uid, ostatniNaSerwerze)
+  return { uidvalidity: stan.uidvalidity, ostatni_uid: uid, nowych, blad, pominiete, odpowiedz: { folder, nowych, wyniki, ...(blad ? { blad } : {}) } }
 }
 
 // ============================================================================================
@@ -199,25 +230,53 @@ async function przetworzWychodzacy(db: SupabaseClient, s: Skrzynka, uid: number,
   const messageId = (h['message-id'] ?? '').trim() || null
   const temat = h['subject'] ?? ''
 
-  const { data: wiersz, error } = await db.from('maile').insert({
-    skrzynka_id: s.id, uid, message_id: messageId, kierunek: 'wychodzacy', od_adres: od, od_nazwa: nazwaZ(h['from']),
-    do_adresy: doAdresy, cc_adresy: ccAdresy, odpowiedz_na: (h['in-reply-to'] ?? '').trim() || null, temat,
-    tresc: tresc.tekst.slice(0, MAKS_TRESCI), tresc_ucieta: tresc.ucieta || tresc.tekst.length > MAKS_TRESCI,
-    zalaczniki: tresc.zalaczniki, data: data.toISOString(), typ: 'wlasny', status_przetwarzania: 'przetworzony',
-  }).select('id').single()
-  if (error) {
-    if (error.code === '23505') return { temat: temat.slice(0, 80), duplikat: true }
-    throw new Error('Zapis maila wychodzącego: ' + error.message)
+  // testy 27.11 (runda 3): wiersz powstaje jako 'nowy' (status pośredni; wychodzącego nie analizuje AI — trigger
+  // zlec_analize_maila bierze tylko przychodzące), 'przetworzony' dopiero po dopasowaniu do oferty/leada. Gdy poprzedni
+  // przebieg padł w połowie (wiersz jest, dopasowania nie ma), ten przebieg je dokańcza zamiast uznać mail za duplikat.
+  let mailId: string | null = null
+  let dokonczenie = false
+  if (!messageId) {
+    // bez Message-ID unikalny indeks nie złapie powtórki — szukamy po skrzynce, UID i temacie
+    const { data: stary, error: eOdczyt } = await db.from('maile').select('id, status_przetwarzania')
+      .eq('skrzynka_id', s.id).eq('uid', uid).eq('kierunek', 'wychodzacy').eq('temat', temat).order('created_at').limit(1).maybeSingle()
+    if (eOdczyt) throw new Error('Odczyt maila wychodzącego: ' + eOdczyt.message)
+    if (stary && stary.status_przetwarzania !== 'nowy') return { temat: temat.slice(0, 80), duplikat: true }
+    if (stary) { mailId = stary.id; dokonczenie = true }
+  }
+  if (!mailId) {
+    const { data: wiersz, error } = await db.from('maile').insert({
+      skrzynka_id: s.id, uid, message_id: messageId, kierunek: 'wychodzacy', od_adres: od, od_nazwa: nazwaZ(h['from']),
+      do_adresy: doAdresy, cc_adresy: ccAdresy, odpowiedz_na: (h['in-reply-to'] ?? '').trim() || null, temat,
+      tresc: tresc.tekst.slice(0, MAKS_TRESCI), tresc_ucieta: tresc.ucieta || tresc.tekst.length > MAKS_TRESCI,
+      zalaczniki: tresc.zalaczniki, data: data.toISOString(), typ: 'wlasny', status_przetwarzania: 'nowy',
+    }).select('id').single()
+    if (error) {
+      if (error.code !== '23505') throw new Error('Zapis maila wychodzącego: ' + error.message)
+      const { data: stary, error: eOdczyt } = await db.from('maile').select('id, status_przetwarzania')
+        .eq('message_id', messageId).eq('kierunek', 'wychodzacy').maybeSingle()
+      if (eOdczyt) throw new Error('Odczyt maila wychodzącego: ' + eOdczyt.message)
+      if (!stary || stary.status_przetwarzania !== 'nowy') return { temat: temat.slice(0, 80), duplikat: true }
+      mailId = stary.id
+      dokonczenie = true
+    } else {
+      mailId = wiersz.id
+    }
   }
   const bezWlasnych = doAdresy.concat(ccAdresy).filter((a) => a !== od && a !== s.login.toLowerCase())
   const oferta = mailZOferta(temat, tresc.tekst, tresc.zalaczniki)
-  const dop = await przetworzMail(db, { do: bezWlasnych, temat, data, message_id: messageId, od, oferta }, { mail_id: wiersz.id, skrzynka: s })
+  const dop = await przetworzMail(db, { do: bezWlasnych, temat, data, message_id: messageId, od, oferta }, { mail_id: mailId!, skrzynka: s })
   const pierwsze = (dop.wyniki ?? []).find((w) => w.oferta_id || w.lead_id)
-  await db.from('maile').update({
-    lead_id: pierwsze?.lead_id ?? null, oferta_id: pierwsze?.oferta_id ?? null,
-    podsumowanie: opisDopasowania(dop),
-  }).eq('id', wiersz.id)
-  return { temat: temat.slice(0, 80), do: bezWlasnych, ...dop }
+  const bledyDop = (dop.wyniki ?? []).filter((w) => w.blad).map((w) => `${w.adres}: ${w.blad}`)
+  // błąd dopasowania: wiersz zostaje 'nowy' z opisem w `blad`, a wyjątek zatrzymuje folder na tym mailu (ponowienie
+  // w następnym przebiegu); dokończenie, które trafiło na zapisane już zdarzenie wysyłki (duplikat), tylko zamyka wiersz
+  const zmiany: Record<string, unknown> = dokonczenie && dop.duplikat
+    ? { status_przetwarzania: 'przetworzony', blad: null }
+    : { lead_id: pierwsze?.lead_id ?? null, oferta_id: pierwsze?.oferta_id ?? null, podsumowanie: opisDopasowania(dop),
+        status_przetwarzania: bledyDop.length ? 'nowy' : 'przetworzony', blad: bledyDop.length ? bledyDop.join('; ').slice(0, 2000) : null }
+  const { error: eWynik } = await db.from('maile').update(zmiany).eq('id', mailId!)
+  if (eWynik) throw new Error('Zapis wyniku dopasowania maila: ' + eWynik.message)
+  if (bledyDop.length) throw new Error(`Dopasowanie maila „${temat.slice(0, 60)}”: ${bledyDop.join('; ')}`.slice(0, 400))
+  return { temat: temat.slice(0, 80), do: bezWlasnych, ...(dokonczenie ? { dokonczono: true } : {}), ...dop }
 }
 
 function opisDopasowania(d: { pominieto?: string; duplikat?: boolean; wyniki?: Dopasowanie[] }): string {
@@ -470,7 +529,9 @@ async function dopasuj(db: SupabaseClient, adres: string, temat: string, data: D
     if (lead.status === 'nowy') zmiany.status = 'oferta'
     let u = db.from('leady').update(zmiany).eq('id', lead.id)
     u = lead.nastepna_akcja ? u.eq('nastepna_akcja', lead.nastepna_akcja) : u.is('nastepna_akcja', null)
-    const { data: z } = await u.select('id')
+    const { data: z, error: eZad } = await u.select('id')
+    // testy 27.11 (runda 3): błąd zapisu zadania nie może przejść po cichu (mail byłby „przetworzony”, a zadanie stare)
+    if (eZad) throw new Error('Nie zmieniono zadania klienta: ' + eZad.message)
     if (z?.length) {
       zamknieto = lead.nastepna_akcja ?? null
       await db.from('zdarzenia').insert({ lead_id: lead.id, typ: 'zadanie_zrobione',
@@ -498,7 +559,8 @@ async function dopasuj(db: SupabaseClient, adres: string, temat: string, data: D
         ? { nastepna_akcja: 'follow_up', nastepny_krok: termin, akcja_od: new Date().toISOString(),
             akcja_opis: `Klient nie odpowiedział na mail z ${dataPL(data)} („${temat.slice(0, 60)}”). Zapytaj ponownie o decyzję albo zamknij sprawę („Nie zamówi”).` }
         : { nastepna_akcja: null, nastepny_krok: null, akcja_opis: null, akcja_od: null }
-    const { data: z } = await db.from('leady').update(zmiany).eq('id', lead.id).eq('nastepna_akcja', lead.nastepna_akcja).select('id')
+    const { data: z, error: eZad } = await db.from('leady').update(zmiany).eq('id', lead.id).eq('nastepna_akcja', lead.nastepna_akcja).select('id')
+    if (eZad) throw new Error('Nie zmieniono zadania klienta: ' + eZad.message)   // testy 27.11 (runda 3)
     if (z?.length) {
       zamknieto = lead.nastepna_akcja
       await db.from('zdarzenia').insert({ lead_id: lead.id, typ: 'zadanie_zrobione', opis: `Wysłano mail „${temat.slice(0, 120)}” (zadanie ${lead.nastepna_akcja}).`,
