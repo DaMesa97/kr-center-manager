@@ -25,6 +25,16 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM w nowym, prostszym wyglądzie (beta.170)</h4>
+        <ul>
+          <li><b>Cały CRM</b> wg makiet: biały pasek sekcji, bez ikonek, jeden kolor przycisków, jedno kolorowe miejsce na ekranie — pasek <b>„Co teraz”</b>, który mówi, co kliknąć.</li>
+          <li><b>Do zrobienia:</b> termin w pierwszej kolumnie (dziś / zaległe na czerwono / „sob 28.11”), „Co · Klient” i jedno zdanie, przyciski w stałych kolumnach po prawej (Zadzwoń / Sprawdź ustalenia / Otwórz ofertę | Zrobione). „Zrobione” pyta „co dalej” pod wierszem, nie na górze strony.</li>
+          <li><b>Karta klienta:</b> etapy sprawy (Zapytanie → Oferta → Decyzja → Zamówienie → Umowa i pomiar → Montaż), „Co teraz” z Zamówił / Nie zamówi, trzy kolumny: Klient | Historia (jedna, z filtrem Maile / Rozmowy) | Sprawa (czego chce, oferty, dokumenty jako kroki). Wynik klikasz tylko w „Co teraz”.</li>
+          <li><b>Oferta:</b> jedno pole <b>„Poproś o zmianę”</b> (cena, pozycje, treść maila) zamiast kilku. Pod nim każda prośba z odpowiedzią systemu: <i>zrobione · wersja N</i> albo na czerwono <i>nie zrobione — dlaczego</i>.</li>
+          <li><b>Oferta z montażem bez cen</b> (np. sam opis bez kwot): PDF i mail nie powstają, oferta czeka z krokiem „Brakuje cen — wpisz ceny”. Pozycja ma być za darmo — napisz „… gratis”.</li>
+          <li><b>Dodaj klienta:</b> źródło do wyboru — wizyta, telefon (inny numer niż Ringostat), mail, Facebook / Instagram, polecenie, inne — z polem „na który numer / kto polecił / skąd”.</li>
+          <li><b>Oferty, Klienci, Zamówienia, Maile, Statystyki:</b> nagłówek z jednym zdaniem, filtry w jednym rzędzie, mniej kolumn (szczegóły w karcie).</li>
+        </ul>
         <h4>Statystyki: co się sprzedaje, co spada, na co czeka klient (beta.168)</h4>
         <ul>
           <li><b>Statystyki → Drzwi wewnętrzne</b> liczą teraz towar, nie komponenty: <b>grupy modelowe</b> (VERONA, CLASSIC, MALEO…; grupa = model bez „BLACK”, linia BLACK / bezprzylgowe / norma czeska osobno), w grupie <b>kolory i rozmiary</b> (kliknij grupę), filtr typu (skrzydła, ościeżnice, klamki, osłonki, akcesoria) i wykonania (<b>WEW = z półki</b>, <b>NSTD = na zamówienie</b>), okres 3–24 miesiące. Cechy pozycji program czyta z nazwy kartoteki Optimy (słownik w bazie, rozpoznane 99 % sztuk); nierozpoznane pozycje są na dole listy, kierownik może przypisać im grupę ręcznie albo oznaczyć „to nie wewnętrzne”. Kartoteki <b>BOLD</b> w RO to Bastion, opaski CPL i klamki THEO / HAGA / FORESTA / KR CENTER to drzwi zewnętrzne — nie liczą się tu wcale.</li>
