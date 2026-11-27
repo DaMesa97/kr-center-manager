@@ -25,6 +25,15 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.8: poprawki po testach całej aplikacji</h4>
+        <ul>
+          <li><b>Wysyłki kurierem</b>: przesyłka, która nie założyła się w BaseLinkerze, po 3 minutach pokazuje błąd i „Ponów” (wcześniej mogła wisieć na „Zakładam przesyłkę…”). Dwa kliknięcia nie zakładają dwóch przesyłek. Druga wysyłka do tego samego zamówienia BL nie dolicza pobrania drugi raz (okno planowania o tym ostrzega). Numer BL rozpoznaje się też w zapisie „… (zamówienie 55204048/Nazwisko)”. „Anuluj” jest zablokowane, gdy przesyłka się zakłada; anulowana wysyłka z przesyłką SUUS zostaje widoczna, dopóki nie klikniesz „Usunięta w BaseLinkerze”. Data doręczenia liczy święta u każdego, data wysyłki nie może być w przeszłości, a weekend / święto daje ostrzeżenie.</li>
+          <li><b>Drzwi wewnętrzne</b>: „Wydaj” w telefonie (Wysyłka) zdejmuje towar z Magazynu 1 / 2 jak na komputerze. Lista „Wewn.” w telefonie liczy SYSTEM PRZESUWNY osobno (nie pokazuje „komplet” bez systemu). Gdy zlecenie zmieni się w Optimie po odhaczeniu (ilość, rozmiar, kolor), linia wraca jako nieodhaczona z dopiskiem „zmienione w Optimie”. Pozycja usunięta ze zlecenia po wydaniu wraca na stan przy „Dolicz wydanie”.</li>
+          <li><b>Zlecenia</b>: w nowej reklamacji pole „Szukaj wydanych” znajduje zlecenia już wydane (numer, firma, nr BL). Cofnięte wydanie pojawia się od razu u wszystkich. Wynik szukania (Ctrl+K) nie wyłącza na stałe „Ukryj wydane”. Partie Bastion pokazują też wydane zlecenia. Licznik „Niewydanych zleceń” bez anulowanych.</li>
+          <li><b>CRM</b>: mail z poczty do klienta z zadaniem „Zapytaj o decyzję” planuje kolejne za 5 dni roboczych (klient nie znika z „Do zrobienia”). Oferta bez cen albo bez produktu nie zmienia się sama na „wysłana” po zwykłym mailu. Lista „Poproś o zmianę” pokazuje każdy wynik przy właściwej prośbie. Poprawiony NIP czyści dane poprzedniej firmy. Klient, który zamówił w sklepie bez montażu, nie widzi „Przygotuj umowę na montaż”.</li>
+          <li><b>WZ reklamacyjne</b>: „Anuluj” działa w aplikacji na komputerze. Wydanie większej ilości niż stan pyta „Wydać mimo to?”. Zmiana magazynu czyści wybrane pozycje.</li>
+          <li><b>Magazyn → Stany / Inwentaryzacja „Jak w Excelu”</b>: ościeżnice bez poziomych pasków — kafelek jest tak szeroki, żeby było widać wszystkie kolumny.</li>
+        </ul>
         <h4>Wersja 1.1.7: Wysyłki kurierem — tylko zamówienia z kurierem w BaseLinkerze</h4>
         <ul>
           <li>Lista <b>Do wysyłki</b> pokazuje tylko zamówienia, które w BaseLinkerze mają dostawę <b>„Kurier”</b> (program łączy nr BL zlecenia z zamówieniem w BL). Odbiór osobisty, montaż i zlecenia bez danych z BL są schowane — link „pokaż schowane” w opisie nad listą je odsłania (z plakietką, jaka dostawa).</li>

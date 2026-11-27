@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
 import DataTable, { type DataTableColumn } from '../DataTable'
@@ -7,6 +7,7 @@ import Spinner from '../Spinner'
 import { isInternalDoorComponent } from '../../lib/internalWarehouse'
 import { isInternalWarehouseCode } from '../../utils'
 import { generateWzReklamacyjnyPdf, type WzrPdfData } from '../../utils/wzReklamacyjnyPdf'
+import { appConfirm, appPrompt } from '../../lib/appDialogs'
 import type { ToastVariant, Warehouse, WarehouseComponent } from '../../types'
 
 type Props = {
@@ -104,7 +105,8 @@ export default function WzReklamacyjneView({ warehouses, components, canEdit, pu
   })
 
   const anuluj = async (w: Wzr) => {
-    const powod = window.prompt(`Anulować ${w.numer}? Towar wróci na ${whName(w.warehouse_id)}.\nPowód (opcjonalnie):`, '')
+    // 27.11 (testy agentów): window.prompt nie działa w aplikacji na komputerze (Electron) — „Anuluj” nic nie robiło
+    const powod = await appPrompt(`Anulować ${w.numer}? Towar wróci na ${whName(w.warehouse_id)}.\nPowód (opcjonalnie):`, { title: 'Anulować WZ reklamacyjny?', confirmLabel: 'Anuluj WZ' })
     if (powod === null) return
     const { error } = await supabase.rpc('cancel_wz_reklamacyjny', { p_id: w.id, p_powod: powod || null })
     if (error) {
@@ -214,6 +216,21 @@ export default function WzReklamacyjneView({ warehouses, components, canEdit, pu
             if (!form.warehouse_id) { pushToast('Wybierz magazyn', 'error'); return }
             const items = form.items.filter((it) => it.component_id > 0 && it.quantity > 0)
             if (items.length === 0) { pushToast('Dodaj co najmniej jedną pozycję (towar i ilość)', 'error'); return }
+            // 27.11 (testy agentów): ten sam towar w kilku wierszach sumujemy i przy braku pytamy (stan zejdzie na minus)
+            const suma = new Map<number, number>()
+            for (const it of items) suma.set(it.component_id, (suma.get(it.component_id) ?? 0) + it.quantity)
+            const { data: st } = await supabase.from('warehouse_stock').select('component_id, quantity')
+              .eq('warehouse_id', form.warehouse_id).in('component_id', [...suma.keys()])
+            const stan = new Map(((st ?? []) as Array<{ component_id: number; quantity: number }>).map((x) => [Number(x.component_id), Number(x.quantity) || 0]))
+            const braki = [...suma.entries()].filter(([id, q]) => (stan.get(id) ?? 0) < q)
+            if (braki.length) {
+              const nazwa = (id: number) => components.find((c) => c.id === id)?.name ?? `#${id}`
+              const ok = await appConfirm(
+                `Na magazynie ${whName(form.warehouse_id)} brakuje:\n${braki.map(([id, q]) => `• ${nazwa(id)}: wydajesz ${q}, na stanie ${stan.get(id) ?? 0}`).join('\n')}\n\nWydać mimo to? Stan zejdzie na minus.`,
+                { title: 'Brak na stanie', confirmLabel: 'Wydaj mimo to', tone: 'danger' },
+              )
+              if (!ok) return
+            }
             setSaving(true)
             const { data, error } = await supabase.rpc('create_wz_reklamacyjny', {
               p_warehouse_id: form.warehouse_id,
@@ -257,7 +274,7 @@ function WzrFormModal({
   onSave,
 }: {
   form: Form
-  setForm: (f: Form) => void
+  setForm: Dispatch<SetStateAction<Form | null>>
   warehouses: Warehouse[]
   components: WarehouseComponent[]
   saving: boolean
@@ -295,7 +312,7 @@ function WzrFormModal({
     return () => { aktywne = false }
   }, [form.warehouse_id, ids])
 
-  const set = (patch: Partial<Form>) => setForm({ ...form, ...patch })
+  const set = (patch: Partial<Form>) => setForm((f) => (f ? { ...f, ...patch } : f))
   const setItem = (i: number, patch: Partial<Item>) => set({ items: form.items.map((it, k) => (k === i ? { ...it, ...patch } : it)) })
 
   // reklamacja z modułu Reklamacje (opcjonalnie): po numerze, podpowiada firmę i nr zlecenia
@@ -304,12 +321,12 @@ function WzrFormModal({
     const nr = form.reklamacja.trim()
     if (!nr) { set({ complaint_id: null, complaint_label: '' }); return }
     setSzukam(true)
-    const { data } = await supabase
-      .from('complaints')
-      .select('id, complaint_number, company, order_number, client_order_number')
-      .ilike('complaint_number', `%${nr}%`)
-      .order('id', { ascending: false })
-      .limit(2)
+    const KOL = 'id, complaint_number, company, order_number, client_order_number'
+    // 27.11 (testy agentów): „XL/Bastion/16” pasowało też do „XL/Bastion/160” → „kilka pasuje” mimo pełnego numeru
+    const dokladnie = await supabase.from('complaints').select(KOL).ilike('complaint_number', nr).limit(2)
+    const { data } = (dokladnie.data ?? []).length === 1
+      ? dokladnie
+      : await supabase.from('complaints').select(KOL).ilike('complaint_number', `%${nr}%`).order('id', { ascending: false }).limit(2)
     setSzukam(false)
     const list = (data ?? []) as Array<{ id: number; complaint_number: string; company: string | null; order_number: string | null; client_order_number: string | null }>
     if (list.length !== 1) {
@@ -321,9 +338,9 @@ function WzrFormModal({
       complaint_id: c.id,
       complaint_label: `✓ ${c.complaint_number}${c.company ? ` · ${c.company}` : ''}`,
       reklamacja: c.complaint_number,
-      firma: form.firma || c.company || '',
-      nr_zlecenia: form.nr_zlecenia || c.order_number || c.client_order_number || '',
     })
+    // firma / nr zlecenia tylko, gdy wciąż puste (sprawdzane na bieżącym formularzu, nie sprzed zapytania)
+    setForm((f) => (f ? { ...f, firma: f.firma || c.company || '', nr_zlecenia: f.nr_zlecenia || c.order_number || c.client_order_number || '' } : f))
   }
 
   const itemColumns: DataTableColumn<Item>[] = [
@@ -390,7 +407,11 @@ function WzrFormModal({
               <span className="order-field-label-text">Magazyn (z którego wydajesz)</span>
               <select
                 value={form.warehouse_id ?? ''}
-                onChange={(e) => set({ warehouse_id: e.target.value ? Number(e.target.value) : null })}
+                onChange={(e) => {
+                  // 27.11 (testy agentów): pozycje wybrane dla poprzedniego magazynu schodziłyby z nowego (drzwi z Marklowickiej)
+                  const wybrane = form.items.some((it) => it.component_id > 0)
+                  set({ warehouse_id: e.target.value ? Number(e.target.value) : null, ...(wybrane ? { items: [{ component_id: 0, quantity: 1, uwagi: '' }] } : {}) })
+                }}
                 disabled={saving}
               >
                 <option value="">— wybierz magazyn —</option>
