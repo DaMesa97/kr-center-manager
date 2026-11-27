@@ -25,6 +25,12 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>CRM: ceny z ulotki KR Center (beta.171)</h4>
+        <ul>
+          <li><b>Oferta z montażem bez cen</b> (np. wklejony sam opis „5× Verona 02 black 80, OR 10–14, Iberia czarne…”) liczy się teraz z <b>ulotki KR Center „Sierpień 2026”</b> wczytanej do CRM: skrzydła, ościeżnice, klamki i szyldy, dopłaty, osłonki. System wskazuje pozycję cennika, a kwotę wstawia program — przy każdej pozycji w PDF jest dopisek „wg cennika KR Center, str. …”. Sprawdź dobór wariantu (okleina, zamek, przedział ościeżnicy).</li>
+          <li>Czego nie da się jednoznacznie dopasować (np. brak okleiny przy modelu w kilku cenach), zostaje z krokiem „Brakuje cen” i podpowiedzią, czego brakuje.</li>
+          <li><b>Oferty → Do sprawdzenia</b> nie pokazuje już ofert klientów, którzy zamówili albo przegrali.</li>
+        </ul>
         <h4>CRM w nowym, prostszym wyglądzie (beta.170)</h4>
         <ul>
           <li><b>Cały CRM</b> wg makiet: biały pasek sekcji, bez ikonek, jeden kolor przycisków, jedno kolorowe miejsce na ekranie — pasek <b>„Co teraz”</b>, który mówi, co kliknąć.</li>
