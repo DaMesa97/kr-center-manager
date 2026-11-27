@@ -262,6 +262,15 @@ Deno.serve(async (req) => {
     const parsed = readSheets(bytes, allSheets, headers);
     const cutoff = Date.now() - 365 * 24 * 3600 * 1000;
     const results: unknown[] = [];
+    // testy 27.11 (runda 3): błąd etapów / wyjątek reklamacji był tylko w odpowiedzi HTTP (Make go nie pokazuje) —
+    // zapisujemy go w excel_sync_runs, tak jak błąd RPC reklamacji (summary.kategoria + summary.blad)
+    async function logRunError(kategoria: string, blad: string, rowsIn: number, extra: Record<string, unknown>) {
+      try {
+        const { error: logErr } = await supabase.from("excel_sync_runs").insert({ source: `make: ${fileName || fileKey}`, dry_run: dryRun, rows_in: rowsIn,
+          summary: { kategoria, blad }, details: [extra] });
+        if (logErr) console.error("excel_sync_runs (błąd):", logErr.message);
+      } catch (e) { console.error("excel_sync_runs (błąd):", e); }
+    }
 
     for (const part of parts) {
       const rows: Record<string, unknown>[] = [];
@@ -348,8 +357,10 @@ Deno.serve(async (req) => {
             p_items: items, p_dry_run: dryRun || etapyMode !== "on", p_run_id: result.run_id, p_category: part.category,
           });
           entry.etapy = eerr ? { error: eerr.message } : { ...(eres ?? {}), zmiany: undefined, rozne_lista: undefined, nietypowe_lista: undefined, kolumny_brak: stageColsMissing };
+          if (eerr) await logRunError(`Etapy ${part.category}`, eerr.message, items.length, { run_id: result.run_id, tryb: etapyMode });
         } catch (e) {
           entry.etapy = { error: String((e as Error)?.message ?? e) };
+          await logRunError(`Etapy ${part.category}`, String((e as Error)?.message ?? e), 0, { run_id: result.run_id, tryb: etapyMode });
         }
       }
       results.push(entry);
@@ -395,8 +406,7 @@ Deno.serve(async (req) => {
             });
             if (cerr) {
               // błąd reklamacji: zapisz do logu, ale nie przerywaj łańcucha w Make (status 200)
-              await supabase.from("excel_sync_runs").insert({ source: `make: ${fileName || fileKey}`, dry_run: dryRun, rows_in: crow.length,
-                summary: { kategoria: `Reklamacje ${complaintCategory}`, blad: cerr.message }, details: [{ columns: col }] });
+              await logRunError(`Reklamacje ${complaintCategory}`, cerr.message, crow.length, { columns: col });
               results.push({ category: `Reklamacje ${complaintCategory}`, error: cerr.message, rows_sent: crow.length, columns: col });
             }
             else results.push({ category: `Reklamacje ${complaintCategory}`, rows_sent: crow.length, run_id: cres.run_id, summary: cres.summary, columns: col });
@@ -405,6 +415,7 @@ Deno.serve(async (req) => {
       } catch (e) {
         // reklamacje nie mogą wywrócić synchronizacji wydań
         results.push({ category: `Reklamacje ${complaintCategory}`, error: String((e as Error)?.message ?? e) });
+        await logRunError(`Reklamacje ${complaintCategory}`, String((e as Error)?.message ?? e), 0, {});
       }
     }
 
