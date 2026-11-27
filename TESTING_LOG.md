@@ -249,8 +249,21 @@ Ok. 30 znalezisk: krytyczne 3 (bez logowania można anulować / przywracać reze
 | ŚREDNI | Użytkownicy | lista bez statusu blokady, okno obiecywało odblokowanie — kolumna „Status”, „Odblokuj” | 48b2dc6 |
 | WYSOKI | orders-excel-intake | wiersz z innym towarem / ilością / wykonawcą niż bot znikał jako dubel — teraz Weryfikacja | 381658d |
 
-### Poprawione — baza
-(w toku: tor bezpieczeństwa — pilny plik z odebraniem uprawnień anon, `reserve_stock_for_order` z kontrolą roli, zakres kategorii kierownika działu, audyt i zawężenie zapisu stanów, rola konta CRM, uwagi z próby generalnej — wpis po przyjęciu)
+### Poprawione — baza (pliki migracji, niewgrane; każda sprawdzona w transakcji z rollbackiem)
+| Waga | Problem | Plik | Commit |
+|---|---|---|---|
+| KRYTYCZNY | **PILNE** — anon wykonywał 26 funkcji public (m.in. anulowanie/przywracanie rezerwacji, dane ZD); odebrane, zostają tylko funkcje ekranu logowania | `20261127234000_pilne_anon_bez_funkcji.sql` (samodzielny, powtarzalny) | 58154fd |
+| KRYTYCZNY | `reserve_stock_for_order` i `revalidate_bot_order` dla każdego zalogowanego — tylko kierownik / klucz serwisowy | `20261127234100_rezerwacja_i_weryfikacja_bota_tylko_kierownik.sql` | 22c5f3f |
+| WYSOKI | kierownik działu bez zakresu kategorii (zmiana / anulowanie / kasowanie cudzych zleceń, reguły, kontrahenci) | `20261127234200_kierownik_dzialu_zakres_kategorii.sql` | 3ef9592 |
+| WYSOKI | dowolny stan magazynu z F12 bez dokumentu i audytu — stany tylko przez funkcje, audyt stanów i receptur | `20261127234300_magazyn_stany_tylko_przez_funkcje_audyt.sql` | eedf23b |
+| WYSOKI | zdjęcie „nie dotyczy” na wydanym zleceniu zostawiało rezerwację na zawsze — P0409 | `20261127234400_etap_nd_na_wydanym_bez_przywracania.sql` | c5d3896 |
+| ŚREDNI | migracja NaN nie dawała się uruchomić ponownie | poprawiony `20261127232500_…` | 5fc33ac |
+| ŚREDNI | ponowne uruchomienie 233200 kasowało blokadę wydania anulowanych | poprawione `233200` / `233300` | 883d861 |
+| NISKI | prognozy: pierwszy niepełny miesiąc liczony jak pełny | poprawiony `20261127232800_…` | 470b34e |
+| WYSOKI | rolę / kategorie / usunięcie konta z dostępem do CRM zmieniał admin bezpośrednio w bazie | `20261127234500_konta_crm_tylko_superadmin.sql` (gałąź DELETE nieprzetestowana — konektor zawiesza się na `delete from profiles`) | b2c6ce8 |
+| — | skrypt kontroli po wdrożeniu (pusty wynik = wszystko wgrane) | `scripts/kontrola-po-wdrozeniu.sql` | 6499a5a |
+
+Uwagi: audyt na `warehouse_stock` dopisuje wpis przy każdej zmianie rezerwacji (szybszy wzrost `audit_log`); usunięcie komponentu z niezerowym stanem zostanie odrzucone przez bazę (polityka „tylko zero”); plik 234000 zaleca się puścić ponownie po wgraniu całości (nowe funkcje dostają domyślnie EXECUTE dla PUBLIC).
 
 ### Znalezione, nie poprawione
 - Do decyzji: D2 (rejestracja kont), D11 (Weryfikacja dla kierownika działu), D12 (ceny dla hali), D31 (magazynier a trasy), D32 („90” vs „90E”), D10 (MR Profil — RO przepada bez śladu).
@@ -260,6 +273,8 @@ Ok. 30 znalezisk: krytyczne 3 (bez logowania można anulować / przywracać reze
 - Pomoc (`HelpView.tsx`) nie wspomina o „Odblokuj” i zakazie usuwania kont z historią (NISKI).
 
 Stan: `tsc` OK, **698 testów** OK.
+
+**Podsumowanie rundy 5:** znalezisk ok. 30 + 6 z próby generalnej; poprawione 21 (aplikacja/Edge 11, baza 10). Nowe KRYTYCZNE były — od tej nocy warunek stopu wyłączony, testy pogłębiane.
 
 ## Do decyzji
 > Od 28.11 w nocy pełna, uporządkowana lista jest w `DECISIONS.md` (format: problem / opcje / rekomendacja / pilność / praca). Poniżej historyczna lista z rund 1–4.
@@ -312,6 +327,13 @@ Stan: `tsc` OK, **698 testów** OK.
 23. ⏳ `supabase/migrations/20261127233300_anulowane_bez_wydania_i_wysylki.sql` — po 22
 24. ⏳ `supabase/migrations/20261127233400_crm_etykiety_numer_oferty_uprawnienia.sql`
 25. ⏳ `supabase/migrations/20261127233500_crm_umowa_podpisana_bez_zmian.sql`
+26. ⏳ **PILNE** `supabase/migrations/20261127234000_pilne_anon_bez_funkcji.sql` — samodzielny, można wgrać od razu (i ponownie po całości)
+27. ⏳ `supabase/migrations/20261127234100_rezerwacja_i_weryfikacja_bota_tylko_kierownik.sql`
+28. ⏳ `supabase/migrations/20261127234200_kierownik_dzialu_zakres_kategorii.sql`
+29. ⏳ `supabase/migrations/20261127234300_magazyn_stany_tylko_przez_funkcje_audyt.sql`
+30. ⏳ `supabase/migrations/20261127234400_etap_nd_na_wydanym_bez_przywracania.sql` — po 233000
+31. ⏳ `supabase/migrations/20261127234500_konta_crm_tylko_superadmin.sql`
+Po wgraniu: `scripts/kontrola-po-wdrozeniu.sql` (pusty wynik = OK). Próba generalna (runda 5): pliki do 233500 przechodzą razem w kolejności nazw, w jednej transakcji. Twarde zależności: 232000+232200 przed 232300; 232100 po 232000; 233100 po 233000; 233300 po 233200; 234400 po 233000.
 Pliki 225000, 232200 i 232700 zmienione w rundzie 4 (nadal niewgrane). 232000 + 232200 + 232300 wgrywać razem.
 Pliki 3–7 zostały w rundzie 3 poprawione (nadal niewgrane). Funkcje Edge 8–10 mają w rundzie 3 kolejne zmiany w repo — wgrywać najnowszą wersję z repo.
 Kolejność dowolna (zmiany niezależne); 3–7 to podmiany pojedynczych funkcji z kontrolą „już poprawione”.

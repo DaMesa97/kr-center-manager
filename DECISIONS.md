@@ -15,7 +15,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 7. **D7 — Prognozy magazynowe**: poprawka zmieni też Alerty (19 krytycznych → „brak danych” do grudnia/stycznia).
 
 ### Może poczekać (najważniejsze)
-D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka.
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów.
 
 ---
 
@@ -23,8 +23,8 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 
 ### D1. Luka: rezerwacje magazynowe bez logowania
 - **Problem**: funkcje bazy `cancel_stage_reservations__impl` i `restore_stage_reservations__impl` (oraz `recompute_order_stock_status`) mają prawo wykonania dla `anon`. Ktoś z publicznym kluczem (jest w każdej instalacji programu, widać go w F12) wysyła `rpc/...` z numerem zlecenia — rezerwacje etapu znikają albo wracają, stany „wolne”, zamawianie i alerty liczą źle, w dzienniku brak autora. Odtworzone w transakcji cofanej (zlecenie 17384, etap e2_1: anulowano 16, przywrócono 16).
-- **Opcje**: (a) wgrać od razu samodzielny plik „PILNE” z `revoke` (powstaje w nocy, patrz TESTING_LOG); (b) poczekać i wgrać z całym pakietem D3.
-- **Rekomendacja**: (a) — plik nie zależy od reszty, tylko odbiera uprawnienia, których program nie używa.
+- **Opcje**: (a) wgrać od razu samodzielny plik `supabase/migrations/20261127234000_pilne_anon_bez_funkcji.sql` (odbiera anon 26 funkcji, zostawia tylko funkcje ekranu logowania; sprawdzony w transakcji: anon dostaje „permission denied”, praca kierownika bez zmian); (b) poczekać i wgrać z całym pakietem D3.
+- **Rekomendacja**: (a) — plik nie zależy od reszty, tylko odbiera uprawnienia, których program nie używa. Po wgraniu całego pakietu (D3) puścić go jeszcze raz.
 - **Pilność**: pilne · **Praca**: mały (wgranie jednego pliku)
 
 ### D2. Rejestracja nowych kont w Supabase
@@ -240,6 +240,18 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Opcje**: (a) uzupełnić adres w ustawieniach; (b) schować przycisk do czasu konfiguracji.
 - **Rekomendacja**: (a).
 - **Pilność**: może poczekać · **Praca**: mały
+
+### D37. Funkcje CRM wykonywalne przez każdego zalogowanego
+- **Problem**: część funkcji w schemacie `crm` ma EXECUTE tylko przez PUBLIC i bez sprawdzenia dostępu do CRM (np. `crm.zamowienie_sklepowe_wygrany` — SECURITY DEFINER). Pracownik KR bez CRM może je wywołać z F12. Anon nie może (brak dostępu do schematu).
+- **Opcje**: (a) przejrzeć funkcje `crm` i dodać sprawdzenie `current_user_has_crm()` / odebrać PUBLIC; (b) zostawić.
+- **Rekomendacja**: (a) — jak w pliku 233400 dla etykiet i numerów ofert.
+- **Pilność**: może poczekać · **Praca**: mały–średni
+
+### D38. Szybszy wzrost dziennika zmian po audycie stanów
+- **Problem**: plik 234300 dodaje audyt na `warehouse_stock` — wpis przy każdej zmianie rezerwacji (setki dziennie). `audit_log` ma dziś 302 MB / 104 tys. wierszy, szukanie w nim jest wolne.
+- **Opcje**: (a) audyt tylko przy zmianie `quantity` (nie `reserved_quantity`); (b) czyszczenie audytu starszego niż N miesięcy; (c) zostawić.
+- **Rekomendacja**: (a) — rezerwacje mają własną historię w `stock_reservations`.
+- **Pilność**: może poczekać (przed wgraniem 234300 warto zdecydować) · **Praca**: mały
 
 ---
 
