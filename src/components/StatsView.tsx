@@ -18,6 +18,9 @@ type StatsViewProps = {
   orders: Order[]
   complaints: Complaint[]
   loading: boolean
+  /** błąd pobierania danych statystyk (null = OK) */
+  error?: string | null
+  onRetry?: () => void
   activeSubTab: StatsSubTab
   onSubTabChange: (tab: StatsSubTab) => void
   /** kierownik może scalać pisownie firm (Statystyki → Firmy → Porządek nazw) i przypisywać grupy nierozpoznanym pozycjom wewnętrznym */
@@ -33,6 +36,8 @@ function StatsView({
   orders,
   complaints,
   loading,
+  error = null,
+  onRetry,
   activeSubTab,
   onSubTabChange,
   monthlyConsumption,
@@ -61,6 +66,13 @@ function StatsView({
           </button>
         ))}
       </div>
+      {error && !loading && (
+        // testy 27.11 (runda 3): zamiast pustych wykresów / „brak danych” przy błędzie sieci lub bazy
+        <div className="error-banner" role="alert" style={{ margin: '8px 0', padding: '10px 12px', border: '1px solid #fca5a5', background: '#fef2f2', color: '#991b1b', borderRadius: 6 }}>
+          Nie udało się wczytać danych statystyk ({error}) — liczby poniżej mogą być niepełne.{' '}
+          {onRetry && <button type="button" className="btn btn-sm btn-secondary" onClick={onRetry}>Odśwież</button>}
+        </div>
+      )}
       {PRODUCTION_SUB_TABS.includes(activeSubTab) && (
         <>
           <CategoryStatsDashboard category={activeSubTab} orders={orders} loading={loading} canon={canonCompany} />

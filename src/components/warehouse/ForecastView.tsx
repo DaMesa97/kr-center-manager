@@ -132,8 +132,13 @@ export default function ForecastView({ components, suppliers = [], isManager }: 
     [components, selectedComponentId],
   )
 
+  const [bladDanych, setBladDanych] = useState<string | null>(null)
   const fetchComponentData = useCallback(async (componentId: number) => {
     setLoading(true)
+    // testy 27.11 (runda 3): po błędzie zostawał wykres poprzedniego komponentu pod nazwą nowego
+    setHistory([])
+    setForecast(null)
+    setBladDanych(null)
 
     const { data: histData, error: histErr } = await supabase.rpc('get_component_consumption_history', {
       p_component_id: componentId,
@@ -151,6 +156,7 @@ export default function ForecastView({ components, suppliers = [], isManager }: 
 
     if (histErr || runErr) {
       console.error('Błąd:', histErr, runErr)
+      setBladDanych((histErr ?? runErr)?.message ?? 'nieznany błąd')
       return
     }
 
@@ -352,17 +358,20 @@ export default function ForecastView({ components, suppliers = [], isManager }: 
         </aside>
         <div className="forecast-main">
           {loading && <Spinner center label="Ładowanie danych…" />}
+          {!loading && bladDanych && (
+            <p className="no-results" role="alert" style={{ color: '#991b1b' }}>Nie udało się wczytać prognozy ({bladDanych}) — wybierz komponent jeszcze raz.</p>
+          )}
           {!loading && selectedComponent && forecast && (
             <div className="forecast-header">
               <h3>{selectedComponent.name}</h3>
               <div className="forecast-meta">
                 <span>Stan bieżący: {forecast.current_stock_total}</span>
-                <span>Baseline: {forecast.baseline_qty}/mies.</span>
+                <span title="Średnie miesięczne zużycie z historii, od którego liczona jest prognoza">Średnie zużycie: {forecast.baseline_qty}/mies.</span>
                 <span>Miesięcy historii: {forecast.historical_months_used}</span>
                 <span>
                   {forecast.forecast_json[0]?.insufficient_data
-                    ? 'Status: Zbyt mało danych'
-                    : 'Status: Wystarczających danych'}
+                    ? 'Dane: za mało historii'
+                    : 'Dane: wystarczająca historia'}
                 </span>
                 {forecast.forecast_json[0]?.insufficient_data && (
                   <span className="forecast-warning">

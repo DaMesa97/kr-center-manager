@@ -59,6 +59,7 @@ export default function LeadTimeStatsView() {
   const [stats, setStats] = useState<CategoryStat[]>([])
   const [buckets, setBuckets] = useState<Bucket[]>([])
   const [totalCount, setTotalCount] = useState(0)
+  const [blad, setBlad] = useState<string | null>(null)
   const [pominieteSzac, setPominieteSzac] = useState(0)
 
   const load = useCallback(async (p: Preset) => {
@@ -83,8 +84,10 @@ export default function LeadTimeStatsView() {
       if (error) {
         console.error('[LeadTime]', error)
         setStats([]); setBuckets([]); setTotalCount(0)
+        setBlad((error as { message?: string }).message ?? String(error)) // testy 27.11 (runda 3): było „Brak wydanych zamówień”
         return
       }
+      setBlad(null)
 
       const byCategory = new Map<string, number[]>()
       const allDays: number[] = []
@@ -167,6 +170,11 @@ export default function LeadTimeStatsView() {
 
       {loading ? (
         <Spinner center label="Ładowanie danych…" />
+      ) : blad ? (
+        <p className="no-results" role="alert" style={{ color: '#991b1b' }}>
+          Nie udało się wczytać danych ({blad}).{' '}
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load(preset)}>Odśwież</button>
+        </p>
       ) : stats.length === 0 ? (
         <p className="no-results">Brak wydanych zamówień w wybranym okresie.</p>
       ) : (

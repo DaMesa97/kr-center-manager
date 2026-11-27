@@ -29,6 +29,8 @@ export function useStats({ touchSession }: UseStatsParams) {
   const [statsOrders, setStatsOrders] = useState<Order[]>([])
   const [statsComplaints, setStatsComplaints] = useState<Complaint[]>([])
   const [statsLoading, setStatsLoading] = useState(false)
+  /** testy 27.11 (runda 3): błąd pobierania był pokazywany jako „Brak zrealizowanych zamówień” */
+  const [statsError, setStatsError] = useState<string | null>(null)
 
   const fetchStatsData = useCallback(async () => {
     touchSession()
@@ -39,6 +41,8 @@ export function useStats({ touchSession }: UseStatsParams) {
     // Statystyki → Drzwi wewnętrzne liczą się w bazie (rpc stat_wew_*, Etap 25).
     const [ordersRes, complaintsRes] = await Promise.all([fetchAllRows('orders'), fetchAllRows('complaints')])
     setStatsLoading(false)
+    const blad = ordersRes.error ?? complaintsRes.error
+    setStatsError(blad ? (blad as { message?: string }).message ?? String(blad) : null)
     if (ordersRes.error) {
       console.error(ordersRes.error)
     } else {
@@ -56,6 +60,7 @@ export function useStats({ touchSession }: UseStatsParams) {
     setActiveStatsSubTab,
     statsOrders,
     setStatsOrders,
+    statsError,
     statsComplaints,
     setStatsComplaints,
     statsLoading,

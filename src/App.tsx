@@ -930,6 +930,7 @@ function App() {
     statsOrders,
     statsComplaints,
     statsLoading,
+    statsError,
     fetchStatsData,
   } = useStats({ pushToast, touchSession })
 
@@ -3688,6 +3689,8 @@ function App() {
             orders={statsOrders}
             complaints={statsComplaints}
             loading={statsLoading}
+            error={statsError}
+            onRetry={() => void fetchStatsData()}
             activeSubTab={activeStatsSubTab}
             onSubTabChange={setActiveStatsSubTab}
             isManager={isManager}

@@ -64,6 +64,8 @@ export default function DashboardView({
   const [counts, setCounts] = useState<CategoryCount[]>([])
   // Jedna definicja dla „aktywnych zleceń" i „Do wysłania" (patrz ORDERS_COUNT_HINT)
   const [ordersCount, setOrdersCount] = useState(0)
+  /** testy 27.11 (runda 3): błąd pobierania pokazywał „0 aktywnych zleceń” albo liczbę częściową */
+  const [blad, setBlad] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -82,6 +84,7 @@ export default function DashboardView({
           .overrideTypes<ActiveRow[], { merge: false }>(),
       )
       if (error) console.error('[Dashboard]', error)
+      setBlad(error ? (error as { message?: string }).message ?? String(error) : null)
 
       // Kafelki kategorii liczą WIERSZE (tyle, ile widać w zakładkach)
       setCounts(
@@ -106,7 +109,7 @@ export default function DashboardView({
         <div>
           <h1 className="dashboard-greeting">{greeting()}, {currentUserFullName.split(' ')[0]}!</h1>
           <p className="dashboard-subtitle" title={ORDERS_COUNT_HINT}>
-            {loading ? 'Ładowanie przeglądu…' : `${ordersCount} aktywnych zleceń w produkcji`}
+            {loading ? 'Ładowanie przeglądu…' : blad ? `Nie udało się wczytać przeglądu (${blad}) — liczby mogą być niepełne, kliknij Odśwież` : `${ordersCount} aktywnych zleceń w produkcji`}
           </p>
         </div>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} disabled={loading}>
