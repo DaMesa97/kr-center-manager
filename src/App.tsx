@@ -1811,6 +1811,12 @@ function App() {
   }, [activeTab, orders, bastionBatches.batches, bastionBatchExtra])
   // runda 6 (wydajność): liczone przy KAŻDYM renderze App (także przy pisaniu w formularzu), dwa przebiegi po liście —
   // 5–19 ms na render przy 2–10 tys. zleceń; teraz raz na zmianę listy / reguł, jeden przebieg
+  // runda 7 (recenzent): wynik zależy od dzisiejszej daty — program otwarty przez noc pokazywał wczorajsze liczby
+  const [dzisTerminy, setDzisTerminy] = useState(() => new Date().toDateString())
+  useEffect(() => {
+    const t = window.setInterval(() => setDzisTerminy(new Date().toDateString()), 5 * 60 * 1000)
+    return () => window.clearInterval(t)
+  }, [])
   const terminyLicznik = useMemo(() => {
     let overdueCount = 0
     let warningCount = 0
@@ -1822,7 +1828,9 @@ function App() {
       }
     }
     return { overdueCount, warningCount }
-  }, [isManager, orders, leadTimeRules])
+    // dzisTerminy: przeliczenie po zmianie dnia
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManager, orders, leadTimeRules, dzisTerminy])
   const bastionOrdersById = useMemo(
     () =>
       new Map(
