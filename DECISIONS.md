@@ -307,7 +307,7 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 ### D47. Statystyki ładują całą tabelę zleceń (67 MB)
 - **Problem**: `useStats.ts` pobiera `select *` całej tabeli `orders` w 24 porcjach po kolei (OFFSET → seq scan + sort w każdej porcji): 67 MB, 4,3 s samej bazy, rośnie o ~100 RO dziennie. Wykresy używają ok. 12 pól (z samymi nimi ≈7 MB).
 - **Opcje**: (a) lista kolumn + stronicowanie po `id` (kursor) — mała zmiana w aplikacji; (b) agregaty w funkcjach bazy (jak `stat_wew_*`); (c) ograniczyć historię Statystyk.
-- **Rekomendacja**: (a) od razu (do zrobienia w nocy, jeśli test pokryje używane pola), docelowo (b).
+- **Rekomendacja**: (a) — **zrobione w nocy** (1f41820: 15 kolumn + porcje po `id`, test `statsKolumny` pilnuje pól); docelowo (b).
 - **Pilność**: może poczekać · **Praca**: mały (a), duży (b)
 
 ### D48. Wysyłka i zakładki: `select *` (3,8 kB na wiersz)

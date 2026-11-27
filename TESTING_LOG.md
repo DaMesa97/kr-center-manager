@@ -315,7 +315,7 @@ Tryb nocny: branch `night-testing-2026-11-27`, warunek stopu wyłączony.
 | Pulpit | 21 ms | +2000: 77 ms | OK |
 | Weryfikacja | 5 ms | 5 ms | OK |
 | Wysyłka (otwarte) | 172 ms, 6 MB | +2000: 403 ms, 13,4 MB | lista kolumn → D48 |
-| **Statystyki** | **4,3 s, 67 MB** (24 porcje, seq scan + sort w każdej) | 74,5 MB | **WYSOKI** → D47 |
+| **Statystyki** | **4,3 s, 67 MB** (24 porcje, seq scan + sort w każdej) | 74,5 MB | **WYSOKI** → poprawione 1f41820 (15 kolumn ≈ 7–16 MB, porcje po `id`); agregaty w bazie → D47 |
 | Ctrl+K | ~100 ms (seq scan) | 113 ms | indeks trigramowy → D49 |
 | Dziennik zmian (zimny start) | 3,0 s | rośnie liniowo | indeks częściowy → D49 |
 | `get_stock_alerts` | 135–205 ms | 166–195 ms | OK |
