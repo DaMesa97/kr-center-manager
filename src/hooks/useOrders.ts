@@ -2812,11 +2812,14 @@ export function useOrders({
         if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
           const { error: linkUpErr } = await supabase.rpc('merge_order_extra_fields', {
             p_order_id: linkedId,
-            p_patch: { cancelled: true },
+            // noc 28.11 (analiza duplikacji): partner dostaje ten sam pełny znacznik (kto, kiedy) co zlecenie główne
+            p_patch: { cancelled: true, cancelled_at: cancelledAt, cancelled_by: cancelledBy },
           })
           if (linkUpErr) {
             pushToast(`Nie udało się oznaczyć powiązania: ${linkUpErr.message}`, 'error')
-            try { await supabase.rpc('cancel_order_reservations', { p_order_id: id }) } catch (e) { console.error(e) }
+            // supabase-js nie rzuca wyjątku przy błędzie RPC — try/catch niczego nie łapał
+            const { error: zwolnErr } = await supabase.rpc('cancel_order_reservations', { p_order_id: id })
+            if (zwolnErr) pushToast(`Nie zwolniono rezerwacji zlecenia: ${zwolnErr.message} — zrób to w Magazynie → Rezerwacje`, 'error')
             await fetchWarehouseStock()
             void fetchOrders()
             return
@@ -2837,13 +2840,19 @@ export function useOrders({
         if (isTitanLink || isTitanLinked) {
           const bastionIds = await findTitanBastionLegIds(order)
           for (const bid of bastionIds) {
-            await supabase.rpc('merge_order_extra_fields', { p_order_id: bid, p_patch: { cancelled: true } })
-            await supabase.from('orders').update({ stock_status: null, stock_issues: null }).eq('id', bid)
-            try {
-              await supabase.rpc('cancel_order_reservations', { p_order_id: bid })
-            } catch (err) {
-              console.error('cancel_order_reservations error (bastion):', err)
+            // noc 28.11 (analiza duplikacji): błędy nogi Bastion były ignorowane (try/catch nie łapie błędu RPC) —
+            // noga mogła zostać w produkcji z rezerwacjami bez żadnego komunikatu
+            const { error: bMergeErr } = await supabase.rpc('merge_order_extra_fields', {
+              p_order_id: bid,
+              p_patch: { cancelled: true, cancelled_at: cancelledAt, cancelled_by: cancelledBy },
+            })
+            if (bMergeErr) {
+              pushToast(`Nie anulowano nogi Bastion zestawu Titan (${bMergeErr.message}) — anuluj ją ręcznie w zakładce Bastion`, 'error')
+              continue
             }
+            await supabase.from('orders').update({ stock_status: null, stock_issues: null }).eq('id', bid)
+            const { error: bResErr } = await supabase.rpc('cancel_order_reservations', { p_order_id: bid })
+            if (bResErr) pushToast(`Nie zwolniono rezerwacji nogi Bastion: ${bResErr.message} — zrób to w Magazynie → Rezerwacje`, 'error')
           }
         }
 
