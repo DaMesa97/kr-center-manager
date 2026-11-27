@@ -1456,3 +1456,27 @@ export type StockLevelRow = {
 }
 
 export type StockMinimumInput = { warehouse_id: number; component_id: number; min_quantity: number | null }
+
+// ── Wysyłki kurierem (SUUS, 27.11) — order_shipments / order_shipment_orders ──
+export type OrderShipmentStatus = 'zaplanowana' | 'gotowa' | 'nadana' | 'anulowana'
+
+export type OrderShipment = {
+  id: number
+  bl_order_id: number | null
+  carrier: string
+  ship_date: string | null
+  status: OrderShipmentStatus
+  pallets_vertical: number
+  pallets_horizontal: number
+  /** podpowiedź suggest_pallets z chwili zaplanowania: { vertical, horizontal } */
+  pallets_suggested: { vertical?: number; horizontal?: number } | null
+  bl_package_id: string | null
+  /** nr przesyłki — uzupełnia później automat BaseLinker */
+  bl_package_number: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type OrderShipmentOrder = { shipment_id: number; order_id: number }

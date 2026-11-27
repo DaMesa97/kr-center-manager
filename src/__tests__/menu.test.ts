@@ -33,7 +33,7 @@ describe('menu boczne — układ', () => {
       TAB_GROUPS.filter((g) => g.type === 'group').map((g) => [g.type === 'group' ? g.id : '', g.type === 'group' ? [...g.tabs] : []]),
     )
     expect(byId.orders).toEqual(['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium', 'Weryfikacja', 'Archiwum'])
-    expect(byId.production).toEqual(['Wysyłka', 'Etykiety', 'ZKP'])
+    expect(byId.production).toEqual(['Wysyłka', 'Wysyłki', 'Etykiety', 'ZKP'])
     expect(byId.warehouse).toEqual([...WAREHOUSE_TABS])
     expect(byId.analytics).toEqual(['Statystyki', 'Audyt'])
     expect(byId.settings).toEqual(['Konfiguracja', 'Kontrahenci', 'Użytkownicy', 'Integracje'])
@@ -63,6 +63,12 @@ describe('menu boczne — widoczność per rola po porządkach', () => {
     expect(tabs).toEqual(expect.arrayContaining(['Stany', 'Komponenty', 'Dokumenty']))
     expect(tabs).not.toContain('Zamawianie')
     expect(tabs).not.toContain('Inwentaryzacja')
+  })
+
+  it('Wysyłki kurierem zaraz za Wysyłką — magazynier je widzi, produkcja bez Wysyłki nie', () => {
+    const mag = tabsForUserDepartment('all', false, 'magazynier', []) as string[]
+    expect(mag.indexOf('Wysyłki')).toBe(mag.indexOf('Wysyłka') + 1)
+    expect(tabsForUserDepartment('all', false, 'pracownik_produkcji', ['ST'])).not.toContain('Wysyłki')
   })
 
   it('pracownik produkcji ma najwyżej 5 pozycji poza swoimi kategoriami', () => {

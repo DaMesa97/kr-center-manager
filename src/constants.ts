@@ -76,6 +76,8 @@ export const TABS = [
   'Audyt',
   'Archiwum',
   'Wysyłka',
+  // Wysyłki kurierem (SUUS, 27.11): planowanie wysyłek Po Drzwi z paletami — dla magazyniera
+  'Wysyłki',
   'Stany',
   'Komponenty',
   'Dokumenty',

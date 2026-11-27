@@ -125,6 +125,7 @@ import LabelsView from './components/LabelsView'
 import HelpView from './components/HelpView'
 import FeedbackView from './components/FeedbackView'
 import ZkpView from './components/zkp/ZkpView'
+import ShipmentsView from './components/shipments/ShipmentsView'
 import CrmView from './components/crm/CrmView'
 import { useCrmAccess } from './hooks/useCrmAccess'
 import FeedbackFab from './components/FeedbackFab'
@@ -1258,7 +1259,7 @@ function App() {
       setComplaints([])
       return
     }
-    if (activeTab === 'Pulpit' || activeTab === 'ZKP' || activeTab === 'Integracje' || activeTab === 'CRM') {
+    if (activeTab === 'Pulpit' || activeTab === 'ZKP' || activeTab === 'Integracje' || activeTab === 'CRM' || activeTab === 'Wysyłki') {
       setOrders([])
       setComplaints([])
       return
@@ -1290,6 +1291,7 @@ function App() {
         'Audyt',
         'Archiwum',
         'Wysyłka',
+        'Wysyłki',
         'ZKP',
         'CRM',
       ].includes(activeTab)
@@ -1631,6 +1633,7 @@ function App() {
       activeTab === 'Audyt' ||
       activeTab === 'Archiwum' ||
       activeTab === 'Wysyłka' ||
+      activeTab === 'Wysyłki' ||
       activeTab === 'Etykiety' ||
       activeTab === 'Pomoc' ||
       activeTab === 'Zgłoszenia' ||
@@ -1870,6 +1873,7 @@ function App() {
   const isHelpTab = activeTab === 'Pomoc'
   const isFeedbackTab = activeTab === 'Zgłoszenia'
   const isZkpTab = activeTab === 'ZKP'
+  const isShipmentsTab = activeTab === 'Wysyłki'
   const isCrmTab = activeTab === 'CRM'
   const [printLabelOrder, setPrintLabelOrder] = useState<Order | null>(null)
   // #21 — masowy druk etykiet: zaznaczanie zamówień w tabelach
@@ -3737,6 +3741,11 @@ function App() {
           <HelpView isManager={isManager} />
         ) : isFeedbackTab ? (
           <FeedbackView isManager={isManager} currentUser={currentUser} pushToast={pushToast} />
+        ) : isShipmentsTab ? (
+          <ShipmentsView
+            canEdit={isManager || ['magazynier', 'obsluga_klienta'].includes(String(currentUser?.role ?? ''))}
+            pushToast={pushToast}
+          />
         ) : isZkpTab ? (
           <ZkpView currentUser={currentUser} isManager={isManager} pushToast={pushToast} />
         ) : isCrmTab && hasCrm ? (
