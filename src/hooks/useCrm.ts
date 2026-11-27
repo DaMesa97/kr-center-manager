@@ -166,6 +166,10 @@ export async function markOfertaWyslana(oferta: CrmOferta, userId: string): Prom
         akcja_od: new Date().toISOString(),
       })
       .eq('id', oferta.lead_id)
+      // runda 4 (tester CRM): bez warunku nadpisywało umówiony pomiar / montaż / reklamację i dawało „Zapytaj
+      // o decyzję” klientowi, który już zamówił — te same warunki co trigger crm.po_wyslaniu_oferty, plus nie dla wygranego
+      .or('nastepna_akcja.is.null,nastepna_akcja.in.(przygotuj_oferte,follow_up,dopytaj)')
+      .neq('status', 'wygrany')
     if (lErr) {
       console.warn('crm.leady follow_up:', lErr.message)
       return { error: null, bezFollowUpu: lErr.message }
