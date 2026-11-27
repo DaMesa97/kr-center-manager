@@ -222,9 +222,10 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
         if (!nq) return true
         // brief pkt 26: szukamy też po danych klientów połączonych w tego (inne_kontakty)
         const inne = l.inne_kontakty ?? []
-        const hay = norm([l.nazwa, l.email, l.profil_social, l.miejscowosc, ...inne.flatMap((k) => [k.nazwa, k.email, k.miejscowosc])].filter(Boolean).join(' '))
+        // runda 4 (tester CRM): też po nazwie firmy i NIP-ie (od 1.1.3 klienci mają dane firmy)
+        const hay = norm([l.nazwa, l.email, l.profil_social, l.miejscowosc, l.firma_nazwa, ...inne.flatMap((k) => [k.nazwa, k.email, k.miejscowosc])].filter(Boolean).join(' '))
         if (hay.includes(nq)) return true
-        if (digits.length >= 3 && [l.telefon, ...inne.map((k) => k.telefon)].some((t) => (t ?? '').replace(/\D/g, '').includes(digits))) return true
+        if (digits.length >= 3 && [l.telefon, l.nip, ...inne.map((k) => k.telefon)].some((t) => (t ?? '').replace(/\D/g, '').includes(digits))) return true
         return false
       })
       .sort((a, b) => aktywnosc(b).localeCompare(aktywnosc(a)))
