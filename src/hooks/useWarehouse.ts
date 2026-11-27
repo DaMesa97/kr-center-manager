@@ -1588,8 +1588,12 @@ export function useWarehouse({
       // testy 27.11 (runda 3): ten sam numer faktury drugi raz (np. ponowienie po zerwanym połączeniu) przechodził bez słowa
       const ref = pzFormData.reference_doc.trim()
       if (ref) {
-        const { data: juz } = await supabase.from('warehouse_movements').select('id, created_at')
+        const { data: juz, error: blJuz } = await supabase.from('warehouse_movements').select('id, created_at')
           .eq('movement_type', 'PZ').eq('reference_doc', ref).limit(1)
+        if (blJuz) {
+          pushToast(`Nie zapisano: nie udało się sprawdzić w bazie, czy ten dokument nie był już przyjęty (${blJuz.message}) — spróbuj ponownie`, 'error')
+          return
+        }
         if (juz && juz.length > 0) {
           const kiedy = new Date(String((juz[0] as { created_at: string }).created_at)).toLocaleString('pl-PL')
           const ok = await appConfirm(

@@ -258,7 +258,11 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
       notes: string
     }): Promise<boolean> => {
       // runda 4 (tester magazynu): zlecenie anulowane w międzyczasie szło do wysyłki i zamawiało kuriera
-      const { data: anul } = await supabase.from('orders').select('order_number, extra_fields').in('id', p.orderIds)
+      const { data: anul, error: blAnul } = await supabase.from('orders').select('order_number, extra_fields').in('id', p.orderIds)
+      if (blAnul) {
+        pushToast(`Nie zaplanowano: nie udało się sprawdzić w bazie, czy zlecenia nie są anulowane (${blAnul.message}) — spróbuj ponownie`, 'error')
+        return false
+      }
       const anulowane = ((anul ?? []) as Array<{ order_number: string; extra_fields: Record<string, unknown> | null }>)
         .filter((o) => o.extra_fields?.cancelled === true)
       if (anulowane.length) {

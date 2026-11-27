@@ -220,7 +220,11 @@ function InternalDoorOrderDetailsModal({
         : `Czy na pewno wydać zamówienie #${order.order_number} dla firmy ${order.company}?`,
       run: async () => {
         // runda 4: zlecenie mogło zostać anulowane, gdy okno było otwarte — świeży odczyt przed zdjęciem z magazynu
-        const { data: swieze } = await supabase.from('orders').select('extra_fields').eq('id', order.id!).maybeSingle()
+        const { data: swieze, error: blSwieze } = await supabase.from('orders').select('extra_fields').eq('id', order.id!).maybeSingle()
+        if (blSwieze) {
+          pushToast(`Nie wydano: nie udało się sprawdzić w bazie, czy zlecenie nie jest anulowane (${blSwieze.message}) — spróbuj ponownie`, 'error')
+          return
+        }
         if ((swieze?.extra_fields as Record<string, unknown> | null)?.cancelled === true) {
           pushToast('Zlecenie zostało anulowane — nie wydano (odśwież listę)', 'error')
           return

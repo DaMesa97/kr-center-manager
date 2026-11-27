@@ -1285,7 +1285,12 @@ export function useOrders({
   const resyncLinkedPartnerStock = async (baseline: Order, newData: Record<string, unknown>): Promise<void> => {
     const partnerId = baseline.linked_order_id
     if (partnerId == null) return
-    const { data } = await supabase.from('orders').select('extra_fields').eq('id', partnerId).maybeSingle()
+    const { data, error: blPartner } = await supabase.from('orders').select('extra_fields').eq('id', partnerId).maybeSingle()
+    // runda 6: bez pewności, że partner nie jest anulowany, nie przeliczamy mu rezerwacji
+    if (blPartner) {
+      pushToast(`Nie przeliczono rezerwacji powiązanego zlecenia (${blPartner.message}) — otwórz je i zapisz ponownie`, 'error')
+      return
+    }
     if (isOrderCancelled(data as Pick<Order, 'extra_fields'> | null)) return
     await syncWarehouseStockAfterOrderEdit(partnerId, baseline, newData)
   }
@@ -1320,9 +1325,11 @@ export function useOrders({
     // (kategoria, firma, model, wymiary, kierunek, ilość) zapisane z tego konta w ostatnich 15 min → pytanie (raz na zapis).
     if (!dubelSprawdzonyRef.current) {
       const od = new Date(Date.now() - 15 * 60 * 1000).toISOString()
-      const { data: podobne } = await supabase.from('orders')
+      const { data: podobne, error: blPodobne } = await supabase.from('orders')
         .select('order_number, company, model, width, height, direction, quantity, created_at, extra_fields')
         .eq('category', String(row.category || activeTab)).eq('entered_by', String(row.entered_by ?? '')).gte('created_at', od).limit(50)
+      // runda 6 (tester błędów): kontrola istnieje właśnie na słabe łącze — nieudany odczyt nie może jej przepuszczać
+      if (blPodobne) return { data: null, error: { message: `nie udało się sprawdzić w bazie, czy to zlecenie nie jest już zapisane (${blPodobne.message}) — sprawdź połączenie i spróbuj ponownie` } }
       const norm = (v: unknown) => String(v ?? '').trim().toLowerCase()
       const firmy = (x: { company?: unknown; extra_fields?: unknown }) => [norm(x.company), norm((x.extra_fields as Record<string, unknown> | null)?.company_as_received)].filter(Boolean)
       const taki = ((podobne ?? []) as Array<Record<string, unknown>>).find((x) =>
@@ -1348,8 +1355,15 @@ export function useOrders({
       },
       // runda 4: zajęty numer z tą samą firmą, wpisany przez nas w ostatnich 15 min = najpewniej nasz poprzedni zapis
       confirmTaken: async (nr, r) => {
-        const { data: ist } = await supabase.from('orders').select('company, entered_by, created_at, extra_fields')
+        const { data: ist, error: blIst } = await supabase.from('orders').select('company, entered_by, created_at, extra_fields')
           .eq('category', String(r.category || activeTab)).eq('order_number', nr).maybeSingle()
+        // runda 6: przy nieudanym odczycie nie zgadujemy — pytamy człowieka
+        if (blIst) {
+          return appConfirm(
+            `Numer ${nr} jest już zajęty, a nie udało się sprawdzić, czy to nie Twój poprzedni zapis (${blIst.message}).\n\nJeśli przed chwilą był błąd połączenia, najpierw odśwież listę. Zapisać z nowym numerem?`,
+            { title: 'Numer zajęty', confirmLabel: 'Zapisz z nowym numerem', tone: 'danger' },
+          )
+        }
         const x = ist as { company?: string | null; entered_by?: string | null; created_at?: string | null; extra_fields?: Record<string, unknown> | null } | null
         if (!x) return true
         // runda 5: trigger apply_company_alias zamienia pisownię na nazwę z kartoteki — porównujemy też z oryginałem
