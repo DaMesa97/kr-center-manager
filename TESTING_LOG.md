@@ -553,6 +553,12 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
   - Aplikacja **1.1.12 OPUBLIKOWANA** (clean = tag v1.1.12 = 9db1d9a, min_app_version 1.1.12).
   - Odpowiedzi właściciela: D17 nadpisywanie wartości — TAK (bez zmian); D69 tylko admin — TAK (zrobione); magazynier bez Zamawiania — NIE (bez zmian); wykluczenia — przepisać (zrobione); pytania ZKP — później.
 
+- **28.11 wieczór — CRM: klienci tylko z potencjałem sprzedaży** (zgłoszenie właściciela; kopia przed: `C:/KRCenter-Backups/krcenter-2026-11-28-20-09-57.dump`):
+  - `20261128060000` WGRANY (crm.utworz_klienta_z_kontaktu); `20261128060100` WGRANY — 11 klientów bez potencjału usuniętych (kopia w crm.porzadek_bez_potencjalu_kopia), rozmowy odpięte (klientów 121 → 110, rozmów 133 → 133, bez klienta 10 → 21); 2 graniczne zostawione.
+  - Edge crm-call-ingest **v24** (pole potencjal w analizie rozmów i maili; nowy kontakt bez potencjału nie zakłada klienta) — zgodne z repo.
+  - Aplikacja **1.1.13 OPUBLIKOWANA**: Klienci → „Bez potencjału sprzedaży” z „Utwórz klienta”.
+  - Bez zmian (do decyzji): nieodebrana z nieznanego numeru nadal zakłada klienta.
+
 ### Lista plików (dla porządku)
 Próba generalna 28.11 po południu: 28 plików poniżej (bez 036001 i 036200) razem w transakcji cofniętej na produkcji (już z pakietem z południa) — 0 błędów. Kontrola po wgraniu: `scripts/kontrola-decyzje-28-11.sql` (każde zapytanie: pusty wynik = OK).
 Kolejność = kolejność nazw:
