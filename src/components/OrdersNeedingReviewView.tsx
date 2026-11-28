@@ -6,6 +6,7 @@ import { countCompletedStages } from '../utils'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 import ExcelSyncReviewSection from './ExcelSyncReviewSection'
+import OptimaRoFailuresSection from './OptimaRoFailuresSection'
 import type { ExcelSyncState } from '../hooks/useExcelSync'
 
 /** sekcja, do której przewinąć po wejściu z kafelka Pulpitu (#115) */
@@ -320,6 +321,9 @@ export default function OrdersNeedingReviewView({
           rowClassName={() => 'orders-review-row'}
         />
       )}
+
+      {/* D10: RO z Optimy, których import drzwi wewnętrznych nie zapisał (bez migracji 036100 — ukryte) */}
+      <OptimaRoFailuresSection />
 
       <div className="orders-review-header" style={{ marginTop: 32 }} ref={duplicatesRef} id="review-duplicates">
         <h2>🔁 Podejrzane duble</h2>

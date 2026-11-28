@@ -12,6 +12,13 @@
 //                        dokumenty przetwarzane równolegle (POOL).
 //   "kartoteki"        – pobiera kartoteki towarów do optima_items_cache (stronicowanie).
 //   "probe"            – podgląd surowych RO.
+// D10 (28.11.2026, MR Profil):
+//   - numer zlecenia z bazy MR dostaje przedrostek „MR/” (numerZlecenia) — numery ZLEC/… obu baz się powtarzają,
+//     a orders ma unikalny indeks (category, order_number); erp_ro_number zostaje prawdziwym numerem RO w Optimie MR;
+//   - RO, którego nie udało się zapisać, trafia do optima_ro_failures (rpc optima_ro_blad_zapisz) zamiast przepadać,
+//     gdy kursor idzie dalej; na początku każdego przebiegu ponawiamy nieudane (automatycznie do MAX_PROB_AUTO razy,
+//     bez limitu po „Ponów” z Weryfikacji — rpc optima_ro_blad_ponow ustawia retry_requested_at);
+//     udany zapis zamyka wpis (optima_ro_blad_rozwiazany). Bez migracji 20261128036100 import działa jak dawniej.
 // Typ towaru liczy baza: optima_items_cache.interior_type (trigger, funkcja optima_interior_type).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
@@ -34,6 +41,15 @@ const STAN_ZREALIZOWANE = 3;
 const STAN_ANULOWANE = 4;
 const POWOD_ANUL_RO = "RO anulowane w Optimie";
 const POWOD_BRAK_POZ = "RO w Optimie nie ma już pozycji drzwi wewnętrznych";
+const MAX_PROB_AUTO = 5;
+const PONOW_NARAZ = 20;
+
+// D10: numer zlecenia w aplikacji — MR Profil z przedrostkiem „MR/”, KR Center bez zmian
+function numerZlecenia(baza: string, fullNumber: string): string {
+  const n = String(fullNumber ?? "").trim();
+  if (baza !== "MR" || !n) return n;
+  return /^MR\//i.test(n) ? n : `MR/${n}`;
+}
 
 const cf = () => ({
   "CF-Access-Client-Id": Deno.env.get("CF_ACCESS_CLIENT_ID") ?? "",
@@ -249,7 +265,7 @@ async function zapiszZlecenie(baza: string, doc: any, pozycje: any[]) {
   };
   const qty = pozycje.filter((p) => p.typ === "door_wing").reduce((s, p) => s + Math.round(p.ilosc), 0);
   const wiersz: Record<string, unknown> = {
-    category: CATEGORY, source: "optima_ro", order_number: doc.fullNumber, erp_ro_number: doc.fullNumber,
+    category: CATEGORY, source: "optima_ro", order_number: numerZlecenia(baza, doc.fullNumber), erp_ro_number: doc.fullNumber,
     erp_status: "POMYŚLNY", erp_updated_at: new Date().toISOString(),
     company: payer.name1 || payer.code || null, client_order_number: doc.foreignNumber || null,
     order_date: (doc.documentIssueDate ?? doc.created ?? "").slice(0, 10) || null,
@@ -306,6 +322,56 @@ async function przetworzDokument(baza: string, tok: string, doc: any, stat: Reco
   stat[wynik] = (stat[wynik] ?? 0) + 1;
 }
 
+// ---------- D10: nieudane RO (optima_ro_failures) ----------
+// Otwarte wpisy bieżącej bazy (document_id) — żeby nie wołać rpc „rozwiązany” przy każdym udanym RO.
+const otwarteBledy = new Set<string>();
+
+async function zapiszBladRo(baza: string, doc: any, blad: string) {
+  try {
+    const { error } = await sb.rpc("optima_ro_blad_zapisz", {
+      p_baza: baza, p_document_id: Number(doc?.id), p_full_number: doc?.fullNumber ?? null, p_blad: blad.slice(0, 1000), p_doc: doc ?? null,
+    });
+    if (!error) otwarteBledy.add(`${baza}:${doc?.id}`);
+  } catch (_) { /* brak migracji 036100 — jak dawniej, tylko last_result.bledy */ }
+}
+
+async function zamknijBladRo(baza: string, docId: unknown) {
+  const k = `${baza}:${docId}`;
+  if (!otwarteBledy.has(k)) return;
+  try {
+    const { error } = await sb.rpc("optima_ro_blad_rozwiazany", { p_baza: baza, p_document_id: Number(docId) });
+    if (!error) otwarteBledy.delete(k);
+  } catch (_) { /* jw. */ }
+}
+
+async function ponowNieudane(baza: string, tok: string, stat: Record<string, number>, bledy: string[]) {
+  const { data: wszystkie, error } = await sb.from("optima_ro_failures").select("document_id")
+    .eq("baza", baza).is("resolved_at", null);
+  if (error) return; // brak tabeli (migracja niewgrana) — pomijamy
+  for (const w of wszystkie ?? []) otwarteBledy.add(`${baza}:${w.document_id}`);
+  const { data: lista } = await sb.from("optima_ro_failures").select("id, document_id, full_number, attempts, retry_requested_at, doc")
+    .eq("baza", baza).is("resolved_at", null)
+    .or(`retry_requested_at.not.is.null,attempts.lt.${MAX_PROB_AUTO}`)
+    .order("retry_requested_at", { ascending: true, nullsFirst: false }).order("last_failed_at", { ascending: true })
+    .limit(PONOW_NARAZ);
+  for (const w of lista ?? []) {
+    let doc: any = null;
+    try {
+      // świeży stan RO z Optimy; gdy API nie odda dokumentu po id — zapisana kopia z chwili błędu
+      const swieze = await apiGet(baza, tok, `/api/Documents/${w.document_id}`, { "documentFilter.type": "308" });
+      doc = swieze.find((d: any) => Number(d?.id) === Number(w.document_id)) ?? w.doc ?? null;
+      if (!doc) throw new Error("RO nie znalezione w Optimie i brak zapisanej kopii");
+      await rozgrzejCache(baza, [doc]);
+      await przetworzDokument(baza, tok, doc, stat);
+      stat.ponowione = (stat.ponowione ?? 0) + 1;
+      await zamknijBladRo(baza, w.document_id);
+    } catch (e) {
+      bledy.push(`ponowienie ${w.full_number ?? w.document_id}: ${String(e).slice(0, 200)}`);
+      await zapiszBladRo(baza, doc ?? { id: w.document_id, fullNumber: w.full_number, ...(w.doc ?? {}) }, String(e));
+    }
+  }
+}
+
 async function okno(baza: string, tok: string, od: Date, do_: Date, stat: Record<string, number>, bledy: string[]) {
   let offset = 0;
   while (true) {
@@ -315,8 +381,12 @@ async function okno(baza: string, tok: string, od: Date, do_: Date, stat: Record
     });
     await rozgrzejCache(baza, docs);
     await pula(docs, POOL, async (d: any) => {
-      try { await przetworzDokument(baza, tok, d, stat); stat.ro++; }
-      catch (e) { bledy.push(`${d.fullNumber}: ${String(e).slice(0, 200)}`); }
+      try { await przetworzDokument(baza, tok, d, stat); stat.ro++; await zamknijBladRo(baza, d.id); }
+      catch (e) {
+        bledy.push(`${d.fullNumber}: ${String(e).slice(0, 200)}`);
+        // D10: kursor i tak pójdzie dalej — RO zostaje w optima_ro_failures do ponowienia
+        await zapiszBladRo(baza, d, String(e));
+      }
     });
     if (docs.length < LIMIT) return;
     offset += LIMIT;
@@ -330,6 +400,9 @@ async function sync(baza: string, startMs: number) {
   const stat: Record<string, number> = { ro: 0 };
   const teraz = new Date();
   const bledy: string[] = [];
+  // D10: najpierw nieudane RO z poprzednich przebiegów
+  otwarteBledy.clear();
+  try { await ponowNieudane(baza, tok, stat, bledy); } catch (e) { bledy.push(`ponowienia: ${String(e).slice(0, 200)}`); }
   const zapiszStan = () => sb.from("optima_ro_sync_state").update({ last_u_date: kursor.toISOString(), last_run_at: new Date().toISOString(), last_result: { ...stat, api_ms: apiMs, api_n: apiN, bledy: bledy.slice(0, 20) } }).eq("baza", baza);
   while (Date.now() - startMs < BUDZET_SYNC_MS && kursor < teraz) {
     const okna: [Date, Date][] = [];
