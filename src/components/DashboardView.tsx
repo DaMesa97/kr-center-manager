@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Package, AlertTriangle, ClipboardCheck, Truck, RefreshCw, FileX2, Clock,
+  Package, AlertTriangle, ClipboardCheck, Truck, RefreshCw, FileX2, Clock, Wrench,
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
-import { getOrderAgeStatus } from '../utils'
-import type { LeadTimeRule, Order } from '../types'
+import type { LeadTimeRule } from '../types'
+import { summarizeDashboard, type DashboardRow, type DashboardSummary } from '../lib/dashboardCounts'
 import Spinner from './Spinner'
 import { fetchAllPages } from '../lib/fetchPaged'
 
@@ -35,17 +35,14 @@ const ORDER_CATEGORIES = [
 type CategoryCount = { key: string; label: string; color: string; count: number }
 
 const ORDERS_COUNT_HINT =
-  'Liczone zlecenia nie wydane i nie anulowane. Titan (STA + ST + Bastion) i para Disting Plus (STA + Disting) liczą się jako JEDNO zlecenie. Kafelki kategorii niżej liczą wiersze w zakładkach.'
+  'Liczone zlecenia nie wydane i nie anulowane, bez Technicznych (osobny kafel). Titan (STA + ST + Bastion) i para Disting Plus (STA + Disting) liczą się jako JEDNO zlecenie. Kafelki kategorii niżej liczą wiersze w zakładkach.'
 
-/** Zlecenia „logiczne": trójka Titana (titan_group) i para Disting Plus (linked_order_id) = 1 */
-function countActiveOrders(rows: Array<{ id: number; linked_order_id: number | null; titan_group: string | null }>): number {
-  const keys = new Set<string>()
-  for (const o of rows) {
-    if (o.titan_group) keys.add(`t:${o.titan_group}`)
-    else if (o.linked_order_id != null) keys.add(`p:${Math.min(o.id, o.linked_order_id)}`)
-    else keys.add(`o:${o.id}`)
-  }
-  return keys.size
+// D13 (28.11): „Do wysłania” ≠ „w produkcji” — tylko zlecenia z ukończonymi etapami
+const READY_HINT =
+  'Zlecenia, w których WSZYSTKIE etapy produkcji są odhaczone (status „Gotowe” w zakładce Wysyłka). Para Disting Plus / zestaw Titan liczy się raz i dopiero, gdy każda niewydana noga jest gotowa. Bez Technicznych i drzwi wewnętrznych (ich spakowanie widać w zakładce Wysyłki).'
+
+const EMPTY_SUMMARY: DashboardSummary = {
+  inProduction: 0, readyToShip: 0, technicalOpen: 0, technicalOverdue: 0, overdueTotal: 0, overdueByCategory: {},
 }
 
 function greeting(): string {
@@ -67,33 +64,28 @@ export default function DashboardView({
 }: Props) {
   const [loading, setLoading] = useState(true)
   const [counts, setCounts] = useState<CategoryCount[]>([])
-  // Jedna definicja dla „aktywnych zleceń" i „Do wysłania" (patrz ORDERS_COUNT_HINT)
-  const [ordersCount, setOrdersCount] = useState(0)
+  // D13: „w produkcji” (bez Technicznych), „Do wysłania” (wszystkie etapy), Techniczne osobno
+  const [summary, setSummary] = useState<DashboardSummary>(EMPTY_SUMMARY)
   /** testy 27.11 (runda 3): błąd pobierania pokazywał „0 aktywnych zleceń” albo liczbę częściową */
   const [blad, setBlad] = useState<string | null>(null)
   // testy 27.11 (runda 3, prezes): pasek „N przeterminowanych” liczył tylko otwartą zakładkę, a na Pulpicie go nie było
   const [poTerminie, setPoTerminie] = useState<Array<{ key: string; label: string; n: number }>>([])
-  const [poTerminieRazem, setPoTerminieRazem] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       // Jedno zapytanie (porcjami po 1000) o wszystkie aktywne wiersze — tylko
-      // kolumny potrzebne do liczenia. Przepuść cancelled NULL oraz false.
-      type ActiveRow = {
-        id: number; category: string; linked_order_id: number | null; titan_group: string | null
-        order_date: string | null; top_light: string | null; side_panel: string | null; side_panel_a: string | null; side_panel_b: string | null
-        bastion_frame_type: string | null
-      }
-      const { data: active, error } = await fetchAllPages<ActiveRow>((from, to) =>
+      // kolumny potrzebne do liczenia (etapy: production_stages, system dla Titana ST,
+      // postęp Aluminium z extra_fields). Przepuść cancelled NULL oraz false.
+      const { data: active, error } = await fetchAllPages<DashboardRow>((from, to) =>
         supabase
           .from('orders')
-          .select('id, category, linked_order_id, titan_group:extra_fields->>titan_group, order_date, top_light, side_panel, side_panel_a, side_panel_b, bastion_frame_type')
+          .select('id, category, linked_order_id, titan_group:extra_fields->>titan_group, order_date, system, production_stages, alu_progress:extra_fields->alu->progress, top_light, side_panel, side_panel_a, side_panel_b, bastion_frame_type')
           .is('release_date', null)
           .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.eq.false')
           .order('id', { ascending: true })
           .range(from, to)
-          .overrideTypes<ActiveRow[], { merge: false }>(),
+          .overrideTypes<DashboardRow[], { merge: false }>(),
       )
       if (error) console.error('[Dashboard]', error)
       setBlad(error ? (error as { message?: string }).message ?? String(error) : null)
@@ -107,17 +99,17 @@ export default function DashboardView({
           count: active.filter((o) => o.category === cat.key).length,
         })),
       )
-      setOrdersCount(countActiveOrders(active))
-      const poTerm = active.filter((o) => getOrderAgeStatus({ ...o, release_date: null, extra_fields: null } as unknown as Order, leadTimeRules) === 'overdue')
+      // runda 4 (recenzent): para Disting Plus / zestaw Titan to jedno zlecenie klienta — w sumie liczone raz;
+      // D13: Techniczne poza „Po terminie” i „Do wysłania” — mają własny kafel
+      const sum = summarizeDashboard(active, leadTimeRules)
+      setSummary(sum)
       setPoTerminie(
         ORDER_CATEGORIES.map((cat) => ({
           key: cat.key,
           label: cat.label,
-          n: poTerm.filter((o) => o.category === cat.key).length,
+          n: sum.overdueByCategory[cat.key] ?? 0,
         })).filter((c) => c.n > 0),
       )
-      // runda 4 (recenzent): para Disting Plus / zestaw Titan to jedno zlecenie klienta — w sumie liczone raz
-      setPoTerminieRazem(countActiveOrders(poTerm))
     } finally {
       setLoading(false)
     }
@@ -132,7 +124,7 @@ export default function DashboardView({
         <div>
           <h1 className="dashboard-greeting">{greeting()}, {currentUserFullName.split(' ')[0]}!</h1>
           <p className="dashboard-subtitle" title={ORDERS_COUNT_HINT}>
-            {loading ? 'Ładowanie przeglądu…' : blad ? `Nie udało się wczytać przeglądu (${blad}) — liczby mogą być niepełne, kliknij Odśwież` : `${ordersCount} aktywnych zleceń w produkcji`}
+            {loading ? 'Ładowanie przeglądu…' : blad ? `Nie udało się wczytać przeglądu (${blad}) — liczby mogą być niepełne, kliknij Odśwież` : `${summary.inProduction} aktywnych zleceń w produkcji (bez Technicznych)`}
           </p>
         </div>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void load()} disabled={loading}>
@@ -190,12 +182,12 @@ export default function DashboardView({
         {leadTimeRules.length > 0 && (
           <button
             type="button"
-            className={`dashboard-alert-card ${poTerminieRazem > 0 ? 'dashboard-alert-card--warn' : ''}`}
+            className={`dashboard-alert-card ${summary.overdueTotal > 0 ? 'dashboard-alert-card--warn' : ''}`}
             onClick={() => najwiecejPoTerminie && onNavigate(najwiecejPoTerminie.key)}
-            title={`Niewydane zlecenia po terminie (reguły terminów z Ustawień), cała firma — w sumie pary Disting Plus i zestawy Titan liczone raz:\n${poTerminie.map((c) => `${c.label}: ${c.n}`).join('\n') || 'brak'}${najwiecejPoTerminie ? `\n\nKliknięcie otwiera ${najwiecejPoTerminie.label}` : ''}`}
+            title={`Niewydane zlecenia po terminie (reguły terminów z Ustawień), cała firma bez Technicznych (osobny kafel) — w sumie pary Disting Plus i zestawy Titan liczone raz:\n${poTerminie.map((c) => `${c.label}: ${c.n}`).join('\n') || 'brak'}${najwiecejPoTerminie ? `\n\nKliknięcie otwiera ${najwiecejPoTerminie.label}` : ''}`}
           >
             <Clock size={22} />
-            <div className="dashboard-alert-num">{loading ? '…' : poTerminieRazem}</div>
+            <div className="dashboard-alert-num">{loading ? '…' : summary.overdueTotal}</div>
             <div className="dashboard-alert-label">
               Po terminie
               <div className="dashboard-alert-sub">{poTerminie.slice(0, 3).map((c) => `${c.label} ${c.n}`).join(' · ')}</div>
@@ -217,11 +209,25 @@ export default function DashboardView({
           type="button"
           className="dashboard-alert-card"
           onClick={() => onNavigate('Wysyłka')}
-          title={ORDERS_COUNT_HINT}
+          title={READY_HINT}
         >
           <Truck size={22} />
-          <div className="dashboard-alert-num">{loading ? '…' : ordersCount}</div>
+          <div className="dashboard-alert-num">{loading ? '…' : summary.readyToShip}</div>
           <div className="dashboard-alert-label">Do wysłania</div>
+        </button>
+
+        <button
+          type="button"
+          className="dashboard-alert-card"
+          onClick={() => onNavigate('Techniczne')}
+          title="Otwarte (niewydane, nieanulowane) zlecenia Techniczne — liczone osobno, bo prawie nigdy nie są wydawane w programie. Nie wchodzą do „Do wysłania” ani „Po terminie”."
+        >
+          <Wrench size={22} />
+          <div className="dashboard-alert-num">{loading ? '…' : summary.technicalOpen}</div>
+          <div className="dashboard-alert-label">
+            Techniczne
+            {leadTimeRules.length > 0 && <div className="dashboard-alert-sub">po terminie {summary.technicalOverdue}</div>}
+          </div>
         </button>
       </div>
 

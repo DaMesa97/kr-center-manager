@@ -758,7 +758,7 @@ const SECTIONS: Section[] = [
     body: (
       <>
         <ul>
-          <li><b>Pulpit</b> — szybki przegląd dnia dla kierownika: liczby, zaległe, skróty.</li>
+          <li><b>Pulpit</b> — szybki przegląd dnia dla kierownika: liczby, zaległe, skróty. <b>Do wysłania</b> = zlecenia ze wszystkimi etapami odhaczonymi (para Disting Plus / Titan raz, gdy gotowe wszystkie nogi; bez drzwi wewnętrznych). <b>Techniczne</b> mają osobny kafel i nie wchodzą do „w produkcji”, „Do wysłania” ani „Po terminie”.</li>
           <li><b>Statystyki</b> (Analizy) — produkcja wg kategorii (wykresy statusów, trendy po systemach / modelach / kolorach, braki materiałowe z czasem realizacji), reklamacje (co i dlaczego reklamowane), firmy (jedna firma pod lupą: zlecenia, reklamacje, czas realizacji, co zamawia), drzwi wewnętrzne (grupy modelowe, kolory i rozmiary, trend spada / rośnie, braki, na które czeka klient), produktywność, czasy realizacji, zużycie magazynu (miesięczne zejścia per komponent).</li>
           <li><b>Audyt</b> (Analizy) — pełna historia zmian: kto, kiedy, co zmienił.</li>
           <li>Wykres statusu pokazuje sumę drzwi w środku, procenty na wycinkach i legendę z wartościami.</li>
