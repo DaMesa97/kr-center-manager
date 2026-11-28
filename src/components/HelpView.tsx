@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.13: CRM — klienci tylko z potencjałem sprzedaży</h4>
+        <ul>
+          <li><b>CRM</b>: rozmowa albo mail z nowego numeru / adresu, w którym nie ma potencjału sprzedaży (klient zrezygnował, nie zostawił danych, pomyłka, towar, którego nie sprzedajemy), nie zakłada już klienta. Takie kontakty są w Klienci → „Bez potencjału sprzedaży” z powodem i przyciskiem „Utwórz klienta”, gdyby system się pomylił.</li>
+          <li><b>PIN ZKP</b> schowany (na razie nieużywany).</li>
+        </ul>
         <h4>Wersja 1.1.12: druga tura decyzji właściciela (28.11)</h4>
         <ul>
           <li><b>Zamawianie, Stany, Alerty</b>: jedna reguła „ile zamówić” dla całej firmy — od stanu odejmowane są rezerwacje, liczony jest towar w drodze, cel = 2× średnie zużycie, gdy brak minimum. Szkice ZD pokazane osobno („w szkicu”) i ostrzeżenie przy dodawaniu do listy zakupowej.</li>
