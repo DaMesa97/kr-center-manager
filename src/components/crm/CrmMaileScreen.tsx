@@ -14,16 +14,11 @@ import DataTable, { type DataTableColumn } from '../DataTable'
 import Spinner from '../Spinner'
 import CrmZalaczniki from './CrmZalaczniki'
 import { useCrmActive, useOnCrmReshow } from './crmActive'
+import { fmtDateTime } from '../../lib/crmFormat'
 
 type Mode = 'handlowiec' | 'pelny'
 type PushToast = (message: string, variant: ToastVariant) => void
 
-const fmtDateTime = (iso: string | null | undefined): string => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
 
 const fromLabel = (m: CrmMail): string => (m.od_nazwa ? `${m.od_nazwa} <${m.od_adres ?? ''}>` : m.od_adres ?? '—')
 const toLabel = (m: CrmMail): string => (m.do_adresy && m.do_adresy.length ? m.do_adresy.join(', ') : '—')

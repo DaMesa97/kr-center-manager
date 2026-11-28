@@ -2,13 +2,8 @@ import { useState } from 'react'
 import type { CrmMail } from '../../types/crm'
 import CrmZalaczniki from './CrmZalaczniki'
 import { bezCytatu, czekaNaOdpowiedz, watek, zajawka } from '../../lib/crmKorespondencja'
+import { fmtDateTime } from '../../lib/crmFormat'
 
-const fmtDateTime = (iso: string | null | undefined): string => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
 
 const kto = (m: CrmMail): string =>
   m.kierunek === 'wychodzacy'

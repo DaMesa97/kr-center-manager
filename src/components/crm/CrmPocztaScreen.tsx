@@ -33,6 +33,7 @@ import {
 } from '../../hooks/useCrm'
 import { appConfirm } from '../../lib/appDialogs'
 import Spinner from '../Spinner'
+import { fmtDateTime } from '../../lib/crmFormat'
 
 type Props = {
   currentUser: CurrentUser | null
@@ -41,12 +42,6 @@ type Props = {
   pushToast: (message: string, variant: ToastVariant) => void
 }
 
-const fmtDateTime = (iso: string | null | undefined): string => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
 
 const emptyForm = (ownerId: string | null): SkrzynkaForm => ({
   nazwa: '',
