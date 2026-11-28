@@ -547,6 +547,12 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
   Funkcje Edge: `crm-dokumenty` (D23, nowy `sciezki.ts`), `crm-call-ingest` (D24), `orders-excel-intake` (D35), `sprzatanie-zdjec` (NOWA, D67, bez weryfikacji JWT — klucz wewnętrzny).
   Aplikacja: D9/D65 (Stany, Zamawianie, Alerty), D47/D48 (Statystyki z bazy, listy kolumn), D12, D17, D19, D11, D27, D28, D29, D33, D35, D40, D50, D51, D55, D56, D58, D60, D61, D62, D67, PIN schowany. 942 testy.
 
+- **1.1.12 WDROŻONA 28.11 ok. 15:45** (kopia przed: `C:/KRCenter-Backups/krcenter-2026-11-28-14-32-55.dump`): 20 migracji jedną transakcją (D69 przed wgraniem zmienione: cofnięcie ZD do szkicu tylko admin), indeksy D49 (`concurrently`, ważne), cron D67 (03:45). Kontrole: nocna i decyzji puste, nowe obiekty obecne, Weryfikacja < 200 otwartych, D17 zmienił wartość 6 klientów.
+  - `20261128044000` WGRANY: 89 martwych wykluczeń STA przepisanych na obecne nazwy (właściciel: „przepisać”); id 1508 (PROFILE 120 CZARNY PATINA) pominięte.
+  - Edge: crm-dokumenty v9, crm-call-ingest v23 (z niewdrożonymi wcześniej poprawkami nocy), sprzatanie-zdjec v1 (nowa) — zgodne z repo. **orders-excel-intake (na serwerze `dynamic-handler` v28) NIE wgrany** — zabezpieczenie sesji zablokowało wdrożenie pod nazwą serwera; serwer = commit 1a8f469 (różnica: kolejność 2 nazwanych parametrów). Bez tego D35 działa tylko wstecz (migracja), nowe kolizje numerów z inną firmą nadal trafią do Weryfikacji.
+  - Aplikacja **1.1.12 OPUBLIKOWANA** (clean = tag v1.1.12 = 9db1d9a, min_app_version 1.1.12).
+  - Odpowiedzi właściciela: D17 nadpisywanie wartości — TAK (bez zmian); D69 tylko admin — TAK (zrobione); magazynier bez Zamawiania — NIE (bez zmian); wykluczenia — przepisać (zrobione); pytania ZKP — później.
+
 ### Lista plików (dla porządku)
 Próba generalna 28.11 po południu: 28 plików poniżej (bez 036001 i 036200) razem w transakcji cofniętej na produkcji (już z pakietem z południa) — 0 błędów. Kontrola po wgraniu: `scripts/kontrola-decyzje-28-11.sql` (każde zapytanie: pusty wynik = OK).
 Kolejność = kolejność nazw:
