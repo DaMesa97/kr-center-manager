@@ -13,6 +13,7 @@ import ZkpCardModal, { type ZkpCardTarget } from './ZkpCardModal'
 import ZkpTraceLots from './ZkpTraceLots'
 import type { ZkpData } from './ZkpView'
 import type { AluDossierItem, OrderDocument, ToastVariant } from '../../types'
+import { isOrderCancelled } from '../../lib/orderCancelled'
 
 // Wyszukiwarka „od tabliczki" (ZKP 5.9, zał. 6.26): numer konstrukcji z tabliczki
 // znamionowej → zlecenie, pozycja, postęp, teczka; eksport teczki dla audytora.
@@ -171,7 +172,7 @@ function TraceResult({
 }) {
   const { order, production, positions, constructions, documents, dossier } = trace
   const extra = aluOrderExtra(order)
-  const cancelled = (order.extra_fields as Record<string, unknown> | null)?.cancelled === true
+  const cancelled = isOrderCancelled(order)
   const status = cancelled ? 'Anulowane' : !isReleaseDateEmpty(order.release_date) ? `Wydane ${order.release_date}` : 'W realizacji'
   const construction = constructions.find((c) => c.id === constructionId) ?? null
   const position = construction?.position_id != null ? positions.find((p) => p.id === construction.position_id) ?? null : null

@@ -25,6 +25,7 @@ import {
 } from '../lib/logisticsDesk'
 import { shortRoNumber } from './ErpStatusBadge'
 import Spinner from './Spinner'
+import { isExtraCancelled } from '../lib/orderCancelled'
 
 type Props = {
   /** otwarte zlecenia (zawężone do kategorii użytkownika) */
@@ -119,7 +120,7 @@ export default function LogisticsDeskView({
     for (const o of [...orders, ...releasedOrders]) {
       if (o.id === undefined) continue
       const extra = o.extra_fields as Record<string, unknown> | null
-      if (extra?.cancelled === true) continue
+      if (isExtraCancelled(extra)) continue
       if (isShipped(o) && !shippedToday(o)) continue
       if (!byId.has(o.id)) byId.set(o.id, o)
     }

@@ -38,6 +38,7 @@ import type {
   TechniczneOrderFormData,
   WhatComplained,
 } from './types'
+import { isExtraCancelled } from './lib/orderCancelled'
 
 export function normalizeProfileDepartment(role: string, raw: unknown): ProfileDepartment {
   if (role === 'manager') return 'all'
@@ -522,7 +523,8 @@ export function parseOrderExtraFields(raw: unknown): OrderExtraFields {
   return {
     disting_cancelled: Boolean(o.disting_cancelled),
     sta_cancelled: Boolean(o.sta_cancelled),
-    cancelled: Boolean(o.cancelled),
+    // D50: anulowane tylko przy wartości true (tekst 'false' albo 1 dawały wcześniej „anulowane”)
+    cancelled: o.cancelled === true,
     cancelled_at: typeof o.cancelled_at === 'string' ? o.cancelled_at : undefined,
     cancelled_by: typeof o.cancelled_by === 'string' ? o.cancelled_by : undefined,
   }
@@ -1162,7 +1164,7 @@ export function getOrderAgeStatus(
   rules: LeadTimeRule[],
 ): OrderAgeStatus {
   const extra = order.extra_fields as Record<string, unknown> | null
-  if (extra?.cancelled === true) return 'ok'
+  if (isExtraCancelled(extra)) return 'ok'
   if (!isReleaseDateEmpty(order.release_date)) return 'ok'
 
   const days = getDaysElapsed(order)

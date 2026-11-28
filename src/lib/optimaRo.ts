@@ -10,6 +10,7 @@
 // na nowo — id pozycji się zmieniają, nie trzymać referencji do nich).
 // Pól produkcyjnych (release_date, etapy, wysyłka, reszta extra_fields) nie rusza.
 // =====================================================================
+import { isOrderCancelled } from './orderCancelled'
 import { supabase } from '../supabaseClient'
 import type { InternalDoorItem, Order } from '../types'
 
@@ -254,9 +255,8 @@ function extra(o: Pick<Order, 'extra_fields'> | null | undefined): Record<string
   return e && typeof e === 'object' ? (e as Record<string, unknown>) : {}
 }
 
-export function isOrderCancelled(o: Pick<Order, 'extra_fields'> | null | undefined): boolean {
-  return extra(o).cancelled === true
-}
+// D50: jedna definicja „anulowane” — w neutralnym module (tu re-eksport dla istniejących importów)
+export { isOrderCancelled }
 
 /** Powód anulowania — import wpisuje cancelled_reason, ręczne anulowanie: kto i kiedy. */
 export function cancelledReason(o: Pick<Order, 'extra_fields'> | null | undefined): string {

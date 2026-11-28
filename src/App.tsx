@@ -174,6 +174,7 @@ import type {
   SubTab,
   WarehouseSubTab,
 } from './types'
+import { isExtraCancelled } from './lib/orderCancelled'
 
 function LoginScreen({
   username,
@@ -1704,10 +1705,7 @@ function App() {
       const matchDate = dateInRange(order.order_date, dateRange)
       const matchNotReleased =
         !hideCompletedOrders || isReleaseDateEmpty(order.release_date)
-      const isCancelled =
-        typeof order.extra_fields === 'object' &&
-        order.extra_fields !== null &&
-        (order.extra_fields as Record<string, unknown>).cancelled === true
+      const isCancelled = isOrderCancelled(order)
       const matchNotCancelled = showCancelledOrders || !isCancelled
       return matchCategory && matchQuery && matchDay && matchDate && matchNotReleased && matchNotCancelled
     })
@@ -1863,7 +1861,7 @@ function App() {
     return orders.filter((o) => {
       if (o.category !== 'Bastion' || o.id === undefined || taken.has(o.id)) return false
       if (!isReleaseDateEmpty(o.release_date)) return false
-      if ((o.extra_fields as Record<string, unknown> | null)?.cancelled === true) return false
+      if (isOrderCancelled(o)) return false
       const frameType = String((o as Record<string, unknown>).bastion_frame_type ?? '').trim()
       if (!frameType) return false
       return !!bastionFrameOptionForOrder(frameType, bastionFrameOptions)?.add_to_batch
@@ -1875,10 +1873,7 @@ function App() {
     // zrealizowana (release_date), szukanie po numerze, zleceniu, firmie, powodzie, modelu
     const terms = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean)
     return complaints.filter((c) => {
-      const isCancelled =
-        typeof c.extra_fields === 'object' &&
-        c.extra_fields !== null &&
-        (c.extra_fields as Record<string, unknown>).cancelled === true
+      const isCancelled = isExtraCancelled(c.extra_fields)
       if (!showCancelledOrders && isCancelled) return false
       if (ukryjZrealizowaneRekl && !isReleaseDateEmpty((c as { release_date?: string | null }).release_date ?? null)) return false
       if (terms.length) {
@@ -2019,9 +2014,7 @@ function App() {
       const alive = new Set<number>()
       for (const o of orders) {
         if (o.id === undefined) continue
-        const ef = o.extra_fields
-        const cancelled =
-          typeof ef === 'object' && ef !== null && (ef as Record<string, unknown>).cancelled === true
+        const cancelled = isOrderCancelled(o)
         if (!cancelled) alive.add(o.id)
       }
       const next = new Set([...prev].filter((id) => alive.has(id)))

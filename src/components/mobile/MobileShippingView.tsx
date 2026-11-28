@@ -17,6 +17,7 @@ import { releaseErrorText, releaseFailureMessage } from '../../lib/stockReleaseF
 import { reportStockReleaseFailure } from '../../lib/stockReleaseFailureRpc'
 import { CAT_COLORS, CAT_LABEL, filtrKategoriiNaTelefon } from './mobileKategorie'
 import { czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
+import { isExtraCancelled } from '../../lib/orderCancelled'
 
 
 // Tylko kolumny potrzebne do karty, postępu etapów (countCompletedStages) i trasy —
@@ -126,7 +127,7 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
     const allowed = filtrKatKlucz == null ? null : new Set(filtrKatKlucz.split('|').filter(Boolean))
     const active = (ordersRes.data ?? []).filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
-      if (extra?.cancelled === true) return false
+      if (isExtraCancelled(extra)) return false
       // D62: tylko kategorie z filtra (role zawężone / profil z kategoriami)
       if (allowed && !allowed.has(o.category ?? '')) return false
       return true
@@ -214,7 +215,7 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
         const juzWydane =
           !!teraz &&
           !isReleaseDateEmpty(teraz.release_date as string | null) &&
-          (teraz.extra_fields as { cancelled?: unknown } | null)?.cancelled !== true
+          !isExtraCancelled(teraz.extra_fields)
         // runda 11 (recenzent): wydał ktoś inny (inny dzień) — nie mówimy „Oznaczono jako wydane”
         if (juzWydane && String(teraz?.release_date ?? '').slice(0, 10) !== today) {
           wydaneWczesniej = String(teraz?.release_date ?? '').slice(0, 10)

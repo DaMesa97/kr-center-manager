@@ -7,6 +7,7 @@ import { SHIPPING_ORDER_COLUMNS, brakKolumnyWLiscie, orderSelect } from '../lib/
 import { ileOdm } from '../utils/odmiana'
 import type { Order, ToastVariant } from '../types'
 import type React from 'react'
+import { isExtraCancelled } from '../lib/orderCancelled'
 
 type UseShippingParams = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -22,7 +23,7 @@ type UseShippingParams = {
 /** Zamówienie widoczne w Wysyłce (nie anulowane, nie wydane) */
 function passesShippingFilter(o: Order): boolean {
   const extra = o.extra_fields as Record<string, unknown> | null
-  if (extra?.cancelled === true) return false
+  if (isExtraCancelled(extra)) return false
   if (!isReleaseDateEmpty(o.release_date)) return false
   return true
 }
@@ -37,7 +38,7 @@ function releasedCutoffDate(): string {
 /** Wydane niedawno (lista „Pokaż wydane") — nie anulowane, release_date >= granica */
 function passesReleasedFilter(o: Order, cutoff: string): boolean {
   const extra = o.extra_fields as Record<string, unknown> | null
-  if (extra?.cancelled === true) return false
+  if (isExtraCancelled(extra)) return false
   if (!o.release_date || isReleaseDateEmpty(o.release_date)) return false
   return String(o.release_date).slice(0, 10) >= cutoff
 }
@@ -150,7 +151,7 @@ export function useShipping({
 
     const filtered = (ordersRes.data ?? []).filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
-      if (extra?.cancelled === true) return false
+      if (isExtraCancelled(extra)) return false
       if (!isReleaseDateEmpty(o.release_date)) return false
       return true
     }) as Order[]
@@ -159,7 +160,7 @@ export function useShipping({
     if (!releasedRes.error) {
       const released = ((releasedRes.data ?? []) as Order[]).filter((o) => {
         const extra = o.extra_fields as Record<string, unknown> | null
-        return extra?.cancelled !== true
+        return !isExtraCancelled(extra)
       })
       setShippingReleasedOrders(released)
     }

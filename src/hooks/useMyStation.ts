@@ -17,6 +17,7 @@ import {
   stationEventNeedsRefetch,
   type MyTask,
 } from '../lib/stationLogic'
+import { isExtraCancelled } from '../lib/orderCancelled'
 
 type UseMyStationParams = {
   pushToast: (msg: string, variant: ToastVariant) => void
@@ -90,7 +91,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     setMyStationComplaints(
       ((data ?? []) as Complaint[]).filter((c) => {
         const extra = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
-        return extra?.cancelled !== true
+        return !isExtraCancelled(extra)
       }),
     )
   }, [])

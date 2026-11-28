@@ -1,3 +1,4 @@
+import { isOrderCancelled } from './orderCancelled'
 // =====================================================================
 // Wysyłki kurierem (SUUS) — czysta logika ekranu „Wysyłki” (27.11).
 // Baza: order_shipments + order_shipment_orders (jedno zlecenie = jedna wysyłka),
@@ -187,7 +188,7 @@ export function isPendingForShipment(
   attached: Set<number>,
 ): boolean {
   if (attached.has(o.id)) return false
-  if (o.extra_fields?.cancelled === true || o.extra_fields?.cancelled === 'true') return false
+  if (isOrderCancelled(o)) return false
   return !o.release_date || o.release_date.slice(0, 10) >= today
 }
 

@@ -1,7 +1,8 @@
 // CRM Po Drzwi → Zamówienia (#144/#153): status produkcji zamówienia sklepu złożony z jego zleceń KR Center
 // i lista „wymaga uwagi”. Czyste funkcje — dane ładuje useCrm (fetchZamowieniaPanel), ekran CrmZamowieniaScreen.
 import type { Order } from '../types'
-import { countCompletedStages, parseOrderExtraFields } from '../utils'
+import { countCompletedStages } from '../utils'
+import { isOrderCancelled } from './orderCancelled'
 
 export type ZamowienieSklep = {
   bl_id: number
@@ -70,7 +71,7 @@ export const STAN_ZAMOWIENIA: Record<StanZamowienia, { label: string; cls: strin
 export const DOBA_MS = 24 * 3600_000
 
 export function stanZlecenia(o: Order): StanZlecenia {
-  if (parseOrderExtraFields(o.extra_fields).cancelled) return 'anulowane'
+  if (isOrderCancelled(o)) return 'anulowane'
   if (o.shipped_at) return 'wyslane'
   if (o.release_date) return 'gotowe'
   const c = countCompletedStages(o)

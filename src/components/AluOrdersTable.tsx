@@ -7,6 +7,7 @@ import { aluLoadingDate, aluOrderExtra, aluOrderProgress, aluStageDone, formatPl
 import { currentDocuments } from '../lib/aluDossier'
 import { countCompletedStages, isReleaseDateEmpty } from '../utils'
 import type { AluPosition, Order, OrderDocument } from '../types'
+import { isOrderCancelled } from '../lib/orderCancelled'
 
 // Zlecenia „Stolarka aluminiowa” — jedno zlecenie = jedna lista produkcyjna (OF),
 // pozycje (konstrukcje) i PDF-y w szczegółach. Etapy liczone per sztuka (lib/alu).
@@ -60,7 +61,7 @@ const STATUS_BADGE: Record<Status, string> = {
 }
 
 function orderStatus(o: Order): Status {
-  const cancelled = (o.extra_fields as Record<string, unknown> | null)?.cancelled === true
+  const cancelled = isOrderCancelled(o)
   if (cancelled) return 'cancelled'
   return isReleaseDateEmpty(o.release_date) ? 'in_progress' : 'released'
 }

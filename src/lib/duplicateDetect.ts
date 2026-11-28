@@ -1,4 +1,5 @@
 import type { Order } from '../types'
+import { isExtraCancelled } from './orderCancelled'
 
 // Wykrywanie podejrzanych dubli zleceń z konfiguratora.
 // Tło: gałąź Make dopisuje zamówienia bota także do Excela (arkusz musi je
@@ -61,7 +62,7 @@ export const companiesMatch = (a: unknown, b: unknown): boolean => {
 const isCancelled = (order: DuplicateCandidate): boolean => {
   const ef = order.extra_fields
   if (!ef || typeof ef !== 'object') return false
-  return (ef as Record<string, unknown>).cancelled === true
+  return isExtraCancelled(ef)
 }
 
 export function findSuspectedDuplicates(orders: DuplicateCandidate[]): DuplicateGroup[] {

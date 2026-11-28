@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { countCompletedStages } from '../utils'
 import type { Order } from '../types'
+import { isExtraCancelled } from '../lib/orderCancelled'
 
 /**
  * Synchronizacja wydań z Excela (zgłoszenie #116): backend żyje w chmurze —
@@ -102,7 +103,7 @@ function toInfo(row: Record<string, unknown>): ExcelSyncOrderInfo {
     created_at: (row.created_at as string | null) ?? null,
     release_date: (row.release_date as string | null) ?? null,
     stock_status: (row.stock_status as string | null) ?? null,
-    cancelled: ef?.cancelled === true || ef?.cancelled === 'true',
+    cancelled: isExtraCancelled(ef),
     stagesDone: completed,
     stagesTotal: total,
   }

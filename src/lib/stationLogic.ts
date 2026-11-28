@@ -13,6 +13,7 @@ import {
   isTitanBastionOrder,
   parseProductionStages,
 } from '../utils'
+import { isExtraCancelled } from './orderCancelled'
 
 export type MyTask = {
   order: Order
@@ -287,7 +288,7 @@ export function buildComplaintTasks(complaints: Complaint[], workerStages: Worke
     const category = c.category ?? ''
     if (!category) continue
     const ef = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
-    if (ef?.cancelled === true) continue
+    if (isExtraCancelled(ef)) continue
     if (!isReleaseDateEmpty((c as { release_date?: string | null }).release_date ?? null)) continue
 
     const stagesForCategory = workerStages.filter((ws) => ws.category === category)
@@ -482,11 +483,11 @@ export function mergeStationOrderEvent(prev: Order[], ev: StationOrderEvent, sco
   const incoming = ev.row as Order | null
   if (incoming?.id == null) return prev
   const extra = incoming.extra_fields as Record<string, unknown> | null
-  const open = isReleaseDateEmpty(incoming.release_date) && extra?.cancelled !== true
+  const open = isReleaseDateEmpty(incoming.release_date) && !isExtraCancelled(extra)
   const inScope = scope.has(incoming.category ?? '')
   const idx = prev.findIndex((o) => o.id === incoming.id)
   if (idx < 0) return open && inScope ? [incoming, ...prev] : prev
-  if (!open && (inScope || extra?.cancelled === true)) return prev.filter((o) => o.id !== incoming.id)
+  if (!open && (inScope || isExtraCancelled(extra))) return prev.filter((o) => o.id !== incoming.id)
   const cur = prev[idx]
   const next = prev.slice()
   // spread cur: kolumny pominięte w zdarzeniu (TOAST) zostają z poprzedniej wersji
@@ -505,6 +506,6 @@ export function stationEventNeedsRefetch(prev: Order[], ev: StationOrderEvent, s
   const partnerId = incoming?.linked_order_id
   if (incoming?.id == null || partnerId == null) return false
   const extra = incoming.extra_fields as Record<string, unknown> | null
-  const open = isReleaseDateEmpty(incoming.release_date) && extra?.cancelled !== true
+  const open = isReleaseDateEmpty(incoming.release_date) && !isExtraCancelled(extra)
   return open && scope.has(incoming.category ?? '') && !prev.some((o) => o.id === partnerId)
 }

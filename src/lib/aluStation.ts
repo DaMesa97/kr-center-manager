@@ -12,6 +12,7 @@ import { aluLoadingDate, aluOrderExtra, aluStageDone, formatAluDims, formatAluGl
 import { isReleaseDateEmpty } from '../utils'
 import type { DetailField, MyTask } from './stationLogic'
 import type { AluPosition, AluPositionStages, Order, WorkerStage } from '../types'
+import { isOrderCancelled } from './orderCancelled'
 
 export const ALU_STAGE_KEYS = ALU_STAGE_DEFS.map((d) => d.key)
 
@@ -41,7 +42,7 @@ export function aluCanUndo(stages: AluPositionStages | null | undefined, stageKe
 function isOpenAluOrder(o: Order): boolean {
   if (o.category !== ALU_CATEGORY) return false
   if (!isReleaseDateEmpty(o.release_date)) return false
-  return (o.extra_fields as Record<string, unknown> | null)?.cancelled !== true
+  return !isOrderCancelled(o)
 }
 
 /**

@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useLayoutEffect, type DependencyList, type MutableRefObject, type ReactNode } from 'react'
 import StockStatusBadge from './StockStatusBadge'
 import ErpStatusBadge from './ErpStatusBadge'
+import { isOrderCancelled } from '../lib/orderCancelled'
 import { hasErpInfo } from '../lib/erpStatus'
 import OrderCommentsButton from './OrderCommentsButton'
 import ActionsMenu, { type ActionsMenuItem } from './ActionsMenu'
@@ -90,10 +91,7 @@ export const orderCtxDeps = (c: OrderTableCtx): unknown[] => [
 ]
 
 /** Zamówienie anulowane u nas (extra_fields.cancelled), nie przez partnera. */
-export const isCancelledOwn = (order: Order) =>
-  typeof order.extra_fields === 'object' &&
-  order.extra_fields !== null &&
-  (order.extra_fields as Record<string, unknown>).cancelled === true
+export const isCancelledOwn = (order: Order) => isOrderCancelled(order)
 
 /** Wartość dodatkowej kolumny z wiersza (pola spoza typu Order, np. bastion_*). */
 export const orderField = (order: Order, key: string) => String((order as Record<string, unknown>)[key] ?? '')

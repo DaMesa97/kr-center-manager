@@ -6,6 +6,7 @@ import { DOC_KIND_LABELS } from './aluDossier'
 import { isReleaseDateEmpty } from '../utils'
 import type { AluOrderTrace } from './aluTraceData'
 import type { OrderDocument, OrderDocumentKind } from '../types'
+import { isOrderCancelled } from './orderCancelled'
 
 // Eksport teczki zlecenia dla audytora (ZKP 5.9, zał. 6.34): jedna paczka ZIP
 // = spis treści (PDF) + WSZYSTKIE wersje dokumentów, także wycofane (z oznaczeniem).
@@ -116,7 +117,7 @@ export function buildDossierTocDefinition(inp: TocInput): TDocumentDefinitions {
   const { trace, docs, entryNames, failed } = inp
   const { order, production, positions, constructions } = trace
   const extra = aluOrderExtra(order)
-  const cancelled = (order.extra_fields as Record<string, unknown> | null)?.cancelled === true
+  const cancelled = isOrderCancelled(order)
   const status = cancelled ? 'Anulowane' : !isReleaseDateEmpty(order.release_date) ? `Wydane ${order.release_date}` : 'W realizacji'
   const posById = new Map(positions.map((p) => [p.id, p]))
 

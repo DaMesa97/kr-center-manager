@@ -12,6 +12,7 @@
 // Rekordy łączone (trójka Titan, para Disting Plus) liczymy raz — isLinkedSecondary.
 import type { Complaint, Order } from '../types'
 import { isReleaseDateEmpty } from '../utils'
+import { isExtraCancelled } from './orderCancelled'
 
 /** Kategorie, których konfigurator nie wysyła (Tymek 26.11) — poza udziałem „z konfiguratora” */
 export const KONFIGURATOR_POZA = ['Techniczne', 'DrzwiWewnetrzne'] as const
@@ -67,12 +68,12 @@ export function companyGroupKey(name: unknown, aliases?: CompanyAliases): string
 
 export function isCancelledOrder(o: Order): boolean {
   const ef = o.extra_fields as Record<string, unknown> | null | undefined
-  return ef?.cancelled === true
+  return isExtraCancelled(ef)
 }
 
 export function isCancelledComplaint(c: Complaint): boolean {
   const ef = c.extra_fields as Record<string, unknown> | null | undefined
-  return ef?.cancelled === true
+  return isExtraCancelled(ef)
 }
 
 /**

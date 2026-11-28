@@ -35,6 +35,7 @@ import { releaseErrorText, releaseFailureMessage } from '../../lib/stockReleaseF
 import { reportStockReleaseFailure } from '../../lib/stockReleaseFailureRpc'
 import type { AluPosition, AluPositionStages, Complaint, Order, WorkerStage } from '../../types'
 import { CAT_COLORS } from './mobileKategorie'
+import { isExtraCancelled } from '../../lib/orderCancelled'
 
 type ShortageRow = {
   r_component_name: string
@@ -171,7 +172,7 @@ export default function MobileStationView({ userId }: Props) {
     if (!complaintsRes.error) {
       const openComplaints = ((complaintsRes.data ?? []) as Complaint[]).filter((c) => {
         const extra = (c as { extra_fields?: Record<string, unknown> | null }).extra_fields
-        return extra?.cancelled !== true
+        return !isExtraCancelled(extra)
       })
       setComplaints(openComplaints)
     }

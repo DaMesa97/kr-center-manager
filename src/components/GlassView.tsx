@@ -5,6 +5,7 @@ import { generateGlassOrderPdf, type GlassOrderLine } from '../utils/glassOrderP
 import { appAlert, appConfirm } from '../lib/appDialogs'
 import DataTable, { type DataTableColumn } from './DataTable'
 import { modelSystemCol } from './orderTableColumns'
+import { isOrderCancelled } from '../lib/orderCancelled'
 
 // Pozycje szyb (naświetle / dostawka A / B) dla jednego zamówienia
 function glassLinesFor(
@@ -97,8 +98,7 @@ export default function GlassView({
   // "Zamów szyby (PDF)": wszystkie pozycje BEZ daty zamówienia → jeden PDF
   // dla szklarza (pogrupowany po rodzaju szkła), potem opcjonalny stempel daty
   const [generating, setGenerating] = useState(false)
-  const isCancelled = (o: Order) =>
-    typeof o.extra_fields === 'object' && o.extra_fields !== null && (o.extra_fields as Record<string, unknown>).cancelled === true
+  const isCancelled = (o: Order) => isOrderCancelled(o)
   const pendingOrders = orders.filter(
     (o) => !o.glass_order_date && !isCancelled(o) && glassLinesFor(o, activeTab, glassAllowances).length > 0,
   )

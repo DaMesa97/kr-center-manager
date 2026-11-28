@@ -32,7 +32,8 @@ import {
   type StanZamowienia,
   type ZamowienieSklep,
 } from '../../lib/crmZamowienia'
-import { countCompletedStages, parseOrderExtraFields } from '../../utils'
+import { countCompletedStages } from '../../utils'
+import { isOrderCancelled } from '../../lib/orderCancelled'
 import { openExternalUrl } from '../../hooks/useAluOrders'
 import { appConfirm } from '../../lib/appDialogs'
 import DataTable, { type DataTableColumn } from '../DataTable'
@@ -132,7 +133,7 @@ function zbuduj(panel: CrmZamowieniaPanel): { wiersze: Wiersz[]; sieroty: Order[
   })
   // otwarte zlecenia Po Drzwi bez pary (bez numeru BL albo z numerem, którego nie ma w Baselinkerze);
   // przed pierwszym pobraniem z BL lista byłaby pełna fałszywych alarmów, więc wtedy pusta
-  const sieroty = panel.zamowienia.length === 0 ? [] : panel.zlecenia.filter((o) => !spiete.has(Number(o.id)) && !o.release_date && !parseOrderExtraFields(o.extra_fields).cancelled)
+  const sieroty = panel.zamowienia.length === 0 ? [] : panel.zlecenia.filter((o) => !spiete.has(Number(o.id)) && !o.release_date && !isOrderCancelled(o))
     .sort((a, b) => String(a.order_date ?? '').localeCompare(String(b.order_date ?? '')))
   return { wiersze, sieroty }
 }

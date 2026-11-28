@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Search } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import Spinner from './Spinner'
+import { isExtraCancelled } from '../lib/orderCancelled'
 
 type SearchResult = {
   id: number
@@ -180,7 +181,7 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
           )}
           {results.map((r, i) => {
             const extra = r.extra_fields as Record<string, unknown> | null
-            const cancelled = extra?.cancelled === true
+            const cancelled = isExtraCancelled(extra)
             const wyk = extra?.wykonawca as string | undefined
             const released = r.release_date && r.release_date.trim() !== ''
             return (

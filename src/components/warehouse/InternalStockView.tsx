@@ -19,6 +19,7 @@ import { buildDoorGrid } from '../../lib/doorStockGrid'
 import Spinner from '../Spinner'
 import type { ToastVariant, WarehouseComponent } from '../../types'
 import { formatIlosc } from '../../lib/magazynFormat'
+import { isOrderCancelled } from '../../lib/orderCancelled'
 
 type Props = {
   components: WarehouseComponent[]
@@ -92,7 +93,7 @@ export default function InternalStockView({ components, onShowHistory, pushToast
       )
       if (ord.error) throw new Error(ord.error.message)
       const ids = ord.data
-        .filter((o) => o.extra_fields?.cancelled !== true)
+        .filter((o) => !isOrderCancelled(o))
         .filter((o) => !isMrProfilOrder(o))
         .filter((o) => !isOptimaClosed({ source: o.source ?? undefined, source_metadata: { state: o.optima_state } } as Parameters<typeof isOptimaClosed>[0]))
         .map((o) => o.id)

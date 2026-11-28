@@ -15,6 +15,7 @@ import type {
   AluConstruction, AluDossierItem, AluMaterialList, AluMaterialListItemRow, AluPosition, AluProductionOrder, Order,
   OrderDocument, OrderDocumentKind, ToastVariant,
 } from '../types'
+import { isOrderCancelled } from '../lib/orderCancelled'
 
 // Szczegóły zlecenia aluminium: nagłówek z LP, PDF-y (LP + lista cięcia),
 // pozycje z postępem etapów. Nową wersję LP wgrywa się przez import (nadpisanie).
@@ -76,7 +77,7 @@ export default function AluOrderDetailsModal({
   const [pendingKind, setPendingKind] = useState<OrderDocumentKind | null>(null)
   const progress = aluOrderProgress(positions)
   const qty = positions.reduce((s, p) => s + (Number(p.quantity) || 0), 0)
-  const cancelled = (order.extra_fields as Record<string, unknown> | null)?.cancelled === true
+  const cancelled = isOrderCancelled(order)
   const released = !isReleaseDateEmpty(order.release_date)
 
   // ZKP 5.9: numer konstrukcji nadawany przy uruchomieniu, potem niezmienny

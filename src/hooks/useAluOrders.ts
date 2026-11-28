@@ -21,6 +21,7 @@ import type {
   OrderDocumentKind,
   ToastVariant,
 } from '../types'
+import { isOrderCancelled } from '../lib/orderCancelled'
 
 // Stolarka aluminiowa: pozycje LP (order_alu_positions) + PDF-y LP/LC
 // (order_documents, prywatny bucket order-documents). Zapisy idą przez RPC
@@ -429,7 +430,7 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
         return null
       }
       const row = ((data ?? []) as Array<{ id: number; order_number: string; company: string | null; extra_fields: Record<string, unknown> | null }>)
-        .find((r) => r.extra_fields?.cancelled === true)
+        .find((r) => isOrderCancelled(r))
       if (!row) return null
       return {
         id: row.id,

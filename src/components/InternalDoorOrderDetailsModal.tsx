@@ -25,6 +25,7 @@ import {
 import { INTERNAL_WAREHOUSE_CODE_PATTERN, internalShortages, sumInternalStock, type Shortage } from '../lib/internalWarehouse'
 import { isPicked, pickChanged, pickKey, pickProgress, sigsOf, type OrderPick } from '../lib/orderPicks'
 import type { InternalDoorItem, Order, ToastVariant, WarehouseComponent } from '../types'
+import { isOrderCancelled } from '../lib/orderCancelled'
 
 type DetailsUser = {
   role: 'manager' | 'worker' | 'sprzedawca'
@@ -79,11 +80,7 @@ function InternalDoorOrderDetailsModal({
   const baza = optimaBaza(order)
   const missing = unmappedItems(items)
 
-  const isCancelled = Boolean(
-    order?.extra_fields &&
-      typeof order.extra_fields === 'object' &&
-      (order.extra_fields as Record<string, unknown>).cancelled === true,
-  )
+  const isCancelled = isOrderCancelled(order)
   const isReleased = Boolean(order.release_date && String(order.release_date).trim())
   // RO zrealizowane / zamknięte w Optimie: bez wydania z magazynu (historia sprzed magazynu w programie)
   const closedInOptima = optimaClosedLabel(order)
@@ -225,7 +222,7 @@ function InternalDoorOrderDetailsModal({
           pushToast(`Nie wydano: nie udało się sprawdzić w bazie, czy zlecenie nie jest anulowane (${blSwieze.message}) — spróbuj ponownie`, 'error')
           return
         }
-        if ((swieze?.extra_fields as Record<string, unknown> | null)?.cancelled === true) {
+        if (isOrderCancelled(swieze)) {
           pushToast('Zlecenie zostało anulowane — nie wydano (odśwież listę)', 'error')
           return
         }

@@ -12,6 +12,7 @@ import { isOptimaClosed } from '../lib/optimaRo'
 import { fetchPicks, groupPicks, pickProgress } from '../lib/orderPicks'
 import { countCompletedStages } from '../utils'
 import type { Order, OrderShipment, OrderShipmentStatus, ToastVariant } from '../types'
+import { isOrderCancelled } from '../lib/orderCancelled'
 
 export type PendingOrder = {
   id: number
@@ -264,7 +265,7 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
         return false
       }
       const anulowane = ((anul ?? []) as Array<{ order_number: string; extra_fields: Record<string, unknown> | null }>)
-        .filter((o) => o.extra_fields?.cancelled === true)
+        .filter((o) => isOrderCancelled(o))
       if (anulowane.length) {
         pushToast(`Nie zaplanowano: zlecenie ${anulowane.map((o) => o.order_number).join(', ')} jest anulowane — odśwież listę`, 'error')
         await load()

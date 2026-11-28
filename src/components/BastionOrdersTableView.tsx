@@ -24,7 +24,8 @@ import {
   stageMenuOpener,
 } from './orderTableColumns'
 import type { ConfigOptionRecord, Order } from '../types'
-import { bastionFrameOptionForOrder, isReleaseDateEmpty, parseOrderExtraFields, parseProductionStages } from '../utils'
+import { bastionFrameOptionForOrder, isReleaseDateEmpty, parseProductionStages } from '../utils'
+import { isOrderCancelled } from '../lib/orderCancelled'
 
 // Titan w Bastionie: mapowanie etapów OKU/MONT/PAK na 3 sąsiednie kolumny tabeli.
 // Pozostałe kolumny Bastiona są dla Titana zablokowane.
@@ -360,7 +361,7 @@ function BastionOrdersTableView({
       emptyText="Brak zamówień spełniających kryteria wyszukiwania."
       rowClassName={(order) =>
         orderRowClassName(order, isManager, {
-          extra: [parseOrderExtraFields(order.extra_fields).cancelled && 'orders-table-row--cancelled'],
+          extra: [isOrderCancelled(order) && 'orders-table-row--cancelled'],
         })
       }
       onRowClick={isManager ? (order) => onOpenEditOrderModal(order) : undefined}

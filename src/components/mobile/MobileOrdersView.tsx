@@ -8,6 +8,7 @@ import { groupPicks, pickProgress, type OrderPick } from '../../lib/orderPicks'
 import MobileIntDoorPicking from './MobileIntDoorPicking'
 import { CAT_COLORS, CAT_LABEL, MOBILE_CATEGORIES } from './mobileKategorie'
 import { humanizeAndLog } from '../../lib/friendlyError'
+import { isExtraCancelled } from '../../lib/orderCancelled'
 
 
 type Field = { label: string; value: string }
@@ -168,7 +169,7 @@ export default function MobileOrdersView({ canPickItems = false, initials = '', 
     }
     const active = all.filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
-      if (extra?.cancelled === true) return false
+      if (isExtraCancelled(extra)) return false
       if (!isReleaseDateEmpty(o.release_date)) return false
       // RO zrealizowane / zamknięte w Optimie (tysiące z importu) — jak na komputerze, poza listą
       if (isOptimaClosed(o)) return false

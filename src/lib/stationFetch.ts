@@ -8,6 +8,7 @@ import { isReleaseDateEmpty } from '../utils'
 import { ALU_CATEGORY } from '../constants'
 import { fetchAllPages } from './fetchPaged'
 import type { AluPosition, Order } from '../types'
+import { isExtraCancelled } from './orderCancelled'
 
 export const ALL_STATION_CATEGORIES = ['STA', 'Disting', 'ST', 'Bastion', 'Techniczne', ALU_CATEGORY]
 
@@ -69,7 +70,7 @@ export async function fetchStationOrders(
   return {
     data: all.filter((o) => {
       const extra = o.extra_fields as Record<string, unknown> | null
-      if (extra?.cancelled === true) return false
+      if (isExtraCancelled(extra)) return false
       // partner spoza naszych kategorii zostaje także po wydaniu (blokady etapów)
       if (scope.has(o.category ?? '') && !isReleaseDateEmpty(o.release_date)) return false
       return true
