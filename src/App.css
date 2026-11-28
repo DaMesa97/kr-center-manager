@@ -10687,7 +10687,7 @@ button.pulpit-pasek-pole:hover { background: #F8F9FB; }
 .pulpit-kolumny { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
 .pulpit-panel { background: #fff; border: 1px solid var(--p-line); border-radius: 8px; min-width: 0; }
 .pulpit-panel--szeroki { flex: 999 1 520px; }
-.pulpit-panel--waski { flex: 1 1 340px; max-width: 520px; }
+.pulpit-panel--waski { flex: 1 1 360px; }
 .pulpit-panel-naglowek { padding: 14px 24px; border-bottom: 1px solid var(--p-line); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .pulpit-panel-naglowek h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--p-ink); }
 .pulpit-kolejka { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: center; gap: 20px; padding: 14px 24px; border-bottom: 1px solid var(--p-line-soft); }
