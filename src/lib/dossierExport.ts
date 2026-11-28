@@ -70,6 +70,45 @@ export type TocInput = {
   exportedAt: Date
   exportedBy: string
   appVersion: string
+  /** D61: dokumenty ZKP wygenerowane z programu (karty 6.25, protokoły 6.17.5, deklaracje 6.9); brak = stara paczka */
+  generated?: ZkpGeneratedDoc[]
+}
+
+// ── D61: karty wyrobu, protokoły i deklaracje generowane do paczki ───────────
+export type ZkpGeneratedKind = 'karta' | 'protokol' | 'deklaracja'
+
+export type ZkpGeneratedDoc = {
+  kind: ZkpGeneratedKind
+  /** ścieżka w paczce */
+  name: string
+  /** nr konstrukcji / protokołu / deklaracji */
+  ident: string
+  /** np. „ZWOLNIONY”, „wstrzymany”, „wycofana: …” */
+  state: string
+  /** nie udało się wygenerować PDF */
+  failed?: boolean
+}
+
+const GENERATED_FOLDER: Record<ZkpGeneratedKind, string> = {
+  karta: 'karty_wyrobu_6.25',
+  protokol: 'protokoly_6.17.5',
+  deklaracja: 'deklaracje_6.9',
+}
+const GENERATED_PREFIX: Record<ZkpGeneratedKind, string> = {
+  karta: 'Karta_wyrobu_',
+  protokol: 'Protokol_',
+  deklaracja: '',
+}
+export const ZKP_GENERATED_LABELS: Record<ZkpGeneratedKind, string> = {
+  karta: 'Karta wyrobu (zał. 6.25)',
+  protokol: 'Protokół badań 6.17.5',
+  deklaracja: 'Deklaracja KDWU / DWU (zał. 6.9)',
+}
+
+/** Nazwa pliku wygenerowanego dokumentu w paczce: folder/Prefiks_ident[_SUFIKS].pdf („/” w numerach → „-”). */
+export function zkpGeneratedEntryName(kind: ZkpGeneratedKind, ident: string, suffix = ''): string {
+  const id = sanitizeFileName(ident.replace(/[\\/]+/g, '-').replace(/\s+/g, '_'), 80)
+  return `${GENERATED_FOLDER[kind]}/${GENERATED_PREFIX[kind]}${id}${suffix ? `_${suffix}` : ''}.pdf`
 }
 
 /** Spis treści paczki (pdfmake) — nagłówek zlecenia, stan teczki, konstrukcje, pliki. */
@@ -165,10 +204,38 @@ export function buildDossierTocDefinition(inp: TocInput): TDocumentDefinitions {
         }
       : { text: 'Brak dokumentów w teczce.', italics: true },
   )
+  const generated = inp.generated
+  if (generated) {
+    content.push(section(`4. Dokumenty ZKP wygenerowane z programu — ${generated.length}`))
+    content.push(
+      generated.length
+        ? {
+            table: {
+              headerRows: 1,
+              widths: [16, '*', 110, 70, 80],
+              body: [
+                [th('Lp.'), th('Plik w paczce'), th('Dokument'), th('Numer'), th('Stan')],
+                ...generated.map((g, i) => [
+                  String(i + 1),
+                  { text: g.name, fontSize: 7 },
+                  ZKP_GENERATED_LABELS[g.kind],
+                  g.ident,
+                  g.failed ? { text: 'NIE WYGENEROWANO', color: '#b91c1c', bold: true } : g.state,
+                ]),
+              ],
+            },
+            layout: 'lightHorizontalLines',
+          }
+        : { text: 'Brak kart wyrobu, protokołów i deklaracji w programie dla tego zlecenia.', italics: true },
+    )
+  }
   content.push({
     text:
       'Wersje „archiwalne" i „wycofane" zostają w teczce (ZKP 5.1.6) — nowy plik nie nadpisuje poprzedniego, dokument można tylko wycofać z podaniem powodu. ' +
-      'Dokumenty wypełniane na papierze (karta wyrobu 6.25, samokontrola 6.16.5, protokół badań 6.17.5, deklaracja, rejestr 6.33) są w teczce papierowej, dopóki program ich nie generuje.',
+      (generated
+        ? 'Karty wyrobu 6.25 i protokoły badań 6.17.5 aktywnych konstrukcji oraz deklaracje 6.9 zlecenia są wygenerowane z danych programu w chwili eksportu (część 4). ' +
+          'Dokumenty prowadzone poza programem (np. samokontrola 6.16.5 na papierze) są w teczce papierowej.'
+        : 'Dokumenty wypełniane na papierze (karta wyrobu 6.25, samokontrola 6.16.5, protokół badań 6.17.5, deklaracja, rejestr 6.33) są w teczce papierowej, dopóki program ich nie generuje.'),
     style: 'note',
   })
 

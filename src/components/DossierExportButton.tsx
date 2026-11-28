@@ -39,7 +39,7 @@ export default function DossierExportButton({ orderId, pushToast, className = 'b
       className={className}
       disabled={progress !== null}
       onClick={() => void run()}
-      title="Jeden plik ZIP: spis treści (PDF) + wszystkie wersje dokumentów zlecenia, także wycofane — dla audytora"
+      title="Jeden plik ZIP: spis treści (PDF) + wszystkie wersje dokumentów zlecenia, także wycofane, a dla ZKP także karty wyrobu, protokoły 6.17.5 i deklaracje — dla audytora"
     >
       {progress ?? '📦 Eksport teczki (ZIP)'}
     </button>
