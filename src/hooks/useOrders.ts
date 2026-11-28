@@ -39,6 +39,7 @@ import {
   isStTitanSystemLabel,
   isTitanSystem,
   mergeOrderExtraFields,
+  extraFieldsPoZapisie,
   isOrderFormDirty,
   omitKeys,
   orderToBastionForm,
@@ -2666,17 +2667,14 @@ export function useOrders({
       const problem = reason && reason.trim()
         ? { reason: reason.trim(), at: new Date().toISOString(), by: (currentUser?.initials ?? '').trim() || (currentUser?.full_name ?? '') }
         : null
-      const { error } = await supabase.rpc('merge_order_extra_fields', { p_order_id: id, p_patch: { problem } })
+      const { data: zBazy, error } = await supabase.rpc('merge_order_extra_fields', { p_order_id: id, p_patch: { problem } })
       if (error) {
         pushToast(`Nie zapisano flagi problemu: ${error.message}`, 'error')
         return
       }
+      // D51: wynik z bazy (z równoległymi zmianami innych stanowisk), nie lokalne scalenie
       setOrders((prev) =>
-        prev.map((o) => {
-          if (o.id !== id) return o
-          const ef = typeof o.extra_fields === 'object' && o.extra_fields !== null ? (o.extra_fields as Record<string, unknown>) : {}
-          return { ...o, extra_fields: { ...ef, problem } }
-        }),
+        prev.map((o) => (o.id !== id ? o : { ...o, extra_fields: extraFieldsPoZapisie(o.extra_fields, zBazy, { problem }) as Order['extra_fields'] })),
       )
       pushToast(problem ? `Zlecenie ${order.order_number} oznaczone jako problem` : `Zdjęto flagę problemu ze zlecenia ${order.order_number}`, 'success')
     },

@@ -541,6 +541,19 @@ export function mergeOrderExtraFields(
   return { ...base, ...patch }
 }
 
+/**
+ * D51 (28.11): extra_fields po zapisie przez RPC merge_order_extra_fields — bierzemy wynik z bazy (zawiera równoległe
+ * zmiany innych stanowisk); scalenie lokalne tylko, gdy baza nic nie zwróciła.
+ */
+export function extraFieldsPoZapisie(
+  lokalne: unknown,
+  zBazy: unknown,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  if (zBazy != null && typeof zBazy === 'object' && !Array.isArray(zBazy)) return zBazy as Record<string, unknown>
+  return mergeOrderExtraFields(lokalne, patch as Partial<OrderExtraFields>)
+}
+
 export function parseProductionStages(raw: unknown, tab: string): Record<string, string> {
   const merged = createEmptyProductionStages(tab)
   let parsed: Record<string, unknown> = {}
