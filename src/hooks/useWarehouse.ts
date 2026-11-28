@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { appAlert, appConfirm } from '../lib/appDialogs'
 import { isInventoryLockError } from '../lib/inventory'
+import { mmReservationPrompt, movedReservationsBy, parseMmReservationPreview } from '../lib/mmReservations'
 import { fetchAllPages } from '../lib/fetchPaged'
 import { alertsBadgeThrottled, parseAlertsSummary } from '../lib/alertsBadge'
 import { normalizeStockLevelRow } from '../lib/stockLevels'
@@ -1718,10 +1719,28 @@ export function useWarehouse({
         s,
       ]),
     )
+    // D16: towar zarezerwowany pod zlecenia — pytanie, czy rezerwacje idą razem z nim
+    // (podglad_rezerwacji_mm, migracja 20261128030300; bez niej — nie pytamy, jak dotąd)
+    let moveReservations = false
+    let movedBy = new Map<number, number>()
+    const { data: rezData, error: rezErr } = await supabase.rpc('podglad_rezerwacji_mm', {
+      p_warehouse_from_id: mmFormData.warehouse_from_id,
+      p_items: validItems,
+    })
+    const rezRows = rezErr ? [] : parseMmReservationPreview(rezData)
+    if (rezErr && rezErr.code !== 'PGRST202') console.error('podglad_rezerwacji_mm', rezErr)
+    if (rezRows.length > 0) {
+      moveReservations = await appConfirm(
+        mmReservationPrompt(rezRows, (id) => warehouseComponents.find((c) => c.id === id)?.name ?? `#${id}`),
+        { title: 'Rezerwacje przy przesunięciu', confirmLabel: 'Przenieś z rezerwacjami' },
+      )
+      if (moveReservations) movedBy = movedReservationsBy(rezRows)
+    }
+
     const shortages = validItems.flatMap((it) => {
       const s = stockBy.get(it.component_id)
       const onHand = Number(s?.quantity ?? 0)
-      const available = onHand - Number(s?.reserved_quantity ?? 0)
+      const available = onHand - Number(s?.reserved_quantity ?? 0) + (movedBy.get(it.component_id) ?? 0)
       if (it.quantity <= available) return []
       const name = warehouseComponents.find((c) => c.id === it.component_id)?.name ?? `#${it.component_id}`
       return [`• ${name}: przesuwasz ${it.quantity}, na stanie ${onHand}, wolne ${available}`]
@@ -1736,13 +1755,23 @@ export function useWarehouse({
 
     setMmSaving(true)
     try {
-      const { data, error } = await supabase.rpc('create_mm_document', {
+      const mmArgs = {
         p_warehouse_from_id: mmFormData.warehouse_from_id,
         p_warehouse_to_id: mmFormData.warehouse_to_id,
         p_items: validItems,
         p_reference_doc: mmFormData.reference_doc.trim() || null,
         p_notes: mmFormData.notes.trim() || null,
-      })
+      }
+      let { data, error } = moveReservations
+        ? await supabase.rpc('create_mm_document', { ...mmArgs, p_move_reservations: true })
+        : await supabase.rpc('create_mm_document', mmArgs)
+      if (moveReservations && error?.code === 'PGRST202') {
+        // baza bez migracji D16 — przesunięcie bez rezerwacji, jak dotąd
+        const ponow = await supabase.rpc('create_mm_document', mmArgs)
+        data = ponow.data
+        error = ponow.error
+        if (!error) pushToast('Rezerwacje zostały na magazynie źródłowym (przenoszenie będzie po aktualizacji bazy)', 'info')
+      }
       if (error) {
         // D14: trwa spis z blokadą na magazynie źródłowym lub docelowym
         if (isInventoryLockError(error)) void appAlert(error.message)
