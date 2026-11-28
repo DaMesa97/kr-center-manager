@@ -924,7 +924,9 @@ export async function fetchBezKlienta(dni = 60): Promise<Result<{ rozmowy: CrmRo
   const [roz, mai] = await Promise.all([
     crm().from('rozmowy')
       .select('id, ringostat_call_id, lead_id, kierunek, odebrana, czas_s, ivr, typ, link_nagrania, transkrypcja, podsumowanie, data_rozmowy, created_at, status_przetwarzania, blad, kategoria, nastepna_akcja, analiza, oferta_id, numer_dzwoniacego, numer_docelowy, koszt_ai_usd')
-      .is('lead_id', null).eq('status_przetwarzania', 'przetworzona').gte('data_rozmowy', od)
+      // 28.11: także nieodebrane przychodzące z nowych numerów (nie zakładają już klienta)
+      .is('lead_id', null).gte('data_rozmowy', od)
+      .or('status_przetwarzania.eq.przetworzona,and(status_przetwarzania.eq.bez_ai,odebrana.eq.false,kierunek.eq.przychodzaca)')
       .order('data_rozmowy', { ascending: false }).limit(300),
     crm().from('maile')
       .select(`${MAIL_LIST_COLS}, kanal, analiza`)

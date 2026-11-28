@@ -46,7 +46,10 @@ export function listaBezKlienta(rozmowy: CrmRozmowa[], maile: CrmMail[]): BezKli
     if (r.lead_id) continue
     out.push({
       rodzaj: 'rozmowa', id: r.id, kiedy: r.data_rozmowy ?? r.created_at, typ: r.typ, podsumowanie: r.podsumowanie,
-      potencjal: potencjalZAnalizy(r.analiza), powod: powodZAnalizy(r.analiza), rozmowa: r,
+      potencjal: potencjalZAnalizy(r.analiza),
+      // 28.11: nieodebrana z nowego numeru (bez analizy) — powód wprost
+      powod: powodZAnalizy(r.analiza) ?? (r.odebrana === false ? 'Nieodebrana z nowego numeru' : null),
+      rozmowa: r,
     })
   }
   for (const m of maile) {

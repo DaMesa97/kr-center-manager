@@ -154,7 +154,14 @@ async function przetworz(db: SupabaseClient, r: Rozmowa, payload: Record<string,
       case 'nieodebrana': {
         // Tymek 24.11: CRM nie prowadzi zadań „oddzwoń” — nieodebrana zostaje w historii klienta (lead + rozmowa + zdarzenie),
         // istniejące zadanie leada bez zmian (dotąd: zadanie „oddzwoń” na dziś, 7 takich wisiało w „Do zrobienia”)
-        const l = lead ?? await nowyLead(db, telefon!, r)
+        // 28.11 (właściciel): nieodebrana z NOWEGO numeru nie zakłada klienta — rozmowa zostaje bez klienta (lista
+        // „Bez potencjału sprzedaży”); gdy numer zadzwoni później z potencjałem, nowyLead dopnie ją do klienta
+        if (!lead) {
+          await db.from('rozmowy').update({ status_przetwarzania: 'bez_ai', podsumowanie: 'Nieodebrana przychodząca z nowego numeru (bez klienta).', blad: null }).eq('id', rozmowaId)
+          await zdarzenie(db, { lead_id: null, rozmowa_id: rozmowaId, typ: 'nieodebrana', opis: `Nieodebrana rozmowa ${godzinaPL(r.data_rozmowy)} z nowego numeru — bez klienta.` })
+          return { ok: true, rozmowa_id: rozmowaId, krok: 'nieodebrana', lead_id: null }
+        }
+        const l = lead
         await zapiszLeada(db, l.id, { ostatnia_rozmowa_at: r.data_rozmowy })
         await db.from('rozmowy').update({ lead_id: l.id, status_przetwarzania: 'bez_ai', podsumowanie: 'Nieodebrana przychodząca.', blad: null }).eq('id', rozmowaId)
         await zdarzenie(db, { lead_id: l.id, rozmowa_id: rozmowaId, typ: 'nieodebrana', opis: `Nieodebrana rozmowa ${godzinaPL(r.data_rozmowy)} (bez zadania).` })
@@ -357,6 +364,19 @@ async function nowyLead(db: SupabaseClient, telefon: string, r: Rozmowa): Promis
     throw new Error('Nie utworzono leada: ' + (error?.message ?? '?'))
   }
   await zdarzenie(db, { lead_id: data.id, typ: 'lead_utworzony', opis: `Nowy lead z telefonu ${telefon}` })
+  // 28.11: wcześniejsze rozmowy z tego numeru bez klienta (nieodebrane, „bez potencjału”) z 60 dni dopinamy do nowego klienta
+  try {
+    const od = new Date(Date.now() - 60 * 86400 * 1000).toISOString()
+    const { data: stare } = await db.from('rozmowy').select('id, kierunek, numer_dzwoniacego, numer_docelowy')
+      .is('lead_id', null).gte('data_rozmowy', od).or(`numer_dzwoniacego.eq.${telefon},numer_docelowy.eq.${telefon}`)
+    const ids = (stare ?? []).filter((x) => numerKlienta(x as unknown as Rozmowa) === telefon).map((x) => x.id)
+    if (ids.length) {
+      await db.from('rozmowy').update({ lead_id: data.id }).in('id', ids)
+      await db.from('zdarzenia').update({ lead_id: data.id }).in('rozmowa_id', ids).is('lead_id', null)
+    }
+  } catch (e) {
+    console.error('dopięcie wcześniejszych rozmów:', e)
+  }
   return data as Lead
 }
 
