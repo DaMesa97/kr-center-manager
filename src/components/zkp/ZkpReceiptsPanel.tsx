@@ -1,3 +1,4 @@
+import { dataCzasPl, dataPl } from '../../lib/dataPl'
 import { useMemo, useState } from 'react'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import ZkpModal from './ZkpModal'
@@ -23,9 +24,9 @@ type Props = {
 }
 
 const today = () => new Date().toLocaleDateString('sv-SE')
-const fmtDate = (ymd: string | null | undefined) => (ymd ? ymd.slice(0, 10).split('-').reverse().join('.') : '—')
-const fmtDateTime = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }) : ''
+// D51: wspólny format dat (pusta = '—', zła = tekst z bazy zamiast „Invalid Date”)
+const fmtDate = (ymd: string | null | undefined) => dataPl(ymd)
+const fmtDateTime = (iso: string | null | undefined) => dataCzasPl(iso)
 const yesNo = (v: boolean) => (v ? '✓' : '✗')
 
 const ACCEPT_SCAN = 'application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png'

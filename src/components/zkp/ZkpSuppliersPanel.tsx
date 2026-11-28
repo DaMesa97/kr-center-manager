@@ -1,3 +1,4 @@
+import { dataPl } from '../../lib/dataPl'
 import { useMemo, useState } from 'react'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import ZkpModal from './ZkpModal'
@@ -23,7 +24,8 @@ type Row = {
 }
 
 const today = () => new Date().toLocaleDateString('sv-SE')
-const fmtDate = (ymd: string | null | undefined) => (ymd ? ymd.slice(0, 10).split('-').reverse().join('.') : '—')
+// D51: wspólny format dat
+const fmtDate = (ymd: string | null | undefined) => dataPl(ymd)
 const plusYear = (ymd: string) => {
   const [y, m, d] = ymd.split('-').map(Number)
   return new Date(y + 1, m - 1, d).toLocaleDateString('sv-SE')

@@ -1,3 +1,4 @@
+import { dataCzasPl } from '../../lib/dataPl'
 import { useMemo, useState } from 'react'
 import type { StockReservationRow } from '../../types'
 import Spinner from '../Spinner'
@@ -25,10 +26,9 @@ function stageLabel(row: StockReservationRow): string {
   return def ? def.header : row.stage_key
 }
 
+// D51: wspólny format dat
 function formatDateTimePl(iso: string): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })
+  return dataCzasPl(iso)
 }
 
 type OrderGroup = {

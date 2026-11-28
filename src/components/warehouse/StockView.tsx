@@ -4,6 +4,7 @@
 // (migrate/magazyn_poziomy_brakow.sql). Tu: filtry, liczniki, sortowanie
 // „najpierw braki”, minimum półki (inline + hurtowo), eksport braków.
 // =====================================================================
+import { dataPl } from '../../lib/dataPl'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   ReorderProposal, ShoppingListItem, SmartRopRow, StockLevel, StockLevelRow, StockMinimumInput, Supplier, ToastVariant, Warehouse,
@@ -45,10 +46,9 @@ function loadPrefs(): Prefs {
 }
 
 // 'YYYY-MM-DD' → 'DD.MM.RRRR'
+// D51: wspólny format dat; tu pusta = '' (podpowiedź dopisuje „brak daty”)
 function formatDatePl(d: string | null | undefined): string {
-  if (!d) return ''
-  const [y, m, day] = d.slice(0, 10).split('-')
-  return y && m && day ? `${day}.${m}.${y}` : d
+  return dataPl(d, '')
 }
 
 const orDash = (v: string | null | undefined) => (v?.trim() ? v : '—')

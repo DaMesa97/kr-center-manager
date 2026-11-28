@@ -11,6 +11,7 @@ import {
   hasGlassExtra,
   isRushOrderSequence,
   isOrderReadyToInvoice,
+  isReleaseDateEmpty,
   orderRouteMark,
   orderSetCompleteness,
 } from '../utils'
@@ -54,7 +55,8 @@ function compareOrderNumberDesc(a: string, b: string): number {
 
 // Status zamówienia (badge) — też wartość sortowania kolumny STATUS
 function orderStatus(order: Order): { cls: string; label: string } {
-  if (order.release_date) {
+  // D51: data ze spacji to nie „Wydane” (jak w reszcie programu: isReleaseDateEmpty)
+  if (!isReleaseDateEmpty(order.release_date)) {
     return { cls: 'shipping-status-badge shipping-status-badge--done', label: 'Wydane' }
   }
   const { total, percent } = countCompletedStages(order)

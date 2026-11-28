@@ -1,3 +1,4 @@
+import { mediana } from '../../lib/mediana'
 import { useCallback, useEffect, useState } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -29,12 +30,6 @@ type CategoryStat = {
 
 type Bucket = { label: string; count: number }
 
-function median(nums: number[]): number {
-  if (nums.length === 0) return 0
-  const sorted = [...nums].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
-}
 
 function presetFromDate(preset: Preset): string {
   // runda 10: minusMonths zamiast setMonth (31.03 − 1 mies. dawało 3.03)
@@ -105,7 +100,7 @@ export default function LeadTimeStatsView() {
           category: cat,
           count: arr.length,
           avgDays: arr.reduce((s, v) => s + v, 0) / arr.length,
-          medianDays: median(arr),
+          medianDays: mediana(arr) ?? 0, // arr niepuste (pusta kategoria pominięta wyżej)
           minDays: Math.min(...arr),
           maxDays: Math.max(...arr),
         })

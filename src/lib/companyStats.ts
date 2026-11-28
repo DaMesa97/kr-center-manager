@@ -14,6 +14,7 @@ import type { Complaint, Order } from '../types'
 import { isReleaseDateEmpty } from '../utils'
 import { isExtraCancelled } from './orderCancelled'
 import { titanGroupValue } from './titanGroup'
+import { mediana } from './mediana'
 
 /** Kategorie, których konfigurator nie wysyła (Tymek 26.11) — poza udziałem „z konfiguratora” */
 export const KONFIGURATOR_POZA = ['Techniczne', 'DrzwiWewnetrzne'] as const
@@ -230,12 +231,6 @@ export function daysBetween(from: string, to: string): number | null {
   return d >= 0 ? d : null
 }
 
-function median(nums: number[]): number | null {
-  if (nums.length === 0) return null
-  const sorted = [...nums].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
-}
 
 function complaintDate(c: Complaint): string {
   return String(c.complaint_date || c.created_at || '').slice(0, 10)
@@ -375,7 +370,7 @@ export function computeCompanyStats(
     complaints: complaints.length,
     complaintsPer100: orders.length ? Math.round((complaints.length / orders.length) * 1000) / 10 : null,
     avgDays: avg,
-    medianDays: median(leadDays),
+    medianDays: mediana(leadDays),
     leadCount: leadDays.length,
     lastOrderDate,
     byMonth: Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month)),

@@ -26,7 +26,7 @@ type MonthPoint = { ym: string; label: string; total: number; bot: number; proce
 type CategoryRow = { category: string; total: number; bot: number; procent: number | null }
 
 const CAT_COLORS: Record<string, string> = {
-  STA: '#005faf', Disting: '#4f46e5', ST: '#1d6d45', Techniczne: '#854d0e', Bastion: '#b3261e', DrzwiWewnetrzne: '#0369a1', Aluminium: '#6b7280',
+  STA: '#005faf', Disting: '#4f46e5', ST: '#1d6d45', Techniczne: '#854d0e', Bastion: '#b3261e', DrzwiWewnetrzne: '#0369a1', Aluminium: '#475569', // D51: ten sam odcień co w reszcie programu
 }
 
 const pct = (bot: number, total: number): number | null => (total > 0 ? Math.round((bot / total) * 1000) / 10 : null)

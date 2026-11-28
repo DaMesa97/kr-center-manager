@@ -1,3 +1,4 @@
+import { dataPl } from '../../lib/dataPl'
 import { useMemo, useState } from 'react'
 import ZkpModal from './ZkpModal'
 import { appPrompt } from '../../lib/appDialogs'
@@ -10,7 +11,8 @@ import type { ZkpData } from './ZkpView'
 // pilnuje tego samego. Każdy podpis etapu karty wyrobu jest sprawdzany w tej matrycy.
 
 const today = () => new Date().toLocaleDateString('sv-SE')
-const fmtDate = (ymd: string | null | undefined) => (ymd ? ymd.slice(0, 10).split('-').reverse().join('.') : '')
+// D51: wspólny format dat (pusta = '—', zła = tekst z bazy)
+const fmtDate = (ymd: string | null | undefined) => dataPl(ymd)
 const fmt = (iso: string | null | undefined) => {
   if (!iso) return ''
   const d = new Date(iso)

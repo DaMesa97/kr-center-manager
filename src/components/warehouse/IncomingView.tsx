@@ -1,12 +1,12 @@
+import { dataPl } from '../../lib/dataPl'
 import { useMemo, useState } from 'react'
 import type { IncomingStockRow, WarehouseComponent } from '../../types'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 
+// D51: wspólny format dat (data z godziną z bazy nie daje już „RRRR.MM.DDT…”)
 function formatDatePl(d: string | null): string {
-  if (!d) return '—'
-  const [y, m, day] = d.split('-')
-  return y && m && day ? `${day}.${m}.${y}` : d
+  return dataPl(d)
 }
 
 function isOverdue(eta: string | null): boolean {
