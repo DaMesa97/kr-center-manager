@@ -136,6 +136,17 @@ export function zkpForcedQuarantineReasons(form: {
   return why
 }
 
+/**
+ * D58 (właściciel): partii niezgodnej z listą 6.10.5 albo uszkodzonej (stan / opakowanie z uwagami) nie można
+ * zwolnić jako „przyjęto” — dozwolony tylko zwrot (lustro zkp_decide_lot). Pusta lista = przyjęcie dozwolone.
+ */
+export function zkpLotReturnOnlyReasons(lot: { conforms_to_list_6105?: boolean | null; condition_ok?: boolean | null }): string[] {
+  const why: string[] = []
+  if (lot.conforms_to_list_6105 === false) why.push('niezgodna z listą 6.10.5')
+  if (lot.condition_ok === false) why.push('uszkodzona / uwagi do stanu lub opakowania')
+  return why
+}
+
 /** Baza wymusi kwarantannę (patrz zkpForcedQuarantineReasons). */
 export function zkpWillForceQuarantine(form: Parameters<typeof zkpForcedQuarantineReasons>[0]): boolean {
   return zkpForcedQuarantineReasons(form).length > 0

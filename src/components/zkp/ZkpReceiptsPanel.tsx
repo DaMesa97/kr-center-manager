@@ -9,6 +9,7 @@ import {
   ZKP_QUALITY_DOC_KINDS,
   zkpSupplierState,
   zkpForcedQuarantineReasons,
+  zkpLotReturnOnlyReasons,
   type ZkpLotDecision,
   type ZkpMaterialLot,
 } from '../../lib/zkp'
@@ -458,7 +459,8 @@ function ReceiptModal({ zkp, onClose, onGoTo }: { zkp: ZkpData; onClose: () => v
       {forced && (
         <div className="zkp-warnbox">
           {forcedWhy.join(', ')} — przyjęcie zostanie zapisane jako <b>KWARANTANNA</b> (niezgodnej partii nie można przyjąć
-          od razu). Partię zwolni albo zwróci Pełnomocnik / Zastępca.
+          od razu). Partię zwolni albo zwróci Pełnomocnik / Zastępca
+          {(!f.conforms_to_list_6105 || !f.condition_ok) && ' — partię niezgodną z listą 6.10.5 albo uszkodzoną można już tylko zwrócić'}.
         </div>
       )}
       {problems.length > 0 && <div className="zkp-problems">{problems.join(' ')}</div>}
@@ -525,10 +527,13 @@ function CompleteModal({ zkp, lot, onClose }: { zkp: ZkpData; lot: ZkpMaterialLo
 
 // ── Decyzja PJ / Zastępcy o partii z kwarantanny ─────────────────────────────
 function DecideModal({ zkp, lot, onClose }: { zkp: ZkpData; lot: ZkpMaterialLot; onClose: () => void }) {
-  const [decision, setDecision] = useState<'przyjeto' | 'zwrot'>('przyjeto')
+  // D58: partia niezgodna z listą 6.10.5 albo uszkodzona — tylko zwrot
+  const returnOnlyWhy = zkpLotReturnOnlyReasons(lot)
+  const returnOnly = returnOnlyWhy.length > 0
+  const [decision, setDecision] = useState<'przyjeto' | 'zwrot'>(returnOnly ? 'zwrot' : 'przyjeto')
   const [reason, setReason] = useState('')
   const incomplete = !lot.lot_no || (!lot.quality_doc_no && !lot.quality_doc_path)
-  const blocked = decision === 'przyjeto' && incomplete
+  const blocked = decision === 'przyjeto' && (incomplete || returnOnly)
 
   const save = async () => {
     if (await zkp.decideLot(lot.id, decision, reason)) onClose()
@@ -561,7 +566,14 @@ function DecideModal({ zkp, lot, onClose }: { zkp: ZkpData; lot: ZkpMaterialLot;
       </p>
       <div className="zkp-decision-pick">
         <label>
-          <input type="radio" name="zkp-decide" checked={decision === 'przyjeto'} onChange={() => setDecision('przyjeto')} /> Przyjąć (zwolnić z kwarantanny)
+          <input
+            type="radio"
+            name="zkp-decide"
+            checked={decision === 'przyjeto'}
+            disabled={returnOnly}
+            onChange={() => setDecision('przyjeto')}
+          />{' '}
+          Przyjąć (zwolnić z kwarantanny)
         </label>
         <label>
           <input type="radio" name="zkp-decide" checked={decision === 'zwrot'} onChange={() => setDecision('zwrot')} /> Zwrot do dostawcy
@@ -571,7 +583,12 @@ function DecideModal({ zkp, lot, onClose }: { zkp: ZkpData; lot: ZkpMaterialLot;
         <span className="order-field-label-text">Uzasadnienie * (min. 3 znaki)</span>
         <input value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
       </label>
-      {blocked && (
+      {returnOnly && (
+        <div className="zkp-warnbox">
+          Partia {returnOnlyWhy.join(', ')} — nie można jej przyjąć, dozwolony tylko <b>zwrot do dostawcy</b>.
+        </div>
+      )}
+      {blocked && !returnOnly && (
         <div className="zkp-warnbox">Nie można przyjąć partii bez nr partii i dokumentu jakości — najpierw „Uzupełnij”.</div>
       )}
     </ZkpModal>

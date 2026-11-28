@@ -5,6 +5,7 @@ import {
   aluPositionIsZkp,
   isAs75EiSystem,
   zkpForcedQuarantineReasons,
+  zkpLotReturnOnlyReasons,
   zkpScanPath,
   zkpSupplierState,
   zkpWillForceQuarantine,
@@ -69,6 +70,14 @@ describe('D58: niezgodna partia i dostawca po terminie oceny', () => {
     ])
     expect(zkpWillForceQuarantine({ ...base, condition_ok: false })).toBe(true)
     expect(zkpWillForceQuarantine({ ...base, decision: 'zwrot', condition_ok: false })).toBe(false)
+  })
+  it('partia niezgodna z listą 6.10.5 albo uszkodzona — tylko zwrot (zkp_decide_lot)', () => {
+    expect(zkpLotReturnOnlyReasons({ conforms_to_list_6105: true, condition_ok: true })).toEqual([])
+    expect(zkpLotReturnOnlyReasons({ conforms_to_list_6105: false, condition_ok: true })).toEqual(['niezgodna z listą 6.10.5'])
+    expect(zkpLotReturnOnlyReasons({ conforms_to_list_6105: true, condition_ok: false })).toHaveLength(1)
+    expect(zkpLotReturnOnlyReasons({ conforms_to_list_6105: false, condition_ok: false })).toHaveLength(2)
+    // brak danych (stara wersja wiersza) nie blokuje
+    expect(zkpLotReturnOnlyReasons({})).toEqual([])
   })
   it('po terminie oceny okresowej dostawca niekwalifikowany', () => {
     const today = '2026-10-26'
