@@ -28,7 +28,6 @@ const SECTIONS: Section[] = [
         <h4>Wersja 1.1.13: CRM — klienci tylko z potencjałem sprzedaży</h4>
         <ul>
           <li><b>CRM</b>: rozmowa albo mail z nowego numeru / adresu, w którym nie ma potencjału sprzedaży (klient zrezygnował, nie zostawił danych, pomyłka, towar, którego nie sprzedajemy), nie zakłada już klienta. Takie kontakty są w Klienci → „Bez potencjału sprzedaży” z powodem i przyciskiem „Utwórz klienta”, gdyby system się pomylił.</li>
-          <li><b>PIN ZKP</b> schowany (na razie nieużywany).</li>
         </ul>
         <h4>Wersja 1.1.12: druga tura decyzji właściciela (28.11)</h4>
         <ul>
