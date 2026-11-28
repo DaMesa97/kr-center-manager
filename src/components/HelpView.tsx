@@ -25,6 +25,18 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.12: druga tura decyzji właściciela (28.11)</h4>
+        <ul>
+          <li><b>Zamawianie, Stany, Alerty</b>: jedna reguła „ile zamówić” dla całej firmy — od stanu odejmowane są rezerwacje, liczony jest towar w drodze, cel = 2× średnie zużycie, gdy brak minimum. Szkice ZD pokazane osobno („w szkicu”) i ostrzeżenie przy dodawaniu do listy zakupowej.</li>
+          <li><b>Weryfikacja</b>: kolizja numeru z arkusza z zleceniem innej firmy nie trafia już do Weryfikacji (zostaje plakietka „ark.”). Kolumna Priorytet (pilne na górze), pozycje starsze niż 14 dni schowane pod przyciskiem.</li>
+          <li><b>Zlecenia</b>: ostrzeżenie, gdy ktoś inny zmienił zlecenie w trakcie Twojej edycji. W nowym zleceniu kategoria tylko do odczytu, dzień produkcji z listy z podpowiedzią z kartoteki. Anulowanie nogi Bastion zestawu Titan pyta o cały zestaw. Zakres ościeżnicy także przy zabudowie. Drzwi wewnętrzne tylko z Optimy (bez ręcznego zakładania).</li>
+          <li><b>Statystyki</b> liczone w bazie — ładują się szybciej. Szybsze wyszukiwanie (Ctrl+K) i Dziennik zmian.</li>
+          <li><b>Słownik</b>: zmiana nazwy wartości pokazuje, gdzie jest użyta, i przenosi nową nazwę do wykluczeń, reguł Bastion, receptur i mapy wymiarów.</li>
+          <li><b>Aluminium</b>: przed „Nadpisz” nowej LP lista pozycji i konstrukcji, które znikną; zwolniona karta albo deklaracja blokuje nadpisanie. Partia niezgodna / uszkodzona — tylko zwrot. Anulowanie konstrukcji z nowym numerem po niezgodności (Pełnomocnik). Eksport teczki ZKP z kartami, protokołami i deklaracjami.</li>
+          <li><b>Zakupy</b>: obieg statusu ZD pilnowany przez bazę; wysłaną ZD cofa do szkicu tylko administrator.</li>
+          <li><b>CRM</b>: obsługa klienta widzi ceny z konfiguratora; klient ze sklepu „Zamówił” z wartością zamówień; odstąpienie od umowy = klient przegrany (rezygnacja).</li>
+          <li><b>Telefon</b>: zdjęcia zmniejszane przed wysłaniem (szybciej, mniej miejsca); widoki zawężone do kategorii z profilu dla każdej roli.</li>
+        </ul>
         <h4>Wersja 1.1.11: Pulpit na całą szerokość</h4>
         <ul>
           <li><b>Pulpit</b> rozciąga się na całą szerokość ekranu (wcześniej był wąski i przyklejony do lewej).</li>
