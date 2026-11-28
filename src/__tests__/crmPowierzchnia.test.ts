@@ -6,6 +6,7 @@ describe('parsePowierzchnia', () => {
     expect(parsePowierzchnia('150')).toBe(150)
     expect(parsePowierzchnia('150 m2')).toBe(150)
     expect(parsePowierzchnia('ok. 150')).toBe(150)
+    expect(parsePowierzchnia('około 150')).toBe(150)
     expect(parsePowierzchnia('1 200')).toBe(1200)
     expect(parsePowierzchnia('82,5 m²')).toBe(82.5)
     expect(parsePowierzchnia('  ')).toBeNull()

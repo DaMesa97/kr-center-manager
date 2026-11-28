@@ -198,7 +198,7 @@ export function tytulOferty(o: { nazwa?: string | null; produkt?: string | null;
  * pole decyduje o kontroli stawki VAT 8%).
  */
 export function parsePowierzchnia(text: string): number | null {
-  let t = text.toLowerCase().replace(/m2|m²|mkw|ok\.?|około|~|ca\.?/g, '').replace(/[\s\u00a0]/g, '')
+  let t = text.toLowerCase().replace(/m2|m²|mkw|około|ok\.?|~|ca\.?/g, '').replace(/[\s\u00a0]/g, '')
   if (!t) return null
   t = t.replace(',', '.')
   if (!/^\d+(\.\d{1,2})?$/.test(t)) return NaN
