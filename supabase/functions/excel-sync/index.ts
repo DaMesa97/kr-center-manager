@@ -170,18 +170,30 @@ const serialToIso = (v: unknown): string | null =>
     ? new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10)
     : null;
 
-// data z arkusza: numer seryjny albo tekst „DD.MM.YYYY” / „YYYY-MM-DD”
+// runda 10 (28.11): data musi istnieć w kalendarzu — „31.11.2026” dawało „2026-11-31”, a SQL (::date)
+// odrzucał wtedy CAŁĄ paczkę reklamacji kategorii (także poprawne wiersze), co 15 minut
+const isoIfReal = (y: number, mo: number, d: number): string | null => {
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+};
+
+// data z arkusza: numer seryjny albo tekst „DD.MM.YYYY” / „YYYY-MM-DD”; niemożliwa data → null
 const anyToIso = (v: unknown): string | null => {
   const s = serialToIso(v);
   if (s) return s;
   if (typeof v !== "string") return null;
   const t = v.trim();
   let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  if (m) return isoIfReal(Number(m[1]), Number(m[2]), Number(m[3]));
   m = /^(\d{1,2})[./](\d{1,2})[./](\d{4})/.exec(t);
-  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  if (m) return isoIfReal(Number(m[3]), Number(m[2]), Number(m[1]));
   return null;
 };
+
+// runda 10 (28.11): tekst wyglądający na datę, ale niemożliwy (np. „31.11.2026”) — do raportu przebiegu
+const isBadDateText = (v: unknown): boolean =>
+  typeof v === "string" && /^(\d{4}-\d{2}-\d{2}|\d{1,2}[./]\d{1,2}[./]\d{4})/.test(v.trim()) && anyToIso(v) === null;
 
 const str = (v: unknown): string => (v == null ? "" : String(v).trim());
 
@@ -275,6 +287,7 @@ Deno.serve(async (req) => {
     for (const part of parts) {
       const rows: Record<string, unknown>[] = [];
       const perSheet: Record<string, number> = {};
+      const zleDaty: Record<string, unknown>[] = [];   // runda 10 (28.11): literówki dat do raportu przebiegu
       // etapy per wiersz arkusza: klucz = to, co RPC zwraca w items.excel_row (`${sheet} ${nr}`)
       const etapyByRow: Record<string, { stages: Record<string, string>; nietypowe: Array<{ etap: string; wartosc: string }> }> = {};
       const stageColsMissing: string[] = [];
@@ -301,6 +314,8 @@ Deno.serve(async (req) => {
           else if (w != null && String(w).trim() !== "") {
             const t = String(w).trim();
             if (/^x+$/i.test(t)) { wyd = today; szac = true; } else wyd = t;
+            // runda 10 (28.11): niemożliwa data wydania — tekst idzie jak dotąd (SQL da status „inne”), plus wpis w raporcie
+            if (isBadDateText(t)) zleDaty.push({ arkusz: sheet, nr: String(nr).trim(), kolumna: "WYDANIE", wartosc: t });
           }
           // testy 27.11 (2. seria, KRYTYCZNY): „ANULOWANE” wpisane w kolumnie etapu (CNC, ościeżnica…) zamiast w WYDANIE
           // zostawiało zlecenie otwarte z rezerwacjami (7 zleceń, 65 rezerwacji) — teraz idzie jak „ANUL…” w WYDANIE,
@@ -347,6 +362,7 @@ Deno.serve(async (req) => {
       });
       if (error) { results.push({ category: part.category, error: error.message, perSheet }); continue; }
       const entry: Record<string, unknown> = { category: part.category, rows_sent: rows.length, perSheet, run_id: result.run_id, summary: result.summary };
+      if (zleDaty.length) entry.zle_daty = zleDaty;
       // etapy: tylko wiersze dopasowane jednoznacznie (bez duplikatów i anulowanych); program ma pierwszeństwo (RPC uzupełnia puste)
       if (etapyMode !== "off") {
         try {
@@ -381,6 +397,7 @@ Deno.serve(async (req) => {
             results.push({ category: `Reklamacje ${complaintCategory}`, skipped: "brak kolumny numeru reklamacji albo daty", headers: [...have] });
           } else {
             const crow: Record<string, unknown>[] = [];
+            const zleDatyRekl: Record<string, unknown>[] = [];   // runda 10 (28.11)
             let rowNo = 1;
             for (const x of cp.rows) {
               rowNo++;
@@ -388,6 +405,8 @@ Deno.serve(async (req) => {
               const nr = str(g("nr"));
               if (!nr) continue;
               const data = anyToIso(g("data"));
+              // runda 10 (28.11): niemożliwa data (np. „31.11.2026”) — wiersz pominięty, numer wiersza w raporcie
+              if (!data && isBadDateText(g("data"))) zleDatyRekl.push({ wiersz: rowNo, nr, kolumna: "DATA", wartosc: str(g("data")) });
               if (!data || Date.parse(data) < cutoff) continue;
               const wydRaw = g("wydanie");
               const wydanie = wydRaw == null ? "" : (serialToIso(wydRaw) ?? str(wydRaw));
@@ -407,9 +426,11 @@ Deno.serve(async (req) => {
             if (cerr) {
               // błąd reklamacji: zapisz do logu, ale nie przerywaj łańcucha w Make (status 200)
               await logRunError(`Reklamacje ${complaintCategory}`, cerr.message, crow.length, { columns: col });
-              results.push({ category: `Reklamacje ${complaintCategory}`, error: cerr.message, rows_sent: crow.length, columns: col });
+              results.push({ category: `Reklamacje ${complaintCategory}`, error: cerr.message, rows_sent: crow.length, columns: col,
+                ...(zleDatyRekl.length ? { zle_daty: zleDatyRekl } : {}) });
             }
-            else results.push({ category: `Reklamacje ${complaintCategory}`, rows_sent: crow.length, run_id: cres.run_id, summary: cres.summary, columns: col });
+            else results.push({ category: `Reklamacje ${complaintCategory}`, rows_sent: crow.length, run_id: cres.run_id, summary: cres.summary, columns: col,
+              ...(zleDatyRekl.length ? { zle_daty: zleDatyRekl } : {}) });
           }
         }
       } catch (e) {

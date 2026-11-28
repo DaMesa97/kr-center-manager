@@ -106,7 +106,12 @@ with znaczniki(fn, marker, minimum) as (
     -- 20261128021200: deklaracja ZKP blokuje karty
     ('public.zkp_issue_declaration(bigint,bigint[],jsonb)', 'runda 10 (28.11), blokada kart', 1),
     -- 20261128021300: przeliczenie partii Bastion blokuje partię
-    ('public.bastion_batch_recalc(bigint)', 'runda 10 (28.11), blokada partii', 1)
+    ('public.bastion_batch_recalc(bigint)', 'runda 10 (28.11), blokada partii', 1),
+    -- 20261128021500: zła data z Excela nie wywraca paczki
+    ('public.try_date(text)', 'runda 10 (28.11), zła data', 1),
+    ('public.sync_complaints_from_excel(jsonb,text,text,boolean)', 'runda 10 (28.11), zła data', 1),
+    ('public.sync_complaints_from_excel(jsonb,text,text,boolean)', 'public.try_date(', 2),
+    ('public.sync_releases_from_excel__impl(jsonb,boolean,text,text)', 'public.try_date(x.wyd)', 2)
 ),
 funkcje as (
   select z.fn, z.marker, z.minimum, to_regprocedure(z.fn) as foid from znaczniki z
