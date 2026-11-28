@@ -13,13 +13,15 @@
 --  4) Gdy wartość w Excelu się zmieni (np. hala poprawi inicjały albo wpisze je po wyczyszczeniu komórki) —
 --     Excel znowu uzupełnia etap, a wpis znika. Wpis znika też, gdy ktoś odhaczy etap ponownie w programie.
 -- Synchronizacja (service_role, bez zalogowanej osoby) i poprawki SQL nie tworzą wpisów.
+-- Przykład (ST): „X” w kolumnie ościeżnicy = „nie dotyczy” (#ND — ST nie frezuje ościeżnicy na CNC). Gdy kierownik
+-- zdejmie #ND w programie, bo etap jednak jest potrzebny, Excel z „X” nie wpisze go z powrotem.
 -- Ograniczenie: zmiana w Excelu zrobiona między cofnięciem a najbliższą synchronizacją (≤ 15 min) zostanie
 -- potraktowana jak stan „w chwili cofnięcia” (bezpieczniej: nic nie wraca samo).
 -- Zawartość: tabela + trigger (orders, complaints) + funkcja excel_cofniete_pomin + nowa wersja
 -- sync_stages_from_excel (bez zmian poza pkt 3–4) + łatka sync_complaints_from_excel (wstawki tekstowe).
--- Zależności: łatka reklamacji nie dotyka miejsc łatek z 20261127223000 i 20261128021500 (kolejność dowolna),
--- ale sens ma dopiero z 20261127223000 (bez niej synchronizacja i tak nadpisuje cały zestaw etapów reklamacji).
--- sync_stages_from_excel nie jest zmieniana przez żadną niewgraną migrację z nocy. Druga połowa w Edge
+-- Zależności: 20261127223000 i 20261128021500 są już WGRANE (28.11 ok. 12:00) — miejsca łatki reklamacji
+-- sprawdzone na wgranej definicji (test w transakcji cofanej po wdrożeniu: OK). sync_stages_from_excel nie jest
+-- zmieniana przez żadną inną migrację (233000, które o niej wspomina, i tak jest niewgrane). Druga połowa w Edge
 -- (excel-sync: wiersze zleceń z wpisami „cofnięte” idą do sync_stages_from_excel także bez wartości etapów).
 -- Można uruchamiać wielokrotnie. DO WDROŻENIA (nie wgrane).
 
