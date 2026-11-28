@@ -144,6 +144,7 @@ export default function PrintLabelModal({ order, onClose, pushToast }: Props) {
                   {/* #141: iframe w rozmiarze etykiety (mm → px przy 96 dpi), ramka przewija */}
                   <iframe
                     title="Podgląd etykiety"
+                    sandbox=""
                     srcDoc={previewHtml}
                     style={{
                       width: Math.ceil(((Number(selectedTemplate?.width_mm) || 100) * 96) / 25.4) + 2,

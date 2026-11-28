@@ -415,7 +415,7 @@ export default function PrintDocumentsView({ isManager, pushToast }: Props) {
                 ) : (
                   <>
                     <div className="print-docs-preview-meta">{preview.note}</div>
-                    {preview.html && <iframe title="Podgląd dokumentu" className="print-docs-preview-frame" srcDoc={preview.html} />}
+                    {preview.html && <iframe title="Podgląd dokumentu" className="print-docs-preview-frame" sandbox="" srcDoc={preview.html} />}
                     {preview.img && <img className="print-docs-preview-img" src={preview.img} alt={`Podgląd etykiety ${preview.doc.name}`} />}
                   </>
                 )}

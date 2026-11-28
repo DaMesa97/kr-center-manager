@@ -218,6 +218,7 @@ export default function AluLabelPrintModal({ order, positions, constructions, on
                   {/* #141: iframe w rozmiarze etykiety (mm → px przy 96 dpi), ramka przewija */}
                   <iframe
                     title="Podgląd etykiety"
+                    sandbox=""
                     srcDoc={previewHtml}
                     style={{
                       width: Math.ceil(((Number(template?.width_mm) || 100) * 96) / 25.4) + 2,

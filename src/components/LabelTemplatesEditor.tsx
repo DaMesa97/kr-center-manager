@@ -247,6 +247,7 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
             <div className="label-tpl-preview-frame">
               <iframe
                 title="Podgląd szablonu"
+                sandbox=""
                 srcDoc={preview}
                 style={{
                   width: `${form.width_mm}mm`,
