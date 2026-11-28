@@ -21,9 +21,7 @@ type UseComplaintsParams = {
   touchSession: () => void
   activeTab: string
   orders: Order[]
-  archivedOrders: ArchivedOrder[]
   currentUser: CurrentUser | null
-  setDeleteConfirm: (v: DeleteConfirmState | null) => void
   setActiveTab: (tab: (typeof TABS)[number]) => void
   setActiveSubTab: (tab: SubTab) => void
 }

@@ -4,15 +4,13 @@ import { isReleaseDateEmpty, orderRouteMark } from '../utils'
 import { cleanCompanyValue } from '../lib/companyMatch'
 import { fetchAllPages } from '../lib/fetchPaged'
 import { ileOdm } from '../utils/odmiana'
-import type { Order } from '../types'
-import type { ToastVariant } from '../types'
+import type { Order, ToastVariant } from '../types'
 import type React from 'react'
 
 type UseShippingParams = {
   pushToast: (msg: string, variant: ToastVariant) => void
   touchSession: () => void
   fetchInternalDoorItemsForVisibleOrders: (orders: Order[]) => Promise<void>
-  setOrders: React.Dispatch<React.SetStateAction<Order[]>>
   setInternalDoorDetailsModal: React.Dispatch<
     React.SetStateAction<{ open: boolean; order: Order | null }>
   >

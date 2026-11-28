@@ -1,10 +1,8 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import type { Complaint, Order, StatsSubTab } from '../types'
-import type { ToastVariant } from '../types'
 
 type UseStatsParams = {
-  pushToast: (msg: string, variant: ToastVariant) => void
   touchSession: () => void
 }
 

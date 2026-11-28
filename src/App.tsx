@@ -932,7 +932,7 @@ function App() {
     statsLoading,
     statsError,
     fetchStatsData,
-  } = useStats({ pushToast, touchSession })
+  } = useStats({ touchSession })
 
   const {
     orderCommentsCounts,
@@ -972,9 +972,7 @@ function App() {
     touchSession,
     activeTab,
     orders,
-    archivedOrders,
     currentUser,
-    setDeleteConfirm,
     setActiveTab,
     setActiveSubTab,
   })
@@ -997,7 +995,6 @@ function App() {
     pushToast,
     touchSession,
     fetchInternalDoorItemsForVisibleOrders,
-    setOrders,
     setInternalDoorDetailsModal,
     handleRushToggle,
     isActive: activeTab === 'Wysyłka' && can(currentUser?.role, 'shipping.view'),
