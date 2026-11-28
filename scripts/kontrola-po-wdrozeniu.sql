@@ -180,7 +180,9 @@ braki_uprawnien as (
   union all
   select 'uprawnienia', f.n, 'authenticated może wykonać'
   from unnest(array['public.cancel_stage_reservations__impl(bigint,text)', 'public.restore_stage_reservations__impl(bigint,text)',
-                    'public.recompute_order_stock_status(bigint)', 'public.return_remaining_for_order__impl(bigint)']) f(n)
+                    'public.recompute_order_stock_status(bigint)', 'public.return_remaining_for_order__impl(bigint)',
+                    -- 20261128010000 / 010300 (runda 9, znalezisko 10)
+                    'public.notify_user_active(uuid)', 'public.restore_from_archive__impl(bigint)']) f(n)
   where to_regprocedure(f.n) is not null and has_function_privilege('authenticated', to_regprocedure(f.n), 'execute')
 )
 select * from braki_funkcji
