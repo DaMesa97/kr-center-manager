@@ -209,7 +209,7 @@ braki_uprawnien as (
   select 'uprawnienia', c.oid::regclass::text, 'anon ma uprawnienia do tabeli/sekwencji (puść ponownie 20261128021400)'
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f', 'S')
-    and exists (select 1 from aclexplode(c.relacl) a where a.grantee = 'anon'::regrole)
+    and exists (select 1 from aclexplode(c.relacl) a join pg_roles r on r.oid = a.grantee where r.rolname = 'anon')
 )
 select * from braki_funkcji
 union all select * from braki_polityk
