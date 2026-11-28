@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.11: Pulpit na całą szerokość</h4>
+        <ul>
+          <li><b>Pulpit</b> rozciąga się na całą szerokość ekranu (wcześniej był wąski i przyklejony do lewej).</li>
+        </ul>
         <h4>Wersja 1.1.10: nowy Pulpit</h4>
         <ul>
           <li><b>Pulpit</b> pokazuje stan produkcji KR Center: u góry cztery liczby (w produkcji, po terminie, do wysłania, stany poniżej progu), niżej „Wymaga uwagi” — kolejki do obsłużenia z przejściem jednym kliknięciem, obok „Synchronizacje” ze statusem Działa / Błąd (Excel, import RO z Optimy, wysyłka zamówień do Optimy), na dole tabela kategorii z liczbą zleceń po terminie. Bez spraw Po Drzwi i bez Technicznych.</li>
