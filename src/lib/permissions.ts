@@ -151,3 +151,18 @@ export function usersScopeFor(role: string | null | undefined, categories?: stri
 export function isCategoryScoped(role: string | null | undefined): boolean {
   return can(role, 'categories.scoped') && !isAdminRole(role)
 }
+
+/**
+ * D11 (28.11.2026): lista zawężona do kategorii użytkownika (kierownik działu / pracownik produkcji).
+ * Dla ról bez zawężenia zwraca tę samą tablicę. Używane w Weryfikacji (zlecenia do weryfikacji, błędy
+ * Optimy, podejrzane duplikaty, synchronizacja Excela).
+ */
+export function scopeByCategory<T extends { category?: string | null }>(
+  list: T[],
+  role: string | null | undefined,
+  categories: string[] | null | undefined,
+): T[] {
+  if (!isCategoryScoped(role)) return list
+  const allowed = new Set(categories ?? [])
+  return list.filter((x) => allowed.has(String(x.category ?? '')))
+}

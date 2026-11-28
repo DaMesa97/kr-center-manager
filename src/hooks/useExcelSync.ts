@@ -108,7 +108,19 @@ function toInfo(row: Record<string, unknown>): ExcelSyncOrderInfo {
   }
 }
 
-export function useExcelSync(enabled: boolean): ExcelSyncState {
+/**
+ * D11 (28.11.2026): kierownik działu widzi w synchronizacji Excela tylko pozycje swoich kategorii
+ * (kategoria zlecenia z pozycji przebiegu). `null` = bez zawężenia.
+ */
+export function scopeExcelRuns(runs: ExcelSyncRun[], allowedCategories: string[] | null): ExcelSyncRun[] {
+  if (allowedCategories == null) return runs
+  const allowed = new Set(allowedCategories)
+  return runs
+    .map((r) => ({ ...r, items: r.items.filter((it) => allowed.has(String(it.category ?? ''))) }))
+    .filter((r) => r.items.length > 0)
+}
+
+export function useExcelSync(enabled: boolean, allowedCategories: string[] | null = null): ExcelSyncState {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [runs, setRuns] = useState<ExcelSyncRun[]>([])
@@ -188,9 +200,15 @@ export function useExcelSync(enabled: boolean): ExcelSyncState {
     }
   }, [refresh])
 
-  const derived = useMemo(() => deriveExcelSync(runs, ordersById), [runs, ordersById])
+  // D11: zawężenie do kategorii (klucz tekstowy, żeby nowa tablica z tymi samymi kategoriami nie liczyła od nowa)
+  const scopeKey = allowedCategories == null ? null : [...allowedCategories].sort().join('|')
+  const scopedRuns = useMemo(
+    () => scopeExcelRuns(runs, scopeKey == null ? null : scopeKey.split('|').filter(Boolean)),
+    [runs, scopeKey],
+  )
+  const derived = useMemo(() => deriveExcelSync(scopedRuns, ordersById), [scopedRuns, ordersById])
 
-  return { loading, error, runs, refresh, ...derived }
+  return { loading, error, runs: scopedRuns, refresh, ...derived }
 }
 
 /**

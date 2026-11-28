@@ -137,7 +137,7 @@ import { useCrmAccess } from './hooks/useCrmAccess'
 import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
-import { can, canManageUsers, isAdminRole, isCategoryScoped, isManagerRole, isSuperadminRole, usersScopeFor } from './lib/permissions'
+import { can, canManageUsers, isAdminRole, isCategoryScoped, isManagerRole, isSuperadminRole, scopeByCategory, usersScopeFor } from './lib/permissions'
 import { findCompanyInfo } from './lib/companyMatch'
 import { mergeIncomingStages } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
@@ -477,8 +477,8 @@ function App() {
     companySettingsLoading,
     warehouseEditRequestComponent,
     setWarehouseEditRequestComponent,
-    ordersNeedingReview,
-    erpErrors,
+    ordersNeedingReview: ordersNeedingReviewAll,
+    erpErrors: erpErrorsAll,
     setOrdersNeedingReview,
     reviewLoading,
     fetchWarehouseComponents,
@@ -921,7 +921,17 @@ function App() {
   // „Ponów wysyłkę do Optimy" (RO) — edge erp-retry → webhook Make z Ustawienia → Integracje → Make / Optima
   const { retryErp, retryingId: erpRetryingId } = useErpRetry({ pushToast, enabled: isManager })
   // Synchronizacja wydań z Excela (#116): wyniki ostatnich przebiegów do sekcji „Do wyjaśnienia"
-  const excelSync = useExcelSync(isManager)
+  // D11: kierownik działu widzi w Weryfikacji tylko swoje kategorie (lista, błędy Optimy, Excel, duplikaty)
+  const reviewScope = isCategoryScoped(currentUser?.role) ? (currentUser?.categories ?? []) : null
+  const excelSync = useExcelSync(isManager, reviewScope)
+  const ordersNeedingReview = useMemo(
+    () => scopeByCategory(ordersNeedingReviewAll, currentUser?.role, currentUser?.categories),
+    [ordersNeedingReviewAll, currentUser?.role, currentUser?.categories],
+  )
+  const erpErrors = useMemo(
+    () => scopeByCategory(erpErrorsAll, currentUser?.role, currentUser?.categories),
+    [erpErrorsAll, currentUser?.role, currentUser?.categories],
+  )
   // #115: kafelek Pulpitu wskazuje sekcję Weryfikacji, do której przewinąć po wejściu
   const [reviewFocus, setReviewFocus] = useState<ReviewFocus | null>(null)
 
@@ -2077,7 +2087,10 @@ function App() {
       alive = false
     }
   }, [isReviewTab])
-  const suspectedDuplicates = useMemo(() => findSuspectedDuplicates(duplicateCandidates), [duplicateCandidates])
+  const suspectedDuplicates = useMemo(
+    () => scopeByCategory(findSuspectedDuplicates(duplicateCandidates), currentUser?.role, currentUser?.categories),
+    [duplicateCandidates, currentUser?.role, currentUser?.categories],
+  )
 
   const handleDeleteWarehouseComponent = useCallback(
     async (id: number) => {
