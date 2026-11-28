@@ -22,14 +22,31 @@ export default function MobileApp() {
   // Pracownik produkcji ląduje od razu w swoich zadaniach (nie w Pakowaniu) —
   // tylko raz po zalogowaniu, odświeżenie tokenu nie może przerzucać ekranu
   const didDefaultViewRef = useRef(false)
+  // runda 10 (tester telefonu): Supabase wysyła SIGNED_IN przy każdym powrocie z tła — jak na komputerze
+  // (useAuth) profil wczytujemy tylko dla NOWEGO użytkownika, a błąd odczytu nie podmienia go na „??”
+  const loadedUserIdRef = useRef<string | null>(null)
 
   const loadProfile = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error: profErr } = await supabase
       .from('profiles')
       .select('id, initials, full_name, role, department, categories')
       .eq('id', userId)
       .maybeSingle()
     if (!mountedRef.current) return
+    if (profErr || !data) {
+      console.error('[telefon] profil:', profErr)
+      // odświeżenie już wczytanego profilu padło — zostaje poprzedni
+      if (loadedUserIdRef.current === userId) return
+      // pierwsze wczytanie padło: nie wpuszczamy z pustą rolą i inicjałami „??”
+      setUser(null)
+      setError(
+        profErr
+          ? 'Nie udało się wczytać Twojego profilu (sprawdź internet) — zaloguj się ponownie.'
+          : 'Twoje konto nie ma profilu w programie — poproś administratora o jego założenie.',
+      )
+      return
+    }
+    loadedUserIdRef.current = userId
     if (!didDefaultViewRef.current) {
       didDefaultViewRef.current = true
       if (String(data?.role ?? '') === 'pracownik_produkcji') setView('station')
@@ -59,8 +76,12 @@ export default function MobileApp() {
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       if (!mountedRef.current) return
-      if (session?.user) void loadProfile(session.user.id)
-      else setUser(null)
+      if (session?.user) {
+        if (session.user.id !== loadedUserIdRef.current) void loadProfile(session.user.id)
+      } else {
+        loadedUserIdRef.current = null
+        setUser(null)
+      }
     })
     return () => { mountedRef.current = false; sub.subscription.unsubscribe() }
   }, [])
