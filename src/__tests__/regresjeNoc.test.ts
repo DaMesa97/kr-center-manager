@@ -2,7 +2,7 @@
 // Każdy test opisuje błąd, który już raz wystąpił — ma nie wrócić.
 import { describe, expect, it } from 'vitest'
 import type { Order } from '../types'
-import { computeCompanyStats, dataWydaniaSzacunkowa } from '../lib/companyStats'
+import { computeCompanyStats, dataWydaniaSzacunkowa, daysBetween } from '../lib/companyStats'
 import { isOrderCancelled } from '../lib/optimaRo'
 import { czySaNiezapisane, zarejestrujNiezapisane } from '../lib/useUnsavedGuard'
 import { getOrderAgeStatus } from '../utils'
@@ -65,5 +65,14 @@ describe('niezapisane formularze przy zamykaniu programu (runda 3/4)', () => {
     const wyrejestruj = zarejestrujNiezapisane(() => { throw new Error('x') })
     expect(czySaNiezapisane()).toBe(false)
     wyrejestruj()
+  })
+})
+
+describe('daysBetween (wspólne dla Statystyk, noc 28.11)', () => {
+  it('liczy dni, ujemne i błędne daty → null', () => {
+    expect(daysBetween('2026-11-01', '2026-11-09')).toBe(8)
+    expect(daysBetween('2026-11-09', '2026-11-01')).toBeNull()
+    expect(daysBetween('xx', '2026-11-01')).toBeNull()
+    expect(daysBetween('2026-11-01', '2026-11-01')).toBe(0)
   })
 })

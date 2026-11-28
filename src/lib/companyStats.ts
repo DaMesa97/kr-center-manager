@@ -194,7 +194,8 @@ export function periodStartIso(months: CompanyPeriodMonths, now: Date = new Date
   return `${monthKey(d)}-01`
 }
 
-function daysBetween(from: string, to: string): number | null {
+/** Dni między datami (zaokrąglone); ujemne albo błędne daty → null. Wspólne dla Statystyk. */
+export function daysBetween(from: string, to: string): number | null {
   const a = new Date(from)
   const b = new Date(to)
   if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null

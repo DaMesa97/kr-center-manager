@@ -18,6 +18,7 @@ import {
   companyNames,
   computeCompanyStats,
   dataWydaniaSzacunkowa,
+  daysBetween,
   resolveCompanyGroups,
   suspectedCompanyClusters,
   type CompanyAliases,
@@ -54,14 +55,6 @@ function readStored(key: string, fallback: string): string {
   } catch {
     return fallback
   }
-}
-
-function daysBetween(from: string, to: string): number | null {
-  const a = new Date(from)
-  const b = new Date(to)
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null
-  const d = Math.round((b.getTime() - a.getTime()) / 86_400_000)
-  return d >= 0 ? d : null
 }
 
 const SOURCE_LABEL: Record<string, string> = {

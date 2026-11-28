@@ -7,6 +7,7 @@ import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import { fetchAllPages } from '../../lib/fetchPaged'
 import { localDateStr } from '../../lib/localDates'
+import { daysBetween } from '../../lib/companyStats'
 
 const PROD_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
 
@@ -27,14 +28,6 @@ type CategoryStat = {
 }
 
 type Bucket = { label: string; count: number }
-
-function daysBetween(from: string, to: string): number | null {
-  const a = new Date(from)
-  const b = new Date(to)
-  if (isNaN(a.getTime()) || isNaN(b.getTime())) return null
-  const d = Math.round((b.getTime() - a.getTime()) / 86_400_000)
-  return d >= 0 ? d : null
-}
 
 function median(nums: number[]): number {
   if (nums.length === 0) return 0
