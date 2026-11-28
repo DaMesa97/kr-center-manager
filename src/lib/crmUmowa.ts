@@ -62,3 +62,10 @@ export function powodOdstapienia(text: string | null | undefined): string | null
   const t = (text ?? '').replace(/\s+/g, ' ').trim()
   return t.length >= 3 ? t.slice(0, 500) : null
 }
+
+/** D19 (doprecyzowanie 28.11): status klienta z wyniku rpc crm.odstap_od_umowy (klucz klient_status; starsza baza — brak). */
+export function klientStatusPoOdstapieniu(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null
+  const v = (data as { klient_status?: unknown }).klient_status
+  return typeof v === 'string' && v ? v : null
+}

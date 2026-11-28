@@ -27,6 +27,7 @@ import { CRM_AKCJA } from '../types/crm'
 import { CRM_DOKUMENTY_BUCKET, CRM_EDGE_DOKUMENTY, CRM_EDGE_SZKIC, CRM_FOLLOW_UP_DAYS, CRM_LOGO_PATH, CRM_NAGRANIE_BUCKET, CRM_OPEN_STATUSES, CRM_PROBKI_STYLU_ILE } from '../types/crm'
 import type { CrmDokument, CrmDokumentOdp, CrmDuplikat, CrmDuplikatLeada, CrmDzienWolny, CrmHistoriaWyslanych, CrmLicznik, CrmSzkic, CrmSzkicOdp, CrmMailOfertyOdp, CrmUsluga, CrmZamknijZadanie } from '../types/crm'
 import { fnErrorMessage } from '../lib/fnError'
+import { klientStatusPoOdstapieniu } from '../lib/crmUmowa'
 import { normalizujNip, nipPoprawny } from '../lib/nip'
 import { normalizePlPhone } from '../utils/crmPhone'
 import { isoLocal } from '../utils/crmTermin'
@@ -640,17 +641,19 @@ export async function updateDokumentStatus(id: string, status: string): Promise<
  * D19 (28.11): odstąpienie od PODPISANEJ umowy → „anulowana”, powód w historii klienta (rpc crm.odstap_od_umowy;
  * trigger w bazie przepuszcza podpisana → anulowana tylko z tej funkcji). Baza bez migracji (PGRST202 — nie ma ani
  * rpc, ani blokady): zmiana statusu wprost + zdarzenie w historii, żeby powód nie przepadł.
+ * D19 (doprecyzowanie): po migracji 20261128052200 rpc oznacza też klienta „Przegrany (rezygnacja)” i zwraca
+ * klient_status — `klientStatus` ('przegrany' albo null, gdy baza tego jeszcze nie robi / klient już był przegrany).
  */
 export async function odstapOdUmowy(
   d: Pick<CrmDokument, 'id' | 'lead_id' | 'oferta_id' | 'numer'>,
   powod: string,
   userId: string | null,
-): Promise<CrmError | null> {
-  const { error } = await crm().rpc('odstap_od_umowy', { p_dokument_id: d.id, p_powod: powod })
-  if (!error) return null
-  if (error.code !== 'PGRST202') return { kind: error.code === '42501' ? 'no_access' : 'other', message: error.message || 'Nie udało się zapisać odstąpienia od umowy' }
+): Promise<{ error: CrmError | null; klientStatus: string | null }> {
+  const { data, error } = await crm().rpc('odstap_od_umowy', { p_dokument_id: d.id, p_powod: powod })
+  if (!error) return { error: null, klientStatus: klientStatusPoOdstapieniu(data) }
+  if (error.code !== 'PGRST202') return { error: { kind: error.code === '42501' ? 'no_access' : 'other', message: error.message || 'Nie udało się zapisać odstąpienia od umowy' }, klientStatus: null }
   const e1 = await updateDokumentStatus(d.id, 'anulowana')
-  if (e1) return e1
+  if (e1) return { error: e1, klientStatus: null }
   const { error: e2 } = await crm().from('zdarzenia').insert({
     lead_id: d.lead_id,
     oferta_id: d.oferta_id,
@@ -660,7 +663,7 @@ export async function odstapOdUmowy(
     dane: { dokument_id: d.id, numer: d.numer, powod, zrodlo: 'klik' },
   })
   if (e2) console.warn('[CRM] odstąpienie od umowy: nie zapisano zdarzenia w historii:', e2.message)
-  return null
+  return { error: null, klientStatus: null }
 }
 
 export type GenerujDokument = {

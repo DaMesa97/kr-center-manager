@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { moznaOdstapicOdUmowy, powodOdstapienia } from '../lib/crmUmowa'
+import { klientStatusPoOdstapieniu, moznaOdstapicOdUmowy, powodOdstapienia } from '../lib/crmUmowa'
 import { zdarzenieLabel } from '../types/crm'
 
 describe('D19: odstąpienie od podpisanej umowy', () => {
@@ -17,6 +17,13 @@ describe('D19: odstąpienie od podpisanej umowy', () => {
     expect(powodOdstapienia('ok')).toBeNull()
     expect(powodOdstapienia(null)).toBeNull()
     expect(powodOdstapienia('x'.repeat(600))).toHaveLength(500)
+  })
+
+  it('doprecyzowanie: status klienta z wyniku rpc (nowa baza: przegrany; stara: brak klucza)', () => {
+    expect(klientStatusPoOdstapieniu({ ok: true, status: 'anulowana', juz: false, klient_status: 'przegrany' })).toBe('przegrany')
+    expect(klientStatusPoOdstapieniu({ ok: true, status: 'anulowana', juz: true, klient_status: null })).toBeNull()
+    expect(klientStatusPoOdstapieniu({ ok: true, status: 'anulowana', juz: false })).toBeNull()
+    expect(klientStatusPoOdstapieniu(null)).toBeNull()
   })
 
   it('historia klienta pokazuje numer i powód', () => {

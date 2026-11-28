@@ -2286,13 +2286,14 @@ function LeadScreen({
       return
     }
     if (!(await appConfirm(`Umowa${nr} dostanie status „Anulowana”. Tego nie da się cofnąć — numer umowy nie wróci do użycia. Powód: „${powod}”.`, { title: 'Odstąpienie od umowy', confirmLabel: 'Anuluj umowę', tone: 'danger' }))) return
-    const err = await odstapOdUmowy(d, powod, currentUser?.id ?? null)
+    const { error: err, klientStatus } = await odstapOdUmowy(d, powod, currentUser?.id ?? null)
     if (err) {
       pushToast(`Nie udało się zapisać odstąpienia: ${err.message}`, 'error')
       return
     }
     setDokumenty((ds) => ds.map((x) => (x.id === d.id ? { ...x, status: 'anulowana' } : x)))
-    pushToast(`Umowa${nr} anulowana (odstąpienie), powód zapisany w historii`, 'success')
+    // D19 (doprecyzowanie): baza po migracji 20261128052200 oznacza klienta „Przegrany (rezygnacja)”
+    pushToast(`Umowa${nr} anulowana (odstąpienie), powód zapisany w historii${klientStatus === 'przegrany' ? ' — klient: Przegrany (rezygnacja)' : ''}`, 'success')
     void load(true)
   }
 
