@@ -3388,7 +3388,9 @@ function App() {
 
         <PurchaseOrderDetailsModal
           open={poDetailsModal.open}
-          purchaseOrder={poDetailsModal.po}
+          // runda 10 (tester równoczesnej pracy): status z bieżącej listy (odświeżanej na żywo), nie kopia z chwili
+          // otwarcia — inaczej „szkic” dawał się edytować po wysłaniu ZD przez kogoś innego
+          purchaseOrder={purchaseOrders.find((p) => p.id === poDetailsModal.po?.id) ?? poDetailsModal.po}
           items={purchaseOrderItems.filter((it) => it.purchase_order_id === poDetailsModal.po?.id)}
           suppliers={suppliers}
           components={warehouseComponents}
