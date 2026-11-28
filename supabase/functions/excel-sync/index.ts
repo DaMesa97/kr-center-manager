@@ -13,6 +13,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { readSheets, inspectWorkbook } from "./parse.ts";
 import { czytajDateKomorki } from "./daty.ts";
+// D25: wartość etapu „zrobione wg daty w Excelu” (bez osoby) — jak inicjały, więc wydaje materiał z magazynu
+const ETAP_Z_DATY_EXCELA = "XLS";
 
 // done = zapasowa kolumna „zrobione” (gdy WYDANIE puste); doneOptional = arkusz może jej nie mieć (np. WZ TITAN)
 type Part = { category: string; sheets: Record<string, string>; nr: string; wyd: string; done?: string; doneOptional?: boolean };
@@ -384,11 +386,13 @@ Deno.serve(async (req) => {
             const daty: Record<string, string> = {};   // D25: data wykonania etapu z komórki z datą
             const nietypowe: Array<{ etap: string; wartosc: string }> = [];
             for (const c of cols) {
-              // D25 (28.11): ST / Bastion — data w kolumnie etapu = etap zrobiony tego dnia. Zapis w etapie jak dla „X”
-              // (#ND: zrobione, bez osoby i bez wydania z magazynu), data osobno (extra_fields.etapy_daty_excel).
+              // D25 (28.11): ST / Bastion — data w kolumnie etapu = etap zrobiony tego dnia. Właściciel 28.11: data znaczy
+              // „zrobione” i materiał ma zejść z magazynu — w etapie znacznik „XLS” (zrobione wg Excela, osoba nieznana;
+              // sync_stages_from_excel traktuje go jak inicjały: wydanie z magazynu z wymuszeniem). „X” bez daty zostaje #ND.
+              // Data osobno (extra_fields.etapy_daty_excel).
               if (DATY_ETAPOW.has(part.category)) {
                 const ke = czytajDateKomorki(x[c.header], today);
-                if (ke.rodzaj === "data") { stages[c.key] = "#ND"; daty[c.key] = ke.iso; continue; }
+                if (ke.rodzaj === "data") { stages[c.key] = ETAP_Z_DATY_EXCELA; daty[c.key] = ke.iso; continue; }
                 if (ke.rodzaj === "zla_data") {
                   // ta sama komórka mogła już trafić do raportu jako kolumna „zrobione”
                   if (!zleDaty.some((z) => z.arkusz === sheet && z.nr === String(nr).trim() && z.kolumna === c.header))
