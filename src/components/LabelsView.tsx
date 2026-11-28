@@ -1,5 +1,6 @@
 import PrintDocumentsView from './PrintDocumentsView'
 import type { CurrentUser, ToastVariant } from '../types'
+import { canEditPrintTemplates } from '../lib/permissions'
 
 type Props = {
   isManager: boolean
@@ -15,7 +16,12 @@ type Props = {
 export default function LabelsView({ isManager, currentUser, pushToast }: Props) {
   return (
     <div className="labels-view">
-      <PrintDocumentsView isManager={isManager} currentUser={currentUser} pushToast={pushToast} />
+      {/* D59: dodawanie / edycja / usuwanie dokumentów druku tylko admin / superadmin; druk — wszyscy */}
+      <PrintDocumentsView
+        isManager={isManager && canEditPrintTemplates(currentUser?.role)}
+        currentUser={currentUser}
+        pushToast={pushToast}
+      />
     </div>
   )
 }

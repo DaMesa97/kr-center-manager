@@ -43,6 +43,8 @@ type ConfigViewProps = {
   activeConfigSubTab: ConfigSubTab
   setActiveConfigSubTab: Dispatch<SetStateAction<ConfigSubTab>>
   isManager: boolean
+  /** D59: edycja szablonów etykiet tylko admin / superadmin (domyślnie = isManager) */
+  canEditTemplates?: boolean
   selectedConfigCategory: ConfigFormCategory
   setSelectedConfigCategory: Dispatch<SetStateAction<ConfigFormCategory>>
   selectedConfigDictKey: string
@@ -115,6 +117,7 @@ export default function ConfigView({
   activeConfigSubTab,
   setActiveConfigSubTab,
   isManager,
+  canEditTemplates,
   selectedConfigCategory,
   setSelectedConfigCategory,
   selectedConfigDictKey,
@@ -884,7 +887,7 @@ export default function ConfigView({
         />
       )}
       {activeConfigSubTab === 'Szablony etykiet' && isManager && (
-        <LabelTemplatesEditor isManager={isManager} pushToast={pushToast} />
+        <LabelTemplatesEditor isManager={isManager && (canEditTemplates ?? true)} pushToast={pushToast} />
       )}
       {activeConfigSubTab === 'Terminy realizacji' && isManager && (
         <LeadTimeRulesView

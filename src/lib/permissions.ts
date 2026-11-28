@@ -147,6 +147,15 @@ export function usersScopeFor(role: string | null | undefined, categories?: stri
   return categories ?? []
 }
 
+/**
+ * D59 (28.11.2026): szablony etykiet i dokumentów druku (label_templates, print_documents) edytuje tylko
+ * admin / superadmin (i stary 'manager' — jak current_user_is_admin() w bazie).
+ */
+export function canEditPrintTemplates(role: string | null | undefined): boolean {
+  const r = String(role ?? '')
+  return isAdminRole(r) || LEGACY_MANAGER.has(r)
+}
+
 // Czy rola jest "zawężona" do przypisanych kategorii (PP, KD)?
 export function isCategoryScoped(role: string | null | undefined): boolean {
   return can(role, 'categories.scoped') && !isAdminRole(role)

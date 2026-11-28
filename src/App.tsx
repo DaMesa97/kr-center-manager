@@ -137,7 +137,7 @@ import { useCrmAccess } from './hooks/useCrmAccess'
 import FeedbackFab from './components/FeedbackFab'
 import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
-import { can, canManageUsers, isAdminRole, isCategoryScoped, isManagerRole, isSuperadminRole, scopeByCategory, usersScopeFor } from './lib/permissions'
+import { can, canEditPrintTemplates, canManageUsers, isAdminRole, isCategoryScoped, isManagerRole, isSuperadminRole, scopeByCategory, usersScopeFor } from './lib/permissions'
 import { findCompanyInfo } from './lib/companyMatch'
 import { mergeIncomingStages } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
@@ -3634,6 +3634,7 @@ function App() {
             activeConfigSubTab={activeConfigSubTab}
             setActiveConfigSubTab={setActiveConfigSubTab}
             isManager={isManager}
+            canEditTemplates={canEditPrintTemplates(currentUser?.role)}
             selectedConfigCategory={selectedConfigCategory}
             setSelectedConfigCategory={setSelectedConfigCategory}
             selectedConfigDictKey={selectedConfigDictKey}
