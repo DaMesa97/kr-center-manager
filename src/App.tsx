@@ -96,6 +96,7 @@ import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
 import InternalDoorFiltersBar from './components/InternalDoorFiltersBar'
 import { useOrderPicks } from './hooks/useOrderPicks'
 import { canPick, canPickIntDoor } from './lib/orderPicks'
+import { zkpCanDisableOrderZkp } from './lib/aluDossier'
 import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, isOptimaClosed, isOrderCancelled, matchesIntDoorFilter, summarizeItems, type IntDoorFilter, type ItemsSummary } from './lib/optimaRo'
 import { isOptimaImportedComponent } from './lib/internalWarehouse'
 import AluOrdersTable from './components/AluOrdersTable'
@@ -3051,6 +3052,7 @@ function App() {
             production={aluProductionByOrder[o.id!] ?? null}
             onStartProduction={() => startAluProduction(o.id!)}
             canDecideZkp={(currentUser?.zkp_roles ?? []).some((r) => ['pelnomocnik', 'zastepca', 'kierownik_produkcji'].includes(r))}
+            canDisableZkp={zkpCanDisableOrderZkp(currentUser?.zkp_roles)}
             onWithdrawDocument={withdrawOrderDocument}
             fetchDossier={fetchAluDossier}
             onSetZkp={setAluOrderZkp}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { appAlert, appPrompt } from '../lib/appDialogs'
-import { DOC_KIND_LABELS, DOSSIER_UPLOAD_KINDS, documentVersions } from '../lib/aluDossier'
+import { DOC_KIND_LABELS, DOSSIER_UPLOAD_KINDS, documentVersions, zkpChangeMayDisable } from '../lib/aluDossier'
 import DossierExportButton from './DossierExportButton'
 import type { AluDossierItem, Order, OrderDocument, OrderDocumentKind, ToastVariant } from '../types'
 
@@ -17,12 +17,14 @@ type Props = {
   isManager: boolean
   /** ZKP 5.3.2: „nie dotyczy" — Pełnomocnik, Zastępca, Kierownik Produkcji */
   canDecideZkp: boolean
+  /** D52: wyłączyć ZKP na zleceniu może tylko Pełnomocnik / Zastępca (z powodem) */
+  canDisableZkp?: boolean
   uploading: boolean
   onOpenDocument: (doc: OrderDocument) => void
   onUploadDocument: (kind: OrderDocumentKind, file: File) => Promise<void>
   onWithdrawDocument: (doc: OrderDocument, reason: string) => Promise<boolean>
   fetchDossier: (orderId: number) => Promise<DossierData | null>
-  onSetZkp: (orderId: number, value: boolean | null) => Promise<boolean>
+  onSetZkp: (orderId: number, value: boolean | null, reason?: string) => Promise<boolean>
   onSetNa: (orderId: number, itemKey: string, reason: string) => Promise<boolean>
   onRevokeNa: (naId: number, reason: string) => Promise<boolean>
   /** eksport teczki (ZIP dla audytora) — brak = bez przycisku */
@@ -47,8 +49,8 @@ function fmt(iso: string | null | undefined): string {
 }
 
 export default function AluDossierPanel({
-  order, documents, isManager, canDecideZkp, uploading, onOpenDocument, onUploadDocument, onWithdrawDocument,
-  fetchDossier, onSetZkp, onSetNa, onRevokeNa, pushToast,
+  order, documents, isManager, canDecideZkp, canDisableZkp = false, uploading, onOpenDocument, onUploadDocument,
+  onWithdrawDocument, fetchDossier, onSetZkp, onSetNa, onRevokeNa, pushToast,
 }: Props) {
   const orderId = order.id!
   const [data, setData] = useState<DossierData | null>(null)
@@ -64,9 +66,27 @@ export default function AluDossierPanel({
     void reload()
   }, [reload, documents])
 
-  const handleZkpChange = async (value: string) => {
+  const handleZkpChange = async (value: 'auto' | 'tak' | 'nie') => {
     const v = value === 'auto' ? null : value === 'tak'
-    if (await onSetZkp(orderId, v)) await reload()
+    let reason: string | undefined
+    // D52: wyłączenie ZKP — tylko Pełnomocnik / Zastępca, powód trafia do audytu
+    if (data && zkpChangeMayDisable(data.isZkp, data.zkpOverride, value)) {
+      if (!canDisableZkp) {
+        await appAlert('Wyłączyć ZKP na zleceniu może tylko Pełnomocnik ZKP albo Zastępca (rola ZKP w Użytkownikach).')
+        return
+      }
+      const r = await appPrompt('Dlaczego to zlecenie nie podlega ZKP? Powód zostanie zapisany w audycie.', {
+        title: 'Wyłączenie ZKP (D52)',
+        confirmLabel: 'Wyłącz ZKP',
+      })
+      if (r == null) return
+      if (r.trim().length < 5) {
+        await appAlert('Podaj powód (co najmniej 5 znaków).')
+        return
+      }
+      reason = r.trim()
+    }
+    if (await onSetZkp(orderId, v, reason)) await reload()
   }
 
   const handleNa = async (item: AluDossierItem) => {
@@ -128,11 +148,11 @@ export default function AluDossierPanel({
             {missing ? `brakuje ${missing} — wydanie zablokowane` : 'teczka kompletna'}
           </span>
         )}
-        {isManager && data && (
+        {(isManager || canDisableZkp) && data && (
           <select
             value={data.zkpOverride === null ? 'auto' : data.zkpOverride ? 'tak' : 'nie'}
-            onChange={(e) => void handleZkpChange(e.target.value)}
-            title="Reguły ZKP (teczka, karta, protokół, deklaracje) dotyczą tylko AS 75EI"
+            onChange={(e) => void handleZkpChange(e.target.value as 'auto' | 'tak' | 'nie')}
+            title="Reguły ZKP (teczka, karta, protokół, deklaracje) dotyczą tylko AS 75EI. Wyłączyć ZKP może tylko Pełnomocnik / Zastępca, z powodem."
           >
             <option value="auto">ZKP: automatycznie</option>
             <option value="tak">ZKP: tak (AS 75EI)</option>

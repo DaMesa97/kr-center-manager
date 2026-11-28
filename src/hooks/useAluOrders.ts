@@ -555,11 +555,19 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     [pushToast],
   )
 
-  /** Ręczne oznaczenie zlecenia jako ZKP / nie-ZKP; null = rozpoznanie automatyczne. */
+  /**
+   * Ręczne oznaczenie zlecenia jako ZKP / nie-ZKP; null = rozpoznanie automatyczne.
+   * D52: wyłączenie ZKP — Pełnomocnik / Zastępca z powodem (migracja 20261128035000);
+   * baza bez tej migracji nie zna p_reason (PGRST202) → wywołanie jak dotąd.
+   */
   const setAluOrderZkp = useCallback(
-    async (orderId: number, value: boolean | null): Promise<boolean> => {
+    async (orderId: number, value: boolean | null, reason?: string): Promise<boolean> => {
       touchSession()
-      const { error } = await supabase.rpc('set_alu_order_zkp', { p_order_id: orderId, p_is_zkp: value })
+      const base = { p_order_id: orderId, p_is_zkp: value }
+      let { error } = await supabase.rpc('set_alu_order_zkp', reason ? { ...base, p_reason: reason } : base)
+      if (error?.code === 'PGRST202' && reason) {
+        ;({ error } = await supabase.rpc('set_alu_order_zkp', base))
+      }
       if (error) {
         pushToast(`Nie udało się zmienić oznaczenia ZKP: ${error.message}`, 'error')
         return false

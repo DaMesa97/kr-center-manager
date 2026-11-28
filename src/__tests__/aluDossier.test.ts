@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { currentDocument, currentDocuments, documentVersions } from '../lib/aluDossier'
+import { currentDocument, currentDocuments, documentVersions, zkpCanDisableOrderZkp, zkpChangeMayDisable } from '../lib/aluDossier'
 import type { OrderDocument } from '../types'
 
 const doc = (over: Partial<OrderDocument>): OrderDocument => ({
@@ -25,5 +25,21 @@ describe('teczka: wersje dokumentów (ZKP 5.1.6)', () => {
   it('rodzaj tylko z wycofanymi wersjami nie ma bieżącej', () => {
     expect(currentDocument(docs, 'ZK')).toBeUndefined()
     expect(currentDocuments(docs).map((d) => d.kind).sort()).toEqual(['LC', 'LP'])
+  })
+})
+
+describe('D52: wyłączenie ZKP na zleceniu', () => {
+  it('tylko Pełnomocnik / Zastępca', () => {
+    expect(zkpCanDisableOrderZkp(['pelnomocnik'])).toBe(true)
+    expect(zkpCanDisableOrderZkp(['zastepca', 'kontroler'])).toBe(true)
+    expect(zkpCanDisableOrderZkp(['kierownik_produkcji'])).toBe(false)
+    expect(zkpCanDisableOrderZkp(undefined)).toBe(false)
+  })
+  it('kiedy zmiana może wyłączyć ZKP (wymaga powodu)', () => {
+    expect(zkpChangeMayDisable(true, null, 'nie')).toBe(true)
+    expect(zkpChangeMayDisable(false, null, 'nie')).toBe(false)
+    expect(zkpChangeMayDisable(true, true, 'auto')).toBe(true)
+    expect(zkpChangeMayDisable(false, false, 'auto')).toBe(false)
+    expect(zkpChangeMayDisable(false, null, 'tak')).toBe(false)
   })
 })

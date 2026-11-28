@@ -34,3 +34,18 @@ export function currentDocuments(docs: OrderDocument[]): OrderDocument[] {
   const kinds = Array.from(new Set(docs.map((d) => d.kind)))
   return kinds.map((k) => currentDocument(docs, k)).filter((d): d is OrderDocument => d !== undefined)
 }
+
+// D52: wyłączenie ZKP na zleceniu — tylko Pełnomocnik ZKP / Zastępca, z powodem (baza: set_alu_order_zkp).
+/** Rola ZKP pozwalająca wyłączyć ZKP na zleceniu. */
+export const zkpCanDisableOrderZkp = (roles?: string[] | null) =>
+  (roles ?? []).some((r) => r === 'pelnomocnik' || r === 'zastepca')
+
+/**
+ * Czy zmiana oznaczenia może WYŁĄCZYĆ ZKP (wtedy wymagana rola i powód).
+ * „nie” na zleceniu ZKP; „automatycznie” po ręcznym „tak” (automat może dać „bez ZKP”).
+ */
+export function zkpChangeMayDisable(isZkp: boolean, override: boolean | null, value: 'auto' | 'tak' | 'nie'): boolean {
+  if (value === 'nie') return isZkp
+  if (value === 'auto') return override === true
+  return false
+}

@@ -29,9 +29,11 @@ type Props = {
   onStartProduction: () => Promise<boolean>
   /** ZKP 5.9 — teczka zlecenia (wersje dokumentów, kompletność, „nie dotyczy") */
   canDecideZkp: boolean
+  /** D52: wyłączenie ZKP — Pełnomocnik / Zastępca */
+  canDisableZkp?: boolean
   onWithdrawDocument: (doc: OrderDocument, reason: string) => Promise<boolean>
   fetchDossier: (orderId: number) => Promise<{ items: AluDossierItem[]; isZkp: boolean; zkpOverride: boolean | null } | null>
-  onSetZkp: (orderId: number, value: boolean | null) => Promise<boolean>
+  onSetZkp: (orderId: number, value: boolean | null, reason?: string) => Promise<boolean>
   onSetNa: (orderId: number, itemKey: string, reason: string) => Promise<boolean>
   onRevokeNa: (naId: number, reason: string) => Promise<boolean>
   /** ZKP 5.9 — lista materiałowa Aluron (.xls) jako zestawienie materiałowe */
@@ -59,7 +61,7 @@ function fmtDate(iso: string | null | undefined): string {
 }
 
 export default function AluOrderDetailsModal({
-  order, positions, documents, constructions, production, onStartProduction, canDecideZkp, onWithdrawDocument,
+  order, positions, documents, constructions, production, onStartProduction, canDecideZkp, canDisableZkp, onWithdrawDocument,
   fetchDossier, onSetZkp, onSetNa, onRevokeNa, onImportMaterialList, fetchMaterialList, isManager, uploading, onClose,
   onOpenDocument, onUploadDocument, onReimport, onCancel, onRestore, canPrintLabels, pushToast,
 }: Props) {
@@ -222,6 +224,7 @@ export default function AluOrderDetailsModal({
           documents={documents}
           isManager={isManager}
           canDecideZkp={canDecideZkp}
+          canDisableZkp={canDisableZkp}
           uploading={uploading}
           onOpenDocument={onOpenDocument}
           onUploadDocument={onUploadDocument}
