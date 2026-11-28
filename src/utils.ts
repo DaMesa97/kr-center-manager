@@ -778,15 +778,38 @@ export function splitWxH(value: string): { w: string; h: string } {
   return { w: parts[0].trim(), h: '' }
 }
 
+const normDimCode = (s: unknown): string => String(s ?? '').trim().toUpperCase().replace(/\s+/g, ' ')
+const DIM_ZNAK = /[A-Z0-9ĄĆĘŁŃÓŚŹŻ]/
+
+/** Kod słownika wymiarów występuje w szerokości jako CAŁY token („90” nie pasuje do „90E”, „90 ST55” do „90 ST55E”). */
+function dimCodeMatches(code: string, dimCode: string): boolean {
+  if (!dimCode) return false
+  for (let i = code.indexOf(dimCode); i >= 0; i = code.indexOf(dimCode, i + 1)) {
+    const przed = i === 0 ? '' : code[i - 1]
+    const po = code[i + dimCode.length] ?? ''
+    if (!DIM_ZNAK.test(przed) && !DIM_ZNAK.test(po)) return true
+  }
+  return false
+}
+
 export function getDimensions(
   map: DimensionMap[],
   category: string,
   code: string,
 ): { width_mm: number; height_mm: number } {
-  const codeUpper = code.trim().toUpperCase()
-  const match = map.find(
-    (m) => m.category === category && codeUpper.includes(m.dimension_code.toUpperCase()),
+  // D32 (28.11, właściciel: „90E to inny wymiar niż 90”): wcześniej pierwszy kod ZAWARTY w szerokości wygrywał,
+  // więc „90E UNI” (Techniczne) brało wymiary „90”, „90E TITAN” (STA) — „90E”, a „90 ST55E” (ST) — „90 ST55”.
+  // Teraz: dokładny kod, a gdy go nie ma — najdłuższy kod występujący w szerokości jako cały token.
+  const codeUpper = normDimCode(code)
+  const kandydaci = map.filter(
+    (m) => m.category === category && dimCodeMatches(codeUpper, normDimCode(m.dimension_code)),
   )
+  const match =
+    kandydaci.find((m) => normDimCode(m.dimension_code) === codeUpper) ??
+    kandydaci.reduce<DimensionMap | undefined>(
+      (best, m) => (!best || normDimCode(m.dimension_code).length > normDimCode(best.dimension_code).length ? m : best),
+      undefined,
+    )
   return {
     width_mm: match?.width_mm ?? 0,
     height_mm: match?.height_mm ?? 2080,
