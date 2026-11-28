@@ -38,16 +38,27 @@ export default function AluLabelPrintModal({ order, positions, constructions, on
   const [loading, setLoading] = useState(true)
   const [printing, setPrinting] = useState(false)
   const mountedRef = useRef(true)
+  // efekt wczytania działa raz — toast przez ref (bez ponownego wczytywania przy zmianie funkcji)
+  const pushToastRef = useRef(pushToast)
+  pushToastRef.current = pushToast
 
   useEffect(() => {
     mountedRef.current = true
     void (async () => {
       const ipc = getIpc()
+      // runda 8 (tester ZKP/alu): odrzucone printers:list zostawiało okno w „wczytuję” na zawsze, a błąd szablonów
+      // wyglądał jak „brak szablonów” — każde z osobna, z komunikatem
       const [tplRes, prnList] = await Promise.all([
         supabase.from('label_templates').select('*').eq('category', ALU_CATEGORY).order('is_default', { ascending: false }).order('name'),
-        ipc ? (ipc.invoke('printers:list') as Promise<WinPrinter[]>) : Promise.resolve([]),
+        ipc
+          ? (ipc.invoke('printers:list') as Promise<WinPrinter[]>).catch((e: unknown) => {
+              pushToastRef.current(`Nie wczytano listy drukarek: ${(e as Error)?.message ?? e}`, 'error')
+              return [] as WinPrinter[]
+            })
+          : Promise.resolve([]),
       ])
       if (!mountedRef.current) return
+      if (tplRes.error) pushToastRef.current(`Nie wczytano szablonów etykiet: ${tplRes.error.message}`, 'error')
       const tpls = (tplRes.data ?? []) as LabelTemplate[]
       setTemplates(tpls)
       setTemplateId(tpls.find((t) => t.is_default)?.id ?? tpls[0]?.id ?? '')
@@ -112,6 +123,10 @@ export default function AluLabelPrintModal({ order, positions, constructions, on
     if (!template) return pushToast('Wybierz szablon', 'error')
     if (!printerName) return pushToast('Wybierz drukarkę', 'error')
     if (pieces.length === 0) return pushToast('Zaznacz co najmniej jedną pozycję', 'error')
+    // runda 8: zlecenie ZKP przed „Uruchom do produkcji” nie ma numerów konstrukcji — etykieta wychodziła z pustym polem
+    if (String(template.html ?? '').includes('alu_nr_konstrukcji') && pieces.some((x) => !x.constructionNo)) {
+      return pushToast('Część sztuk nie ma jeszcze numeru konstrukcji (zlecenie ZKP przed „Uruchom do produkcji”) — najpierw uruchom produkcję, potem drukuj etykiety', 'error')
+    }
     setPrinting(true)
     try {
       const w = Number(template.width_mm) || 100
