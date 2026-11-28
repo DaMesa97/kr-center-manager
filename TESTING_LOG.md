@@ -541,6 +541,12 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
   - **NIE zrobione mimo TAK (pkt 1, WZ ościeżnic dla 5 zleceń ST z montażem)**: zlecenia 4844, 4878, 4887, 4947 (VII–VIII) i 5407 (X) — montaż wpisany dopiero przy pierwszej synchronizacji etapów 24.11, fizycznie zrobione przed spisem 6.11 → WZ zdjąłby ościeżnice drugi raz. Pytanie wróciło do właściciela.
   - PIN ZKP wyłączony: `20261128041000` (przełącznik integration_settings.zkp_pin_wymagany, domyślnie wyłączony) — w repo, DO WDROŻENIA z 1.1.12.
 
+- **Excel nr 2 — zrobione w repo, czeka na wdrożenie (1.1.12)**. Próba generalna 28.11: 20 plików razem w transakcji cofniętej — 0 błędów:
+  `041000` (PIN ZKP wyłączony) · `050000` D9+D65 · `050100` D38 · `050200` D8 wydanie końcowe STA · `050300` D46 · `051100` D47 · `052000` D12 · `052100` D17 (zmieni wartość 6 klientów) · `052200` D19 · `052300` D37 · `053000` D11 (skasuje 1336 powiadomień) · `053100` D29 · `053200` D35 (Weryfikacja 462 → 137 otwartych) · `054000` D58 · `054100` D52 · `054200` D55 · `054300` D56 · `055000` D60 · `055100` D69 · `055200` D67.
+  Osobno: `051000` D49 — indeksy `concurrently`, poza transakcją, po jednym poleceniu; `055201` D67 cron — PO wdrożeniu funkcji Edge `sprzatanie-zdjec`.
+  Funkcje Edge: `crm-dokumenty` (D23, nowy `sciezki.ts`), `crm-call-ingest` (D24), `orders-excel-intake` (D35), `sprzatanie-zdjec` (NOWA, D67, bez weryfikacji JWT — klucz wewnętrzny).
+  Aplikacja: D9/D65 (Stany, Zamawianie, Alerty), D47/D48 (Statystyki z bazy, listy kolumn), D12, D17, D19, D11, D27, D28, D29, D33, D35, D40, D50, D51, D55, D56, D58, D60, D61, D62, D67, PIN schowany. 942 testy.
+
 ### Lista plików (dla porządku)
 Próba generalna 28.11 po południu: 28 plików poniżej (bez 036001 i 036200) razem w transakcji cofniętej na produkcji (już z pakietem z południa) — 0 błędów. Kontrola po wgraniu: `scripts/kontrola-decyzje-28-11.sql` (każde zapytanie: pusty wynik = OK).
 Kolejność = kolejność nazw:
