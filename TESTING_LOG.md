@@ -385,6 +385,16 @@ Stan: na produkcji 4 zlecenia alu, 0 kart / protokołów / deklaracji ZKP, nikt 
 | NISKI | brak audytu na `label_templates`, `config_exclusions`, `dimension_map`; brak `check` wymiarów etykiety | **poprawione** fb4fa91 (`010500`) |
 | NISKI | błąd usuwania wymiaru i zdejmowania „domyślnego” szablonu ignorowany | **poprawione** 3f6592a |
 
+## Runda 9 (28.11 w nocy) — recenzja rundy 8, nocnych refaktorów i próba generalna wdrożenia
+Próba generalna: wszystkie 37 plików `20261127223000` … `20261128010500` w kolejności nazw, w jednej transakcji (cofniętej), potem `scripts/kontrola-po-wdrozeniu.sql` → **żaden plik nie padł, kontrola pusta**. Polityki `storage.objects` da się założyć kontem `postgres`.
+
+| Waga | Problem | Stan |
+|---|---|---|
+| KRYTYCZNY | sandbox chronił tylko podgląd — ukryte okna druku (`label:printHtml`, `print:exportPdf`) ładowały szablon z JS i w sesji okna głównego (wspólny `localStorage` dla `file://`, tam sesja Supabase) | **poprawione** 3075055 (`javascript: false`, `sandbox`, partycja `druk`; QR i strony deklaracji to już obrazki z renderera). Do sprawdzenia rano w zbudowanym programie: wydruk etykiety STA/alu i „Zapisz PDF” |
+| NISKI | kontrola po wdrożeniu nie widziała odebrania `notify_user_active` / `restore_from_archive__impl` kontu authenticated | **poprawione** 2b41af3; porządki danych 232100/232700/233100 nadal bez sprawdzenia (to jednorazowe UPDATE-y) |
+
+Sprawdzone bez błędu: podgląd z `sandbox=""` (QR, style, nic nie czyta iframe'ów); `labelRender` jedno przejście = stary kod (216 porównań na 6 szablonach i 12 prawdziwych zleceniach, 0 różnic); `config_option_usage` śr. 13,5 ms / maks. 95 ms; polityki storage nie psują wgrywania zdjęć i załączników; przywracanie z archiwum (0 powiadomień, zdjęcia wracają); audyt 010500 zapisuje 3 wpisy z autorem; ZKP 000000–000200 (bez dublowania pozycji teczki, ponowny protokół zdejmuje blokadę); refaktory znak w znak, nic osieroconego.
+
 ## Upraszczanie kodu (DRY) — noc 28.11
 Analiza (tylko odczyt): `tsc` z `noUnusedLocals` — 0 nieużywanych importów, 0 osieroconych plików; ok. 20 martwych eksportów; 25 grup duplikatów; 15 miejsc, gdzie kopie RÓŻNIĄ SIĘ zachowaniem. Pełna lista refaktorów: `DECISIONS.md` → „Refaktory do rozważenia” (R1–R9), rozjazdy zachowania: D50, D51.
 
