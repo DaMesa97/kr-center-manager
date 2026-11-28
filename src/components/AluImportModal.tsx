@@ -7,6 +7,12 @@ import { extractPdfTextPages } from '../lib/pdfText'
 import { parseAluDocument } from '../lib/aluLpParser'
 import { appConfirm } from '../lib/appDialogs'
 import type { AluCancelledOrder } from '../hooks/useAluOrders'
+import {
+  aluOverwriteIsBlocked,
+  formatAluOverwriteRow,
+  groupAluOverwriteImpact,
+  type AluOverwriteImpactRow,
+} from '../lib/aluOverwriteImpact'
 import { supabase } from '../supabaseClient'
 import type {
   AluConstructionType, AluLcParseResult, AluLpParseResult, AluLpPosition, AluProductionNotes, AluRealizacja,
@@ -30,6 +36,8 @@ type Props = {
   reimportOrderNumber?: string | null
   onClose: () => void
   onImport: (parsed: AluLpParseResult, opts: AluImportOpts) => Promise<AluImportResult | null>
+  /** D55: podgląd skutków „Nadpisz” ('unsupported' = baza bez migracji, null = błąd) */
+  onPreviewOverwrite?: (orderId: number, parsed: AluLpParseResult) => Promise<AluOverwriteImpactRow[] | 'unsupported' | null>
   onUploadDocument: (orderId: number, kind: OrderDocumentKind, number: string | null, file: File) => Promise<boolean>
   onFindOrder: (orderNumber: string) => Promise<Array<{ id: number; order_number: string; company: string }>>
   /** anulowane zlecenie o tym numerze — import pyta: przywrócić, czy dodać jako nowe */
@@ -65,8 +73,8 @@ async function parseFile(file: File) {
 }
 
 export default function AluImportModal({
-  open, companies, reimportOrderNumber, onClose, onImport, onUploadDocument, onFindOrder, onFindCancelledOrder,
-  onRestoreOrder, onDone, pushToast,
+  open, companies, reimportOrderNumber, onClose, onImport, onPreviewOverwrite, onUploadDocument, onFindOrder,
+  onFindCancelledOrder, onRestoreOrder, onDone, pushToast,
 }: Props) {
   const [picked, setPicked] = useState<Picked>({ lp: null, lc: null, zm: null })
   const [parsing, setParsing] = useState(false)
@@ -86,12 +94,14 @@ export default function AluImportModal({
   // numer OF zajęty przez ANULOWANE zlecenie — baza odrzuca zwykły import,
   // więc pytamy wcześniej: przywrócić i wczytać z pliku, czy dodać jako nowe
   const [cancelledPanel, setCancelledPanel] = useState<AluCancelledOrder | null>(null)
+  // D55: skutki „Nadpisz” do potwierdzenia (lista z bazy)
+  const [impact, setImpact] = useState<{ orderId: number; rows: AluOverwriteImpactRow[]; restoreFirst: boolean } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
-    setPicked({ lp: null, lc: null, zm: null }); setLp(null); setLc(null); setZm(null); setPositions([]); setExistsPanel(null); setCancelledPanel(null)
+    setPicked({ lp: null, lc: null, zm: null }); setLp(null); setLc(null); setZm(null); setPositions([]); setExistsPanel(null); setCancelledPanel(null); setImpact(null)
     setOrderNumber(''); setCompany(''); setDeadline(defaultAluDeadline()); setRealizacja('wysylka'); setNotesOpen(null)
   }, [open])
 
@@ -142,6 +152,7 @@ export default function AluImportModal({
           // nowy LP w otwartym oknie: stary panel „już jest w programie” / „anulowane” dotyczył poprzedniego pliku
           setExistsPanel(null)
           setCancelledPanel(null)
+          setImpact(null)
           setLp(parsed)
           setPicked((p) => ({ ...p, lp: file }))
           setOrderNumber(parsed.header.order_number)
@@ -268,6 +279,68 @@ export default function AluImportModal({
     }
   }
 
+  const buildParsed = (src: AluLpParseResult): AluLpParseResult => ({
+    ...src,
+    header: { ...src.header, order_number: orderNumber.trim(), client: company.trim() },
+    positions: positions.map((p) => ({
+      ...p,
+      quantity: Math.max(1, Math.round(Number(p.quantity) || 1)),
+      width_mm: p.width_mm ? Math.round(Number(p.width_mm)) : null,
+      height_mm: p.height_mm ? Math.round(Number(p.height_mm)) : null,
+    })),
+  })
+
+  /** Nadpisanie (po ewentualnym przywróceniu anulowanego zlecenia) — już po podglądzie D55. */
+  const runOverwrite = async (orderId: number, restoreFirst: boolean) => {
+    if (restoreFirst) {
+      setSaving(true)
+      const ok = await onRestoreOrder(orderId)
+      setSaving(false)
+      if (!ok) return
+      setCancelledPanel(null)
+    }
+    await save('overwrite')
+  }
+
+  /**
+   * D55: przed „Nadpisz” — lista pozycji / konstrukcji, które znikną (z etapami, kartami, deklaracjami),
+   * i potwierdzenie; zwolnione karty / wydane deklaracje blokują nadpisanie (baza i tak odmówi).
+   */
+  const startOverwrite = async (orderId: number, restoreFirst: boolean) => {
+    if (!lp || !picked.lp) return
+    if (problems.length > 0) {
+      pushToast(problems[0], 'error')
+      return
+    }
+    if (!onPreviewOverwrite) {
+      await runOverwrite(orderId, restoreFirst)
+      return
+    }
+    setSaving(true)
+    let rows: AluOverwriteImpactRow[] | 'unsupported' | null
+    try {
+      rows = await onPreviewOverwrite(orderId, buildParsed(lp))
+    } finally {
+      setSaving(false)
+    }
+    if (rows === null) return
+    if (rows === 'unsupported') {
+      // baza bez migracji D55 — ostrzeżenie ogólne
+      const ok = await appConfirm(
+        'Pozycje, których numerów nie ma w nowej LP, znikną razem z oznaczonymi etapami, a przy mniejszej ilości ' +
+          'etapy zostaną przycięte i konstrukcje o najwyższych numerach anulowane. Nadpisać?',
+        { title: 'Nadpisanie pozycji', confirmLabel: 'Nadpisz', tone: 'danger' },
+      )
+      if (ok) await runOverwrite(orderId, restoreFirst)
+      return
+    }
+    if (rows.length === 0) {
+      await runOverwrite(orderId, restoreFirst)
+      return
+    }
+    setImpact({ orderId, rows, restoreFirst })
+  }
+
   const save = async (mode: AluImportMode) => {
     if (!lp || !picked.lp) return
     // walidacja także dla „Nadpisz” / „Dodaj ponownie” — pola są dalej edytowalne
@@ -288,16 +361,8 @@ export default function AluImportModal({
         }
       }
       setCancelledPanel(null)
-      const parsed: AluLpParseResult = {
-        ...lp,
-        header: { ...lp.header, order_number: orderNumber.trim(), client: company.trim() },
-        positions: positions.map((p) => ({
-          ...p,
-          quantity: Math.max(1, Math.round(Number(p.quantity) || 1)),
-          width_mm: p.width_mm ? Math.round(Number(p.width_mm)) : null,
-          height_mm: p.height_mm ? Math.round(Number(p.height_mm)) : null,
-        })),
-      }
+      setImpact(null)
+      const parsed = buildParsed(lp)
       const res = await onImport(parsed, { company: company.trim(), deadline, realizacja, mode })
       if (!res) return
       if (res.result === 'exists') {
@@ -607,14 +672,7 @@ export default function AluImportModal({
                     type="button"
                     className="btn btn-primary"
                     disabled={saving}
-                    onClick={async () => {
-                      setSaving(true)
-                      const ok = await onRestoreOrder(cancelledPanel.id)
-                      setSaving(false)
-                      if (!ok) return
-                      setCancelledPanel(null)
-                      await save('overwrite')
-                    }}
+                    onClick={() => void startOverwrite(cancelledPanel.id, true)}
                   >
                     Przywróć do realizacji i wczytaj pozycje z pliku
                   </button>
@@ -636,9 +694,10 @@ export default function AluImportModal({
                   {existingReleased && <> <strong>Zlecenie jest już wydane ({existingReleased})</strong> — nadpisanie pozycji jest zablokowane (nowe sztuki nie dałyby się odhaczyć).</>}
                 </div>
                 <div className="alu-exists-actions">
-                  <button type="button" className="btn btn-primary" disabled={saving || Boolean(existingReleased)} onClick={() => void save('overwrite')}
-                    title={existingReleased ? 'Zlecenie wydane — nie nadpisujemy pozycji' : undefined}>
-                    Nadpisz pozycje (oznaczone etapy zostają)
+                  <button type="button" className="btn btn-primary" disabled={saving || Boolean(existingReleased) || Boolean(impact)}
+                    onClick={() => void startOverwrite(existsPanel.orderId, false)}
+                    title={existingReleased ? 'Zlecenie wydane — nie nadpisujemy pozycji' : 'Przed nadpisaniem program pokaże, co zniknie (pozycje, etapy, konstrukcje)'}>
+                    Nadpisz pozycje…
                   </button>
                   <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => void save('duplicate')}>
                     Dodaj ponownie jako osobne zlecenie
@@ -649,6 +708,61 @@ export default function AluImportModal({
                 </div>
               </div>
             )}
+
+            {impact && (() => {
+              const blocked = aluOverwriteIsBlocked(impact.rows)
+              return (
+                <div className="alu-exists-panel" role="alert">
+                  <div>
+                    {blocked ? (
+                      <>
+                        <strong>Nadpisanie zablokowane (ZKP).</strong> Zlecenie ma zwolnione karty wyrobu albo konstrukcje z wydaną
+                        deklaracją — nowej wersji LP nie można nadpisać. Zaimportuj LP jako osobne zlecenie albo najpierw wycofaj
+                        deklarację / anuluj konstrukcję (Pełnomocnik).
+                      </>
+                    ) : (
+                      <>
+                        <strong>Sprawdź przed nadpisaniem</strong> — tych danych nie da się przywrócić z poziomu programu:
+                      </>
+                    )}
+                  </div>
+                  {groupAluOverwriteImpact(impact.rows).map((g) => (
+                    <div key={g.kind} style={{ marginTop: 6 }}>
+                      <div><strong>{g.label}</strong></div>
+                      <ul style={{ margin: '2px 0 0 18px', padding: 0 }}>
+                        {g.rows.map((r, i) => (
+                          <li key={`${g.kind}-${i}`} style={r.blocking ? { color: 'var(--color-danger)' } : undefined}>
+                            {formatAluOverwriteRow(r)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                  <div className="alu-exists-actions">
+                    {!blocked && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        disabled={saving}
+                        onClick={() => {
+                          const { orderId, restoreFirst } = impact
+                          setImpact(null)
+                          void runOverwrite(orderId, restoreFirst)
+                        }}
+                      >
+                        Nadpisz mimo to
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => { setImpact(null); void save('duplicate') }}>
+                      Dodaj jako osobne zlecenie
+                    </button>
+                    <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => setImpact(null)}>
+                      Wróć
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
           </>
         )}
         </div>

@@ -602,6 +602,7 @@ function App() {
     aluLoading,
     fetchAluData,
     importAluOrder,
+    previewAluOverwrite,
     uploadOrderDocument,
     openOrderDocument,
     findAluOrderByNumber,
@@ -3047,6 +3048,7 @@ function App() {
         reimportOrderNumber={aluReimportNumber}
         onClose={() => setAluImportOpen(false)}
         onImport={handleAluImport}
+        onPreviewOverwrite={previewAluOverwrite}
         onUploadDocument={handleAluUploadDocument}
         onFindOrder={handleAluFindOrder}
         onFindCancelledOrder={findCancelledAluOrder}

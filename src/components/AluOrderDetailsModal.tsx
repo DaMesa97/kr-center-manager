@@ -173,7 +173,7 @@ export default function AluOrderDetailsModal({
               <button type="button" className="btn btn-sm btn-primary" disabled={uploading} onClick={() => pickFile('ZM')} title="Zamówienie szyb do szklarza generowane w LiczOkna">
                 {uploading && pendingKind === 'ZM' ? 'Wgrywam…' : zm ? 'Nowa wersja ZM GLASS' : '+ Dodaj ZM GLASS'}
               </button>
-              <button type="button" className="btn btn-sm btn-secondary" onClick={onReimport} title="Wgraj nową wersję listy produkcyjnej — pozycje zostaną nadpisane, oznaczone etapy zostają">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={onReimport} title="Wgraj nową wersję listy produkcyjnej — przed nadpisaniem program pokaże, które pozycje, etapy i konstrukcje znikną">
                 Nowa wersja LP…
               </button>
               <input

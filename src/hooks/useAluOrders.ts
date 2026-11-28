@@ -5,6 +5,7 @@ import { ALU_STAGE_DEFS, ORDER_DOCUMENTS_BUCKET } from '../constants'
 import { applyAluPositionStages } from '../lib/aluStation'
 import { aluDoneSeen, aluMarkErrorText, appPinPrompt, rpcMarkAluStageSigned, rpcUndoAluStage } from '../lib/aluStageRpc'
 import type { AluMaterialListParseResult } from '../lib/aluMaterialListParser'
+import { mapAluOverwriteImpactRows, type AluOverwriteImpactRow } from '../lib/aluOverwriteImpact'
 import type {
   AluPositionStages,
   AluConstruction,
@@ -282,6 +283,27 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
         return null
       }
       return { orderId: row.r_order_id, result: row.r_result, orderNumber: row.r_order_number }
+    },
+    [pushToast, touchSession],
+  )
+
+  /**
+   * D55: podgląd skutków „Nadpisz” (RPC alu_overwrite_impact — nic nie zmienia).
+   * 'unsupported' = baza bez migracji D55 (PGRST202); null = błąd (toast) — nie nadpisuj.
+   */
+  const previewAluOverwrite = useCallback(
+    async (orderId: number, parsed: AluLpParseResult): Promise<AluOverwriteImpactRow[] | 'unsupported' | null> => {
+      touchSession()
+      const { data, error } = await supabase.rpc('alu_overwrite_impact', {
+        p_order_id: orderId,
+        p_positions: parsed.positions.map(toRpcPosition),
+      })
+      if (error) {
+        if (error.code === 'PGRST202') return 'unsupported'
+        pushToast(`Nie udało się sprawdzić skutków nadpisania: ${error.message}`, 'error')
+        return null
+      }
+      return mapAluOverwriteImpactRows(data)
     },
     [pushToast, touchSession],
   )
@@ -716,6 +738,7 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     aluLoading,
     fetchAluData,
     importAluOrder,
+    previewAluOverwrite,
     uploadOrderDocument,
     openOrderDocument,
     findAluOrderByNumber,
