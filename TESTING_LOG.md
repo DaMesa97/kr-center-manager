@@ -531,6 +531,8 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 
 - **1.1.10 OPUBLIKOWANA** 28.11 po południu (clean = tag v1.1.10 = 79ee787, min_app_version 1.1.10): nowy Pulpit KR Center wg makiety właściciela (cc67f4c; bez ikon, bez Po Drzwi i Technicznych; synchronizacje Działa / Błąd). Menu boczne bez zmian (decyzja właściciela).
 
+- **1.1.11 OPUBLIKOWANA** 28.11 (clean = tag v1.1.11 = 6fe3adc): Pulpit na całą szerokość ekranu.
+
 ### Lista plików (dla porządku)
 Próba generalna 28.11 po południu: 28 plików poniżej (bez 036001 i 036200) razem w transakcji cofniętej na produkcji (już z pakietem z południa) — 0 błędów. Kontrola po wgraniu: `scripts/kontrola-decyzje-28-11.sql` (każde zapytanie: pusty wynik = OK).
 Kolejność = kolejność nazw:
