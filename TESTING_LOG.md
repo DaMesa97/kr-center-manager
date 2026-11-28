@@ -371,7 +371,9 @@ Błędy znalezione przy okazji i poprawione (jako `fix`, nie refaktor):
 | 38ae994 | `componentOptionLabel` i `formatIlosc` w `lib/magazynFormat` (7 kopii → 1, + test) | −5 kodu (+20 testu) |
 | 4d5829a | `CAT_COLORS` / `CAT_LABEL` w `mobile/mobileKategorie` (6 kopii → 1) | −10 |
 | 90ee4dd | `fmtDateTime` w `lib/crmFormat` (3 kopie → 1) | −6 |
-| **Razem** | | **−208 linii kodu aplikacji** (+20 linii testów) |
+| (updaterIpc) | typy IPC, `getIpc`, `formatSpeed` w `lib/updaterIpc` (2 kopie → 1, + test) | −21 |
+| (daysBetween) | jedno `daysBetween` w `companyStats` (3 kopie → 1, + test) | −16 |
+| **Razem** | | **−245 linii kodu aplikacji** (+40 linii testów) |
 Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian (83 = 66 ze startu + 17 w pliku z serwera).
 
 ## Do decyzji
