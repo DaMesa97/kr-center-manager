@@ -14,6 +14,7 @@ import {
 } from '../../lib/companyMatch'
 import type { Order } from '../../types'
 import { CAT_COLORS, CAT_LABEL } from './mobileKategorie'
+import { czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
 
 
 // Tylko kolumny potrzebne do karty, postępu etapów (countCompletedStages) i trasy —
@@ -186,25 +187,25 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
       // (RLS/już wydane), magazyn schodził, a zamówienie wracało jako otwarte
       // i drugie kliknięcie nie miało już czego wydać (rozjazd inwentaryzacji).
       const today = new Date().toLocaleDateString('sv-SE')
-      const { data: updated, error } = await supabase
+      const { data: updated, error } = await zLimitemCzasu(supabase
         .from('orders')
         .update({ release_date: today })
         .eq('id', order.id!)
         .is('release_date', null)
         // runda 4 (tester magazynu): lista na telefonie się nie odświeża — zlecenie anulowane w biurze dawało się wydać
         .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.neq.true')
-        .select('id')
+        .select('id'))
       if (!mountedRef.current) return
       let wydaneWczesniej: string | null = null
       if (error || !updated || updated.length === 0) {
         // runda 10 (tester telefonu): przy zgubionej odpowiedzi data mogła się zapisać, a WZ nie poszła —
         // ponowienie trafiało w „już wydane” i rezerwacje wisiały. Sprawdzamy stan w bazie: zlecenie wydane
         // i nie anulowane → dopinamy zdjęcie z magazynu (obie funkcje liczą tylko brakującą resztę).
-        const { data: teraz } = await supabase
+        const { data: teraz } = await zLimitemCzasu(supabase
           .from('orders')
           .select('release_date, extra_fields')
           .eq('id', order.id!)
-          .maybeSingle()
+          .maybeSingle())
         if (!mountedRef.current) return
         const juzWydane =
           !!teraz &&
@@ -229,25 +230,32 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
       // 27.11 (testy): drzwi wewnętrzne nie mają rezerwacji — schodzą z Magazynu 1 / 2 przez
       // issue_internal_door_stock (jak „Wydane” na komputerze); wcześniej telefon nic nie zdejmował.
       let warned = false
+      let wzBezOdpowiedzi = false
       try {
         const { error: relErr } = order.category === 'DrzwiWewnetrzne'
-          ? await supabase.rpc('issue_internal_door_stock', { p_order_id: order.id! })
-          : await supabase.rpc('release_remaining_for_order', { p_order_id: order.id!, p_force: true })
+          ? await zLimitemCzasu(supabase.rpc('issue_internal_door_stock', { p_order_id: order.id! }))
+          : await zLimitemCzasu(supabase.rpc('release_remaining_for_order', { p_order_id: order.id!, p_force: true }))
         if (relErr) {
           console.error('[wydanie z telefonu] WZ error:', relErr)
           warned = true
         }
       } catch (err) {
         console.error('[wydanie z telefonu] WZ error:', err)
-        warned = true
+        // D66: brak odpowiedzi — WZ mogła zejść albo nie; nie mówimy „NIE zeszła”
+        if (czyLimitCzasu(err)) wzBezOdpowiedzi = true
+        else warned = true
       }
       if (!mountedRef.current) return
       setOrders((prev) => prev.filter((o) => o.id !== order.id))
       // ostrzeżenie zostaje na ekranie — sukces by je nadpisał
       if (warned) flash('Wydane, ale WZ z magazynu NIE zeszła — zgłoś kierownikowi', true)
+      else if (wzBezOdpowiedzi) flash('Wydane, ale zdjęcie z magazynu (WZ) bez odpowiedzi serwera — mogło zejść; zgłoś kierownikowi do sprawdzenia', true)
       else if (wydaneWczesniej) flash(`Zlecenie było już wydane (${wydaneWczesniej}) — sprawdzono zdjęcie z magazynu ✓`)
       else flash('Oznaczono jako wydane ✓')
       setConfirm(null)
+    } catch (e) {
+      // D66: limit czasu przy zapisie daty / sprawdzeniu — przycisk nie wisi na „Zapisywanie…”
+      if (mountedRef.current) flash(komunikatWyjatku(e, 'NIE wydano'), true)
     } finally {
       if (mountedRef.current) setSaving(false)
     }

@@ -4,6 +4,7 @@ import { Search, ArrowLeft, Camera, Trash2 } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { humanizeAndLog } from '../../lib/friendlyError'
 import { CAT_COLORS } from './mobileKategorie'
+import { LIMIT_ZDJECIA_MS, czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
 
 type SearchResult = {
   id: number
@@ -120,7 +121,11 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
       let uploaded = 0
       let skipped = 0
       let failed = 0
-      for (const file of fileArr) {
+      // D66: brak odpowiedzi serwera w limicie — zdjęcie mogło dojść; kolejnych nie wysyłamy (łącze leży)
+      let bezOdpowiedzi = 0
+      let przerwane = 0
+      for (let i = 0; i < fileArr.length; i++) {
+        const file = fileArr[i]
         // Akceptuj obrazy; HEIC z iPhone bywa z pustym type — odrzuć tylko jawnie nie-obrazy
         const isImage =
           file.type.startsWith('image/') ||
@@ -130,20 +135,35 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
         const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
         const stamp = new Date().toISOString().replace(/[:.]/g, '-')
         const path = `${selected.id}/${stamp}_${Math.round(performance.now())}.${ext}`
-        const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { cacheControl: '3600', upsert: false })
-        if (upErr) { failed++; continue }
-        const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path)
-        const { data: inserted, error: insErr } = await supabase
-          .from('order_photos')
-          .insert({
-            order_id: selected.id,
-            storage_path: path,
-            public_url: urlData.publicUrl,
-            uploaded_by: userId || null,
-            uploaded_by_initials: userInitials || null,
-          })
-          .select('id, public_url, storage_path')
-          .single()
+        let inserted: unknown = null
+        let insErr: unknown = null
+        try {
+          const up = await zLimitemCzasu(
+            supabase.storage.from(BUCKET).upload(path, file, { cacheControl: '3600', upsert: false }),
+            LIMIT_ZDJECIA_MS,
+          )
+          if (up.error) { failed++; continue }
+          const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path)
+          const ins = await zLimitemCzasu(supabase
+            .from('order_photos')
+            .insert({
+              order_id: selected.id,
+              storage_path: path,
+              public_url: urlData.publicUrl,
+              uploaded_by: userId || null,
+              uploaded_by_initials: userInitials || null,
+            })
+            .select('id, public_url, storage_path')
+            .single())
+          inserted = ins.data
+          insErr = ins.error
+        } catch (e) {
+          if (!czyLimitCzasu(e)) { failed++; continue }
+          // plik / wpis mógł się zapisać — nie sprzątamy (wiersz może istnieć), reszty nie wysyłamy
+          bezOdpowiedzi++
+          przerwane = fileArr.length - i - 1
+          break
+        }
         if (insErr) {
           // plik poszedł do storage, wiersz nie — sprzątnij sierotę
           void supabase.storage.from(BUCKET).remove([path])
@@ -155,7 +175,14 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
       }
       // Częściowa porażka NIE może wyglądać jak sukces — toast z liczbą
       // nieudanych wisi do zamknięcia (słabe WiFi gubiło zdjęcia po cichu)
-      if (failed > 0) {
+      if (bezOdpowiedzi > 0) {
+        const nieWyslane = failed + przerwane
+        flash(
+          `Dodano ${uploaded}; 1 zdjęcie bez odpowiedzi serwera (słaby internet?) — mogło się zapisać: wróć i otwórz zlecenie ponownie, zanim zrobisz je jeszcze raz` +
+            (nieWyslane > 0 ? `. ${nieWyslane} NIE wysłano.` : ''),
+          true,
+        )
+      } else if (failed > 0) {
         flash(`Dodano ${uploaded}, ${failed} NIE wysłano — zrób te zdjęcia jeszcze raz`, true)
       } else if (uploaded > 0) {
         flash(`Dodano ${uploaded} ${uploaded === 1 ? 'zdjęcie' : 'zdjęć'} ✓`)
@@ -171,15 +198,21 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
     if (!(await appConfirm('Usunąć zdjęcie?'))) return
     // RLS blokujące DELETE zwraca 0 wierszy bez błędu — bez tej kontroli
     // pracownik kasował PLIK ze storage zostawiając martwy wiersz
-    const { data: deleted, error } = await supabase
-      .from('order_photos')
-      .delete()
-      .eq('id', photo.id)
-      .select('id')
-    if (error) { flash('Błąd usuwania'); return }
-    if (!deleted || deleted.length === 0) { flash('Zdjęcia może usuwać tylko kierownik'); return }
-    await supabase.storage.from(BUCKET).remove([photo.storage_path])
-    setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+    try {
+      const { data: deleted, error } = await zLimitemCzasu(supabase
+        .from('order_photos')
+        .delete()
+        .eq('id', photo.id)
+        .select('id'))
+      if (error) { flash('Błąd usuwania'); return }
+      if (!deleted || deleted.length === 0) { flash('Zdjęcia może usuwać tylko kierownik'); return }
+      if (mountedRef.current) setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+      // wpis już skasowany — plik sprzątamy w tle (błąd / brak odpowiedzi nie blokuje ekranu)
+      void supabase.storage.from(BUCKET).remove([photo.storage_path])
+    } catch (e) {
+      // D66: bez odpowiedzi — mogło się usunąć
+      if (mountedRef.current) flash(komunikatWyjatku(e, 'Błąd usuwania'), true)
+    }
   }
 
   return (

@@ -28,6 +28,7 @@ import {
 import { aluStageDone } from '../../lib/alu'
 import { aluDoneSeen, rpcMarkAluStage, rpcUndoAluStage } from '../../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../../constants'
+import { czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
 import type { AluPosition, AluPositionStages, Complaint, Order, WorkerStage } from '../../types'
 import { CAT_COLORS } from './mobileKategorie'
 
@@ -353,12 +354,12 @@ export default function MobileStationView({ userId }: Props) {
     setSaving(true)
     try {
       const mark = (markInitials ?? myInitials).trim() || 'T'
-      const { data, error } = await rpcMarkAluStage(
+      const { data, error } = await zLimitemCzasu(rpcMarkAluStage(
         info.positionId,
         task.stageKey,
         mark,
         livePos ? aluDoneSeen(livePos.production_stages, task.stageKey) : info.done,
-      )
+      ))
       if (!mountedRef.current) return
       if (error) {
         flash(`Nie oznaczono sztuki: ${error.message}`, true)
@@ -374,6 +375,9 @@ export default function MobileStationView({ userId }: Props) {
       )
       setLastDone({ task, initials: mark })
       setConfirmTask(null)
+    } catch (e) {
+      // D66: limit czasu (słaby internet) — przycisk nie może wisieć na „Zapisywanie…”
+      if (mountedRef.current) flash(komunikatWyjatku(e, 'Nie oznaczono sztuki'), true)
     } finally {
       if (mountedRef.current) setSaving(false)
     }
@@ -401,21 +405,21 @@ export default function MobileStationView({ userId }: Props) {
       setSaving(true)
       try {
         const mark = (opts?.markInitials ?? myInitials).trim() || 'T'
-        const { error } = await supabase.rpc('update_complaint_stage', {
+        const { error } = await zLimitemCzasu(supabase.rpc('update_complaint_stage', {
           p_complaint_id: task.complaintId,
           p_stage_key: actualKey,
           p_stage_value: mark,
-        })
+        }))
         if (!mountedRef.current) return
         if (error) { flash(`Błąd: ${error.message}`); return }
 
         const mirrorKey = mirrorStageKey(task.category, actualKey)
         if (mirrorKey && task.linkedComplaintId != null) {
-          const { error: mErr } = await supabase.rpc('update_complaint_stage', {
+          const { error: mErr } = await zLimitemCzasu(supabase.rpc('update_complaint_stage', {
             p_complaint_id: task.linkedComplaintId,
             p_stage_key: mirrorKey,
             p_stage_value: mark,
-          })
+          }))
           if (mErr) {
             console.error('complaint mirror stage error:', mErr)
             // runda 6: błąd tylko w konsoli — druga reklamacja pary widziała etap jako niezrobiony
@@ -439,6 +443,8 @@ export default function MobileStationView({ userId }: Props) {
         flash('Etap reklamacji oznaczony ✓')
         setLastDone({ task, initials: mark })
         setConfirmTask(null)
+      } catch (e) {
+        if (mountedRef.current) flash(komunikatWyjatku(e), true)
       } finally {
         if (mountedRef.current) setSaving(false)
       }
@@ -450,11 +456,11 @@ export default function MobileStationView({ userId }: Props) {
       // 1) Wydanie z magazynu (WZ) jak na desktopie — braki pokazujemy do
       // decyzji, błąd RPC nie blokuje oznaczenia (produkcja > magazyn)
       try {
-        const { data: relData, error: relError } = await supabase.rpc('release_stock_for_stage', {
+        const { data: relData, error: relError } = await zLimitemCzasu(supabase.rpc('release_stock_for_stage', {
           p_order_id: task.order.id!,
           p_stage_key: actualKey,
           p_force: opts?.force === true,
-        })
+        }))
         if (!mountedRef.current) return
         if (relError) {
           console.error('release_stock_for_stage error:', relError)
@@ -470,6 +476,8 @@ export default function MobileStationView({ userId }: Props) {
           }
         }
       } catch (err) {
+        // D66: przy limicie czasu nie wiemy, czy wydano i czy były braki — nie oznaczamy etapu w ciemno
+        if (czyLimitCzasu(err)) throw err
         console.error('release_stock_for_stage error:', err)
       }
 
@@ -477,22 +485,22 @@ export default function MobileStationView({ userId }: Props) {
       // zapis całego obiektu kasował etapy innych stanowisk. Inicjały: osoba
       // z kafelka (wspólny telefon stanowiska) albo zalogowany.
       const mark = (opts?.markInitials ?? myInitials).trim() || 'T'
-      const { error } = await supabase.rpc('update_order_stage', {
+      const { error } = await zLimitemCzasu(supabase.rpc('update_order_stage', {
         p_order_id: task.order.id!,
         p_stage_key: actualKey,
         p_stage_value: mark,
-      })
+      }))
       if (!mountedRef.current) return
       if (error) { flash(`Błąd: ${error.message}`); return }
 
       // 3) Mirror u partnera (Disting Plus / Titan) — jak tabela i Moje stanowisko
       const mirrorKey = mirrorStageKey(task.order.category, actualKey)
       if (mirrorKey && task.order.linked_order_id != null) {
-        const { error: mErr } = await supabase.rpc('update_order_stage', {
+        const { error: mErr } = await zLimitemCzasu(supabase.rpc('update_order_stage', {
           p_order_id: task.order.linked_order_id,
           p_stage_key: mirrorKey,
           p_stage_value: mark,
-        })
+        }))
         if (mErr) flash(`UWAGA: etap partnera NIE zsynchronizowany (${mErr.message})`, true)
       }
 
@@ -513,6 +521,8 @@ export default function MobileStationView({ userId }: Props) {
       setLastDone({ task, initials: mark })
       setConfirmTask(null)
       setShortageConfirm(null)
+    } catch (e) {
+      if (mountedRef.current) flash(komunikatWyjatku(e), true)
     } finally {
       if (mountedRef.current) setSaving(false)
     }
@@ -528,11 +538,11 @@ export default function MobileStationView({ userId }: Props) {
         const info = task.alu
         const livePos = (aluPositions[task.order.id ?? -1] ?? []).find((p) => p.id === info.positionId)
         // runda 11: liczba widziana przy kliknięciu — ponowienie po zgubionej odpowiedzi nie cofnie drugiej sztuki
-        const { data, error } = await rpcUndoAluStage(
+        const { data, error } = await zLimitemCzasu(rpcUndoAluStage(
           info.positionId,
           task.stageKey,
           livePos ? aluDoneSeen(livePos.production_stages, task.stageKey) : null,
-        )
+        ))
         if (!mountedRef.current) return
         if (error) {
           flash(`Nie cofnięto sztuki: ${error.message}`, true)
@@ -543,7 +553,7 @@ export default function MobileStationView({ userId }: Props) {
         flash(`Cofnięto sztukę: ${task.stageHeader}, pozycja ${info.posNo}`)
         return
       }
-      const res = await undoStationTask(task)
+      const res = await zLimitemCzasu(undoStationTask(task))
       if (!mountedRef.current) return
       if (!res.ok) {
         flash(`Nie cofnięto: ${res.error}`, true)
@@ -561,6 +571,8 @@ export default function MobileStationView({ userId }: Props) {
       }
       setLastDone(null)
       flash(stationUndoMessage(res, task.isComplaint === true), !!res.mirrorError)
+    } catch (e) {
+      if (mountedRef.current) flash(komunikatWyjatku(e, 'Nie cofnięto'), true)
     } finally {
       if (mountedRef.current) setUndoing(false)
     }

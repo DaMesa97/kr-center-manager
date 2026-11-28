@@ -8,6 +8,7 @@ import { supabase } from '../../supabaseClient'
 import { groupItemsByType, isKitPart } from '../../lib/optimaRo'
 import { groupPicks, isPicked, pickChanged, pickKey, pickProgress, savePicks, sigsOf, type OrderPick } from '../../lib/orderPicks'
 import type { InternalDoorItem } from '../../types'
+import { komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
 
 type Props = {
   orderId: number
@@ -68,10 +69,11 @@ export default function MobileIntDoorPicking({ orderId, canEdit, initials }: Pro
     }
     setPicks(next)
     try {
-      await savePicks(orderId, keys, picked, initials, sigs)
+      // D66: limit czasu — przy zerwanym WiFi komunikat zamiast cichego czekania
+      await zLimitemCzasu(savePicks(orderId, keys, picked, initials, sigs))
     } catch (e) {
       setPicks(before)
-      setError(`Nie zapisano: ${e instanceof Error ? e.message : String(e)}`)
+      setError(komunikatWyjatku(e, 'Nie zapisano'))
     }
   }
 
