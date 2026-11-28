@@ -64,7 +64,10 @@ with znaczniki(fn, marker, minimum) as (
     -- 20261128000100: protokół badań — ocena pomiarów od nowa przy zamykaniu (runda 8)
     ('public.zkp_protocol_problems(bigint)', 'karta zmieniona po zapisaniu protokołu', 1),
     ('public.zkp_protocol_problems(bigint)', 'zkp_protocol_eval(p.card_id, p.measurements)', 1),
-    ('public.zkp_close_test_protocol(bigint,text,text,text,text)', 'Ocena ZGODNY niemożliwa', 1)
+    ('public.zkp_close_test_protocol(bigint,text,text,text,text)', 'Ocena ZGODNY niemożliwa', 1),
+    -- 20261128000200: okucia i wypełnienia dopiero po potwierdzeniu zakresu (runda 8)
+    ('public.zkp_save_card_hardware(bigint,text,text,text,integer,text,bigint)', 'testy 28.11 (runda 8, ZKP): jak w zkp_record_card_stage', 1),
+    ('public.zkp_save_card_filling(bigint,text,text,text,numeric,text,bigint)', 'testy 28.11 (runda 8, ZKP): jak w zkp_record_card_stage', 1)
 ),
 funkcje as (
   select z.fn, z.marker, z.minimum, to_regprocedure(z.fn) as foid from znaczniki z
