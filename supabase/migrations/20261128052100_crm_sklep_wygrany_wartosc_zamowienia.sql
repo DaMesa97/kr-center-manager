@@ -21,6 +21,7 @@
 --     (synchronizacja co 15 min) — kwota „razem” z maila, też nadpisująca; potem i tak poprawi ją Baselinker.
 --     Zadania: handlowe zamykają się, pomiar / montaż / reklamacja / „dopytaj” zostają (jak w pkt 2); przy nietypowej
 --     adnotacji „dopytaj” dostaje termin na dziś (jak dotąd).
+--     Uprawnienia tej funkcji porządkuje osobny plik 20261128052300 (D37).
 --  4) trigger na crm.zamowienia_sklep reaguje też na zmianę kwoty potwierdzonego zamówienia (edycja w Baselinkerze) —
 --     tylko przeliczenie wartości klienta „wygrany”, bez zmiany statusu.
 --  5) jednorazowo: przeliczenie wartości wszystkich klientów „wygrany” z potwierdzonym zamówieniem sklepowym
@@ -176,7 +177,8 @@ begin
 end;
 $function$;
 
-revoke all on function crm.zamowienie_sklepowe_wygrany(uuid) from public, anon, authenticated;
+-- uprawnienia bez zmian (create or replace zachowuje dotychczasowe); odebranie EXECUTE zalogowanym + trigger na
+-- crm.maile jako SECURITY DEFINER: plik 20261128052300 (D37)
 
 create or replace function crm.zamowienia_sklep_wygrany_tg()
  returns trigger
