@@ -26,7 +26,7 @@ import {
   mergeAluPositionEvent,
 } from '../../lib/aluStation'
 import { aluStageDone } from '../../lib/alu'
-import { aluDoneSeen, rpcMarkAluStage } from '../../lib/aluStageRpc'
+import { aluDoneSeen, rpcMarkAluStage, rpcUndoAluStage } from '../../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../../constants'
 import type { AluPosition, AluPositionStages, Complaint, Order, WorkerStage } from '../../types'
 import { CAT_COLORS } from './mobileKategorie'
@@ -526,10 +526,13 @@ export default function MobileStationView({ userId }: Props) {
       if (task.alu) {
         // cofnięcie JEDNEJ sztuki — baza odmówi, gdy następny etap już ją „zużył”
         const info = task.alu
-        const { data, error } = await supabase.rpc('undo_alu_position_stage', {
-          p_position_id: info.positionId,
-          p_stage_key: task.stageKey,
-        })
+        const livePos = (aluPositions[task.order.id ?? -1] ?? []).find((p) => p.id === info.positionId)
+        // runda 11: liczba widziana przy kliknięciu — ponowienie po zgubionej odpowiedzi nie cofnie drugiej sztuki
+        const { data, error } = await rpcUndoAluStage(
+          info.positionId,
+          task.stageKey,
+          livePos ? aluDoneSeen(livePos.production_stages, task.stageKey) : null,
+        )
         if (!mountedRef.current) return
         if (error) {
           flash(`Nie cofnięto sztuki: ${error.message}`, true)

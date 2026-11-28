@@ -542,6 +542,7 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 48. ⏳ `supabase/migrations/20261128021400_anon_bez_tabel.sql` — razem z D1 (`234000`), samodzielny
 49. ⏳ `supabase/migrations/20261128021500_excel_zla_data_nie_wywraca_paczki.sql` — po `20261127223000`; Edge `excel-sync` do wdrożenia razem
 50. ⏳ `supabase/migrations/20261128021600_numeracja_bez_obcinania_lpad.sql` — **przed setną umową w roku** (licznik 2026 = 71)
+51. ⏳ `supabase/migrations/20261128022000_alu_cofniecie_oczekiwana_liczba_sztuk.sql` (jak 43; aplikacja bez niej działa jak dotąd)
 Po wgraniu: `scripts/kontrola-po-wdrozeniu.sql` (pusty wynik = OK). Próba generalna (runda 5): pliki do 233500 przechodzą razem w kolejności nazw, w jednej transakcji. Twarde zależności: 232000+232200 przed 232300; 232100 po 232000; 233100 po 233000; 233300 po 233200; 234400 po 233000.
 Pliki 225000, 232200 i 232700 zmienione w rundzie 4 (nadal niewgrane). 232000 + 232200 + 232300 wgrywać razem.
 Pliki 3–7 zostały w rundzie 3 poprawione (nadal niewgrane). Funkcje Edge 8–10 mają w rundzie 3 kolejne zmiany w repo — wgrywać najnowszą wersję z repo.

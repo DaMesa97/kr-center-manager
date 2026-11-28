@@ -5,7 +5,7 @@ import { markLocalStageWrite } from '../lib/stageWrites'
 import { clearStageLocally, stationUndoMessage, undoStationTask } from '../lib/stationUndo'
 import { ALL_STATION_CATEGORIES, fetchAluPositionsByOrder, fetchStationOrders } from '../lib/stationFetch'
 import { applyAluPositionStages, mergeAluPositionEvent } from '../lib/aluStation'
-import { aluDoneSeen, rpcMarkAluStage } from '../lib/aluStageRpc'
+import { aluDoneSeen, rpcMarkAluStage, rpcUndoAluStage } from '../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../constants'
 import { parseProductionStages } from '../utils'
 import type { AluPosition, AluPositionStages, Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
@@ -354,10 +354,12 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
     async (task: MyTask): Promise<boolean> => {
       const info = task.alu
       if (!info) return false
-      const { data, error } = await supabase.rpc('undo_alu_position_stage', {
-        p_position_id: info.positionId,
-        p_stage_key: task.stageKey,
-      })
+      const livePos = (aluPositionsByOrder[task.order.id ?? -1] ?? []).find((p) => p.id === info.positionId)
+      const { data, error } = await rpcUndoAluStage(
+        info.positionId,
+        task.stageKey,
+        livePos ? aluDoneSeen(livePos.production_stages, task.stageKey) : null,
+      )
       if (error) {
         pushToast(`Nie cofnięto sztuki: ${error.message}`, 'error')
         return false
@@ -366,7 +368,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       pushToast(`Cofnięto sztukę: ${task.stageHeader}, pozycja ${info.posNo}`, 'success')
       return true
     },
-    [pushToast],
+    [pushToast, aluPositionsByOrder],
   )
 
   const handleStageUndo = useCallback(

@@ -18,3 +18,12 @@ export async function rpcMarkAluStage(positionId: number, stageKey: string, init
   if (res.error?.code === 'PGRST202') return supabase.rpc('mark_alu_position_stage', base)
   return res
 }
+
+/** Cofnięcie sztuki z tą samą ochroną (migracja 20261128022000; bez niej — jak dotąd). */
+export async function rpcUndoAluStage(positionId: number, stageKey: string, expectedDone: number | null) {
+  const base = { p_position_id: positionId, p_stage_key: stageKey }
+  if (expectedDone == null) return supabase.rpc('undo_alu_position_stage', base)
+  const res = await supabase.rpc('undo_alu_position_stage', { ...base, p_expected_done: expectedDone })
+  if (res.error?.code === 'PGRST202') return supabase.rpc('undo_alu_position_stage', base)
+  return res
+}
