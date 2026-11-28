@@ -7,7 +7,7 @@
 //   bez_potencjalu  — nowy kontakt, zapytanie/klient z potencjałem 'nie': rozmowa / mail bez klienta (lista „Bez klienta”)
 //   bez_leada       — sprawa niesprzedażowa (status, dostawca, spam, inne) albo brak numeru: jak dotąd, bez klienta
 //
-// Nieodebrane połączenia z nieznanego numeru (index.ts, case 'nieodebrana') NIE przechodzą tędy — dalej zakładają klienta.
+// Nieodebrane połączenia z nieznanego numeru (index.ts, case 'nieodebrana') NIE przechodzą tędy — od 28.11 też nie zakładają klienta (właściciel).
 
 export type Potencjal = 'tak' | 'nie' | 'niepewny'
 export type DecyzjaLeada = 'istniejacy' | 'nowy' | 'bez_potencjalu' | 'bez_leada'
