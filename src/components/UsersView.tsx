@@ -3,7 +3,7 @@ import type { DbProfileRow, ToastVariant } from '../types'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 import { appAlert, appConfirm, appPrompt } from '../lib/appDialogs'
-import { zkpPinSetupFlow } from '../lib/zkpPin'
+import { ZKP_PIN_WLACZONY, zkpPinSetupFlow } from '../lib/zkpPin'
 import { setZkpPin } from '../lib/zkpPinRpc'
 import CrmAccessSection from './crm/CrmAccessSection'
 import { fetchAccountStatus, type AccountStatus } from '../hooks/useUsers'
@@ -175,7 +175,7 @@ export default function UsersView({
               Hasło
             </button>
             {/* D53: PIN podpisu etapów ZKP — administrator ustawia (pracownik potem zmienia sam: „PIN ZKP”) */}
-            {canDelete && (
+            {ZKP_PIN_WLACZONY && canDelete && (
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"

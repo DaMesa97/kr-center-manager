@@ -2,6 +2,10 @@
 // PIN sprawdza i przechowuje (hash bcrypt) wyłącznie baza; tu tylko podpowiedź przed wysłaniem.
 
 /** null = PIN poprawny w formie; inaczej komunikat dla pracownika. */
+/** 28.11 (właściciel: „PIN ZKP na razie wyjeb”): przyciski PIN schowane; baza wymaga PIN-u tylko przy
+ *  integration_settings.zkp_pin_wymagany = on (migracja 20261128041000). Włączenie: oba przełączniki. */
+export const ZKP_PIN_WLACZONY = false
+
 export function zkpPinProblem(pin: string): string | null {
   if (!/^[0-9]{4,8}$/.test(pin)) return 'PIN: od 4 do 8 cyfr'
   if (/^(.)\1*$/.test(pin)) return 'PIN nie może być jedną powtórzoną cyfrą'

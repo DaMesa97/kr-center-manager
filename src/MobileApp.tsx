@@ -9,7 +9,7 @@ import { can, isManagerRole } from './lib/permissions'
 import { canPickIntDoor } from './lib/orderPicks'
 import { filtrKategoriiNaTelefon, kategorieNaTelefon } from './components/mobile/mobileKategorie'
 import { useMobilePinAsk } from './components/mobile/useMobilePinAsk'
-import { zkpPinSetupFlow } from './lib/zkpPin'
+import { ZKP_PIN_WLACZONY, zkpPinSetupFlow } from './lib/zkpPin'
 import { fetchZkpPinStatus, setZkpPin } from './lib/zkpPinRpc'
 
 type SessionUser = { id: string; initials: string; role: string; department: string; categories: string[] }
@@ -230,15 +230,17 @@ export default function MobileApp() {
             : '🚛 Wysyłka'}
         </span>
         <span className="mpack-user">{user.initials}</span>
-        <button
-          type="button"
-          className="mpack-signout"
-          style={{ fontWeight: 700, fontSize: '0.8rem' }}
-          onClick={() => void handleZkpPin()}
-          title="Mój PIN do podpisu etapów ZKP"
-        >
-          PIN
-        </button>
+        {ZKP_PIN_WLACZONY && (
+          <button
+            type="button"
+            className="mpack-signout"
+            style={{ fontWeight: 700, fontSize: '0.8rem' }}
+            onClick={() => void handleZkpPin()}
+            title="Mój PIN do podpisu etapów ZKP"
+          >
+            PIN
+          </button>
+        )}
         <button type="button" className="mpack-signout" onClick={() => void handleSignOut()} title="Wyloguj">
           <LogOut size={18} />
         </button>

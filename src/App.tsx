@@ -97,6 +97,7 @@ import InternalDoorFiltersBar from './components/InternalDoorFiltersBar'
 import { useOrderPicks } from './hooks/useOrderPicks'
 import { canPick, canPickIntDoor } from './lib/orderPicks'
 import { zkpCanDisableOrderZkp } from './lib/aluDossier'
+import { ZKP_PIN_WLACZONY } from './lib/zkpPin'
 import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, isOptimaClosed, isOrderCancelled, matchesIntDoorFilter, summarizeItems, type IntDoorFilter, type ItemsSummary } from './lib/optimaRo'
 import { isOptimaImportedComponent } from './lib/internalWarehouse'
 import AluOrdersTable from './components/AluOrdersTable'
@@ -3201,10 +3202,10 @@ function App() {
           onSignOut={() => void handleSignOut()}
           pushToast={pushToast}
           showZkpPin={
-            isAdminRole(currentUser?.role) ||
+            ZKP_PIN_WLACZONY && (isAdminRole(currentUser?.role) ||
             currentUser?.role === 'manager' ||
             (currentUser?.zkp_roles ?? []).length > 0 ||
-            (currentUser?.categories ?? []).includes('Aluminium')
+            (currentUser?.categories ?? []).includes('Aluminium'))
           }
           currentUserIsAdmin={isAdminRole(currentUser?.role) || currentUser?.role === 'manager'}
         />
