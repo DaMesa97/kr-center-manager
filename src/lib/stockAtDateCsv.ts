@@ -1,3 +1,4 @@
+import { csvCell } from './csvCell'
 // Eksport „Stan na dzień” (zgłoszenie #59) do CSV otwieranego wprost w Excelu:
 // średnik jako separator i przecinek dziesiętny (polskie ustawienia regionalne),
 // BOM na początku, żeby Excel poprawnie odczytał polskie znaki (UTF-8).
@@ -14,10 +15,7 @@ export type StockAtDateRow = {
 /** Najwcześniejszy dzień, od którego stan = suma ruchów (stany wyzerowano bez ruchu korygującego ok. 29.09; testowe WZ z września). */
 export const STOCK_HISTORY_RELIABLE_FROM = '2026-09-30'
 
-const cell = (v: unknown): string => {
-  const s = v == null ? '' : String(v)
-  return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
+const cell = csvCell // wspólna komórka z ochroną przed formułami Excela (runda 10)
 
 const qty = (v: number | string | null): string => {
   const n = Number(v)

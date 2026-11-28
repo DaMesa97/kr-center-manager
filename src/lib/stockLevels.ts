@@ -5,6 +5,7 @@
 // sortowanie „najpierw braki” i CSV braków. Testy: __tests__/stockLevels.test.ts
 // =====================================================================
 import type { StockLevel, StockLevelRow, StockMinSource } from '../types'
+import { csvCell } from './csvCell'
 
 export const STOCK_LEVEL_ORDER: StockLevel[] = ['critical', 'covered', 'low', 'ok', 'inactive']
 
@@ -190,10 +191,7 @@ export function parseMinInput(raw: string): number | null | 'invalid' {
 }
 
 // ── CSV braków — gotowa lista zakupów ────────────────────────────────
-const cell = (v: unknown): string => {
-  const s = v == null ? '' : String(v)
-  return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
+const cell = csvCell // wspólna komórka z ochroną przed formułami Excela (runda 10)
 const qty = (v: number | null | undefined): string => {
   const n = Number(v)
   if (v == null || !Number.isFinite(n)) return ''
