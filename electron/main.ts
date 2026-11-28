@@ -282,7 +282,12 @@ function setupPrinting(mainWin: BrowserWindow) {
       args: { html: string; deviceName?: string; copies?: number; widthMm?: number; heightMm?: number },
     ) => {
       const { html, deviceName, copies = 1, widthMm, heightMm } = args
-      const printWin = new BrowserWindow({ show: false, webPreferences: { offscreen: false } })
+      // runda 9: HTML szablonu bez skryptów i bez dostępu do sesji programu (osobna partycja, sandbox);
+      // druk i printToPDF nie potrzebują JS
+      const printWin = new BrowserWindow({
+        show: false,
+        webPreferences: { offscreen: false, javascript: false, sandbox: true, partition: 'druk' },
+      })
       // Plik tymczasowy zamiast URL-a data: — data: ma limit ~2 MB w Chromium,
       // przez co deklaracje PDF (obrazy stron) ładowały się po cichu donikąd
       // i drukowała się tylko etykieta QR (zgłoszenie Tymka, Tura Druku)
@@ -362,7 +367,12 @@ function setupPrinting(mainWin: BrowserWindow) {
     'print:exportPdf',
     async (_e, args: { html: string; defaultName?: string }) => {
       const { html, defaultName = 'wydruk' } = args
-      const printWin = new BrowserWindow({ show: false, webPreferences: { offscreen: false } })
+      // runda 9: HTML szablonu bez skryptów i bez dostępu do sesji programu (osobna partycja, sandbox);
+      // druk i printToPDF nie potrzebują JS
+      const printWin = new BrowserWindow({
+        show: false,
+        webPreferences: { offscreen: false, javascript: false, sandbox: true, partition: 'druk' },
+      })
       const tmpHtml = path.join(os.tmpdir(), `krpdf_${Date.now()}_${Math.floor(Math.random() * 1e6)}.html`)
       try {
         writeFileSync(tmpHtml, html, 'utf8')
