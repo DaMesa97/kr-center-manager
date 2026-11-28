@@ -20,6 +20,15 @@ export const SLOWNIK = `Słownik branżowy (ważne, żeby nie pomylić danych):
 /** Zasada właściciela (2026-11-15): klient z montażem z woj. śląskiego dostaje wstępną ofertę i pomiar, nie pytania o wymiary. */
 export const ZASADA_POMIARU = `Zasada firmy (montaż na Śląsku): jeśli klient chce montażu od nas i jest z województwa śląskiego (np. Rybnik, Żory, Wodzisław, Jastrzębie, Katowice, Gliwice, Tychy, Siemianowice, Sosnowiec, Bielsko-Biała, Częstochowa, Racibórz, Mikołów i okolice), to wymiar otworu, rozmiar skrzydła, kierunek otwierania, rodzaj ościeżnicy ani zdjęcia otworu NIE są brakami blokującymi: przygotowujemy wstępną ofertę na podstawie tego, czego klient szuka, i umawiamy pomiar u klienta (to nasza robota). Wtedy: tych pozycji NIE wpisuj do \`brakuje\`; jeśli wiadomo przynajmniej, jakiego rodzaju drzwi klient chce, \`nastepna_akcja\` = przygotuj_oferte (nie dopytaj); do \`ustalenia_z_rozmowy\` dopisz „umówić pomiar”. Dopytaj zostaje tylko, gdy nie wiadomo nawet, jakie drzwi (rodzaj/wzór) albo nie ma jak się skontaktować.`
 
+/** Zasada właściciela (28.11): „musimy umieć odróżnić coś, w czym jest potencjał sprzedażowy, od śmieci” — nowy kontakt
+ *  bez potencjału nie zakłada klienta w CRM (rozmowa / mail zostaje na liście „Bez klienta”). Logika: potencjal.ts. */
+export const ZASADA_POTENCJALU = `Potencjał sprzedażowy (pole \`potencjal\`; zasada firmy: kontakt bez potencjału NIE zakłada klienta w CRM, zostaje na liście „bez klienta”):
+- tak — jest realna chęć zakupu: klient prosi o ofertę/wycenę, termin, pomiar, montaż albo kontakt zwrotny, zostawia dane (nazwisko, e-mail, adres), ma konkretną potrzebę i chce iść dalej; także obecny klient wracający w sprawie oferty lub zamówienia i każda reklamacja;
+- nie — brak szans na sprzedaż: klient wprost zrezygnował albo nie chce oferty; odmówił podania danych i kontaktu (np. nie chce wyceny na maila ani telefonu); pomyłka, zły numer; pyta o produkt lub usługę, których nie sprzedajemy; sprzedawca, dostawca, ankieta, reklama, spam; rozmowa czysto informacyjna bez żadnej chęci zakupu;
+- niepewny — nie da się tego ocenić (np. rozmowa urwana, klient „zastanowi się”, ale nie odmówił kontaktu). W razie wątpliwości wybierz niepewny, nie nie.
+Przykład „nie”: klientka szuka drzwi wewnętrznych od ręki, słyszy, że od ręki są tylko białe, rezygnuje, nie podaje danych i odmawia wyceny na maila → potencjal: nie, powod_braku_potencjalu: „chciała drzwi wewnętrzne od ręki w innym kolorze niż biały, zrezygnowała i odmówiła wyceny”.
+\`powod_braku_potencjalu\`: przy „nie” jedno krótkie zdanie, dlaczego (bez nazwisk i numerów); przy „tak” i „niepewny” pusty tekst. Przy „nie” \`nastepna_akcja\` = brak.`
+
 export const SCHEMA_ANALIZA = {
   type: 'object',
   properties: {
@@ -70,9 +79,16 @@ export const SCHEMA_ANALIZA = {
       description: 'indywidualny = osoba prywatna do własnego domu/mieszkania; firma = działalność kupuje do swojej siedziby/lokalu; inwestycja = deweloper, wspólnota, generalny wykonawca, budynek wielorodzinny lub kilka sztuk do jednej budowy; pusty, gdy nie wiadomo' },
     cena_orientacyjna: { type: 'number',
       description: 'Cena brutto w złotych, którą HANDLOWIEC podał klientowi w tej rozmowie / mailu / notatce (orientacyjna, „około”, „wyjdzie jakieś”); przy kilku pozycjach suma; z dostawą, jeśli handlowiec ją doliczył. 0, gdy handlowiec żadnej ceny nie podał (sam budżet klienta to nie cena)' },
+    potencjal: { type: 'string', enum: ['tak', 'nie', 'niepewny'],
+      description: 'Czy jest potencjał sprzedażowy. tak = realna chęć zakupu (prosi o ofertę, termin, pomiar, kontakt, zostawia dane, konkretna potrzeba); '
+        + 'nie = zrezygnował / nie chce oferty / odmówił danych i kontaktu, pomyłka, produkt spoza oferty, sprzedawca/dostawca/spam, rozmowa czysto informacyjna bez chęci zakupu; '
+        + 'niepewny = nie wiadomo (w razie wątpliwości niepewny)' },
+    powod_braku_potencjalu: { type: 'string',
+      description: 'Przy potencjal = nie: jedno krótkie zdanie, dlaczego (bez nazwisk i numerów); przy tak / niepewny pusty tekst' },
   },
   required: ['typ', 'nazwa', 'miejscowosc', 'email', 'telefon', 'kategoria', 'potrzeba', 'dane', 'brakuje',
-    'ustalenia_z_rozmowy', 'podsumowanie', 'nastepna_akcja', 'rodzaj_klienta', 'cena_orientacyjna'],
+    'ustalenia_z_rozmowy', 'podsumowanie', 'nastepna_akcja', 'rodzaj_klienta', 'cena_orientacyjna',
+    'potencjal', 'powod_braku_potencjalu'],
   additionalProperties: false,
 } as const
 
@@ -87,6 +103,9 @@ export type Analiza = {
   rodzaj_klienta: 'indywidualny' | 'firma' | 'inwestycja' | ''
   /** 24.11: cena orientacyjna podana klientowi przez handlowca (zł brutto); 0 = nie padła → leady.wartosc_wstepna */
   cena_orientacyjna?: number
+  /** 28.11: potencjał sprzedażowy; nowy kontakt z „nie” nie zakłada klienta (potencjal.ts). Starsze analizy bez pola. */
+  potencjal?: 'tak' | 'nie' | 'niepewny'
+  powod_braku_potencjalu?: string
 }
 
 /** Cena orientacyjna z analizy jako liczba do leady.wartosc_wstepna; null, gdy nie padła albo bzdura. */
@@ -115,6 +134,7 @@ export function systemAnalizy(): string {
     + 'Nie wymyślaj zadań: rozmowa, w której klient tylko się dopytywał i rozłączył się bez prośby o ofertę, termin czy kontakt, kończy się akcją `brak` — handlowiec nie ma do kogo i o co dzwonić. `dopytaj` jest dla klienta, który chce kupić, ale czegoś nie podał. '
     + '`rodzaj_klienta`: indywidualny / firma / inwestycja wg tego, co padło (deweloper, wspólnota, wykonawca, kilka sztuk do jednej budowy = inwestycja); pusty, gdy nie wiadomo. '
     + 'W `dane.montaz` wpisz, czy klient chce montażu od nas (np. „z montażem”, „bez montażu, sam zamontuje”).\n\n'
+    + ZASADA_POTENCJALU + '\n\n'
     + ZASADA_POMIARU + '\n\n' + SLOWNIK
 }
 
@@ -165,6 +185,9 @@ export function systemAnalizyMaila(): string {
     + 'Zdjęcia i PDF-y w załącznikach widzisz tylko z nazwy: jeśli klient pisze, że wysyła wymiary/zdjęcia, zapisz to w ustaleniach, nie zgaduj ich treści. '
     + '`rodzaj_klienta`: indywidualny / firma / inwestycja wg treści i stopki (deweloper, wspólnota, wykonawca, kilka sztuk do jednej budowy = inwestycja); pusty, gdy nie wiadomo. '
     + 'W `dane.montaz` wpisz, czy klient chce montażu od nas.\n\n'
+    + ZASADA_POTENCJALU + '\n'
+    + 'W mailu adres nadawcy już jest kontaktem: ktoś, kto pyta o drzwi, które sprzedajemy, i nie rezygnuje, ma potencjał tak albo niepewny; '
+    + 'nie dawaj „nie” tylko dlatego, że nie podał telefonu ani nazwiska. Formularz ze strony z pytaniem o drzwi = tak albo niepewny.\n\n'
     + ZASADA_POMIARU + '\n\n' + SLOWNIK
 }
 
@@ -211,6 +234,7 @@ export function systemAnalizyNotatki(): string {
     + '`ustalenia_z_rozmowy`: to, co handlowiec ustalił z klientem i do czego mail ma nawiązać (np. wizyta w salonie, obejrzany wzór, '
     + 'obiecany pomiar, termin). `nazwa`, `miejscowosc`, `email`, `telefon`: tylko jeśli są w notatce (dane klienta z bazy już znamy). '
     + '`rodzaj_klienta`: indywidualny / firma / inwestycja wg notatki; pusty, gdy nie wiadomo. '
+    + '`potencjal` = tak (handlowiec zlecił ofertę), `powod_braku_potencjalu` pusty. '
     + 'W `dane.montaz` wpisz, czy klient chce montażu od nas.\n\n'
     + ZASADA_POMIARU + '\n\n' + SLOWNIK
 }
