@@ -22,7 +22,7 @@ type UseShippingParams = {
 function passesShippingFilter(o: Order): boolean {
   const extra = o.extra_fields as Record<string, unknown> | null
   if (extra?.cancelled === true) return false
-  if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
+  if (!isReleaseDateEmpty(o.release_date)) return false
   return true
 }
 
@@ -138,7 +138,7 @@ export function useShipping({
     const filtered = (ordersRes.data ?? []).filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
       if (extra?.cancelled === true) return false
-      if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
+      if (!isReleaseDateEmpty(o.release_date)) return false
       return true
     }) as Order[]
 

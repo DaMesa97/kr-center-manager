@@ -630,7 +630,7 @@ export function isOrderReadyToInvoice(order: Order): boolean {
 export function autoSuggestReadyToInvoice(order: Order): boolean {
   const { percent, total } = countCompletedStages(order)
   if (percent === 100 && total > 0) return true
-  if (order.release_date && !isReleaseDateEmpty(order.release_date)) return true
+  if (!isReleaseDateEmpty(order.release_date)) return true
   return false
 }
 
@@ -1135,7 +1135,7 @@ export function getOrderAgeStatus(
 ): OrderAgeStatus {
   const extra = order.extra_fields as Record<string, unknown> | null
   if (extra?.cancelled === true) return 'ok'
-  if (order.release_date && !isReleaseDateEmpty(order.release_date)) return 'ok'
+  if (!isReleaseDateEmpty(order.release_date)) return 'ok'
 
   const days = getDaysElapsed(order)
 

@@ -73,7 +73,7 @@ export function isMarklowickaOrder(order: Order): boolean {
 }
 
 export function deskWarehouseState(order: Order): DeskWarehouseState {
-  const released = !!order.release_date && !isReleaseDateEmpty(order.release_date)
+  const released = !isReleaseDateEmpty(order.release_date)
   if (isMarklowickaOrder(order)) {
     return released
       ? { packed: true, source: 'wydanie', label: `Przekazane z Marklowickiej na Bukową ${fmtDay(order.release_date)}` }

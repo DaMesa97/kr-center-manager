@@ -163,7 +163,7 @@ export default function MobileOrdersView({ canPickItems = false, initials = '' }
     const active = all.filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
       if (extra?.cancelled === true) return false
-      if (o.release_date && !isReleaseDateEmpty(o.release_date)) return false
+      if (!isReleaseDateEmpty(o.release_date)) return false
       // RO zrealizowane / zamknięte w Optimie (tysiące z importu) — jak na komputerze, poza listą
       if (isOptimaClosed(o)) return false
       return true
