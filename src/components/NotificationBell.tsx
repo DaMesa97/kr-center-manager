@@ -11,6 +11,8 @@ type Props = {
 const TYPE_ICON: Record<string, React.ReactNode> = {
   review: <ClipboardCheck size={15} />,
   stock: <AlertTriangle size={15} />,
+  // runda 8: trigger stock_critical_notify zapisuje typ 'stock_critical' (dotąd bez ikony)
+  stock_critical: <AlertTriangle size={15} />,
   complaint: <MessageSquare size={15} />,
   overdue: <Package size={15} />,
   // RO w Optimie nie powstało (trigger notify_erp_error)
@@ -85,10 +87,12 @@ export default function NotificationBell({ currentUserId, onNavigate }: Props) {
   }, [open])
 
   const markAllRead = async () => {
-    const unreadIds = items.filter((n) => !n.is_read).map((n) => n.id)
-    if (unreadIds.length === 0) return
+    if (!currentUserId) return
     setItems((prev) => prev.map((n) => ({ ...n, is_read: true })))
-    await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds)
+    // runda 8 (tester powiadomień): oznaczało tylko 30 wczytanych — starsze (np. 4,5 tys.) zostawały nieprzeczytane
+    // i niewidoczne na zawsze. Teraz wszystkie nieprzeczytane tego użytkownika (RLS: tylko swoje).
+    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('user_id', currentUserId).eq('is_read', false)
+    if (error) void fetchNotifications()
   }
 
   const handleClick = async (n: AppNotification) => {
