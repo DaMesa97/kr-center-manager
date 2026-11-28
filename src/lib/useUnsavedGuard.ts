@@ -104,8 +104,11 @@ export function useUnsavedGuard<T>(value: T, onClose: () => void, options: Optio
   const isDirty = useCallback(() => snapshot(latestRef.current) !== initialRef.current, [])
 
   // modal trzymany w drzewie na stałe przekazuje `escape: open` — zamknięty nie liczy się jako niezapisany
-  const aktywnyRef = useRef(enabled && (open ?? escape))
-  aktywnyRef.current = enabled && (open ?? escape)
+  // runda 10 (tester telefonu / sesji): `enabled: !saving` wyłączało też pytanie przy zamykaniu programu i przed
+  // instalacją aktualizacji — zamknięcie W TRAKCIE wieloetapowego zapisu przechodziło bez słowa. `enabled` dotyczy
+  // tylko zamykania samego okna formularza; przy zamykaniu programu liczy się, czy dane są jeszcze niezapisane.
+  const aktywnyRef = useRef(open ?? escape)
+  aktywnyRef.current = open ?? escape
   useEffect(() => zarejestrujNiezapisane(() => aktywnyRef.current && isDirty()), [isDirty])
 
   const markSaved = useCallback(() => {
