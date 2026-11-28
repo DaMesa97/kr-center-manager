@@ -856,7 +856,9 @@ export function useConfig({
     if (!(await appConfirm('Usunąć ten wymiar ze słownika? Formularze przestaną go podpowiadać.', { confirmLabel: 'Usuń' }))) return
     setGlobalLoading(true)
     try {
-      await supabase.from('dimension_map').delete().eq('id', id)
+      // runda 8: błąd usuwania był ignorowany (wymiar „znikał” dopiero po odświeżeniu — albo wracał)
+      const { error } = await supabase.from('dimension_map').delete().eq('id', id)
+      if (error) pushToast(`Nie usunięto wymiaru: ${error.message}`, 'error')
       void fetchDimensionMap()
     } finally {
       setGlobalLoading(false)

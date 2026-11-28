@@ -109,7 +109,9 @@ export default function LabelTemplatesEditor({ isManager, pushToast }: Props) {
       }
       // jeśli ustawiamy domyślny — zdejmij domyślny z innych w tej kategorii
       if (form.is_default) {
-        await supabase.from('label_templates').update({ is_default: false }).eq('category', form.category)
+        // runda 8: błąd tego kroku był ignorowany — kategoria mogła zostać z dwoma domyślnymi szablonami
+        const { error: eDom } = await supabase.from('label_templates').update({ is_default: false }).eq('category', form.category)
+        if (eDom) { pushToast(`Nie zdjęto znacznika „domyślny” z innych szablonów: ${eDom.message}`, 'error'); return }
       }
       const { error } =
         form.id != null
