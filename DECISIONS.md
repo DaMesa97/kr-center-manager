@@ -3,6 +3,18 @@
 Plik prowadzony na bieżąco w nocy. Każdy punkt: problem → opcje → rekomendacja → pilność → praca.
 Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, niewypchnięte). Pliki migracji bazy są w `supabase/migrations/` i **nic z nich nie jest wgrane** — lista i kolejność: `TESTING_LOG.md`, sekcja „Migracje do wdrożenia”.
 
+## Odpowiedzi właściciela (Excel Decyzje_TAK_NIE.xlsx, 28.11 ok. 12:00) — stan wykonania
+- **Do wdrożenia na produkcji — czeka na potwierdzenie w czacie** (wgranie zablokowało zabezpieczenie sesji): D1 TAK (od razu), D3 TAK (gdy nikt nie pracuje), D4 TAK (po D3, „tnij”), D39 TAK, D70 TAK (w pakiecie D3), D6 TAK (w pakiecie D3). Przed wgraniem D1 sprawdzono dzienniki z 24 h: publiczny klucz używały tylko nocne testy i wygasłe sesje (401) — nic legalnego.
+- **D2 TAK** — robi właściciel w panelu Supabase.
+- **D5** — właściciel pyta, jakie ramy: ST 5624 i ST 5644 — RAMA KR 68 P15 200 C/90/ANTRACYT/80N/P (po 1 szt.); ST 5625 — …/ZŁOTY DĄB/90E/P (1); ST 5645 — …/ANTRACYT/90E/P (1); ST 5648 — …/ANTRACYT/100E/L (3); wszystkie BUKOWA. Odpowiedź TAK/NIE nadal otwarta.
+- **D42** — właściciel nie rozumie pytania; wyjaśnione prościej w czacie, odpowiedź otwarta.
+- **D44** — właściciel pyta, czy chodzi o Disting Plus: tak (nogi Disting par Disting Plus). Odpowiedź otwarta.
+- **D63** — do ustalenia, telefonów na hali jeszcze nie ma.
+- **D8** — doprecyzowanie: „tylko rezerwacja na Disting Plus skrzydła musi je ściągać z magazynu Marklowicka” → w toku (interpretacja do potwierdzenia przed wgraniem).
+- **Fakty**: D12 TAK (ceny tajne dla hali i magazynu) · D57 TAK (zlecenia mieszane się zdarzają → ZKP na poziomie pozycji) · D31 NIE (magazynier nie planuje tras) · D32 NIE („90E” to inny wymiar niż „90” — nie ujednolicać) · D25 TAK (data zamiast „X” w Excelu) · D34 NIE (Techniczne: stare zamykamy ręcznie, wydanie nie z Excela) · D68 TAK (tabele migracja_* do usunięcia po kopii) · D36 TAK (właściciel uzupełni adres webhooka „Ponów do Optimy”).
+- **Wybory TAK (w toku, gałęzie decyzje-*)**: D7, D9, D10, D11, D13, D14, D15, D16, D17, D18, D19, D20, D21, D22+D64, D26, D30, D41, D43, D52, D53, D54, D58, D59, D62, D66.
+- **Bez odpowiedzi (właściciel jeszcze myśli)**: D23, D24, D27, D28, D29, D33, D35, D37, D38, D40, D45, D46, D47, D48, D49, D50, D51, D55, D56, D60, D61, D65, D67, D69.
+
 ## Podsumowanie (5 minut przy kawie)
 
 ### Pilne
