@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { fetchAllPages } from '../lib/fetchPaged'
 import { ALU_STAGE_DEFS, ORDER_DOCUMENTS_BUCKET } from '../constants'
 import { applyAluPositionStages } from '../lib/aluStation'
+import { aluDoneSeen, rpcMarkAluStage } from '../lib/aluStageRpc'
 import type { AluMaterialListParseResult } from '../lib/aluMaterialListParser'
 import type {
   AluPositionStages,
@@ -642,11 +643,13 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
       const orderId = orderIdOfPosition(positionId)
       setAluStageBusyOrderId(orderId)
       try {
-        const { data, error } = await supabase.rpc('mark_alu_position_stage', {
-          p_position_id: positionId,
-          p_stage_key: stageKey,
-          p_initials: (initials ?? '').trim() || 'T',
-        })
+        const pos = orderId != null ? (aluPositionsByOrder[orderId] ?? []).find((p) => p.id === positionId) : undefined
+        const { data, error } = await rpcMarkAluStage(
+          positionId,
+          stageKey,
+          (initials ?? '').trim() || 'T',
+          pos ? aluDoneSeen(pos.production_stages, stageKey) : null,
+        )
         if (error) {
           pushToast(`Nie oznaczono sztuki: ${error.message}`, 'error')
           return false
@@ -658,7 +661,7 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
         setAluStageBusyOrderId(null)
       }
     },
-    [orderIdOfPosition, pushToast, touchSession],
+    [orderIdOfPosition, pushToast, touchSession, aluPositionsByOrder],
   )
 
   const undoAluPiece = useCallback(

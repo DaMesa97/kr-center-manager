@@ -5,6 +5,7 @@ import { markLocalStageWrite } from '../lib/stageWrites'
 import { clearStageLocally, stationUndoMessage, undoStationTask } from '../lib/stationUndo'
 import { ALL_STATION_CATEGORIES, fetchAluPositionsByOrder, fetchStationOrders } from '../lib/stationFetch'
 import { applyAluPositionStages, mergeAluPositionEvent } from '../lib/aluStation'
+import { aluDoneSeen, rpcMarkAluStage } from '../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../constants'
 import { parseProductionStages } from '../utils'
 import type { AluPosition, AluPositionStages, Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
@@ -325,11 +326,13 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       const info = task.alu
       if (!info) return false
       const mark = (markInitials ?? currentUser?.initials ?? '').trim() || 'T'
-      const { data, error } = await supabase.rpc('mark_alu_position_stage', {
-        p_position_id: info.positionId,
-        p_stage_key: task.stageKey,
-        p_initials: mark,
-      })
+      const livePos = (aluPositionsByOrder[task.order.id ?? -1] ?? []).find((p) => p.id === info.positionId)
+      const { data, error } = await rpcMarkAluStage(
+        info.positionId,
+        task.stageKey,
+        mark,
+        livePos ? aluDoneSeen(livePos.production_stages, task.stageKey) : info.done,
+      )
       if (error) {
         pushToast(`Nie oznaczono sztuki: ${error.message}`, 'error')
         return false
@@ -344,7 +347,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       )
       return true
     },
-    [pushToast, currentUser?.initials],
+    [pushToast, currentUser?.initials, aluPositionsByOrder],
   )
 
   const handleAluStageUndo = useCallback(

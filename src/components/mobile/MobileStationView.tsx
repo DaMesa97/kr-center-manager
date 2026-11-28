@@ -26,6 +26,7 @@ import {
   mergeAluPositionEvent,
 } from '../../lib/aluStation'
 import { aluStageDone } from '../../lib/alu'
+import { aluDoneSeen, rpcMarkAluStage } from '../../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../../constants'
 import type { AluPosition, AluPositionStages, Complaint, Order, WorkerStage } from '../../types'
 import { CAT_COLORS } from './mobileKategorie'
@@ -352,11 +353,12 @@ export default function MobileStationView({ userId }: Props) {
     setSaving(true)
     try {
       const mark = (markInitials ?? myInitials).trim() || 'T'
-      const { data, error } = await supabase.rpc('mark_alu_position_stage', {
-        p_position_id: info.positionId,
-        p_stage_key: task.stageKey,
-        p_initials: mark,
-      })
+      const { data, error } = await rpcMarkAluStage(
+        info.positionId,
+        task.stageKey,
+        mark,
+        livePos ? aluDoneSeen(livePos.production_stages, task.stageKey) : info.done,
+      )
       if (!mountedRef.current) return
       if (error) {
         flash(`Nie oznaczono sztuki: ${error.message}`, true)
