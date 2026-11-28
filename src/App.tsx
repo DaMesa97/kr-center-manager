@@ -3823,6 +3823,7 @@ function App() {
                 loading={shippingOrdersLoading}
                 canInvoice={can(currentUser?.role, 'shipping.invoice')}
                 canShip={isManager}
+                canPlanRoutes={can(currentUser?.role, 'shipping.routes')}
                 userLabel={currentUser?.full_name || currentUser?.initials || ''}
                 onRefresh={() => void fetchShippingOrders()}
                 onShowDetails={handleOpenShippingOrder}

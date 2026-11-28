@@ -41,6 +41,7 @@ export type Permission =
   | 'comments.write'
   | 'shipping.view'
   | 'shipping.invoice'     // „gotowe do fakturowania"
+  | 'shipping.routes'      // D31: planowanie tras (Dodaj do trasy / Odepnij) — nie magazynier
   | 'prices.view'          // wartość konfiguratora / ceny
   | 'warehouse.movements'  // stany + PZ/MM
   | 'warehouse.manage'     // komponenty + receptury
@@ -67,7 +68,7 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
 
   [R.KIER_DZIALU]: [
     'orders.view', 'orders.create', 'orders.edit', 'orders.release', 'stages.markAny',
-    'comments.write', 'shipping.view', 'shipping.invoice', 'prices.view',
+    'comments.write', 'shipping.view', 'shipping.routes', 'shipping.invoice', 'prices.view',
     'warehouse.movements', 'warehouse.manage', 'warehouse.ordering',
     'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
     'categories.scoped', // KD widzi tylko przypisane kategorie
@@ -76,7 +77,7 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
 
   [R.KIER_MAGAZYNU]: [
     'orders.view', 'orders.create', 'orders.edit', 'orders.release', 'stages.markAny',
-    'comments.write', 'shipping.view', 'prices.view',
+    'comments.write', 'shipping.view', 'shipping.routes', 'prices.view',
     'warehouse.movements', 'warehouse.manage', 'warehouse.ordering',
     'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
   ],
@@ -86,13 +87,13 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   // zgodności wstecznej, gdyby gdzieś ostało się stare konto.
   [R.KIER_PRODUKCJI]: [
     'orders.view', 'orders.create', 'orders.edit', 'orders.release', 'stages.markAny',
-    'comments.write', 'shipping.view', 'shipping.invoice', 'prices.view',
+    'comments.write', 'shipping.view', 'shipping.routes', 'shipping.invoice', 'prices.view',
     'warehouse.movements', 'warehouse.manage', 'warehouse.ordering',
     'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
   ],
   [R.KIER_FIRMOWY]: [
     'orders.view', 'orders.create', 'orders.edit', 'orders.release', 'stages.markAny',
-    'comments.write', 'shipping.view', 'shipping.invoice', 'prices.view',
+    'comments.write', 'shipping.view', 'shipping.routes', 'shipping.invoice', 'prices.view',
     'warehouse.movements', 'warehouse.manage', 'warehouse.ordering',
     'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
   ],

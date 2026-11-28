@@ -38,6 +38,8 @@ type Props = {
   canInvoice: boolean
   /** oznaczanie „Trasa wyjechała” (kierownik) */
   canShip: boolean
+  /** D31: „Dodaj do trasy” / „Odepnij” — planowanie tras (nie magazynier); domyślnie tak */
+  canPlanRoutes?: boolean
   userLabel: string
   onRefresh: () => void
   onShowDetails: (order: Order) => void
@@ -93,7 +95,7 @@ const todayIso = () => {
 }
 
 export default function LogisticsDeskView({
-  orders, releasedOrders, allOrders, companiesMap, loading, canInvoice, canShip, userLabel,
+  orders, releasedOrders, allOrders, companiesMap, loading, canInvoice, canShip, canPlanRoutes = true, userLabel,
   onRefresh, onShowDetails, onToggleReadyToInvoice, onPin, onMarkShipped,
 }: Props) {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs)
@@ -329,14 +331,16 @@ export default function LogisticsDeskView({
 
       <div className="ldesk-tools ldesk-noprint">
         <label className="ldesk-check"><input type="checkbox" checked={prefs.hideMarked} onChange={(e) => setPrefs((x) => ({ ...x, hideMarked: e.target.checked }))} /> Schowaj już oznaczone</label>
+        {canPlanRoutes && (
         <div className="ldesk-pin">
           <span className="ldesk-muted">Dodaj do trasy zlecenie nr</span>
           <input type="text" className="search-input" style={{ width: 110 }} placeholder="np. 7072" value={pin} onChange={(e) => { setPin(e.target.value); setPinHint(''); setPinChoices(null) }} onKeyDown={(e) => { if (e.key === 'Enter') void doPin() }} />
           <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !pin.trim()} onClick={() => void doPin()}>Dodaj do trasy</button>
           {pinHint && <span className="ldesk-muted">{pinHint}</span>}
         </div>
+        )}
       </div>
-      {pinChoices && (
+      {canPlanRoutes && pinChoices && (
         <div className="ldesk-pin-choices">
           <span>Numer {pin.trim()} ma kilka zleceń — które dodać?</span>
           {pinChoices.map((o) => {
@@ -423,7 +427,7 @@ export default function LogisticsDeskView({
                       <div><span className="ldesk-dl">UWAGI</span><span>{[notes, o.defects ? `braki: ${o.defects}` : ''].filter(Boolean).join(' · ') || '—'}</span></div>
                       <div className="ldesk-row__details-actions">
                         <button type="button" className="btn btn-sm btn-primary" onClick={() => onShowDetails(o)}>Otwórz zlecenie</button>
-                        {r.pinned && !r.shippedNow && <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void onPin(o, null)}>Odepnij od tej trasy</button>}
+                        {canPlanRoutes && r.pinned && !r.shippedNow && <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void onPin(o, null)}>Odepnij od tej trasy</button>}
                         {r.shippedNow && canShip && <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void onMarkShipped([o.id!], prefs.route, false)}>Cofnij wyjazd (zostało na hali)</button>}
                         {o.release_date && <span className="ldesk-muted">Wydanie z Excela: {fmtDayFull(o.release_date)}</span>}
                       </div>
