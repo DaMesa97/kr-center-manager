@@ -505,6 +505,19 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 19. **Odstąpienie od podpisanej umowy**: dziś trigger blokuje każdą zmianę podpisanej. Rekomendacja: dopuścić tylko „podpisana → anulowana” z potwierdzeniem, gdy będzie potrzebne.
 20. **Pliki PDF przy usuwaniu klienta** (RODO): dodać polityka DELETE / kasowanie w funkcji serwerowej? Rekomendacja: tak.
 
+## WDROŻENIE 28.11 (sobota ok. 12:00, decyzja właściciela „Tak, wgrywaj wszystko”)
+- Kopia bazy przed wgraniem: `C:\KRCenter-Backups\krcenter-2026-11-28-11-03-21.dump` (36,4 MB, pg_dump).
+- Sprawdzone przed D1: w dziennikach 24 h klucz publiczny (anon) używały tylko nocne testy i wygasłe sesje (401) — nic legalnego.
+- **Wgrane jedną transakcją (psql --single-transaction), 42 pliki** = pozycje 3–51 listy poniżej OPRÓCZ czterech wstrzymanych; na końcu ponownie `20261127234000` (D1). Próba generalna tego zestawu w transakcji cofniętej: 0 błędów plików.
+- **Wstrzymane (NIE wgrane)**:
+  - `20261127233100` (korekta 7 ram) — D5 = NIE: właściciel 28.11: „rama ma się wydawać w ST 68, tylko etap jest »nie dotyczy«, bo w ST nie frezujemy ościeżnicy na CNC” → ramy zeszły słusznie, błąd jest w recepturze (rama przypięta do etapu „oścież.”). Właściciel poprawi recepturę.
+  - `20261127233000` i `20261127235100` — przy obecnej recepturze zwracałyby ramy ST na stan przy „nie dotyczy”. Wgrać PO poprawie receptury (i po przeliczeniu rezerwacji otwartych zleceń ST).
+  - `20261127232800` (prognozy) — przerabiany wg D7 (wariant „orientacyjnie”).
+- Kontrola po wdrożeniu (`scripts/kontrola-po-wdrozeniu.sql`): 10 wierszy — wyłącznie znaczniki trzech wstrzymanych plików (cancel/restore/return_remaining, release_remaining, forecast, consumption_history). Oczekiwane.
+- Sprawdzenie D1: anon nie wykona `cancel_stage_reservations__impl`, nie czyta `orders`; authenticated wykonuje `update_order_stage` jak dotąd.
+- Funkcje Edge: `excel-sync` v16 → **v17** (repo HEAD; serwer v16 = repo z 24.11, różnica = poprawki nocne). Pierwszy przebieg Make dopiero w poniedziałek (ostatni piątek 20:00) — sprawdzić `excel_sync_runs`. `crm-oferta` — w toku (D39).
+- Aplikacja: **1.1.8 OPUBLIKOWANA** (gałąź `clean` przewinięta do nocnej i wypchnięta, tag v1.1.8 = 3da636b, `min_app_version` = 1.1.8 — wymuszona aktualizacja).
+
 ## Migracje do wdrożenia na produkcję
 1. ✅ już wgrane (regresja): `supabase/migrations/20261127221000_crm_bez_decyzji_po_wyniku_v2.sql`
 2. ✅ już wgrane (regresja): funkcja Edge `crm-mail-sent` v18 (kod w repo)
