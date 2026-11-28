@@ -533,6 +533,14 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 
 - **1.1.11 OPUBLIKOWANA** 28.11 (clean = tag v1.1.11 = 6fe3adc): Pulpit na całą szerokość ekranu.
 
+- **28.11 ok. 15:00 — porządki z Excela decyzji nr 2** (kopia przed: `C:/KRCenter-Backups/krcenter-2026-11-28-13-54-27.dump`):
+  - progi ST na montaż: `20261128042000` WGRANY (6 pozycji receptur „ST / Próg / …”, 98 zleceń przeliczonych, suma rezerwacji bez zmian, 0 WZ);
+  - `20261128043000` WGRANY: D44 — 5 nóg Disting anulowanych; D8 — 595 rezerwacji e3/e4 (697 szt.) zwolnionych bez WZ; spis #20 zamknięty bez rozliczania. Zarezerwowane 13 687,8 → 12 725,8 (−962 = 697 + 265), stan bez zmian, 0 WZ;
+  - D68: `20261128036001` WGRANY — tabele migracja_* usunięte (kopie w backupach);
+  - D20: 8 osieroconych PDF w crm-dokumenty usunięte przez API (0 zostało);
+  - **NIE zrobione mimo TAK (pkt 1, WZ ościeżnic dla 5 zleceń ST z montażem)**: zlecenia 4844, 4878, 4887, 4947 (VII–VIII) i 5407 (X) — montaż wpisany dopiero przy pierwszej synchronizacji etapów 24.11, fizycznie zrobione przed spisem 6.11 → WZ zdjąłby ościeżnice drugi raz. Pytanie wróciło do właściciela.
+  - PIN ZKP wyłączony: `20261128041000` (przełącznik integration_settings.zkp_pin_wymagany, domyślnie wyłączony) — w repo, DO WDROŻENIA z 1.1.12.
+
 ### Lista plików (dla porządku)
 Próba generalna 28.11 po południu: 28 plików poniżej (bez 036001 i 036200) razem w transakcji cofniętej na produkcji (już z pakietem z południa) — 0 błędów. Kontrola po wgraniu: `scripts/kontrola-decyzje-28-11.sql` (każde zapytanie: pusty wynik = OK).
 Kolejność = kolejność nazw:

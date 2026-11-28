@@ -15,6 +15,15 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 - **Wybory TAK — WGRANE 28.11 ok. 13:10 razem z aplikacją 1.1.9** (TESTING_LOG „Decyzje właściciela 28.11”); D9 tylko plan; D8 potwierdzone i wgrane; D25: data = zrobione z wydaniem materiału (potwierdzone): D7, D9, D10, D11, D13, D14, D15, D16, D17, D18, D19, D20, D21, D22+D64, D26, D30, D41, D43, D52, D53, D54, D58, D59, D62, D66.
 - **Bez odpowiedzi (właściciel jeszcze myśli)**: D23, D24, D27, D28, D29, D33, D35, D37, D38, D40, D45, D46, D47, D48, D49, D50, D51, D55, D56, D60, D61, D65, D67, D69.
 
+## Odpowiedzi właściciela — Excel nr 2 (Decyzje_TAK_NIE_2.xlsx, 28.11 po południu)
+- **Zrobione od razu (dane)**: progi ST na montaż; D8 zaległość (595 rez. zwolnione bez WZ); D44 (5 nóg anulowanych); D68 (tabele usunięte); spis #20 zamknięty; D20 (8 PDF usuniętych). Szczegóły: TESTING_LOG.
+- **ST montaż (pkt 1) — wstrzymane**: 5 zleceń z montażem zrobionym przed spisem 6.11 — WZ zdjąłby ościeżnice drugi raz; do ponownej decyzji.
+- **NIE**: D42 (zostaje próg wg dnia synchronizacji), D15 (bez WZ wstecz), D13 (drzwi wewn. poza „Do wysłania”), D17 bez akceptacji ofert i bez cofania przy anulowaniu w BL, D40 (drzwi wewnętrzne zawsze tylko z Optimy — bez ręcznych zleceń).
+- **W toku (gałęzie decyzje2-*)**: D9 (odejmować rezerwacje, cel 2× średnia), D65, D46, D8 (wydanie końcowe STA), D38, D47 (agregaty w bazie), D48, D49, D12 (obsługa klienta widzi ceny), D17 (wartość = kwota zamówienia), D19 (odstąpienie → przegrany), D23, D24, D37, D11 (kasować zaległe), D62 (zawężanie wszystkich ról z kategoriami), D27, D28, D29, D33, D35, D40, D50, D51, D52, D55, D56, D58 (tylko zwrot), D61, D60 (zmiana nazwy przenosi wszędzie, także receptury), D69, D67.
+- **Potwierdzone bez zmian**: D7 (średnia orientacyjna), D14, D16, D25 („XLS”), D26 (zabezpieczenie 12 mies.).
+- **Do wyjaśnienia**: D45 (właściciel nie rozumie — wyjaśnione w czacie), D63 (telefony na hali — później).
+- **PIN ZKP**: wyłączony na polecenie właściciela (przełącznik w bazie, przyciski schowane).
+
 ## Podsumowanie (5 minut przy kawie)
 
 ### Pilne
