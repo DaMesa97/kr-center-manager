@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isOrderReleased, mozeAnulowacCalyZestawTitan, splitCancellableLegs } from '../lib/orderCancel'
+import { anulujPotemZwroc, isOrderReleased, mozeAnulowacCalyZestawTitan, splitCancellableLegs } from '../lib/orderCancel'
 import { actionMenuItems, type OrderTableCtx } from '../components/orderTableColumns'
 import type { Order } from '../types'
 
@@ -51,5 +51,24 @@ describe('D28: anulowanie nogi Bastion zestawu Titan', () => {
     expect(mozeAnulowacCalyZestawTitan({ id: 1, category: 'STA', release_date: '2026-11-20' }, { id: 2, category: 'ST' })).toBe(false)
     expect(mozeAnulowacCalyZestawTitan({ id: 1, category: 'STA' }, { id: 2, category: 'Disting' })).toBe(false)
     expect(mozeAnulowacCalyZestawTitan({ id: 1, category: 'Bastion' }, { id: 2, category: 'ST' })).toBe(false)
+  })
+})
+
+describe('D51: anulowanie ze zwrotem — najpierw oznaczenie, potem zwrot', () => {
+  it('kolejność kroków i błąd zwrotu nie cofa anulowania', async () => {
+    const kroki: string[] = []
+    const ok = { error: null }
+    const r1 = await anulujPotemZwroc(
+      async () => { kroki.push('oznacz'); return ok },
+      async () => { kroki.push('zwroc'); return { error: { message: 'brak sieci' } } },
+    )
+    expect(kroki).toEqual(['oznacz', 'zwroc'])
+    expect(r1).toEqual({ ok: true, bladZwrotu: 'brak sieci' })
+  })
+  it('błąd oznaczenia — zwrotu nie ma', async () => {
+    const zwroc = vi.fn(async () => ({ error: null }))
+    const r = await anulujPotemZwroc(async () => ({ error: { message: 'odmowa' } }), zwroc)
+    expect(r).toEqual({ ok: false, blad: 'odmowa' })
+    expect(zwroc).not.toHaveBeenCalled()
   })
 })

@@ -26,6 +26,7 @@ import { INTERNAL_WAREHOUSE_CODE_PATTERN, internalShortages, sumInternalStock, t
 import { isPicked, pickChanged, pickKey, pickProgress, sigsOf, type OrderPick } from '../lib/orderPicks'
 import type { InternalDoorItem, Order, ToastVariant, WarehouseComponent } from '../types'
 import { isOrderCancelled } from '../lib/orderCancelled'
+import { anulujPotemZwroc } from '../lib/orderCancel'
 
 type DetailsUser = {
   role: 'manager' | 'worker' | 'sprzedawca'
@@ -278,20 +279,25 @@ function InternalDoorOrderDetailsModal({
       confirmLabel: 'Anuluj zamówienie',
       message: `Czy na pewno anulować zamówienie #${order.order_number}? Stock zostanie zwrócony do magazynu.`,
       run: async () => {
-        const { error: retErr } = await supabase.rpc('return_stock_for_order', { p_order_id: order.id! })
-        if (retErr) {
-          pushToast(`Błąd zwrotu stocku: ${retErr.message}`, 'error')
-          return
-        }
         const cancelledAt = new Date().toISOString()
         const cancelledBy = currentUser.initials
-        // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
-        const { error: updErr } = await supabase.rpc('merge_order_extra_fields', {
-          p_order_id: order.id!,
-          p_patch: { cancelled: true, cancelled_at: cancelledAt, cancelled_by: cancelledBy },
-        })
-        if (updErr) {
-          pushToast(`Błąd anulowania zamówienia: ${updErr.message}`, 'error')
+        // D51: najpierw oznaczenie (merge po stronie bazy — nie nadpisujemy całego extra_fields), potem zwrot towaru —
+        // jak w zakładce zleceń; błąd zwrotu nie zostawia aktywnego zlecenia z towarem już na magazynie
+        const wynik = await anulujPotemZwroc(
+          () => supabase.rpc('merge_order_extra_fields', {
+            p_order_id: order.id!,
+            p_patch: { cancelled: true, cancelled_at: cancelledAt, cancelled_by: cancelledBy },
+          }),
+          () => supabase.rpc('return_stock_for_order', { p_order_id: order.id! }),
+        )
+        if (!wynik.ok) {
+          pushToast(`Błąd anulowania zamówienia: ${wynik.blad}`, 'error')
+          return
+        }
+        if (wynik.bladZwrotu) {
+          pushToast(`Zamówienie anulowane, ale towar NIE wrócił na magazyn (${wynik.bladZwrotu}) — zrób zwrot w Magazynie`, 'error')
+          await onAfterAction()
+          onClose()
           return
         }
         pushToast('Zamówienie anulowane, stock zwrócony', 'success')

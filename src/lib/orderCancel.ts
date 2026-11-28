@@ -45,3 +45,21 @@ export function mozeAnulowacCalyZestawTitan(baza: TitanLeg | null | undefined, p
   if (isOrderCancelled(baza as { extra_fields?: unknown }) || isOrderReleased(baza)) return false
   return partner?.category === 'ST'
 }
+
+type WynikRpc = { error: { message: string } | null }
+
+/**
+ * D51 (28.11): kolejność anulowania ze zwrotem towaru — najpierw oznaczenie zlecenia jako anulowane, potem zwrot
+ * (jak w zakładce zleceń). Odwrotnie (okno drzwi wewnętrznych) błąd drugiego kroku zostawiał zlecenie aktywne
+ * z towarem już zwróconym na magazyn. Teraz: błąd oznaczenia = nic się nie zmieniło; błąd zwrotu = zlecenie
+ * anulowane, zwrot do zrobienia ręcznie (komunikat).
+ */
+export async function anulujPotemZwroc(
+  oznacz: () => PromiseLike<WynikRpc>,
+  zwroc: () => PromiseLike<WynikRpc>,
+): Promise<{ ok: false; blad: string } | { ok: true; bladZwrotu: string | null }> {
+  const { error: e1 } = await oznacz()
+  if (e1) return { ok: false, blad: e1.message }
+  const { error: e2 } = await zwroc()
+  return { ok: true, bladZwrotu: e2 ? e2.message : null }
+}
