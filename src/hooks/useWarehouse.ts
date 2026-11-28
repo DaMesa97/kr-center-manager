@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { appAlert, appConfirm } from '../lib/appDialogs'
 import { isInventoryLockError } from '../lib/inventory'
+import { rebuildSummary } from '../lib/recipeRebuild'
 import { mmReservationPrompt, movedReservationsBy, parseMmReservationPreview } from '../lib/mmReservations'
 import { fetchAllPages } from '../lib/fetchPaged'
 import { alertsBadgeThrottled, parseAlertsSummary } from '../lib/alertsBadge'
@@ -1154,8 +1155,8 @@ export function useWarehouse({
   //    receptury w danej kategorii (seria zapisów = jedno przeliczenie);
   //  - gdy przeliczenie trwa, kolejna zmiana tylko zaznacza kategorię jako
   //    „do powtórki” i po zakończeniu idzie następny przebieg.
-  // Zlecenia, z których coś już wydano, baza pomija (wydanego towaru automat nie
-  // cofa) — zgłaszamy ich liczbę.
+  // Zlecenia, z których coś już wydano: od D15 (migracja 20261128030400) baza przelicza
+  // w nich tylko niezrobione etapy (r_partial_rebuilt); stara baza je pomija (r_skipped_released).
   const REBUILD_DEBOUNCE_MS = 15_000
   const REBUILD_CHUNK = 40
   const REBUILD_CHUNK_MIN = 10
@@ -1175,6 +1176,7 @@ export function useWarehouse({
       rebuildRunningRef.current.add(category)
       pushToast(`Przeliczam rezerwacje otwartych zleceń ${category}…`, 'info')
       let rebuilt = 0
+      let partial = 0
       let skipped = 0
       let failed = 0
       const failedOrders: string[] = []
@@ -1205,9 +1207,12 @@ export function useWarehouse({
             r_failed_orders: string[] | null
             r_last_id: number
             r_done: boolean
+            /** D15 (migracja 20261128030400): przeliczone tylko w niezrobionych etapach */
+            r_partial_rebuilt?: number
           }>)[0]
           if (!row) break
           rebuilt += row.r_rebuilt
+          partial += Number(row.r_partial_rebuilt ?? 0)
           skipped += row.r_skipped_released
           failed += row.r_failed
           failedOrders.push(...(row.r_failed_orders ?? []))
@@ -1223,10 +1228,9 @@ export function useWarehouse({
           'error',
         )
       } else {
-        const parts = [`Przeliczono rezerwacje ${rebuilt} zleceń ${category}`]
-        if (skipped > 0) parts.push(`${skipped} pominięto (już coś wydano z magazynu — skoryguj ręcznie)`)
-        if (failed > 0) parts.push(`${failed} z błędem: ${failedOrders.slice(0, 3).join('; ')}`)
-        pushToast(parts.join(' · '), failed > 0 ? 'error' : skipped > 0 ? 'info' : 'success')
+        // D15: zlecenia w produkcji — przeliczone tylko etapy jeszcze niezrobione (zrobione zostają jak były)
+        const summary = rebuildSummary(category, { rebuilt, partial, skipped, failed, failedOrders })
+        pushToast(summary.text, summary.variant)
       }
       await fetchWarehouseStock()
       // w trakcie przeliczania zmieniono kolejną recepturę tej kategorii → jeszcze raz
