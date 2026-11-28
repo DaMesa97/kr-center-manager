@@ -4,7 +4,7 @@ import { supabase } from '../../supabaseClient'
 import { humanizeAndLog } from '../../lib/friendlyError'
 import { groupPicks, pickProgress, type OrderPick } from '../../lib/orderPicks'
 import type { InternalDoorItem } from '../../types'
-import { countCompletedStages, isRushOrderSequence } from '../../utils'
+import { countCompletedStages, isReleaseDateEmpty, isRushOrderSequence } from '../../utils'
 import { can, isCategoryScoped } from '../../lib/permissions'
 import {
   cleanCompanyValue,
@@ -185,10 +185,29 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
         .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.neq.true')
         .select('id')
       if (!mountedRef.current) return
-      if (error) { flash(`Błąd: NIE wydano (${error.message})`, true); return }
-      if (!updated || updated.length === 0) {
-        flash('NIE wydano — zamówienie jest już wydane, zostało anulowane albo nie masz uprawnień (odśwież listę)', true)
-        return
+      if (error || !updated || updated.length === 0) {
+        // runda 10 (tester telefonu): przy zgubionej odpowiedzi data mogła się zapisać, a WZ nie poszła —
+        // ponowienie trafiało w „już wydane” i rezerwacje wisiały. Sprawdzamy stan w bazie: zlecenie wydane
+        // i nie anulowane → dopinamy zdjęcie z magazynu (obie funkcje liczą tylko brakującą resztę).
+        const { data: teraz } = await supabase
+          .from('orders')
+          .select('release_date, extra_fields')
+          .eq('id', order.id!)
+          .maybeSingle()
+        if (!mountedRef.current) return
+        const juzWydane =
+          !!teraz &&
+          !isReleaseDateEmpty(teraz.release_date as string | null) &&
+          (teraz.extra_fields as { cancelled?: unknown } | null)?.cancelled !== true
+        if (!juzWydane) {
+          flash(
+            error
+              ? `Błąd: NIE wydano — ${error.message}`
+              : 'NIE wydano — zamówienie jest już wydane, zostało anulowane albo nie masz uprawnień (odśwież listę)',
+            true,
+          )
+          return
+        }
       }
       // DOPIERO teraz fizyczne wydanie (WZ) — jak desktop. Braki z force=true
       // (zamówienie fizycznie wyjeżdża), błąd RPC nie cofa daty, ale krzyczy.
