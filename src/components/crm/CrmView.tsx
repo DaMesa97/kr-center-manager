@@ -74,6 +74,7 @@ import {
   fetchDokumenty,
   fetchDuplikatyLeada,
   updateDokumentStatus,
+  odstapOdUmowy,
   generujSzkic,
   type CrmError,
   type CrmZadanieRow,
@@ -86,14 +87,14 @@ import {
   poprawUstaleniaIPolicz,
 } from '../../hooks/useCrm'
 import { supabase } from '../../supabaseClient'
-import { appConfirm } from '../../lib/appDialogs'
+import { appConfirm, appPrompt } from '../../lib/appDialogs'
 
 /** runda 4: dozwolone zmiany statusu dokumentu CRM (podpisanej/anulowanej nie cofamy; „Wysłana” tylko dla umowy). */
 function dozwoloneStatusyDokumentu(d: { status: string; rodzaj: string }): string[] {
   // runda 5: blokada (jak trigger w bazie) tylko dla umowy — kartę / protokół omyłkowo oznaczone da się poprawić
   if (d.rodzaj !== 'umowa') return ['blankiet', 'projekt', 'podpisana', 'anulowana'].filter((k) => k !== d.status)
   if (d.status === 'anulowana') return []
-  // podpisanej też nie anulujemy (trigger w bazie, migracja 233500) — odstąpienie od umowy: do decyzji właściciela
+  // podpisanej nie anulujemy listą (trigger w bazie, migracja 233500) — D19: osobny przycisk „odstąpienie od umowy” z powodem
   if (d.status === 'podpisana') return []
   const wszystkie = d.rodzaj === 'umowa' ? ['projekt', 'wyslana', 'podpisana', 'anulowana'] : ['blankiet', 'projekt', 'podpisana', 'anulowana']
   return wszystkie.filter((k) => k !== d.status)
@@ -121,7 +122,7 @@ import { KROKI_OFERTY, brakCenOferty, brakCenOpis, brakDoboruOferty, krokOferty,
 import CrmZadanieDialog from './CrmZadanieDialog'
 import CrmOfertaOficjalnaForm from './CrmOfertaOficjalnaForm'
 import CrmDokumentForm, { type DokumentRodzaj } from './CrmDokumentForm'
-import { PROTOKOL_ZABLOKOWANY, ofertyDoUmowy as wybierzOfertyDoUmowy, umowaZablokowanaPowod, umowyKlienta } from '../../lib/crmUmowa'
+import { PROTOKOL_ZABLOKOWANY, moznaOdstapicOdUmowy, ofertyDoUmowy as wybierzOfertyDoUmowy, powodOdstapienia, umowaZablokowanaPowod, umowyKlienta } from '../../lib/crmUmowa'
 import CrmPolaczPanel from './CrmPolaczPanel'
 import WynikPrzegranyForm from './CrmWynikPrzegranyForm'
 import CrmMaileScreen, { CrmMailScreen } from './CrmMaileScreen'
@@ -2273,6 +2274,27 @@ function LeadScreen({
     }
     setDokumenty((ds) => ds.map((x) => (x.id === d.id ? { ...x, status } : x)))
   }
+  // D19 (28.11, decyzja właściciela): odstąpienie od podpisanej umowy — powód + potwierdzenie, powód trafia do historii
+  const handleOdstapienie = async (d: CrmDokument) => {
+    if (!moznaOdstapicOdUmowy(d)) return
+    const nr = d.numer ? ` nr ${d.numer}` : ''
+    const tekst = await appPrompt(`Klient odstępuje od podpisanej umowy${nr}. Wpisz powód (trafi do historii klienta), np. „odstąpienie w terminie 14 dni”.`, { title: 'Odstąpienie od umowy', confirmLabel: 'Dalej' })
+    if (tekst == null) return
+    const powod = powodOdstapienia(tekst)
+    if (!powod) {
+      pushToast('Wpisz powód odstąpienia (co najmniej 3 znaki)', 'error')
+      return
+    }
+    if (!(await appConfirm(`Umowa${nr} dostanie status „Anulowana”. Tego nie da się cofnąć — numer umowy nie wróci do użycia. Powód: „${powod}”.`, { title: 'Odstąpienie od umowy', confirmLabel: 'Anuluj umowę', tone: 'danger' }))) return
+    const err = await odstapOdUmowy(d, powod, currentUser?.id ?? null)
+    if (err) {
+      pushToast(`Nie udało się zapisać odstąpienia: ${err.message}`, 'error')
+      return
+    }
+    setDokumenty((ds) => ds.map((x) => (x.id === d.id ? { ...x, status: 'anulowana' } : x)))
+    pushToast(`Umowa${nr} anulowana (odstąpienie), powód zapisany w historii`, 'success')
+    void load(true)
+  }
 
   if (loading) return <Spinner center label="Ładowanie klienta…" />
   if (error) return <ErrorBox error={error} />
@@ -3000,6 +3022,11 @@ function LeadScreen({
                       {d.status !== 'podpisana' && d.status !== 'anulowana' && (
                         <button type="button" className="crm-link" disabled={saving || Boolean(dokForm)} onClick={() => { setDokWynik(null); setDokForm({ rodzaj: d.rodzaj as DokumentRodzaj, istniejacy: d }) }} title={d.rodzaj === 'umowa' ? 'Nowy PDF z poprawionymi polami, ten sam numer umowy' : 'Nowy PDF z poprawionymi polami'}>
                           generuj ponownie
+                        </button>
+                      )}
+                      {moznaOdstapicOdUmowy(d) && (
+                        <button type="button" className="crm-link" disabled={saving} onClick={() => void handleOdstapienie(d)} title="Klient odstąpił od podpisanej umowy: umowa → Anulowana, powód w historii klienta">
+                          odstąpienie od umowy
                         </button>
                       )}
                     </li>

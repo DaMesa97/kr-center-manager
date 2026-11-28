@@ -445,6 +445,7 @@ export const CRM_ZDARZENIE_LABEL: Record<string, string> = {
   zaakceptowano: 'Klient zaakceptował',
   blad: 'Błąd',
   dokument: 'Dokument',
+  umowa_odstapienie: 'Odstąpienie od umowy',
   szkic: 'Szkic odpowiedzi',
   dopasowano: 'Dopisano do istniejącego klienta',
 }
@@ -470,6 +471,12 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
     const rodzaj = typeof dane?.rodzaj === 'string' ? CRM_DOKUMENT_RODZAJ[dane.rodzaj]?.label ?? dane.rodzaj : 'Dokument'
     const numer = typeof dane?.numer === 'string' && dane.numer ? ` nr ${dane.numer}` : ''
     return `${rodzaj}${numer}`
+  }
+  // D19 (28.11): odstąpienie od podpisanej umowy z powodem
+  if (typ === 'umowa_odstapienie') {
+    const numer = typeof dane?.numer === 'string' && dane.numer ? ` nr ${dane.numer}` : ''
+    const powod = typeof dane?.powod === 'string' && dane.powod ? `: ${dane.powod}` : ''
+    return `Odstąpienie od umowy${numer}${powod}`
   }
   // brief pkt 23: zdarzenie `szkic` z dane.rodzaj / dane.auto
   if (typ === 'szkic') {

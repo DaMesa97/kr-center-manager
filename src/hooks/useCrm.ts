@@ -609,6 +609,33 @@ export async function updateDokumentStatus(id: string, status: string): Promise<
   return crmErrorFrom(error)
 }
 
+/**
+ * D19 (28.11): odstąpienie od PODPISANEJ umowy → „anulowana”, powód w historii klienta (rpc crm.odstap_od_umowy;
+ * trigger w bazie przepuszcza podpisana → anulowana tylko z tej funkcji). Baza bez migracji (PGRST202 — nie ma ani
+ * rpc, ani blokady): zmiana statusu wprost + zdarzenie w historii, żeby powód nie przepadł.
+ */
+export async function odstapOdUmowy(
+  d: Pick<CrmDokument, 'id' | 'lead_id' | 'oferta_id' | 'numer'>,
+  powod: string,
+  userId: string | null,
+): Promise<CrmError | null> {
+  const { error } = await crm().rpc('odstap_od_umowy', { p_dokument_id: d.id, p_powod: powod })
+  if (!error) return null
+  if (error.code !== 'PGRST202') return { kind: error.code === '42501' ? 'no_access' : 'other', message: error.message || 'Nie udało się zapisać odstąpienia od umowy' }
+  const e1 = await updateDokumentStatus(d.id, 'anulowana')
+  if (e1) return e1
+  const { error: e2 } = await crm().from('zdarzenia').insert({
+    lead_id: d.lead_id,
+    oferta_id: d.oferta_id,
+    typ: 'umowa_odstapienie',
+    opis: `Odstąpienie od umowy nr ${d.numer ?? '?'}: ${powod}.`,
+    kto: userId,
+    dane: { dokument_id: d.id, numer: d.numer, powod, zrodlo: 'klik' },
+  })
+  if (e2) console.warn('[CRM] odstąpienie od umowy: nie zapisano zdarzenia w historii:', e2.message)
+  return null
+}
+
 export type GenerujDokument = {
   rodzaj: 'karta_pomiarowa' | 'umowa' | 'protokol'
   lead_id: string

@@ -51,3 +51,14 @@ export function umowyKlienta<T extends Pick<CrmDokument, 'rodzaj' | 'status'>>(d
 }
 
 export const PROTOKOL_ZABLOKOWANY = 'Protokół odbioru robi się do umowy — najpierw przygotuj umowę (przycisk „Umowa”).'
+
+/** D19 (28.11): odstąpienie dotyczy tylko PODPISANEJ umowy (podpisana → anulowana, rpc crm.odstap_od_umowy). */
+export function moznaOdstapicOdUmowy(d: Pick<CrmDokument, 'rodzaj' | 'status'>): boolean {
+  return d.rodzaj === 'umowa' && d.status === 'podpisana'
+}
+
+/** D19: powód odstąpienia z okienka — przycięty, min. 3 znaki, max. 500; inaczej null (jak sprawdza rpc). */
+export function powodOdstapienia(text: string | null | undefined): string | null {
+  const t = (text ?? '').replace(/\s+/g, ' ').trim()
+  return t.length >= 3 ? t.slice(0, 500) : null
+}
