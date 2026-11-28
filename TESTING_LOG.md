@@ -529,6 +529,8 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 - **28.11 ok. 14:00 — ościeżnica ST na montaż** (właściciel w czacie: „masowo przepiąć receptury na ościeżnicę ST na etap MONTAŻ”): `20261128040000_st_oscieznica_na_etap_montaz.sql` WGRANY — 30 pozycji receptur „ST / Ościeżnica / …” osc → mon, przeliczone 98 otwartych zleceń ST (9 rezerwacji osc → mon; suma zarezerwowanego bez zmian, 0 WZ; próba w transakcji cofniętej przed). Progi „ST / Próg / …” (też na osc) nie ruszane — pytanie do właściciela.
 - Po tym WGRANE wstrzymane `20261127233000` + `20261127235100` (+ ponownie 234000): próba w transakcji cofniętej, potem jedna transakcja; `scripts/kontrola-po-wdrozeniu.sql` — **pusty wynik**.
 
+- **1.1.10 OPUBLIKOWANA** 28.11 po południu (clean = tag v1.1.10 = 79ee787, min_app_version 1.1.10): nowy Pulpit KR Center wg makiety właściciela (cc67f4c; bez ikon, bez Po Drzwi i Technicznych; synchronizacje Działa / Błąd). Menu boczne bez zmian (decyzja właściciela).
+
 ### Lista plików (dla porządku)
 Próba generalna 28.11 po południu: 28 plików poniżej (bez 036001 i 036200) razem w transakcji cofniętej na produkcji (już z pakietem z południa) — 0 błędów. Kontrola po wgraniu: `scripts/kontrola-decyzje-28-11.sql` (każde zapytanie: pusty wynik = OK).
 Kolejność = kolejność nazw:
