@@ -30,4 +30,11 @@ describe('D17: „Zamówił” z Baselinkera w historii', () => {
     expect(zdarzenieLabel('wygrany', { zrodlo: 'baselinker', bl_id: 57582221 })).toBe('Zamówił (zamówienie w sklepie, automatycznie)')
     expect(zdarzenieLabel('wygrany', { oferta_id: null })).toBe('Zamówił')
   })
+
+  it('doprecyzowanie: „Zamówił” z maila sklepu i automatyczna wartość z zamówienia', () => {
+    expect(zdarzenieLabel('wygrany', { zrodlo: 'mail_sklepu', mail_id: 'x' })).toBe('Zamówił (zamówienie w sklepie, automatycznie)')
+    expect(zdarzenieLabel('wartosc_zmieniona', { zrodlo: 'baselinker', z: 6000, na: 5867 })).toBe('Wartość klienta = kwota zamówienia w sklepie (automatycznie)')
+    expect(zdarzenieLabel('wartosc_zmieniona', { zrodlo: 'mail_sklepu', na: 2204 })).toBe('Wartość klienta = kwota zamówienia w sklepie (automatycznie)')
+    expect(zdarzenieLabel('wartosc_zmieniona', { zrodlo: 'klik', na: 100 })).toBe('Zmieniono wartość klienta')
+  })
 })

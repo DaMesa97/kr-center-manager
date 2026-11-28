@@ -489,7 +489,10 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
     return `Przegrany${p ? `: ${p}` : ''}${typeof dane?.notatka === 'string' && dane.notatka ? ` — ${dane.notatka}` : ''}`
   }
   // D17 (28.11): klient z potwierdzonym zamówieniem w Baselinkerze oznaczany automatycznie
-  if (typ === 'wygrany') return zrodlo === 'baselinker' ? 'Zamówił (zamówienie w sklepie, automatycznie)' : 'Zamówił'
+  // D17 (28.11, doprecyzowanie): także z maila „Nowe zamówienie” ze sklepu (zrodlo mail_sklepu)
+  if (typ === 'wygrany') return zrodlo === 'baselinker' || zrodlo === 'mail_sklepu' ? 'Zamówił (zamówienie w sklepie, automatycznie)' : 'Zamówił'
+  // D17: wartość klienta = kwota zamówień ze sklepu (crm.wartosc_klienta_ze_sklepu)
+  if (typ === 'wartosc_zmieniona' && (zrodlo === 'baselinker' || zrodlo === 'mail_sklepu')) return 'Wartość klienta = kwota zamówienia w sklepie (automatycznie)'
   // przywrócenie: ręcznie albo samo (klient zadzwonił / napisał / wysłano ofertę), z poprzednim powodem
   if (typ === 'przywrocony') {
     const skad = typeof dane?.zrodlo === 'string' && dane.zrodlo ? dane.zrodlo : null
