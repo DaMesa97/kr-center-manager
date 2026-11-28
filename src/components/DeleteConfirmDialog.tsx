@@ -11,6 +11,9 @@ type DeleteConfirmDialogProps = {
   /** 'danger' (domyślnie, ⚠️ + czerwony przycisk) albo 'success' (✓ + zielony) —
    *  pozytywne potwierdzenia (np. "Zrobione") nie powinny straszyć ostrzeżeniem */
   tone?: 'danger' | 'success'
+  /** D28 (28.11): opcjonalny trzeci przycisk (np. „Tylko Bastion” obok „Anuluj cały zestaw”) */
+  altLabel?: string
+  onAlt?: () => void
 }
 
 export default function DeleteConfirmDialog({
@@ -21,8 +24,11 @@ export default function DeleteConfirmDialog({
   confirmLabel = 'Usuń',
   cancelLabel = 'Anuluj',
   tone = 'danger',
+  altLabel,
+  onAlt,
 }: DeleteConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const altRef = useRef<HTMLButtonElement>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
   // Fokus na BEZPIECZNYM przycisku: przy usuwaniu „Anuluj”, przy pozytywnym
   // potwierdzeniu — potwierdzenie. Enter = przycisk z fokusem (natywnie).
@@ -48,7 +54,11 @@ export default function DeleteConfirmDialog({
         // (a Enter kliknąłby wtedy coś POD oknem)
         e.preventDefault()
         e.stopImmediatePropagation()
-        const next = document.activeElement === cancelRef.current ? confirmRef.current : cancelRef.current
+        const buttons = [cancelRef.current, altRef.current, confirmRef.current].filter(
+          (b): b is HTMLButtonElement => b != null,
+        )
+        const i = buttons.indexOf(document.activeElement as HTMLButtonElement)
+        const next = buttons[(i + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length]
         next?.focus()
       }
     }
@@ -83,6 +93,11 @@ export default function DeleteConfirmDialog({
           <button ref={cancelRef} type="button" className="btn btn-secondary" onClick={onCancel}>
             {cancelLabel}
           </button>
+          {altLabel && onAlt && (
+            <button ref={altRef} type="button" className="btn btn-secondary" onClick={onAlt}>
+              {altLabel}
+            </button>
+          )}
           <button
             ref={confirmRef}
             type="button"

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isOrderReleased, splitCancellableLegs } from '../lib/orderCancel'
+import { isOrderReleased, mozeAnulowacCalyZestawTitan, splitCancellableLegs } from '../lib/orderCancel'
 import { actionMenuItems, type OrderTableCtx } from '../components/orderTableColumns'
 import type { Order } from '../types'
 
@@ -38,5 +38,18 @@ describe('D43: anulowanie wydanego zlecenia', () => {
     expect(o?.disabled).toBeFalsy()
     o?.onClick()
     expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('D28: anulowanie nogi Bastion zestawu Titan', () => {
+  it('pyta o cały zestaw, gdy jest aktywne STA z parą ST', () => {
+    expect(mozeAnulowacCalyZestawTitan({ id: 1, category: 'STA', extra_fields: {} }, { id: 2, category: 'ST' })).toBe(true)
+  })
+  it('tylko noga Bastion, gdy STA brak, anulowane, wydane albo bez pary ST', () => {
+    expect(mozeAnulowacCalyZestawTitan(null, { id: 2, category: 'ST' })).toBe(false)
+    expect(mozeAnulowacCalyZestawTitan({ id: 1, category: 'STA', extra_fields: { cancelled: true } }, { id: 2, category: 'ST' })).toBe(false)
+    expect(mozeAnulowacCalyZestawTitan({ id: 1, category: 'STA', release_date: '2026-11-20' }, { id: 2, category: 'ST' })).toBe(false)
+    expect(mozeAnulowacCalyZestawTitan({ id: 1, category: 'STA' }, { id: 2, category: 'Disting' })).toBe(false)
+    expect(mozeAnulowacCalyZestawTitan({ id: 1, category: 'Bastion' }, { id: 2, category: 'ST' })).toBe(false)
   })
 })

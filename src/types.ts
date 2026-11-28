@@ -672,6 +672,9 @@ export type DeleteConfirmState = {
   title?: string
   confirmLabel?: string
   cancelLabel?: string
+  /** D28: opcjonalny trzeci przycisk (np. „Tylko Bastion”) */
+  altLabel?: string
+  runAlt?: () => void
 }
 
 export type Warehouse = {

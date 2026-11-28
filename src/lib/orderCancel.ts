@@ -2,6 +2,8 @@
 // a anulowanie pary (Disting Plus) / zestawu Titan pomija nogi, które są już wydane.
 // Obrona w bazie: trigger trg_orders_block_cancel_released (migracja 20261128031000).
 
+import { isOrderCancelled } from './optimaRo'
+
 export type ReleaseInfo = { id?: number | null; release_date?: string | null }
 
 /** Zlecenie jest wydane, gdy ma niepustą datę wydania. */
@@ -29,4 +31,17 @@ export function splitCancellableLegs(rows: ReleaseInfo[]): { cancel: number[]; s
     else cancel.push(id)
   }
   return { cancel, skippedReleased }
+}
+
+type TitanLeg = ReleaseInfo & { category?: string | null; extra_fields?: unknown }
+
+/**
+ * D28 (28.11): anulowanie nogi Bastion zestawu Titan — czy pytać o anulowanie całego zestawu.
+ * Tak, gdy bazowe STA i jego para ST istnieją, STA nie jest anulowane ani wydane.
+ * W przeciwnym razie (np. STA w archiwum) anulujemy tylko nogę Bastion, jak dotąd.
+ */
+export function mozeAnulowacCalyZestawTitan(baza: TitanLeg | null | undefined, partner: TitanLeg | null | undefined): boolean {
+  if (!baza || baza.category !== 'STA') return false
+  if (isOrderCancelled(baza as { extra_fields?: unknown }) || isOrderReleased(baza)) return false
+  return partner?.category === 'ST'
 }

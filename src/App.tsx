@@ -2847,6 +2847,12 @@ function App() {
           title={deleteConfirm.title}
           confirmLabel={deleteConfirm.confirmLabel}
           cancelLabel={deleteConfirm.cancelLabel}
+          altLabel={deleteConfirm.altLabel}
+          onAlt={deleteConfirm.runAlt ? () => {
+            const alt = deleteConfirm.runAlt
+            setDeleteConfirm(null)
+            alt?.()
+          } : undefined}
           onCancel={() => setDeleteConfirm(null)}
           onConfirm={() => {
             const run = deleteConfirm.runDelete

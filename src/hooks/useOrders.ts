@@ -54,7 +54,7 @@ import {
   validateOrderForm,
 } from '../utils'
 import { isBotOrder } from '../utils/botOrder'
-import { isOrderReleased, RELEASED_CANCEL_MSG, splitCancellableLegs, type ReleaseInfo } from '../lib/orderCancel'
+import { isOrderReleased, mozeAnulowacCalyZestawTitan, RELEASED_CANCEL_MSG, splitCancellableLegs, type ReleaseInfo } from '../lib/orderCancel'
 import type {
   BastionOrderFormData,
   Company,
@@ -2801,7 +2801,7 @@ export function useOrders({
     [isManager, orders, linkedOrders, fetchOrders, pushToast, reserveStockForOrderWithToasts, fetchWarehouseStock, findTitanBastionLegIds],
   )
 
-  const handleCancelOrderClick = useCallback((order: Order) => {
+  const handleCancelOrderClick = useCallback((order: Order, opts?: { tylkoNogaBastion?: boolean; dodatkowe?: Order[] }) => {
     if (!isManager) return
     const id = order.id
     if (id === undefined) {
@@ -2813,8 +2813,43 @@ export function useOrders({
       pushToast(RELEASED_CANCEL_MSG, 'error')
       return
     }
+    // D28 (28.11): noga Bastion zestawu Titan — anulowanie z zakładki Bastion anulowało tylko ją (STA i ST
+    // zostawały w produkcji). Pytamy: cały zestaw (anulowanie STA, które kaskadowo obejmuje ST i nogi Bastion)
+    // czy tylko Bastion (jak dotąd).
+    if (!opts?.tylkoNogaBastion && isTitanBastionOrder(order)) {
+      // titan_group = id bazowego STA (sprawdzone na produkcji: 71/71 zestawów)
+      const bazaId = Number((order.extra_fields as Record<string, unknown> | null)?.titan_group)
+      void (async () => {
+        const { data: bazaRow } = await supabase.from('orders').select('*').eq('id', bazaId).maybeSingle()
+        const baza = bazaRow as Order | null
+        const { data: partnerRow } = baza?.linked_order_id != null
+          ? await supabase.from('orders').select('*').eq('id', baza.linked_order_id).maybeSingle()
+          : { data: null }
+        const partner = partnerRow as Order | null
+        if (!baza || !partner || !mozeAnulowacCalyZestawTitan(baza, partner)) {
+          // brak bazowego STA / pary STA↔ST (np. zarchiwizowane), już anulowane albo wydane — tylko noga Bastion
+          handleCancelOrderClick(order, { tylkoNogaBastion: true })
+          return
+        }
+        setDeleteConfirm({
+          title: 'Anuluj zestaw Titan',
+          confirmLabel: 'Anuluj cały zestaw',
+          altLabel: 'Tylko Bastion',
+          cancelLabel: 'Wróć',
+          message:
+            `Zlecenie nr ${order.order_number} to noga Bastion zestawu Titan (STA nr ${baza.order_number ?? '—'}). ` +
+            'Anulować cały zestaw (STA, ST i Bastion)? „Tylko Bastion” anuluje samą nogę Bastion — STA i ST zostaną w produkcji.',
+          runAlt: () => handleCancelOrderClick(order, { tylkoNogaBastion: true }),
+          // anulowanie STA z pełną kaskadą (ST + nogi Bastion) — z jego własnym potwierdzeniem
+          runDelete: async () => { handleCancelOrderClick(baza, { tylkoNogaBastion: true, dodatkowe: [partner] }) },
+        })
+      })()
+      return
+    }
     const linkedId = order.linked_order_id
-    const isTitanLinked = isStaTitanLinked(order, [...orders, ...linkedOrders])
+    // D28: przy anulowaniu całego zestawu z zakładki Bastion para STA↔ST nie jest na liście — dokładamy ją z bazy
+    const pula = [...orders, ...linkedOrders, ...(opts?.dodatkowe ?? [])]
+    const isTitanLinked = isStaTitanLinked(order, pula)
     const isDistingPlusLink =
       linkedId != null &&
       (order.category === 'Disting' || (order.category === 'STA' && !isTitanLinked))
@@ -2823,7 +2858,7 @@ export function useOrders({
       linkedId != null && (order.category === 'ST' || isTitanLinked)
     // D43: wydany partner pary / Titana zostaje bez zmian (kaskada go pomija);
     // tu stan z listy — do komunikatu; przed zapisem sprawdzamy jeszcze w bazie
-    const linkedLocal = linkedId != null ? [...orders, ...linkedOrders].find((o) => o.id === linkedId) : undefined
+    const linkedLocal = linkedId != null ? pula.find((o) => o.id === linkedId) : undefined
     const linkedReleasedLocal = isOrderReleased(linkedLocal)
 
     const linkedTabLabel = order.category === 'Disting' ? 'STA' : 'Disting'
