@@ -5,6 +5,7 @@ import { supabase } from '../../supabaseClient'
 import { humanizeAndLog } from '../../lib/friendlyError'
 import { CAT_COLORS } from './mobileKategorie'
 import { LIMIT_ZDJECIA_MS, czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
+import { przygotujZdjecie } from '../../lib/zmniejszZdjecie'
 
 type SearchResult = {
   id: number
@@ -138,6 +139,9 @@ export default function MobilePackingView({ userInitials, userId, kategorie = nu
       // D66: brak odpowiedzi serwera w limicie — zdjęcie mogło dojść; kolejnych nie wysyłamy (łącze leży)
       let bezOdpowiedzi = 0
       let przerwane = 0
+      // D67: zdjęcia, których nie da się odczytać / zmniejszyć (np. HEIC w Chrome) — ponowienie nie pomoże
+      let zlyFormat = 0
+      let zlyFormatKomunikat = ''
       for (let i = 0; i < fileArr.length; i++) {
         const file = fileArr[i]
         // Akceptuj obrazy; HEIC z iPhone bywa z pustym type — odrzuć tylko jawnie nie-obrazy
@@ -146,14 +150,16 @@ export default function MobilePackingView({ userInitials, userId, kategorie = nu
           file.type === '' ||
           /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)
         if (!isImage) { skipped++; continue }
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+        // D67: zmniejszenie do 1600 px / JPEG przed wysłaniem (rozmiar i HEIC); zły format — bez ponawiania
+        const prep = await przygotujZdjecie(file)
+        if (!prep.ok) { zlyFormat++; zlyFormatKomunikat = prep.blad; continue }
         const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-        const path = `${selected.id}/${stamp}_${Math.round(performance.now())}.${ext}`
+        const path = `${selected.id}/${stamp}_${Math.round(performance.now())}.${prep.rozszerzenie}`
         let inserted: unknown = null
         let insErr: unknown = null
         try {
           const up = await zLimitemCzasu(
-            supabase.storage.from(BUCKET).upload(path, file, { cacheControl: '3600', upsert: false }),
+            supabase.storage.from(BUCKET).upload(path, prep.blob, { cacheControl: '3600', upsert: false, contentType: prep.typ }),
             LIMIT_ZDJECIA_MS,
           )
           if (up.error) { failed++; continue }
@@ -179,7 +185,8 @@ export default function MobilePackingView({ userInitials, userId, kategorie = nu
           break
         }
         if (insErr) {
-          // plik poszedł do storage, wiersz nie — sprzątnij sierotę
+          // plik poszedł do storage, wiersz nie — sprzątnij sierotę (pracownik nie ma prawa kasować plików;
+          // wtedy zostaje i usuwa go nocne sprzątanie D67 — funkcja Edge sprzatanie-zdjec, pliki starsze niż doba)
           void supabase.storage.from(BUCKET).remove([path])
           failed++
           continue
@@ -189,7 +196,13 @@ export default function MobilePackingView({ userInitials, userId, kategorie = nu
       }
       // Częściowa porażka NIE może wyglądać jak sukces — toast z liczbą
       // nieudanych wisi do zamknięcia (słabe WiFi gubiło zdjęcia po cichu)
-      if (bezOdpowiedzi > 0) {
+      if (zlyFormat > 0 && bezOdpowiedzi === 0 && failed === 0) {
+        flash(
+          (uploaded > 0 ? `Dodano ${uploaded}. ` : '') +
+            (zlyFormat === 1 ? zlyFormatKomunikat : `${zlyFormat} zdjęć nie wysłano. ${zlyFormatKomunikat}`),
+          true,
+        )
+      } else if (bezOdpowiedzi > 0) {
         const nieWyslane = failed + przerwane
         flash(
           `Dodano ${uploaded}; 1 zdjęcie bez odpowiedzi serwera (słaby internet?) — mogło się zapisać: wróć i otwórz zlecenie ponownie, zanim zrobisz je jeszcze raz` +
@@ -197,7 +210,11 @@ export default function MobilePackingView({ userInitials, userId, kategorie = nu
           true,
         )
       } else if (failed > 0) {
-        flash(`Dodano ${uploaded}, ${failed} NIE wysłano — zrób te zdjęcia jeszcze raz`, true)
+        flash(
+          `Dodano ${uploaded}, ${failed} NIE wysłano — zrób te zdjęcia jeszcze raz` +
+            (zlyFormat > 0 ? `. Jeszcze ${zlyFormat}: ${zlyFormatKomunikat}` : ''),
+          true,
+        )
       } else if (uploaded > 0) {
         flash(`Dodano ${uploaded} ${uploaded === 1 ? 'zdjęcie' : 'zdjęć'} ✓`)
       } else if (skipped > 0) {

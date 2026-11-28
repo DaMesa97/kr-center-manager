@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Trash2, X } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import type { OrderPhoto, ToastVariant } from '../types'
+import { przygotujZdjecie } from '../lib/zmniejszZdjecie'
 
 type Props = {
   orderId: number
@@ -37,24 +38,21 @@ export default function OrderPhotos({ orderId, currentUserId, currentUserInitial
     let okCount = 0
     try {
       for (const file of Array.from(files)) {
-        // bucket przyjmuje jpeg/png/webp/gif do 10 MB — HEIC z telefonu
-        // przechodził i dawał pustą miniaturę (Chromium go nie wyświetla)
-        if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
-          pushToast?.(`Pominięto ${file.name} — obsługiwane formaty: JPG/PNG/WEBP/GIF`, 'error')
+        // bucket przyjmuje jpeg/png/webp/gif do 10 MB — D67: duże zdjęcia zmniejszamy do 1600 px (JPEG),
+        // HEIC tylko jeśli przeglądarka umie go odczytać (Electron/Chromium nie umie — komunikat)
+        const prep = await przygotujZdjecie(file)
+        if (!prep.ok) {
+          pushToast?.(`Pominięto ${file.name} — ${prep.blad}`, 'error')
           continue
         }
-        if (file.size > 10 * 1024 * 1024) {
-          pushToast?.(`Pominięto ${file.name} — plik większy niż 10 MB`, 'error')
-          continue
-        }
-        const ext = file.name.split('.').pop() || 'jpg'
         // unikalna ścieżka — bez Date.now w nazwie polegamy na losowości czasu uploadu
         const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-        const path = `${orderId}/${stamp}_${Math.round(performance.now())}.${ext}`
+        const path = `${orderId}/${stamp}_${Math.round(performance.now())}.${prep.rozszerzenie}`
 
-        const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, {
+        const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, prep.blob, {
           cacheControl: '3600',
           upsert: false,
+          contentType: prep.typ,
         })
         if (upErr) {
           pushToast?.(`Błąd wysyłania zdjęcia: ${upErr.message}`, 'error')
@@ -77,6 +75,8 @@ export default function OrderPhotos({ orderId, currentUserId, currentUserInitial
           .single()
 
         if (insErr) {
+          // D67: plik bez wpisu — sprzątnij (kierownik może; u pracownika usunie go nocne sprzątanie sierot)
+          void supabase.storage.from(BUCKET).remove([path])
           pushToast?.(`Błąd zapisu zdjęcia: ${insErr.message}`, 'error')
           continue
         }
