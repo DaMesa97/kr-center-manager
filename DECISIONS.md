@@ -17,7 +17,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 8. **D39 — Wdrożyć poprawkę CRM „Bastion P-110 nie jest na liście kandydatów”** (Twoje zgłoszenie z nocy): handlowiec nie wyceni żadnego Bastiona P-, N-, T-, L-, LUX-, STD- do czasu wdrożenia `crm-oferta`.
 
 ### Może poczekać (najważniejsze)
-D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy · D50 trzy znaczenia „anulowane” · D51 drobne rozjazdy kopii kodu · D52–D58 ZKP (przed pierwszym zleceniem ZKP: kto wyłącza ZKP, podpisy etapów, kolejność etapów, nowa wersja LP, konstrukcja niezgodna, zlecenia mieszane, przyjęcia) · D59 kto edytuje szablony etykiet · D60 zmiana nazwy w słowniku · D61 eksport teczki ZKP bez kart i protokołów · D62–D67 runda 10 (telefon: kategorie i wspólny telefon, cofnięty etap wraca z Excela, szkice ZD, limit czasu zapisów, zdjęcia).
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy · D50 trzy znaczenia „anulowane” · D51 drobne rozjazdy kopii kodu · D52–D58 ZKP (przed pierwszym zleceniem ZKP: kto wyłącza ZKP, podpisy etapów, kolejność etapów, nowa wersja LP, konstrukcja niezgodna, zlecenia mieszane, przyjęcia) · D59 kto edytuje szablony etykiet · D60 zmiana nazwy w słowniku · D61 eksport teczki ZKP bez kart i protokołów · D62–D67 runda 10 (telefon: kategorie i wspólny telefon, cofnięty etap wraca z Excela, szkice ZD, limit czasu zapisów, zdjęcia) · D68 tabele `migracja_*` bez RLS · D69 status ZD z pominięciem obiegu · D70 unikalność numeru umowy.
 
 ---
 
@@ -440,6 +440,24 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Opcje**: (a) zmniejszanie przed wysłaniem (np. 1600 px, JPEG) — rozwiązuje rozmiar i HEIC; (b) podnieść limit bucketu i dopuścić HEIC; (c) sprzątanie sierot raz na dobę po stronie serwera.
 - **Rekomendacja**: (a) + (c).
 - **Pilność**: może poczekać (przed wdrożeniem zdjęć na hali) · **Praca**: mały–średni
+
+### D68. Tabele `migracja_*` bez RLS
+- **Problem**: `migracja_arkusz_sta`, `migracja_sta_akcje`, `migracja_sta_backup` nie mają RLS. Po pliku `20261128021400` anon traci do nich dostęp, ale każdy zalogowany (także pracownik hali) dalej może je czytać i zmieniać.
+- **Opcje**: (a) usunąć, jeśli to pozostałości po migracji STA (najpierw kopia); (b) włączyć RLS z dostępem tylko dla admina.
+- **Rekomendacja**: (b) od razu (bezpieczne), (a) po potwierdzeniu, że nikt ich nie używa.
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D69. Status całej ZD zmieniany z pominięciem obiegu
+- **Problem**: polityka `po_modify` pozwala zmienić status ZD dowolnie (np. wysłana → szkic → edycja pozycji → z powrotem wysłana). Strażnik pozycji z rundy 10 (`20261128021100`) tego nie łapie.
+- **Opcje**: (a) trigger na `purchase_orders`: dozwolone przejścia (szkic → wysłana → częściowa → zakończona, anulowanie), cofnięcie do szkicu tylko bez przyjęć i z wpisem w audycie; (b) zostawić — robią to tylko kierownicy.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D70. Unikalność numeru umowy
+- **Problem**: `crm.dokumenty.numer` nie ma indeksu unikalnego. Poprawka numeracji (`20261128021600`) usuwa przyczynę duplikatów (licznik 2026 stoi na 71 — bez niej setna umowa dostałaby numer dziesiątej), ale baza nie broni się sama. Dziś duplikatów nie ma.
+- **Opcje**: (a) indeks unikalny (rodzaj, numer); (b) zostawić.
+- **Rekomendacja**: (a), razem z wgraniem numeracji.
+- **Pilność**: przed setną umową w roku · **Praca**: mały
 
 ---
 

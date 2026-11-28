@@ -401,22 +401,22 @@ Sprawdzone bez błędu: podgląd z `sandbox=""` (QR, style, nic nie czyta iframe
 ### Równoczesna praca kilku osób
 | Waga | Problem | Stan |
 |---|---|---|
-| WYSOKI | etap wstrzymany (#WS) w trakcie oznaczania: WZ schodzi, etap zostaje wstrzymany | w toku (tor bazy r10) |
-| WYSOKI | okno ZD pokazuje status z chwili otwarcia, a baza pozwala zmieniać pozycje każdej ZD | okno: **poprawione** d6bc055; baza: w toku (tor bazy r10) |
+| WYSOKI | etap wstrzymany (#WS) w trakcie oznaczania: WZ schodzi, etap zostaje wstrzymany | **poprawione** b05c0af (`021000`: odmowa P0404 dla nie-kierownika; zostaje ułamek sekundy między wydaniem a zapisem — pełne domknięcie = jedno RPC) |
+| WYSOKI | okno ZD pokazuje status z chwili otwarcia, a baza pozwala zmieniać pozycje każdej ZD | okno: **poprawione** d6bc055; baza: **poprawione** dc0a074 (`021100`); status całej ZD → **D69** |
 | ŚREDNI | etap cofnięty w programie wraca z Excela z ponownym WZ | **D64** |
 | ŚREDNI | szkice ZD nie liczą się „w drodze” — dwie osoby zamówią to samo | **D65** |
 | NISKI | anulowanie drzwi wewn. to dwa kroki, zwrot bez blokady zlecenia | do zrobienia (jedna funkcja SQL; okno ułamka sekundy) |
 | NISKI | „Zamów szybę” — dubel do szklarza przy dwóch kliknięciach | **poprawione** 777ca9a (świeży odczyt daty przed wysyłką) |
-| NISKI | deklaracja ZKP: dwie równoczesne na te same konstrukcje | w toku (tor bazy r10) |
-| NISKI | partia Bastion otwarta na zawsze przy równoczesnym skręceniu dwóch ostatnich | w toku (tor bazy r10) |
-| NISKI | numery partii / pozycji dodatkowych Bastion max+1 → surowy błąd „duplicate key” | do zrobienia (komunikat) |
+| NISKI | deklaracja ZKP: dwie równoczesne na te same konstrukcje | **poprawione** 2819e08 (`021200`) |
+| NISKI | partia Bastion otwarta na zawsze przy równoczesnym skręceniu dwóch ostatnich | **poprawione** 4650dd8 (`021300`) |
+| NISKI | numery partii / pozycji dodatkowych Bastion max+1 → surowy błąd „duplicate key” | bez zmian: toast już tłumaczy duplikat („odśwież listę”) |
 | NISKI | PZ / MM bez numeru dokumentu: numer z sekundą może się zdublować | do zrobienia |
 
 ### Dane brzegowe, daty, eksporty
 | Waga | Problem | Stan |
 |---|---|---|
-| WYSOKI | niemożliwa data w Excelu („31.11”) wywraca całą synchronizację reklamacji kategorii (i wydań) | w toku (tor bazy r10: Edge `excel-sync` + SQL) |
-| WYSOKI | `lpad` obcina numery: setna umowa w roku = „10/MM/RRRR” (bez unikalności), oferty / RK / ZD od 1000 | w toku (tor bazy r10) |
+| WYSOKI | niemożliwa data w Excelu („31.11”) wywraca całą synchronizację reklamacji kategorii (i wydań) | **poprawione** 514c973 (`021500` + Edge `excel-sync` w repo, niewdrożony; test) |
+| WYSOKI | `lpad` obcina numery: setna umowa w roku = „10/MM/RRRR” (bez unikalności), oferty / RK / ZD od 1000 | **poprawione** bc9f110 (`021600`; licznik umów 2026 = 71); unikalność → **D70** |
 | ŚREDNI | ręczne wiązanie zlecenia Po Drzwi „nie znajduje” starszych (limit 60 wszystkich firm) | **poprawione** c02fc7b |
 | ŚREDNI | „Powierzchnia m²” („150 m2”, „ok. 150”) po cichu null — kontrola VAT 8% się nie odbywa | **poprawione** 07b04fb (+ test) |
 | NISKI | „dziś” i rok w numeracji w bazie liczone w UTC (0:00–2:00 = wczoraj / zeszły rok) | do zrobienia (`dzis_pl()`; dziś 0 przypadków) |
@@ -435,7 +435,7 @@ Sprawdzone bez błędu: podgląd z `sandbox=""` (QR, style, nic nie czyta iframe
 | ŚREDNI | brak limitu czasu zapisów („Zapisywanie…” wisi) | **D66** |
 | ŚREDNI | zdjęcia: bez zmniejszania, limit 10 MB, HEIC, osierocone pliki | **D67** |
 | ŚREDNI | błąd odczytu = pusta lista („0 zleceń”, „Brak zdjęć”, brak „Spakowane x/y”) | **poprawione** e21162f |
-| ŚREDNI | wygasła sesja: zapytania jako anon, RLS zwraca puste wyniki bez błędu | baza: w toku (tor bazy r10: anon bez tabel) |
+| ŚREDNI | wygasła sesja: zapytania jako anon, RLS zwraca puste wyniki bez błędu | **poprawione** 50f0f38 (`021400`: anon bez praw do 89 tabel i 65 sekwencji; przy okazji 3 tabele `migracja_*` bez RLS → **D68**) |
 | NISKI | ochrona niezapisanych zmian wyłączona w trakcie zapisu (X / aktualizacja) | **poprawione** df25e7c |
 | NISKI | telefon nigdy się sam nie wylogowuje (wspólne telefony) | **D63** |
 
@@ -535,6 +535,13 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 41. ⏳ `supabase/migrations/20261128010400_storage_zdjecia_zalaczniki_bez_listowania.sql`
 42. ⏳ `supabase/migrations/20261128010500_audyt_szablony_wykluczenia_wymiary.sql`
 43. ⏳ `supabase/migrations/20261128020000_alu_etap_oczekiwana_liczba_sztuk.sql` (przed albo razem z 1.1.8; aplikacja bez niej działa jak dotąd)
+44. ⏳ `supabase/migrations/20261128021000_wydanie_etapu_nie_na_wstrzymany.sql`
+45. ⏳ `supabase/migrations/20261128021100_zd_pozycje_tylko_w_szkicu.sql`
+46. ⏳ `supabase/migrations/20261128021200_zkp_deklaracja_blokada_kart.sql`
+47. ⏳ `supabase/migrations/20261128021300_bastion_partia_blokada.sql`
+48. ⏳ `supabase/migrations/20261128021400_anon_bez_tabel.sql` — razem z D1 (`234000`), samodzielny
+49. ⏳ `supabase/migrations/20261128021500_excel_zla_data_nie_wywraca_paczki.sql` — po `20261127223000`; Edge `excel-sync` do wdrożenia razem
+50. ⏳ `supabase/migrations/20261128021600_numeracja_bez_obcinania_lpad.sql` — **przed setną umową w roku** (licznik 2026 = 71)
 Po wgraniu: `scripts/kontrola-po-wdrozeniu.sql` (pusty wynik = OK). Próba generalna (runda 5): pliki do 233500 przechodzą razem w kolejności nazw, w jednej transakcji. Twarde zależności: 232000+232200 przed 232300; 232100 po 232000; 233100 po 233000; 233300 po 233200; 234400 po 233000.
 Pliki 225000, 232200 i 232700 zmienione w rundzie 4 (nadal niewgrane). 232000 + 232200 + 232300 wgrywać razem.
 Pliki 3–7 zostały w rundzie 3 poprawione (nadal niewgrane). Funkcje Edge 8–10 mają w rundzie 3 kolejne zmiany w repo — wgrywać najnowszą wersję z repo.
