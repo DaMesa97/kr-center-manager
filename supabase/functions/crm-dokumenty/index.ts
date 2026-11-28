@@ -12,11 +12,17 @@
 //   Wynik: { ok, dokument_id, rodzaj, numer, plik_pdf, url (podpisany, 10 min) }; wiersz w crm.dokumenty + zdarzenie 'dokument'.
 //   Brak wymaganych danych → HTTP 400 { error: 'Brakuje: …' }.
 //   { akcja: 'podglad', sciezka } → podpisany link do dowolnego pliku z bucketu (diagnostyka).
+//   D20 (28.11, RODO) — usuwanie razem z plikami (usuwanie.ts):
+//   { akcja: 'usun', lead_id } | { akcja: 'usun', oferta_id } → tylko JWT użytkownika z CRM; rekord kasowany jako użytkownik
+//     (RLS), potem pliki z crm-dokumenty (i crm-nagrania przy kliencie). Wynik: { ok, usuniety, plikow_usunietych, blad_plikow }.
+//   { akcja: 'sprzatnij_pliki', usun?: true } → pliki po klientach usuniętych wcześniej (domyślnie podgląd) + lista plików
+//     bez odwołania u istniejących klientów (tylko do wglądu).
 // Czcionki Poppins i logo: bucket crm-dokumenty/szablon/ (wgrywane przez crm-oferta-pdf: wgraj_szablon / aplikacja „Wgraj logo”).
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { kartaPomiarowa, umowa, protokolOdbioru, type KartaDane, type UmowaDane, type ProtokolDane } from './dokumenty.ts'
 import { fmt, type Czcionki, type Logo } from './rysuj.ts'
+import { usun, sprzatnijPliki, BladUsuwania } from './usuwanie.ts'
 
 const JSON_H = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
 const CORS_H = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-ingest-key' }
@@ -54,9 +60,16 @@ Deno.serve(async (req: Request) => {
       if (error || !s) return odp(500, { error: 'Nie utworzono linku: ' + (error?.message ?? '?') })
       return odp(200, { sciezka, url: s.signedUrl })
     }
+    if (akcja === 'usun') {
+      // D20: usuwa tylko zalogowany użytkownik z CRM (rekord jego JWT, pliki kluczem serwisowym)
+      if (kto !== 'uzytkownik') return odp(403, { error: 'Usuwanie tylko z aplikacji (zalogowany użytkownik z dostępem do CRM)' })
+      const uzytk = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY') ?? '', { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } }, db: { schema: 'crm' } })
+      return odp(200, await usun(db, uzytk, body))
+    }
+    if (akcja === 'sprzatnij_pliki') return odp(200, await sprzatnijPliki(db, body.usun === true))
     return odp(400, { error: 'Nieznana akcja' })
   } catch (e) {
-    if (e instanceof BladWejscia) return odp(400, { error: e.message })
+    if (e instanceof BladWejscia || e instanceof BladUsuwania) return odp(400, { error: e.message })
     return odp(500, { error: e instanceof Error ? e.message : String(e) })
   }
 })

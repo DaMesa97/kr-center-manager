@@ -349,15 +349,39 @@ async function removeCrmFiles(paths: Array<string | null | undefined>): Promise<
   if (error) console.warn('[CRM] nie usunięto plików:', error.message)
 }
 
-/** Usuwa klienta razem z ofertami, rozmowami, historią i dokumentami. Nieodwracalne. */
+/**
+ * D20 (28.11, RODO): usuwanie w funkcji serwerowej crm-dokumenty (akcja 'usun') — rekord jako użytkownik, potem pliki
+ * z bucketu (aplikacja nie ma prawa kasować plików). 'stara_funkcja' = crm-dokumenty jeszcze bez tej akcji
+ * („Nieznana akcja”) → usuwamy po staremu z aplikacji (rekord, potem próba skasowania plików).
+ */
+async function usunPrzezSerwer(body: { lead_id?: string; oferta_id?: string }): Promise<CrmError | null | 'stara_funkcja'> {
+  try {
+    const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string; blad_plikow?: string | null }>(CRM_EDGE_DOKUMENTY, { body: { akcja: 'usun', ...body } })
+    if (error) {
+      const msg = await fnErrorMessage(error, 'Funkcja crm-dokumenty nie odpowiada')
+      return /Nieznana akcja/i.test(msg) ? 'stara_funkcja' : { kind: 'other', message: msg }
+    }
+    if (!data?.ok) return { kind: 'other', message: data?.error ?? 'Pusta odpowiedź funkcji crm-dokumenty' }
+    if (data.blad_plikow) console.warn('[CRM] rekord usunięty, część plików została:', data.blad_plikow)
+    return null
+  } catch (e) {
+    return { kind: 'other', message: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** Usuwa klienta razem z ofertami, rozmowami, historią, dokumentami i plikami PDF (D20). Nieodwracalne. */
 export async function deleteLead(id: string): Promise<CrmError | null> {
+  const r = await usunPrzezSerwer({ lead_id: id })
+  if (r !== 'stara_funkcja') return r
   const [{ data: of }, { data: dk }] = await Promise.all([
     crm().from('oferty').select('plik_pdf').eq('lead_id', id),
     crm().from('dokumenty').select('plik_pdf').eq('lead_id', id),
   ])
-  await removeCrmFiles([...(of ?? []), ...(dk ?? [])].map((r) => (r as { plik_pdf: string | null }).plik_pdf))
   const { error } = await crm().from('leady').delete().eq('id', id)
-  return crmErrorFrom(error)
+  if (error) return crmErrorFrom(error)
+  // dopiero po usunięciu rekordu (wcześniej odwrotnie: błąd usunięcia zostawiał klienta bez plików)
+  await removeCrmFiles([...(of ?? []), ...(dk ?? [])].map((r) => (r as { plik_pdf: string | null }).plik_pdf))
+  return null
 }
 
 /** Usuwa jedną ofertę (i jej zdarzenia); dokumenty i maile tracą tylko powiązanie. */
@@ -382,9 +406,12 @@ export async function nazwijOferte(oferta: Pick<CrmOferta, 'id' | 'lead_id' | 'n
 }
 
 export async function deleteOferta(oferta: Pick<CrmOferta, 'id' | 'plik_pdf'>): Promise<CrmError | null> {
-  await removeCrmFiles([oferta.plik_pdf])
+  const r = await usunPrzezSerwer({ oferta_id: oferta.id })
+  if (r !== 'stara_funkcja') return r
   const { error } = await crm().from('oferty').delete().eq('id', oferta.id)
-  return crmErrorFrom(error)
+  if (error) return crmErrorFrom(error)
+  await removeCrmFiles([oferta.plik_pdf])
+  return null
 }
 
 /** Zmienia zadanie (typ / termin / opis) bez oznaczania „zrobione” — termin przelicza trigger dni roboczych. */
