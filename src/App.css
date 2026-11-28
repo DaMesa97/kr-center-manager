@@ -10668,7 +10668,7 @@ li.optima-item--kit-part { margin-left: 16px; }
 
 /* ── Pulpit KR Center (28.11, makieta właściciela): bez ikon, liczby tabelaryczne ─────────────── */
 .pulpit { --p-ink: #1A2230; --p-muted: #5A6372; --p-line: #E2E5EA; --p-line-soft: #EEF0F3; --p-red: #B42318; --p-amber: #9A5B00; --p-green: #1F6B3A; --p-link: #1E3A8A;
-  max-width: 1240px; padding: 28px 32px 56px; display: flex; flex-direction: column; gap: 24px; color: var(--p-ink); font-variant-numeric: tabular-nums; box-sizing: border-box; }
+  width: 100%; max-width: 1400px; margin: 0 auto; padding: 28px 32px 56px; display: flex; flex-direction: column; gap: 24px; color: var(--p-ink); font-variant-numeric: tabular-nums; box-sizing: border-box; }
 .pulpit-naglowek { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .pulpit-tytul { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; color: var(--p-ink); }
 .pulpit-podtytul { margin: 6px 0 0; font-size: 14px; color: var(--p-muted); }
