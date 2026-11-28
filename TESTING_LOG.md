@@ -526,6 +526,9 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 - Aplikacja **1.1.9 OPUBLIKOWANA** (clean = tag v1.1.9 = d8877bc, min_app_version 1.1.9).
 - Nadal czeka: `036001` (D68 drop tabel po sprawdzeniu kopii), `233000` + `235100` (po poprawie receptury). Po wdrożeniu crm-dokumenty: raz `{akcja:'sprzatnij_pliki'}` (podgląd), potem z `usun:true` (8 plików po usuniętych klientach) — do zrobienia z poziomu aplikacji / na polecenie.
 
+- **28.11 ok. 14:00 — ościeżnica ST na montaż** (właściciel w czacie: „masowo przepiąć receptury na ościeżnicę ST na etap MONTAŻ”): `20261128040000_st_oscieznica_na_etap_montaz.sql` WGRANY — 30 pozycji receptur „ST / Ościeżnica / …” osc → mon, przeliczone 98 otwartych zleceń ST (9 rezerwacji osc → mon; suma zarezerwowanego bez zmian, 0 WZ; próba w transakcji cofniętej przed). Progi „ST / Próg / …” (też na osc) nie ruszane — pytanie do właściciela.
+- Po tym WGRANE wstrzymane `20261127233000` + `20261127235100` (+ ponownie 234000): próba w transakcji cofniętej, potem jedna transakcja; `scripts/kontrola-po-wdrozeniu.sql` — **pusty wynik**.
+
 ### Lista plików (dla porządku)
 Próba generalna 28.11 po południu: 28 plików poniżej (bez 036001 i 036200) razem w transakcji cofniętej na produkcji (już z pakietem z południa) — 0 błędów. Kontrola po wgraniu: `scripts/kontrola-decyzje-28-11.sql` (każde zapytanie: pusty wynik = OK).
 Kolejność = kolejność nazw:
