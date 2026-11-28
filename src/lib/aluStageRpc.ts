@@ -27,3 +27,6 @@ export async function rpcUndoAluStage(positionId: number, stageKey: string, expe
   if (res.error?.code === 'PGRST202') return supabase.rpc('undo_alu_position_stage', base)
   return res
 }
+
+// D54: tekst błędu (czysta funkcja w aluStation — testowalna bez klienta Supabase)
+export { ALU_ZKP_BLOCK_CODE, aluMarkErrorText } from './aluStation'

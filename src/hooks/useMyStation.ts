@@ -5,7 +5,7 @@ import { markLocalStageWrite } from '../lib/stageWrites'
 import { clearStageLocally, stationUndoMessage, undoStationTask } from '../lib/stationUndo'
 import { ALL_STATION_CATEGORIES, fetchAluPositionsByOrder, fetchStationOrders } from '../lib/stationFetch'
 import { applyAluPositionStages, mergeAluPositionEvent } from '../lib/aluStation'
-import { aluDoneSeen, rpcMarkAluStage, rpcUndoAluStage } from '../lib/aluStageRpc'
+import { aluDoneSeen, aluMarkErrorText, rpcMarkAluStage, rpcUndoAluStage } from '../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../constants'
 import { parseProductionStages } from '../utils'
 import type { AluPosition, AluPositionStages, Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
@@ -334,7 +334,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
         livePos ? aluDoneSeen(livePos.production_stages, task.stageKey) : info.done,
       )
       if (error) {
-        pushToast(`Nie oznaczono sztuki: ${error.message}`, 'error')
+        pushToast(aluMarkErrorText(error), 'error')
         return false
       }
       setAluPositionsByOrder((prev) => applyAluPositionStages(prev, info.positionId, (data ?? {}) as AluPositionStages))

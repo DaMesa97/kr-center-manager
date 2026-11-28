@@ -179,3 +179,12 @@ export function mergeAluPositionEvent(
   const copy = i >= 0 ? list.map((p, j) => (j === i ? merged : p)) : [...list, merged].sort((a, b) => a.pos_no - b.pos_no)
   return { ...byOrder, [row.order_id]: copy }
 }
+
+/** Kod błędu bazy dla blokad ZKP przy etapach (D54: przed uruchomieniem / pakowanie przed zwolnieniem karty). */
+export const ALU_ZKP_BLOCK_CODE = 'P0423'
+
+/** Tekst dla pracownika po nieudanym oznaczeniu sztuki — blokada ZKP wyraźnie nazwana. */
+export function aluMarkErrorText(error: { code?: string | null; message: string }): string {
+  if (error.code === ALU_ZKP_BLOCK_CODE) return `Blokada ZKP — ${error.message}`
+  return `Nie oznaczono sztuki: ${error.message}`
+}

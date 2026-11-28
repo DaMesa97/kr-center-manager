@@ -26,7 +26,7 @@ import {
   mergeAluPositionEvent,
 } from '../../lib/aluStation'
 import { aluStageDone } from '../../lib/alu'
-import { aluDoneSeen, rpcMarkAluStage, rpcUndoAluStage } from '../../lib/aluStageRpc'
+import { aluDoneSeen, aluMarkErrorText, rpcMarkAluStage, rpcUndoAluStage } from '../../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../../constants'
 import { czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
 import type { AluPosition, AluPositionStages, Complaint, Order, WorkerStage } from '../../types'
@@ -362,7 +362,7 @@ export default function MobileStationView({ userId }: Props) {
       ))
       if (!mountedRef.current) return
       if (error) {
-        flash(`Nie oznaczono sztuki: ${error.message}`, true)
+        flash(aluMarkErrorText(error), true)
         return
       }
       const stages = (data ?? {}) as AluPositionStages

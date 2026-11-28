@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aluCanUndo, aluReadyCount, buildAluTasks, mergeAluPositionEvent } from '../lib/aluStation'
+import { aluCanUndo, aluMarkErrorText, aluReadyCount, buildAluTasks, mergeAluPositionEvent } from '../lib/aluStation'
 import type { AluPosition, Order, WorkerStage } from '../types'
 
 const order = (o: Record<string, unknown>): Order => o as unknown as Order
@@ -52,5 +52,17 @@ describe('aluStation — przepływ sztukowy', () => {
     expect(upd[10][0].production_stages.ciecie?.done).toBe(1)
     expect(mergeAluPositionEvent(byOrder, 'UPDATE', { id: 9, order_id: 99 }, null)).toBe(byOrder)
     expect(mergeAluPositionEvent(byOrder, 'DELETE', null, { id: 1 })[10]).toEqual([])
+  })
+})
+
+describe('D54: komunikat blokady ZKP przy oznaczaniu sztuki', () => {
+  it('blokada ZKP (P0423) nazwana wprost', () => {
+    expect(aluMarkErrorText({ code: 'P0423', message: 'pakowanie dopiero po zwolnieniu karty' })).toBe(
+      'Blokada ZKP — pakowanie dopiero po zwolnieniu karty',
+    )
+  })
+  it('inne błędy jak dotąd', () => {
+    expect(aluMarkErrorText({ code: 'P0001', message: 'x' })).toBe('Nie oznaczono sztuki: x')
+    expect(aluMarkErrorText({ message: 'y' })).toBe('Nie oznaczono sztuki: y')
   })
 })

@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient'
 import { fetchAllPages } from '../lib/fetchPaged'
 import { ALU_STAGE_DEFS, ORDER_DOCUMENTS_BUCKET } from '../constants'
 import { applyAluPositionStages } from '../lib/aluStation'
-import { aluDoneSeen, rpcMarkAluStage, rpcUndoAluStage } from '../lib/aluStageRpc'
+import { aluDoneSeen, aluMarkErrorText, rpcMarkAluStage, rpcUndoAluStage } from '../lib/aluStageRpc'
 import type { AluMaterialListParseResult } from '../lib/aluMaterialListParser'
 import type {
   AluPositionStages,
@@ -659,7 +659,7 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
           pos ? aluDoneSeen(pos.production_stages, stageKey) : null,
         )
         if (error) {
-          pushToast(`Nie oznaczono sztuki: ${error.message}`, 'error')
+          pushToast(aluMarkErrorText(error), 'error')
           return false
         }
         setAluPositionsByOrder((prev) => applyAluPositionStages(prev, positionId, (data ?? {}) as AluPositionStages))
