@@ -2,6 +2,12 @@ import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { appAlert, appConfirm } from '../lib/appDialogs'
 import { CONFIG_DICTIONARIES } from '../constants'
+import {
+  czyBrakFunkcjiZmianyNazwy,
+  opisZmianyNazwy,
+  podsumowanieZmianyNazwy,
+  type WynikZmianyNazwy,
+} from '../lib/slownikZmianaNazwy'
 import type {
   ConfigExclusion,
   ConfigFormCategory,
@@ -533,6 +539,66 @@ export function useConfig({
     await fetchBastionFrameOptions()
   }
 
+  /**
+   * D60: zmiana nazwy wartości słownika przez bazę (config_option_rename) — najpierw podgląd: gdzie wartość jest
+   * użyta i ile wpisów się zmieni, potem potwierdzenie i zmiana (wykluczenia, receptury, reguły Bastion…).
+   * Zwraca 'zmieniono' (baza już zmieniła nazwę), 'zwykla' (stara baza bez funkcji, wartość nieużywana —
+   * wolno zwykłym UPDATE) albo 'stop' (anulowano / blokada / błąd).
+   */
+  const zmienNazweWSlowniku = async (row: ConfigOptionRecord, nowa: string): Promise<'zmieniono' | 'zwykla' | 'stop'> => {
+    const { data: podglad, error: podgladErr } = await supabase.rpc('config_option_rename', {
+      p_id: row.id,
+      p_nowa: nowa,
+      p_tylko_podglad: true,
+    })
+    if (podgladErr) {
+      if (!czyBrakFunkcjiZmianyNazwy(podgladErr)) {
+        pushToast(`Wystąpił błąd: ${podgladErr.message}`, 'error')
+        return 'stop'
+      }
+      // baza bez migracji D60: używanej wartości nie zmieniamy (zerwałoby wykluczenia / receptury / reguły)
+      const { data: usage, error: usageErr } = await supabase.rpc('config_option_usage', {
+        p_category: row.category,
+        p_type: row.type,
+        p_value: row.value,
+      })
+      if (usageErr) {
+        pushToast(`Nie udało się sprawdzić, czy wartość jest używana: ${usageErr.message}`, 'error')
+        return 'stop'
+      }
+      const u = (usage ?? {}) as { total?: number; total_all?: number }
+      if ((u.total_all ?? u.total ?? 0) > 0) {
+        await appAlert(
+          `Wartość „${row.value}" jest używana (zamówienia, receptury, wykluczenia lub reguły) — tej wersji bazy nie da się bezpiecznie zmienić jej nazwy.\n\nDodaj nową wartość, a starą zostaw.`,
+        )
+        return 'stop'
+      }
+      return 'zwykla'
+    }
+    const w = (podglad ?? {}) as WynikZmianyNazwy
+    if (w.bez_zmian) return 'zwykla'
+    if (w.blokada) {
+      await appAlert(w.blokada)
+      return 'stop'
+    }
+    if (!(await appConfirm(opisZmianyNazwy(w), { title: 'Zmiana nazwy w słowniku', confirmLabel: 'Zmień nazwę' }))) {
+      return 'stop'
+    }
+    const { data: wynik, error } = await supabase.rpc('config_option_rename', {
+      p_id: row.id,
+      p_nowa: nowa,
+      p_tylko_podglad: false,
+    })
+    if (error) {
+      pushToast(`Wystąpił błąd: ${error.message}`, 'error')
+      return 'stop'
+    }
+    pushToast(podsumowanieZmianyNazwy((wynik ?? w) as WynikZmianyNazwy), 'success')
+    void fetchExclusions()
+    void fetchBastionFrameOptions()
+    return 'zmieniono'
+  }
+
   const handleSaveConfigOption = async () => {
     const dict = selectedConfigDict
     const valueTrim = configOptionForm.value.trim()
@@ -558,6 +624,12 @@ export function useConfig({
       }
       return
     }
+    // D60: nowa nazwa istniejącej wartości — najpierw przeniesienie w bazie (okno z podglądem, przed zasłoną
+    // „ładowanie”); potem zwykły zapis (wartość już zmieniona → zostaje tylko kolejność)
+    if (editingConfigOption !== null && valueTrim !== editingConfigOption.value) {
+      const zmiana = await zmienNazweWSlowniku(editingConfigOption, valueTrim)
+      if (zmiana === 'stop') return
+    }
     setIsConfigOptionSaving(true)
     setGlobalLoading(true)
     try {
@@ -573,7 +645,8 @@ export function useConfig({
           .select('id')
           .single()
         if (error) {
-          pushToast(`Wystąpił błąd: ${error.message}`, 'error')
+          // D60: indeks unikalny (kategoria, typ, wartość — bez względu na wielkość liter i polskie znaki)
+          pushToast(error.code === '23505' ? 'Taka wartość już jest w tym słowniku' : `Wystąpił błąd: ${error.message}`, 'error')
         } else {
           if (inserted) {
             await placeConfigOptionAt(dict.category, dict.type, (inserted as { id: number }).id, configOptionForm.sort_order)
@@ -794,6 +867,13 @@ export function useConfig({
   const handleSaveRozmiarWithDimensions = async () => {
     if (!dimensionModalForm.width_mm || !dimensionModalForm.height_mm) return
     if (!pendingRozmiarValue) return
+    // D60: zmiana nazwy rozmiaru przez bazę (wykluczenia, receptury, mapa wymiarów — okno z podglądem)
+    let przeniesionoWBazie = false
+    if (editingConfigOption !== null && pendingRozmiarValue !== editingConfigOption.value) {
+      const zmiana = await zmienNazweWSlowniku(editingConfigOption, pendingRozmiarValue)
+      if (zmiana === 'stop') return
+      przeniesionoWBazie = zmiana === 'zmieniono'
+    }
     setGlobalLoading(true)
     try {
       if (editingConfigOption !== null) {
@@ -817,9 +897,13 @@ export function useConfig({
           width_mm: dimensionModalForm.width_mm,
           height_mm: dimensionModalForm.height_mm,
         }
-        const { error: dimError } = existing
-          ? await supabase.from('dimension_map').update(dimPayload).eq('id', existing.id)
-          : await supabase.from('dimension_map').insert(dimPayload)
+        // po zmianie w bazie wiersz z nową nazwą już jest (przeniesiony albo skopiowany obok starej, gdy otwarte
+        // zlecenia mają starą) — zapisujemy wymiary wiersza z NOWĄ nazwą
+        const { error: dimError } = przeniesionoWBazie
+          ? await supabase.from('dimension_map').upsert(dimPayload, { onConflict: 'category,dimension_code' })
+          : existing
+            ? await supabase.from('dimension_map').update(dimPayload).eq('id', existing.id)
+            : await supabase.from('dimension_map').insert(dimPayload)
         if (dimError) {
           pushToast(`Błąd zapisu wymiarów: ${dimError.message}`, 'error')
           return
@@ -833,7 +917,7 @@ export function useConfig({
           sort_order: configOptionsList.length + 1,
         })
         if (optError) {
-          pushToast(`Błąd zapisu: ${optError.message}`, 'error')
+          pushToast(optError.code === '23505' ? 'Taki rozmiar już jest w tym słowniku' : `Błąd zapisu: ${optError.message}`, 'error')
           return
         }
         const { error: dimError } = await supabase.from('dimension_map').insert({
