@@ -7,6 +7,7 @@ import { isOptimaClosed } from '../../lib/optimaRo'
 import { groupPicks, pickProgress, type OrderPick } from '../../lib/orderPicks'
 import MobileIntDoorPicking from './MobileIntDoorPicking'
 import { CAT_COLORS, CAT_LABEL } from './mobileKategorie'
+import { humanizeAndLog } from '../../lib/friendlyError'
 
 const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'] as const
 
@@ -91,7 +92,8 @@ type Props = {
 type PickProg = { done: number; total: number; complete: boolean }
 
 /** Postęp przygotowania dla listy Wewn. (pozycje + odznaczenia otwartych zleceń, porcjami po 150 id). */
-async function loadPickProgress(orderIds: number[]): Promise<Map<number, PickProg>> {
+// runda 10: błąd odczytu → null (lista pokazuje komunikat), a nie „0/N” jak przy braku odhaczeń
+async function loadPickProgress(orderIds: number[]): Promise<Map<number, PickProg> | null> {
   const items: Array<{ id: number; order_id: number; optima_element_id: number | null; notes: string | null; component_id: number | null; optima_code: string | null; quantity: number }> = []
   const picks: OrderPick[] = []
   for (let i = 0; i < orderIds.length; i += 150) {
@@ -101,6 +103,10 @@ async function loadPickProgress(orderIds: number[]): Promise<Map<number, PickPro
       supabase.from('order_internal_door_items').select('id, order_id, optima_element_id, notes, component_id, optima_code, quantity').in('order_id', part).limit(5000),
       supabase.from('order_item_picks').select('order_id, line_key, picked_at, picked_by, picked_initials, line_sig').in('order_id', part).limit(5000),
     ])
+    if (it.error || pk.error) {
+      console.error('[telefon] postęp przygotowania:', it.error ?? pk.error)
+      return null
+    }
     items.push(...((it.data ?? []) as typeof items))
     picks.push(...((pk.data ?? []) as OrderPick[]))
   }
@@ -119,6 +125,8 @@ export default function MobileOrdersView({ canPickItems = false, initials = '' }
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Order | null>(null)
   const [pickProg, setPickProg] = useState<Map<number, PickProg>>(new Map())
+  // runda 10 (tester telefonu): błąd odczytu wyglądał jak „0 aktywnych zleceń”
+  const [loadError, setLoadError] = useState<string | null>(null)
   const mountedRef = useRef(true)
 
   // wersja zapytania — szybkie przełączanie chipów kategorii nie może
@@ -127,6 +135,7 @@ export default function MobileOrdersView({ canPickItems = false, initials = '' }
   const load = useCallback(async (cat: string) => {
     const version = ++loadVersionRef.current
     setLoading(true)
+    setLoadError(null)
     // Tylko OTWARTE + paginacja (PostgREST ucina do 1000, Bastion ma więcej
     // otwartych) — stary limit gubił najstarsze otwarte zlecenia
     const all: Order[] = []
@@ -152,6 +161,7 @@ export default function MobileOrdersView({ canPickItems = false, initials = '' }
     setLoading(false)
     if (fetchError) {
       setOrders([])
+      setLoadError(humanizeAndLog(`Nie wczytano listy zleceń — ${fetchError.message}`, 'mobile-zlecenia'))
       return
     }
     const active = all.filter((o: Order) => {
@@ -165,7 +175,10 @@ export default function MobileOrdersView({ canPickItems = false, initials = '' }
     setOrders(active)
     if (cat === 'DrzwiWewnetrzne') {
       const prog = await loadPickProgress(active.map((o) => o.id).filter((id): id is number => id != null))
-      if (mountedRef.current && version === loadVersionRef.current) setPickProg(prog)
+      if (mountedRef.current && version === loadVersionRef.current) {
+        setPickProg(prog ?? new Map())
+        if (!prog) setLoadError('Nie wczytano postępu przygotowania drzwi — odśwież listę')
+      }
     } else {
       setPickProg(new Map())
     }
@@ -272,7 +285,8 @@ export default function MobileOrdersView({ canPickItems = false, initials = '' }
       </div>
 
       <div className="morders-count">
-        {loading ? 'Ładowanie…' : `${filtered.length} aktywnych zleceń`}
+        {loading ? 'Ładowanie…' : loadError && orders.length === 0 ? loadError : `${filtered.length} aktywnych zleceń`}
+        {!loading && loadError && orders.length > 0 && <div style={{ color: '#b91c1c' }}>{loadError}</div>}
       </div>
 
       <div className="morders-list">

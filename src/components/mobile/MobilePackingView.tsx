@@ -34,6 +34,8 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
   const [searching, setSearching] = useState(false)
   const [selected, setSelected] = useState<SearchResult | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
+  // runda 10 (tester telefonu): błąd odczytu zdjęć wyglądał jak „Brak zdjęć — dodaj pierwsze”
+  const [photosError, setPhotosError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -86,12 +88,13 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
   }
 
   const loadPhotos = useCallback(async (orderId: number) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('order_photos')
       .select('id, public_url, storage_path')
       .eq('order_id', orderId)
       .order('created_at', { ascending: false })
     if (!mountedRef.current) return
+    setPhotosError(error ? humanizeAndLog(`Nie wczytano zdjęć — ${error.message}`, 'mobile-pakowanie') : null)
     setPhotos((data ?? []) as Photo[])
   }, [])
 
@@ -251,7 +254,9 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
           </button>
 
           <div className="mpack-photos">
-            {photos.length === 0 ? (
+            {photosError ? (
+              <div className="mpack-info" style={{ color: '#b91c1c' }}>{photosError}</div>
+            ) : photos.length === 0 ? (
               <div className="mpack-info">Brak zdjęć — dodaj pierwsze</div>
             ) : (
               <div className="mpack-photo-grid">

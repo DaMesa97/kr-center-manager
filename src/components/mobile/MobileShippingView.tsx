@@ -50,8 +50,12 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
   const [confirm, setConfirm] = useState<Order | null>(null)
   // runda 4 (tester hali): przy drzwiach wewnętrznych telefon nie mówił, ile spakowano i czy są pozycje bez komponentu
   const [wewInfo, setWewInfo] = useState<{ done: number; total: number; bezKomponentu: number } | null>(null)
+  // runda 10 (tester telefonu): przy błędzie ostrzeżenie „Spakowane x/y” po cichu znikało, a „Tak, wydane”
+  // działało, zanim postęp się wczytał — teraz: czekamy na wczytanie, błąd mówimy wprost
+  const [wewStan, setWewStan] = useState<'brak' | 'wczytuje' | 'ok' | 'blad'>('brak')
   useEffect(() => {
     setWewInfo(null)
+    setWewStan(confirm?.category === 'DrzwiWewnetrzne' && confirm.id != null ? 'wczytuje' : 'brak')
     if (!confirm || confirm.category !== 'DrzwiWewnetrzne' || confirm.id == null) return
     const orderId = confirm.id
     let aktualne = true
@@ -60,7 +64,13 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
         supabase.from('order_internal_door_items').select('*').eq('order_id', orderId),
         supabase.from('order_item_picks').select('order_id, line_key, picked_at, picked_by, picked_initials, line_sig').eq('order_id', orderId),
       ])
-      if (!aktualne || it.error || pk.error) return
+      if (!aktualne) return
+      if (it.error || pk.error) {
+        console.error('[wydanie z telefonu] postęp pakowania:', it.error ?? pk.error)
+        setWewStan('blad')
+        return
+      }
+      setWewStan('ok')
       const items = (it.data ?? []) as unknown as InternalDoorItem[]
       const pr = pickProgress(items, groupPicks((pk.data ?? []) as OrderPick[]).get(orderId))
       setWewInfo({ done: pr.done, total: pr.total, bezKomponentu: items.filter((x) => x.component_id == null).length })
@@ -335,6 +345,20 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
                   </>
                 ) : null
               })()}
+              {wewStan === 'wczytuje' && (
+                <>
+                  <br />
+                  <span>Wczytuję postęp pakowania…</span>
+                </>
+              )}
+              {wewStan === 'blad' && (
+                <>
+                  <br />
+                  <span style={{ color: '#b91c1c', fontWeight: 700 }}>
+                    ⚠️ Nie wczytano postępu pakowania (sprawdź internet) — nie wiadomo, czy wszystko odhaczone.
+                  </span>
+                </>
+              )}
               {wewInfo && (
                 <>
                   <br />
@@ -354,7 +378,7 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
               <button type="button" className="mstation-confirm-cancel" onClick={() => setConfirm(null)} disabled={saving}>
                 Anuluj
               </button>
-              <button type="button" className="mstation-confirm-ok" onClick={() => void markReleased(confirm)} disabled={saving || !canRelease}>
+              <button type="button" className="mstation-confirm-ok" onClick={() => void markReleased(confirm)} disabled={saving || !canRelease || wewStan === 'wczytuje'}>
                 {saving ? 'Zapisywanie…' : 'Tak, wydane'}
               </button>
             </div>
