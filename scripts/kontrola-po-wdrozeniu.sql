@@ -160,7 +160,9 @@ braki_obiektow as (
                     'audit_warehouse_stock', 'audit_warehouse_recipe_components',
                     -- 20261128010500
                     'audit_label_templates', 'audit_config_exclusions', 'audit_dimension_map',
-                    'audit_order_lead_time_rules']) t(n)
+                    'audit_order_lead_time_rules',
+                    -- 20261128021100 (runda 10 (28.11)): pozycje ZD tylko w szkicu
+                    'trg_purchase_order_items_guard']) t(n)
   where not exists (select 1 from pg_trigger g where g.tgname = t.n and not g.tgisinternal)
   union all
   select 'constraint', c.n, 'BRAK CONSTRAINTU'
