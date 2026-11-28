@@ -196,17 +196,21 @@ function fieldHasValue(order: Order, alu: AluLabelCtx | undefined): (key: string
 
 async function substituteFields(template: LabelTemplate, order: Order, alu?: AluLabelCtx): Promise<string> {
   const qrImg = await qrImage(order)
-  let body = applyLabelConditionals(template.html, fieldHasValue(order, alu))
-  if (alu) {
-    for (const field of ALU_LABEL_FIELDS) body = body.split(`{{${field.key}}}`).join(escapeHtml(field.value(order, alu)) || '-')
-  }
-  for (const field of LABEL_FIELDS) {
-    // Puste pole tekstowe → "-" (QR nie podlega tej regule; escapujemy dane usera)
-    const val = field.key === 'qr' ? qrImg : (escapeHtml(field.value(order)) || '-')
-    body = body.split(`{{${field.key}}}`).join(val)
-  }
-  // Nieznane/literówkowe placeholdery {{...}} → "-" (żeby nie drukować surowych klamr)
-  return body.replace(/\{\{\s*[\wąćęłńóśźż.-]+\s*\}\}/gi, '-')
+  const body = applyLabelConditionals(template.html, fieldHasValue(order, alu))
+  // runda 8 (tester druku): jedno przejście tym samym wyrażeniem co warunki {if …} — bez względu na spacje i wielkość
+  // liter ({{ firma }}, {{Firma}} drukowały „-”, choć warunek uznawał pole za wypełnione); wstawione dane nie są już
+  // skanowane drugi raz (firma „ACME {{uwagi}}” nie wstawia uwag). Pola alu mają pierwszeństwo jak dotąd.
+  return body.replace(PLACEHOLDER_RE, (_m, klucz: string) => {
+    const k = klucz.toLowerCase()
+    if (alu) {
+      const a = ALU_LABEL_FIELDS.find((x) => x.key.toLowerCase() === k)
+      if (a) return escapeHtml(a.value(order, alu)) || '-'
+    }
+    if (k === 'qr') return qrImg
+    const f = LABEL_FIELDS.find((x) => x.key.toLowerCase() === k)
+    // Puste pole → "-"; nieznane / literówkowe placeholdery też "-" (żeby nie drukować surowych klamr)
+    return f ? escapeHtml(f.value(order)) || '-' : '-'
+  })
 }
 
 // Body etykiety (podstawione pola + QR) + wymiary — do samodzielnego druku

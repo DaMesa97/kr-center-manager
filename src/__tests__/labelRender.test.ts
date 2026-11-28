@@ -16,6 +16,16 @@ describe('renderLabelHtml', () => {
     expect(html).toContain('4321|TORA')
   })
 
+  it('runda 8: pole ze spacją albo wielką literą też jest podstawiane (było „-”)', async () => {
+    const html = await renderLabelHtml(tpl('[{{ firma }}][{{Firma}}][{if firma}F:{{ firma }}{/if}]'), order({ id: 1, company: 'TORA' }))
+    expect(html).toContain('[TORA][TORA][F:TORA]')
+  })
+
+  it('runda 8: {{…}} w danych zlecenia nie jest podstawiane drugi raz', async () => {
+    const html = await renderLabelHtml(tpl('[{{firma}}]'), order({ id: 1, company: 'ACME {{nr_zlecenia}}', order_number: '999' }))
+    expect(html).not.toContain('ACME 999')
+  })
+
   it('puste pola → "-" (zgłoszenie #9)', async () => {
     const html = await renderLabelHtml(tpl('[{{model}}]'), order({ id: 1 }))
     expect(html).toContain('[-]')
