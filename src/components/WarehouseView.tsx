@@ -6,7 +6,7 @@ import type {
   CurrentUser,
   IncomingStockRow,
   MmGroupRow,
-  StockLevelRow, StockMinimumInput, StockReservationRow,
+  ReorderProposal, StockLevelRow, StockMinimumInput, StockReservationRow,
   PurchaseOrder,
   PurchaseOrderItem,
   PzGroupRow,
@@ -63,6 +63,8 @@ type WarehouseViewProps = {
   onRefreshStock?: () => void
   /** poziomy braków per półka (v_stock_levels) — widok Stany */
   stockLevels?: StockLevelRow[]
+  /** D9: „ile zamówić” na komponent (get_reorder_proposals); null / brak = stara logika */
+  reorderProposals?: ReorderProposal[] | null
   onSetStockMinimums?: (items: StockMinimumInput[]) => Promise<boolean>
   components: WarehouseComponent[]
   componentsLoading: boolean
@@ -135,6 +137,7 @@ function WarehouseView({
   onRefreshIncoming = () => {},
   stockReservations = [],
   stockLevels = [],
+  reorderProposals = null,
   onSetStockMinimums,
   stockReservationsLoading = false,
   onRefreshReservations = () => {},
@@ -267,6 +270,7 @@ function WarehouseView({
           suppliers={suppliers}
           smartRopData={smartRopData}
           levels={rawStockLevels}
+          reorderProposals={reorderProposals}
           loading={stockLoading}
           isManager={isManager}
           canEditMin={isManager || can(currentUser?.role, 'warehouse.manage')}
@@ -353,6 +357,7 @@ function WarehouseView({
           suppliers={suppliers}
           stock={stock}
           incoming={incomingStock}
+          reorderProposals={reorderProposals}
           componentsLoading={componentsLoading}
           stockLoading={stockLoading}
           isManager={isManager}

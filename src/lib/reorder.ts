@@ -1,16 +1,79 @@
 // =====================================================================
-// Zamawianie — status SKU i sugerowana ilość. Jedno miejsce dla dashboardu
-// (ReorderDashboardView); progi min/target przychodzą z bazy (smart ROP albo
-// ręczne), tu tylko arytmetyka.
+// Zamawianie — status SKU i sugerowana ilość.
 //
-// Pozycja zapasu = stan fizyczny + towar w drodze (otwarte ZD). Dzięki temu po
-// wygenerowaniu zamówienia SKU nie świeci dalej „PILNE" i nie zamawia się go
-// drugi raz. Rezerwacje pod zlecenia NIE są odejmowane: obejmują cały portfel
-// otwartych zleceń (miesiące produkcji), a próg smart dotyczy horyzontu czasu
-// dostawy — pokazujemy je informacyjnie.
+// D9 (28.11): „ile zamówić” liczy BAZA — get_reorder_proposals (komponent, suma
+// magazynów; pozycja = stan − rezerwacje + w drodze; cel bez smart ROP = 2×
+// miesięczne zużycie; zaokrąglenie do partii). Czytają ją Zamawianie, Stany
+// („Wszystkie”) i Alerty. Tu: odczyt wiersza RPC i przełożenie na status /
+// sugestię ekranu.
+//
+// computeReorder = STARA reguła (pozycja = stan + w drodze, rezerwacje NIE
+// odejmowane, bez targetu 4× min) — zostaje jako zapas, gdy baza nie ma jeszcze
+// funkcji (PGRST202, aplikacja przed wgraniem migracji 20261128050000).
 // =====================================================================
+import type { ReorderProposal, StockLevel } from '../types'
 
 export type ReorderStatus = 'no_threshold' | 'critical' | 'observe' | 'ok'
+
+const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
+const numOrNull = (v: unknown): number | null => (v == null || v === '' ? null : num(v))
+
+const LEVELS: StockLevel[] = ['critical', 'covered', 'low', 'ok', 'inactive']
+const STATUSES: ReorderStatus[] = ['critical', 'observe', 'ok', 'no_threshold']
+
+/** Wiersz get_reorder_proposals z PostgREST (numeric jako string) → ReorderProposal */
+export function normalizeReorderProposal(r: Record<string, unknown>): ReorderProposal {
+  const level = String(r.r_level ?? 'ok') as StockLevel
+  const status = String(r.r_status ?? 'no_threshold') as ReorderStatus
+  const minSrc = r.r_min_source == null ? null : String(r.r_min_source)
+  const tSrc = r.r_target_source == null ? null : String(r.r_target_source)
+  return {
+    component_id: num(r.r_component_id),
+    stock: num(r.r_stock),
+    reserved: num(r.r_reserved),
+    available: num(r.r_available),
+    incoming: num(r.r_incoming),
+    earliest_eta: r.r_earliest_eta == null ? null : String(r.r_earliest_eta),
+    open_pos: num(r.r_open_pos),
+    draft_qty: num(r.r_draft_qty),
+    position: num(r.r_position),
+    min: numOrNull(r.r_min),
+    min_source: minSrc === 'shelf' || minSrc === 'smart' || minSrc === 'component' ? minSrc : null,
+    target: numOrNull(r.r_target),
+    target_source: tSrc === 'smart' || tSrc === 'component' || tSrc === 'consumption' || tSrc === 'min_x4' ? tSrc : null,
+    monthly_consumption: num(r.r_monthly_consumption),
+    smart: r.r_smart === true,
+    level: LEVELS.includes(level) ? level : 'ok',
+    status: STATUSES.includes(status) ? status : 'no_threshold',
+    proposal: num(r.r_proposal),
+    order_lot: numOrNull(r.r_order_lot),
+  }
+}
+
+/** Czy komponent trzeba zamówić teraz (PILNE / OBSERWUJ) */
+export function proposalNeedsOrder(p: Pick<ReorderProposal, 'status'>): boolean {
+  return p.status === 'critical' || p.status === 'observe'
+}
+
+/** „Do zamówienia” w Stanach („Wszystkie”): propozycja tylko, gdy trzeba zamówić teraz */
+export function proposalShortage(p: Pick<ReorderProposal, 'status' | 'proposal'>): number {
+  return proposalNeedsOrder(p) ? Math.max(0, p.proposal) : 0
+}
+
+/** Status i sugestia Zamawiania z wiersza bazy (ten sam kształt co computeReorder) */
+export function reorderFromProposal(p: ReorderProposal): ReorderResult {
+  const suggested = proposalNeedsOrder(p)
+    ? Math.max(p.proposal, 1)
+    : p.proposal > 0 ? p.proposal : null
+  return { position: p.position, status: p.status, suggested }
+}
+
+/** D65: ostrzeżenie przed dodaniem do listy, gdy towar jest już w niewysłanym szkicu ZD; null = bez ostrzeżenia */
+export function draftWarningText(componentName: string, draftQty: number | null | undefined): string | null {
+  const q = Number(draftQty)
+  if (!Number.isFinite(q) || q <= 0) return null
+  return `„${componentName}” jest już w niewysłanym szkicu ZD (${Number(q.toFixed(3))} szt.). Szkic nie liczy się jako „w drodze” — dodać mimo to do listy zakupowej?`
+}
 
 export type ReorderInput = {
   /** stan fizyczny (suma magazynów) */

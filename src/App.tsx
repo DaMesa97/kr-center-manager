@@ -468,6 +468,7 @@ function App() {
     setShoppingListModalOpen,
     smartRopData,
     stockLevels,
+    reorderProposals,
     setStockMinimums,
     smartRopLoading,
     purchaseOrders,
@@ -3905,6 +3906,7 @@ function App() {
             }}
             onRefreshStock={fetchWarehouseStock}
             stockLevels={stockLevels}
+            reorderProposals={reorderProposals}
             onSetStockMinimums={setStockMinimums}
             components={warehouseComponents}
             componentsLoading={warehouseComponentsLoading}

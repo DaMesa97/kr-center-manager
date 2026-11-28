@@ -6,7 +6,7 @@
 // =====================================================================
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
-  ShoppingListItem, SmartRopRow, StockLevel, StockLevelRow, StockMinimumInput, Supplier, ToastVariant, Warehouse,
+  ReorderProposal, ShoppingListItem, SmartRopRow, StockLevel, StockLevelRow, StockMinimumInput, Supplier, ToastVariant, Warehouse,
   WarehouseComponent,
 } from '../../types'
 import DamageReportModal from '../DamageReportModal'
@@ -88,6 +88,8 @@ type StockViewProps = {
   components: WarehouseComponent[]
   /** poziomy braków per półka — v_stock_levels */
   levels: StockLevelRow[]
+  /** D9: „ile zamówić” na komponent (get_reorder_proposals) — widok „Wszystkie”; null = suma braków z półek (po staremu) */
+  reorderProposals?: ReorderProposal[] | null
   suppliers?: Supplier[]
   /** tylko do tooltipa 🤖 (szczegóły Smart ROP) — źródło minimum podaje baza */
   smartRopData?: SmartRopRow[]
@@ -106,7 +108,7 @@ type StockViewProps = {
 }
 
 function StockView({
-  warehouses, components, levels, suppliers = [], smartRopData = [], loading, isManager, canEditMin, onSetMinimums,
+  warehouses, components, levels, reorderProposals = null, suppliers = [], smartRopData = [], loading, isManager, canEditMin, onSetMinimums,
   onAddToShoppingList, canAddPz, onAddPz, onShowHistory, pushToast, onStockChanged,
 }: StockViewProps) {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs)
@@ -150,6 +152,11 @@ function StockView({
     return m
   }, [suppliers])
 
+  const proposalById = useMemo(
+    () => (reorderProposals ? new Map(reorderProposals.map((p) => [p.component_id, p])) : null),
+    [reorderProposals],
+  )
+
   const warehousesSorted = useMemo(() => [...warehouses].sort((a, b) => a.code.localeCompare(b.code)), [warehouses])
 
   const uniqueCategories = useMemo(() => {
@@ -188,8 +195,8 @@ function StockView({
   )
   // Komponenty (tryb „Wszystkie”) — agregat po wszystkich magazynach
   const aggregatedBase = useMemo(
-    () => (isAllWarehouses ? aggregateStockLevels(levels).filter(matchesBase) : []),
-    [levels, isAllWarehouses, matchesBase],
+    () => (isAllWarehouses ? aggregateStockLevels(levels, proposalById).filter(matchesBase) : []),
+    [levels, isAllWarehouses, matchesBase, proposalById],
   )
 
   const counts = useMemo(
@@ -320,14 +327,22 @@ function StockView({
     // „do zamówienia” sumowane po komponencie (różne magazyny = jedno zamówienie u dostawcy);
     // każda półka jest już zaokrąglona do minimum logistycznego / palety przez bazę (#168)
     const byComponent = new Map<number, number>()
-    for (const r of shortageRows) if (r.shortage > 0) byComponent.set(r.component_id, (byComponent.get(r.component_id) ?? 0) + r.shortage)
+    if (isAllWarehouses && proposalById) {
+      // D9: „Wszystkie” = jedna reguła dla całej firmy (to samo, co kolumna DO ZAMÓWIENIA i Zamawianie)
+      for (const r of aggregatedBase) if (r.shortage > 0) byComponent.set(r.component_id, r.shortage)
+    } else {
+      for (const r of shortageRows) if (r.shortage > 0) byComponent.set(r.component_id, (byComponent.get(r.component_id) ?? 0) + r.shortage)
+    }
     if (byComponent.size === 0) { pushToast?.('Nic do zamówienia w bieżącym filtrze', 'info'); return }
+    // D65: komponenty już wpisane w niewysłany szkic ZD — szkic nie liczy się jako „w drodze”
+    const inDraft = proposalById ? [...byComponent.keys()].filter((id) => (proposalById.get(id)?.draft_qty ?? 0) > 0).length : 0
     const ok = await appConfirm(
-      `Dodać ${byComponent.size} ${byComponent.size === 1 ? 'komponent' : 'komponentów'} z brakami do listy zakupowej? Ilość = „do zamówienia” (komponenty już na liście zostaną pominięte).`,
+      `Dodać ${byComponent.size} ${byComponent.size === 1 ? 'komponent' : 'komponentów'} z brakami do listy zakupowej? Ilość = „do zamówienia” (komponenty już na liście zostaną pominięte).`
+        + (inDraft > 0 ? ` Uwaga: w niewysłanym szkicu ZD jest już ${inDraft} z nich — sprawdź, żeby nie zamówić drugi raz.` : ''),
       { title: 'Lista zakupowa', confirmLabel: 'Dodaj' },
     )
     if (!ok) return
-    const aggAll = aggregateStockLevels(levels)
+    const aggAll = aggregateStockLevels(levels, proposalById)
     for (const [componentId, qty] of byComponent) {
       const c = componentById.get(componentId)
       const agg = aggAll.find((a) => a.component_id === componentId)
@@ -348,7 +363,7 @@ function StockView({
         target_stock_level: c?.target_stock_level ?? null,
       })
     }
-  }, [onAddToShoppingList, shortageRows, pushToast, componentById, levels, supplierById])
+  }, [onAddToShoppingList, shortageRows, pushToast, componentById, levels, supplierById, isAllWarehouses, proposalById, aggregatedBase])
 
   // ── komórki
   const renderMinSourceBadge = useCallback(
@@ -532,10 +547,27 @@ function StockView({
     },
     { key: 'projected', label: 'PROGNOZA', stackUnder: 'incoming', sortValue: (r) => r.available + r.incoming, render: (r) => fmtQty(r.available + r.incoming) },
     { key: 'min', label: 'MINIMUM', stopRowClick: true, sortValue: (r) => maxMinOf(r), render: renderMinCellAggregated },
-    { key: 'shortage', label: 'DO ZAMÓWIENIA', sortValue: (r) => r.shortage, render: (r) => renderShortageCell(r.shortage) },
+    {
+      key: 'shortage',
+      label: 'DO ZAMÓWIENIA',
+      title: proposalById
+        ? 'Cała firma (suma magazynów): stan − zarezerwowane + w drodze, do celu, zaokrąglone do partii — te same liczby co w Zamawianiu i Alertach'
+        : undefined,
+      sortValue: (r) => r.shortage,
+      tdTitle: (r) => {
+        const p = r.fromProposal ? proposalById?.get(r.component_id) : undefined
+        if (!p) return undefined
+        return [
+          `Pozycja: ${fmtQty(p.position)} (stan ${fmtQty(p.stock)} − rez. ${fmtQty(p.reserved)} + w drodze ${fmtQty(p.incoming)})`,
+          `Minimum: ${p.min == null ? '—' : fmtQty(p.min)} · cel: ${p.target == null ? '—' : fmtQty(p.target)}`,
+          p.draft_qty > 0 ? `W szkicu ZD: ${fmtQty(p.draft_qty)} (nie liczy się jako „w drodze”)` : '',
+        ].filter(Boolean).join('\n')
+      },
+      render: (r) => renderShortageCell(r.shortage),
+    },
     { key: 'level', label: 'STATUS', sortValue: (r) => -compareByStockLevel(r, LEVEL_SORT_REF), render: (r) => renderLevelCell(r.level, r.shelves.find((s) => s.level === 'covered')?.earliest_eta) },
     { key: 'actions', label: 'AKCJE', stopRowClick: true, render: (r) => renderActions(r.component_id, null) },
-  ], [warehousesSorted, renderMinCellAggregated, renderActions])
+  ], [warehousesSorted, renderMinCellAggregated, renderActions, proposalById])
 
   const renderExpandedEditor = useCallback(
     (r: AggregatedStockLevelRow) => {

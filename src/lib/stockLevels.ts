@@ -4,8 +4,9 @@
 // etykiety, kolejność, agregacja po komponencie (widok „Wszystkie”), liczniki,
 // sortowanie „najpierw braki” i CSV braków. Testy: __tests__/stockLevels.test.ts
 // =====================================================================
-import type { StockLevel, StockLevelRow, StockMinSource } from '../types'
+import type { ReorderProposal, StockLevel, StockLevelRow, StockMinSource } from '../types'
 import { csvCell } from './csvCell'
+import { proposalShortage } from './reorder'
 
 export const STOCK_LEVEL_ORDER: StockLevel[] = ['critical', 'covered', 'low', 'ok', 'inactive']
 
@@ -103,16 +104,21 @@ export type AggregatedStockLevelRow = {
   reserved: number
   available: number
   incoming: number
-  /** najgorszy poziom wśród półek */
+  /** najgorszy poziom wśród półek; D9 (fromProposal): poziom komponentu dla całej firmy */
   level: StockLevel
   /** najniższe dostępne wśród półek (sortowanie krytycznych) */
   worstAvailable: number
-  /** suma „do zamówienia” po półkach */
+  /** suma „do zamówienia” po półkach; D9 (fromProposal): propozycja z get_reorder_proposals */
   shortage: number
+  /** D9: poziom i „do zamówienia” z jednej reguły bazy (cała firma), a nie z półek */
+  fromProposal?: boolean
   shelves: StockLevelRow[]
 }
 
-export function aggregateStockLevels(rows: StockLevelRow[]): AggregatedStockLevelRow[] {
+export function aggregateStockLevels(
+  rows: StockLevelRow[],
+  proposals?: Map<number, ReorderProposal> | null,
+): AggregatedStockLevelRow[] {
   const map = new Map<number, AggregatedStockLevelRow>()
   for (const r of rows) {
     let agg = map.get(r.component_id)
@@ -150,7 +156,20 @@ export function aggregateStockLevels(rows: StockLevelRow[]): AggregatedStockLeve
     if (stockLevelRank(r.level) < stockLevelRank(agg.level)) agg.level = r.level
     agg.shelves.push(r)
   }
-  return Array.from(map.values())
+  const out = Array.from(map.values())
+  // D9: jedna reguła dla całej firmy — poziom i „do zamówienia” z get_reorder_proposals (minimum firmy raz,
+  // na sumach magazynów, do celu), zamiast najgorszej półki i sumy braków z półek
+  if (proposals) {
+    for (const agg of out) {
+      const p = proposals.get(agg.component_id)
+      if (!p) continue
+      agg.level = p.level
+      agg.shortage = proposalShortage(p)
+      agg.incoming = p.incoming
+      agg.fromProposal = true
+    }
+  }
+  return out
 }
 
 type Sortable = { level: StockLevel; shortage: number; component_code: string; component_name: string } & (

@@ -901,6 +901,8 @@ export type StockAlert = {
   earliest_eta: string | null
   /** D7 (b): prognoza orientacyjna (< 3 pełnych miesięcy historii); brak kolumny w bazie = false */
   forecast_indicative?: boolean
+  /** D65: ilość w niewysłanych szkicach ZD na tym magazynie (nie liczy się do „w drodze”); brak kolumny = 0 */
+  draft_qty?: number
 }
 
 export type SmartRopRow = {
@@ -974,6 +976,35 @@ export type InventoryLine = {
   component_door_color?: string | null
   component_door_size?: string | null
   component_door_direction?: string | null
+}
+
+/** D9/D65: wiersz get_reorder_proposals — jedna reguła „ile zamówić” na komponent (suma magazynów) */
+export type ReorderProposal = {
+  component_id: number
+  stock: number
+  reserved: number
+  /** stan − zarezerwowane */
+  available: number
+  /** w drodze: wysłane / częściowe ZD */
+  incoming: number
+  earliest_eta: string | null
+  open_pos: number
+  /** w niewysłanych szkicach ZD (D65) — nie wchodzi do pozycji */
+  draft_qty: number
+  /** stan − zarezerwowane + w drodze */
+  position: number
+  min: number | null
+  min_source: 'shelf' | 'smart' | 'component' | null
+  target: number | null
+  target_source: 'smart' | 'component' | 'consumption' | 'min_x4' | null
+  monthly_consumption: number
+  smart: boolean
+  /** poziom jak w Stanach (stock_level na sumach) */
+  level: StockLevel
+  status: 'critical' | 'observe' | 'ok' | 'no_threshold'
+  /** do celu, zaokrąglone do partii; przy ok / no_threshold = „z wyprzedzeniem” */
+  proposal: number
+  order_lot: number | null
 }
 
 export type ShoppingListItem = {

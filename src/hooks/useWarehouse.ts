@@ -7,6 +7,7 @@ import { mmReservationPrompt, movedReservationsBy, parseMmReservationPreview } f
 import { fetchAllPages } from '../lib/fetchPaged'
 import { alertsBadgeThrottled, parseAlertsSummary } from '../lib/alertsBadge'
 import { normalizeStockLevelRow } from '../lib/stockLevels'
+import { normalizeReorderProposal } from '../lib/reorder'
 
 /** Ruchy: pierwsza porcja i krok „Wczytaj starsze" */
 const MOVEMENTS_PAGE = 500
@@ -18,7 +19,7 @@ import type {
   CompanySettings, DeleteConfirmState, IncomingStockRow, MmFormState, MmGroupRow, MmItem,
   StockReservationRow,
   MonthlyConsumptionPivot, MonthlyConsumptionRow, Order, OrderNeedingReview,
-  PurchaseOrder, PurchaseOrderItem, PzFormState, PzGroupRow, PzItem,
+  PurchaseOrder, PurchaseOrderItem, PzFormState, PzGroupRow, PzItem, ReorderProposal,
   RecipeFormState, ShoppingListItem, SmartRopRow, StockLevelRow, StockMinimumInput, Supplier,
   ToastVariant, Warehouse, WarehouseComponent, WarehouseComponentCreateInput,
   WarehouseComponentUpdateInput, WarehouseMovementRow, WarehouseRecipe,
@@ -110,6 +111,8 @@ export function useWarehouse({
   const [smartRopData, setSmartRopData] = useState<SmartRopRow[]>([])
   /** Poziomy braków per półka — liczy baza (v_stock_levels); odświeżane razem ze stanami */
   const [stockLevels, setStockLevels] = useState<StockLevelRow[]>([])
+  /** D9: „ile zamówić” na komponent (get_reorder_proposals); null = baza bez funkcji → ekrany liczą po staremu */
+  const [reorderProposals, setReorderProposals] = useState<ReorderProposal[] | null>(null)
   const [smartRopLoading, setSmartRopLoading] = useState(false)
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
   const [purchaseOrderItems, setPurchaseOrderItems] = useState<PurchaseOrderItem[]>([])
@@ -288,11 +291,28 @@ export function useWarehouse({
     setWarehouseStock(mapped)
     // Poziomy braków (krytyczny / pokryty dostawą / niski / OK / nieaktywny) + „do zamówienia”
     // — jedno zapytanie do widoku v_stock_levels, reguły wyłącznie w bazie (stock_level / stock_shortage)
-    const lv = await fetchAllPages<Record<string, unknown>>((from, to) =>
-      supabase.from('v_stock_levels').select('*').order('stock_id').range(from, to),
-    )
+    // D9: równolegle jedna reguła „ile zamówić” (komponent, suma magazynów) — get_reorder_proposals
+    const [lv, rp] = await Promise.all([
+      fetchAllPages<Record<string, unknown>>((from, to) =>
+        supabase.from('v_stock_levels').select('*').order('stock_id').range(from, to),
+      ),
+      fetchAllPages<Record<string, unknown>>((from, to) =>
+        // bez komponentów „pustych” (stan, rezerwacje, w drodze, szkice = 0, bez minimum i celu) — dla nich
+        // Zamawianie i tak pokazuje „brak progu” bez sugestii (stara arytmetyka daje to samo); ~3,1 tys. → ~0,5 tys.
+        supabase
+          .rpc('get_reorder_proposals')
+          .or('r_stock.neq.0,r_reserved.neq.0,r_incoming.neq.0,r_draft_qty.neq.0,r_min.not.is.null,r_target.not.is.null')
+          .order('r_component_id')
+          .range(from, to),
+      ),
+    ])
     if (lv.error) pushToast(`Błąd poziomów stanów: ${lv.error.message}`, 'error')
     else setStockLevels((lv.data ?? []).map(normalizeStockLevelRow))
+    if (rp.error) {
+      // PGRST202 = baza bez migracji 20261128050000 → ekrany liczą po staremu (bez komunikatu)
+      if ((rp.error as { code?: string }).code !== 'PGRST202') console.error('get_reorder_proposals', rp.error)
+      setReorderProposals(null)
+    } else setReorderProposals((rp.data ?? []).map(normalizeReorderProposal))
   }, [pushToast, touchSession])
 
   /** Minimum półki (magazyn × komponent); null = nie pilnujemy. RPC set_stock_minimums — tylko kierownik. */
@@ -2136,6 +2156,7 @@ export function useWarehouse({
     smartRopData,
     smartRopLoading,
     stockLevels,
+    reorderProposals,
     setStockMinimums,
     purchaseOrders,
     purchaseOrderItems,

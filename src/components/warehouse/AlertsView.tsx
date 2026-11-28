@@ -61,6 +61,8 @@ function mapRpcRow(row: Record<string, unknown>): StockAlert {
     earliest_eta: (row.r_earliest_eta as string | null) ?? null,
     // D7 (b): kolumna od migracji 20261127232800 — bez niej false (jak dotąd)
     forecast_indicative: row.r_forecast_indicative === true,
+    // D65: kolumna od migracji 20261128050000 — bez niej 0
+    draft_qty: Number(row.r_draft_qty ?? 0) || 0,
   }
 }
 
@@ -448,6 +450,14 @@ const alertColumns: DataTableColumn<StockAlert>[] = [
       ),
   },
   {
+    key: 'draft',
+    label: 'W szkicu',
+    stackUnder: 'incoming',
+    title: 'Wpisane w niewysłany szkic ZD — to jeszcze nie zamówienie, nie liczy się jako „w drodze” (D65)',
+    sortValue: (a) => a.draft_qty || null,
+    render: (a) => ((a.draft_qty ?? 0) > 0 ? <span style={{ color: '#b45309', fontWeight: 600 }}>{a.draft_qty}</span> : '—'),
+  },
+  {
     key: 'daily',
     label: 'Zużycie dzienne',
     stackUnder: 'days',
@@ -480,6 +490,7 @@ const alertColumns: DataTableColumn<StockAlert>[] = [
   {
     key: 'suggested',
     label: 'Sugerowane zam.',
+    title: 'Ile zamówić dla całej firmy (suma magazynów, do celu) — pokazane przy jednym magazynie komponentu',
     sortValue: (a) => a.suggested_order_qty || null,
     render: (a) => (a.suggested_order_qty > 0 ? <strong>{a.suggested_order_qty}</strong> : '—'),
   },

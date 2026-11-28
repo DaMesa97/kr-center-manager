@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type {
   IncomingStockRow,
+  ReorderProposal,
   ShoppingListItem,
   SmartRopRow,
   Supplier,
@@ -9,7 +10,8 @@ import type {
   WarehouseStockRow,
 } from '../../types'
 import Spinner from '../Spinner'
-import { computeReorder, type ReorderStatus } from '../../lib/reorder'
+import { computeReorder, draftWarningText, reorderFromProposal, type ReorderStatus } from '../../lib/reorder'
+import { appConfirm } from '../../lib/appDialogs'
 import { isDoorCategory } from '../../lib/internalWarehouse'
 
 type Row = {
@@ -18,8 +20,12 @@ type Row = {
   effective_min_stock: number | null
   effective_target_stock: number | null
   current_stock: number
-  /** zarezerwowane pod zlecenia (informacyjnie — nie wchodzi do pozycji) */
+  /** zarezerwowane pod zlecenia — D9: odjęte od pozycji (fromDb); po staremu tylko informacyjnie */
   reserved: number
+  /** ilość w niewysłanych szkicach ZD (D65) */
+  draft_qty: number
+  /** true = status i sugestia z bazy (get_reorder_proposals, D9); false = stara arytmetyka (computeReorder) */
+  fromDb: boolean
   /** w drodze z otwartych ZD — wchodzi do pozycji zapasu */
   incoming: IncomingStockRow | null
   supplier: Supplier | null
@@ -34,6 +40,8 @@ type Props = {
   stock: WarehouseStockRow[]
   /** niedostarczone pozycje wysłanych ZD (get_incoming_stock_per_component) */
   incoming?: IncomingStockRow[]
+  /** D9: jedna reguła „ile zamówić” z bazy; null / brak = stara logika (baza bez migracji 20261128050000) */
+  reorderProposals?: ReorderProposal[] | null
   componentsLoading?: boolean
   stockLoading?: boolean
   smartRopData: SmartRopRow[]
@@ -74,6 +82,7 @@ export default function ReorderDashboardView({
   suppliers,
   stock,
   incoming = [],
+  reorderProposals = null,
   componentsLoading = false,
   stockLoading = false,
   smartRopData,
@@ -114,6 +123,10 @@ export default function ReorderDashboardView({
   )
 
   const incomingByComponent = useMemo(() => new Map(incoming.map((i) => [i.component_id, i])), [incoming])
+  const proposalByComponent = useMemo(
+    () => (reorderProposals ? new Map(reorderProposals.map((p) => [p.component_id, p])) : null),
+    [reorderProposals],
+  )
 
   const rows = useMemo(() => {
     const stockSumByComponent = new Map<number, number>()
@@ -147,7 +160,27 @@ export default function ReorderDashboardView({
       const effectiveMin = smartRow?.effective_min_stock ?? component.min_stock_level ?? null
       const effectiveTarget = smartRow?.effective_target_stock ?? component.target_stock_level ?? null
       const inc = incomingByComponent.get(component.id) ?? null
-      // pozycja = stan + w drodze; status i ilość liczy lib/reorder (wspólna arytmetyka)
+      // D9: baza (get_reorder_proposals) — pozycja = stan − rezerwacje + w drodze, cel, partia
+      const proposal = proposalByComponent?.get(component.id) ?? null
+      if (proposal) {
+        const fromDb = reorderFromProposal(proposal)
+        return {
+          component,
+          smartRow,
+          effective_min_stock: proposal.min,
+          effective_target_stock: proposal.target,
+          current_stock: proposal.stock,
+          reserved: proposal.reserved,
+          draft_qty: proposal.draft_qty,
+          fromDb: true,
+          incoming: inc,
+          supplier,
+          lead_time_days: leadTime,
+          status: fromDb.status,
+          suggested_qty: fromDb.suggested,
+        } as Row
+      }
+      // zapas: stara arytmetyka (pozycja = stan + w drodze) — baza bez funkcji albo komponent „pusty”
       const { status, suggested } = computeReorder({
         stock: currentStock,
         incoming: inc?.incoming_qty ?? 0,
@@ -164,6 +197,8 @@ export default function ReorderDashboardView({
         effective_target_stock: effectiveTarget,
         current_stock: currentStock,
         reserved: reservedByComponent.get(component.id) ?? 0,
+        draft_qty: inc?.draft_qty ?? 0,
+        fromDb: false,
         incoming: inc,
         supplier,
         lead_time_days: leadTime,
@@ -171,7 +206,7 @@ export default function ReorderDashboardView({
         suggested_qty: suggested,
       } as Row
     })
-  }, [components, stock, supplierById, categoryFilter, smartRopByComponentId, query, supplierFilter, incomingByComponent])
+  }, [components, stock, supplierById, categoryFilter, smartRopByComponentId, query, supplierFilter, incomingByComponent, proposalByComponent])
 
   const noThresholdSkus = useMemo(
     () => rows.filter((r) => r.status === 'no_threshold').sort((a, b) => a.component.name.localeCompare(b.component.name, 'pl')),
@@ -200,10 +235,13 @@ export default function ReorderDashboardView({
       return !r.component.supplier_id || !s || !s.is_active
     }).length
 
-  const handleAddToList = (row: Row, qtyOverride?: number) => {
+  const handleAddToList = async (row: Row, qtyOverride?: number) => {
     const c = row.component
     const qty = qtyOverride ?? row.suggested_qty
     if (!qty || qty <= 0) return
+    // D65: szkic ZD to jeszcze nie zamówienie — ostrzeż, żeby nie zamówić drugi raz tego samego
+    const warning = draftWarningText(c.name, row.draft_qty)
+    if (warning && !(await appConfirm(warning, { title: 'Towar w szkicu ZD', confirmLabel: 'Dodaj mimo to' }))) return
     onAddToShoppingList({
       component_id: c.id,
       component_name: c.name,
@@ -273,13 +311,17 @@ export default function ReorderDashboardView({
                 {row.incoming.earliest_eta ? ` (ETA ${fmtEta(row.incoming.earliest_eta)})` : ''}
               </>
             )}
-            {row.incoming && row.incoming.draft_qty > 0 && (
+            {row.draft_qty > 0 && (
               <span title="Już wpisane w niewysłanym szkicu ZD — nie liczy się do pozycji, żeby nie zamówić dwa razy">
-                {' '}| w szkicu ZD: <strong>{row.incoming.draft_qty}</strong>
+                {' '}| w szkicu ZD: <strong>{row.draft_qty}</strong>
               </span>
             )}
             {' '}| Min: {row.effective_min_stock ?? '—'} | Target: {row.effective_target_stock ?? '—'}
-            {row.reserved > 0 && <> | zarezerwowane pod zlecenia: {row.reserved}</>}
+            {row.reserved > 0 && (
+              row.fromDb
+                ? <span title="Rezerwacje pod zlecenia są odejmowane od stanu (decyzja D9)"> | zarezerwowane (odjęte): {row.reserved}</span>
+                : <> | zarezerwowane pod zlecenia: {row.reserved}</>
+            )}
           </div>
           <div className="reorder-row-meta">
             Sugerowane: <strong>{row.suggested_qty ?? '—'} szt</strong>
@@ -291,7 +333,7 @@ export default function ReorderDashboardView({
           className="btn btn-sm btn-success reorder-add-btn"
           disabled={disabled}
           title={invalidSupplier ? 'Brak dostawcy — kliknij badge' : alreadyAdded ? 'Już na liście' : ''}
-          onClick={() => handleAddToList(row)}
+          onClick={() => void handleAddToList(row)}
         >
           {alreadyAdded ? '✓ Na liście' : '+ Do listy'}
         </button>
@@ -316,9 +358,10 @@ export default function ReorderDashboardView({
             {row.incoming && row.incoming.incoming_qty > 0 && (
               <> + w drodze: {row.incoming.incoming_qty}{row.incoming.earliest_eta ? ` (ETA ${fmtEta(row.incoming.earliest_eta)})` : ''}</>
             )}
-            {row.incoming && row.incoming.draft_qty > 0 && (
-              <span title="Już wpisane w niewysłanym szkicu ZD — nie liczy się do pozycji"> | w szkicu ZD: {row.incoming.draft_qty}</span>
+            {row.draft_qty > 0 && (
+              <span title="Już wpisane w niewysłanym szkicu ZD — nie liczy się do pozycji"> | w szkicu ZD: {row.draft_qty}</span>
             )}
+            {row.fromDb && row.reserved > 0 && <> | zarezerwowane (odjęte): {row.reserved}</>}
             {row.effective_min_stock != null && <> | Min: {row.effective_min_stock}</>}
             {row.effective_target_stock != null && <> | Target: {row.effective_target_stock}</>}
             {supplier && <> · {supplier.name}</>}
@@ -339,7 +382,7 @@ export default function ReorderDashboardView({
             className="btn btn-sm btn-secondary reorder-add-btn"
             disabled={invalidSupplier || alreadyAdded || qty <= 0}
             title={noSupplier ? 'Brak dostawcy' : alreadyAdded ? 'Już na liście' : ''}
-            onClick={() => handleAddToList(row, qty || undefined)}
+            onClick={() => void handleAddToList(row, qty || undefined)}
           >
             {alreadyAdded ? '✓' : '+ Do listy'}
           </button>
@@ -382,6 +425,12 @@ export default function ReorderDashboardView({
           : smartCount === 0
             ? 'ℹ️ System używa manualnych progów min/target. Smart logic aktywuje się po 4 dniach z WZ w 12 tygodniach.'
             : `ℹ️ Smart logic aktywne dla ${smartCount} SKU. Pozostałe ${manualCount} SKU używa progów manualnych.`}
+        {reorderProposals && (
+          <>
+            {' '}Pozycja = stan − zarezerwowane + w drodze (cała firma); cel bez Smart = 2× miesięczne zużycie — te same
+            liczby co w Stanach („Wszystkie”) i Alertach.
+          </>
+        )}
       </p>
 
       <div className="alerts-filter-pills">
