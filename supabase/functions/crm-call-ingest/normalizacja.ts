@@ -63,6 +63,20 @@ export function normalizujTelefon(x: unknown): string | null {
   return '+' + cyfry
 }
 
+// D24 (28.11.2026, decyzja właściciela — TAK, opcja a): dopinanie maila do klienta po numerze z PODPISU tylko dla komórek.
+// Numer centrali / stacjonarny w podpisie (np. „tel. 32 455 00 00”) mają wszyscy pracownicy firmy — dopięcie po nim
+// łączyło maile kilku osób w jednego klienta. Komórka = polski numer 9-cyfrowy z zakresów sieci komórkowych (UKE:
+// 45, 50, 51, 53, 57, 60, 66, 69, 72, 73, 78, 79, 88) — wszystkie zaczynają się od 4–8 jak w opisie decyzji, ale
+// stacjonarne z tego przedziału (np. 58 Gdańsk, 61 Poznań, 71 Wrocław, 41–44 …) nie przechodzą. Numery zagraniczne — nie.
+const PREFIKSY_KOMOREK_PL = ['45', '50', '51', '53', '57', '60', '66', '69', '72', '73', '78', '79', '88'] as const
+
+/** D24: czy numer (dowolny zapis, jak normalizujTelefon) to polska komórka — tylko taki dopina mail z podpisu do klienta. */
+export function telefonKomorkowyPL(x: unknown): boolean {
+  const t = normalizujTelefon(x)
+  if (!t || !/^\+48[4-8]\d{8}$/.test(t)) return false
+  return (PREFIKSY_KOMOREK_PL as readonly string[]).includes(t.slice(3, 5))
+}
+
 // „/” tnie tylko wtedy, gdy przed nim jest już pełny numer (≥ 9 cyfr): „601 234 567 / 602 345 678” → pierwszy,
 // „32 455 00 00/01” → „32 455 00 00”; przy krótszym początku „/” jest częścią zapisu: „32/455 00 00”, „tel./fax …”.
 // testy 27.11 (runda 3)

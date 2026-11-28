@@ -3,7 +3,7 @@
 // Wołane przez trigger w bazie (crm.zlec_analize_maila → akcja 'mail') oraz przez ponawianie błędów (ponow_bledy).
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
-import { normalizujTelefon, OPISY_AKCJI, etykietyZAnalizy } from './normalizacja.ts'
+import { normalizujTelefon, OPISY_AKCJI, etykietyZAnalizy, telefonKomorkowyPL } from './normalizacja.ts'
 import { SCHEMA_ANALIZA, systemAnalizyMaila, userAnalizyMaila, cenaOrientacyjna, type Analiza, type KontekstMaila } from './prompt.ts'
 import { claudeJson } from './ai.ts'
 import { terminZBazy, znajdzLeadaZBazy } from './termin.ts'
@@ -127,10 +127,11 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
     // testy 27.11 (runda 3): (a) nie dla maili z naszych domen (nasz podpis = nasz numer, jak w crm.znajdz_leada);
     // (b) adresu nie dopisujemy trwale do inne_kontakty — samo dopasowanie po numerze jest niepewne, zostaje zdarzenie
     // „dopasowano … — sprawdź”; (c) klientowi wygranemu/przegranemu nie nadpisujemy podsumowania ani zadania
+    // D24 (28.11, właściciel): (d) tylko numer komórkowy — centrala firmy w podpisie łączyła maile kilku osób w jednego klienta
     let lPoTel: Lead | null = null
     const domenaNadawcy = email.split('@')[1] ?? ''
     if (!lead && !WLASNE_DOMENY.includes(domenaNadawcy)) {
-      const telPodpis = normalizujTelefon(a.telefon)
+      const telPodpis = telefonKomorkowyPL(a.telefon) ? normalizujTelefon(a.telefon) : null
       if (telPodpis) {
         const { data: wl } = await db.from('leady').select('id').eq('telefon', telPodpis).maybeSingle()
         if (wl) lPoTel = await leadPoId(db, wl.id)
