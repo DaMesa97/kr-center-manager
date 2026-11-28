@@ -3,7 +3,10 @@ import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabaseClient'
 import { componentLabel } from '../lib/componentLabel'
-import { OPTIMA_READONLY_HINT, isKitPart, isOptimaOrder, isOrderCancelled, lowerFirst } from '../lib/optimaRo'
+import { DRZWI_WEW_TYLKO_Z_OPTIMY, OPTIMA_READONLY_HINT, isKitPart, isOptimaOrder, isOrderCancelled, lowerFirst } from '../lib/optimaRo'
+
+// D40 (28.11): ręczne zlecenia drzwi wewnętrznych wyłączone (tylko import RO z Optimy)
+const RECZNE_DRZWI_WEW_WLACZONE = false
 import { pickKey } from '../lib/orderPicks'
 import { INTERNAL_WAREHOUSE_CODE_PATTERN } from '../lib/internalWarehouse'
 import { appConfirm } from '../lib/appDialogs'
@@ -179,6 +182,12 @@ function InternalDoorOrderModal({
       }
       onSaved()
       onClose()
+      return
+    }
+    // D40: ręczne zakładanie / edycja pozycji wyłączone — zlecenia drzwi wewnętrznych tylko z Optimy.
+    // Kod zapisu ręcznego zostaje poniżej nieużywany (do usunięcia, gdy decyzja się utrwali).
+    if (!RECZNE_DRZWI_WEW_WLACZONE) {
+      pushToast(DRZWI_WEW_TYLKO_Z_OPTIMY, 'error')
       return
     }
     if (items.length === 0) {

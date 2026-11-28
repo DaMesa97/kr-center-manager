@@ -77,7 +77,7 @@ import type {
 import type React from 'react'
 import { zarejestrujNiezapisane } from '../lib/useUnsavedGuard'
 import type { StockReleaseRow } from './useMyStation'
-import { isOptimaClosed, isOrderCancelled } from '../lib/optimaRo'
+import { DRZWI_WEW_TYLKO_Z_OPTIMY, isOptimaClosed, isOrderCancelled, moznaEdytowacDrzwiWew } from '../lib/optimaRo'
 import { komunikatKonfliktuEdycji, wykryjKonfliktEdycji } from '../lib/konfliktEdycji'
 import { releaseErrorText, releaseFailureMessage } from '../lib/stockReleaseFailure'
 import { reportStockReleaseFailure } from '../lib/stockReleaseFailureRpc'
@@ -2597,12 +2597,17 @@ export function useOrders({
     setIsModalOpen(true)
   }
 
+  // D40: zlecenia drzwi wewnętrznych tylko z Optimy — bez ręcznego zakładania; edycja tylko zleceń z importu RO
   const openCreateInternalDoorOrder = () => {
-    setInternalDoorOrderModal({ open: true, mode: 'create', order: null })
+    pushToast(DRZWI_WEW_TYLKO_Z_OPTIMY, 'info')
   }
 
   const openEditInternalDoorOrder = (order: Order) => {
     if (!isManager) return
+    if (!moznaEdytowacDrzwiWew(order)) {
+      pushToast(DRZWI_WEW_TYLKO_Z_OPTIMY, 'info')
+      return
+    }
     setInternalDoorOrderModal({ open: true, mode: 'edit', order })
   }
 

@@ -586,11 +586,12 @@ function InternalDoorOrderDetailsModal({
           <div className="order-form-actions">
             {/* isManagerRole zamiast sztywnego 'manager' — nowe role kierownicze
                 (admin, kierownik_*) nie widziały tu żadnych przycisków */}
-            {isInProgress && isManager && (
+            {/* D40: edycja tylko zleceń z Optimy (pola produkcyjne) — ręcznych zleceń drzwi wewnętrznych nie ma */}
+            {isInProgress && isManager && fromOptima && (
               <button
                 type="button"
                 className="btn btn-sm btn-primary"
-                title={fromOptima ? 'Z Optimy edytujesz tylko pola produkcyjne (wentylacja) — reszta przychodzi z Optimy' : undefined}
+                title="Z Optimy edytujesz tylko pola produkcyjne (wentylacja) — reszta przychodzi z Optimy"
                 onClick={() => {
                   onEdit(order)
                   onClose()

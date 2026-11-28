@@ -3212,7 +3212,8 @@ function App() {
                 : openNewOrderModal
           }
           newOrderLabel={activeTab === 'Aluminium' ? '⬆ Wgraj listę produkcyjną' : undefined}
-          canCreateOrder={isManager}
+          // D40: drzwi wewnętrzne tylko z Optimy — bez przycisku „+ Nowe zamówienie”
+          canCreateOrder={isManager && activeTab !== 'DrzwiWewnetrzne'}
           onSignOut={() => void handleSignOut()}
           pushToast={pushToast}
           showZkpPin={

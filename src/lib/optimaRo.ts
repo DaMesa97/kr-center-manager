@@ -173,6 +173,19 @@ export function isOptimaOrder(o: Pick<Order, 'source'> | null | undefined): bool
 }
 
 /**
+ * D40 (właściciel 28.11): „wewnętrzne będą zawsze tylko z Optimy” — ręcznego zakładania i edycji pozycji zleceń
+ * drzwi wewnętrznych w aplikacji nie ma (zapis ręczny szedł w 4 krokach bez transakcji). Zostaje tylko edycja pól
+ * produkcyjnych (wentylacja) w zleceniach z importu RO.
+ */
+export const DRZWI_WEW_TYLKO_Z_OPTIMY =
+  'Zlecenia drzwi wewnętrznych przychodzą wyłącznie z Optimy (import RO) — w programie nie zakłada się ich ręcznie.'
+
+/** D40: czy formularz zlecenia drzwi wewnętrznych może się otworzyć (tylko zlecenie z Optimy, tylko pola produkcyjne). */
+export function moznaEdytowacDrzwiWew(o: Pick<Order, 'source'> | null | undefined): boolean {
+  return isOptimaOrder(o)
+}
+
+/**
  * Stan rezerwacji odbiorcy w Optimie (source_metadata.state). Z danych 26.11 (7,7 tys. RO):
  * 0 = niezatwierdzone (bufor, status 1), 1 = potwierdzone, 2 = w realizacji (częściowo),
  * 3 = zrealizowane (większość, także z tego samego dnia), 4 = zamknięte (stare, zamykane po miesiącach).
