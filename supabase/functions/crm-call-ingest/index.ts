@@ -372,7 +372,8 @@ async function nowyLead(db: SupabaseClient, telefon: string, r: Rozmowa): Promis
     const ids = (stare ?? []).filter((x) => numerKlienta(x as unknown as Rozmowa) === telefon).map((x) => x.id)
     if (ids.length) {
       await db.from('rozmowy').update({ lead_id: data.id }).in('id', ids)
-      await db.from('zdarzenia').update({ lead_id: data.id }).in('rozmowa_id', ids).is('lead_id', null)
+      // zdarzenia trzymają rozmowa_id w dane (zob. zdarzenie())
+      await db.from('zdarzenia').update({ lead_id: data.id }).in('dane->>rozmowa_id', ids).is('lead_id', null)
     }
   } catch (e) {
     console.error('dopięcie wcześniejszych rozmów:', e)
