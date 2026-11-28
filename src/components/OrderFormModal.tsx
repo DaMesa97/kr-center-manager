@@ -14,6 +14,7 @@ import { useStockPreview } from '../hooks/useStockPreview'
 import { buildPreviewPayload } from '../lib/stockPreview'
 import { getOrderStageDefinitions } from '../utils'
 import { cancelledReason, isOrderCancelled } from '../lib/optimaRo'
+import { dzienZKartotekiFirmy, opcjeDniaProdukcji } from '../lib/dzienProdukcji'
 
 // Ostrzeżenie + dopasowanie niedopasowanej firmy (gł. zamówienia z BOT-a).
 // Auto-podpowiedź (najlepsze dopasowanie) ORAZ ręczny wybór z pełnej listy kontrahentów.
@@ -214,7 +215,49 @@ function OrderFormModal(props: OrderFormModalProps) {
       : null
   const { summary: stockPreviewSummary, loading: stockPreviewLoading } = useStockPreview(stockPreviewPayload)
 
+  // D27 (28.11): dzień produkcji — lista do wyboru (wcześniej tylko z kartoteki firmy) + podpowiedź z kartoteki
+  const renderProductionDayField = (value: string, companyValue: string, onChange: (value: string) => void) => {
+    const zKartoteki = dzienZKartotekiFirmy(companyValue, companies)
+    const inny = !!zKartoteki && !!value && zKartoteki !== value
+    return (
+      <label className="order-field-full">
+        <span className="order-field-label-text">Dzień produkcji</span>
+        <select className="order-field-select" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+          <option value="">— brak —</option>
+          {opcjeDniaProdukcji(value).map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+        {zKartoteki && (
+          <span className="order-field-hint" style={{ fontSize: 12, color: inny ? '#b45309' : '#64748b' }}>
+            Z kartoteki firmy: {zKartoteki}
+            {(inny || !value) && (
+              <button type="button" className="btn btn-sm btn-secondary" style={{ marginLeft: 6 }} onClick={() => onChange(zKartoteki)}>
+                Użyj
+              </button>
+            )}
+          </span>
+        )}
+      </label>
+    )
+  }
+
   const renderCategoryField = (categoryValue: string, onChange: (value: string) => void) => {
+    // D27 (28.11): w NOWYM zleceniu kategoria tylko do odczytu — zmiana zapisywała zlecenie w innej zakładce
+    // z numerem nadanym dla bieżącej zakładki. Nowe zlecenie innej kategorii zakłada się w jej zakładce.
+    if (editingOrderId === null) {
+      return (
+        <label className="order-field-full order-field-full--keep">
+          <span className="order-field-label-text">Kategoria</span>
+          <input
+            readOnly
+            className="input-readonly"
+            value={categoryValue === 'DrzwiWewnetrzne' ? 'Drzwi wewnętrzne' : (categoryValue || String(activeTab ?? ''))}
+            title="Nowe zlecenie innej kategorii załóż w jej zakładce"
+          />
+        </label>
+      )
+    }
     const hasUnknownCategory =
       !!categoryValue && !EDITABLE_CATEGORIES.includes(categoryValue as EditableCategory)
     return (
@@ -447,10 +490,7 @@ function OrderFormModal(props: OrderFormModalProps) {
                     if (prodDay) handleStaFormChange('production_day', prodDay)
                   })}
 
-                  <label className="order-field-full">
-                    <span className="order-field-label-text">Dzień produkcji</span>
-                    <input readOnly className="input-readonly" value={staFormData.production_day} />
-                  </label>
+                  {renderProductionDayField(staFormData.production_day, staFormData.company, (v) => handleStaFormChange('production_day', v))}
 
                   <SearchableConfigSelect
                     label="System"
@@ -954,10 +994,7 @@ function OrderFormModal(props: OrderFormModalProps) {
                     }
                   />
 
-                  <label className="order-field-full">
-                    <span className="order-field-label-text">Dzień produkcji</span>
-                    <input readOnly className="input-readonly" value={stFormData.production_day} />
-                  </label>
+                  {renderProductionDayField(stFormData.production_day, stFormData.company, (v) => handleStFormChange('production_day', v))}
 
                   <SearchableConfigSelect
                     label="System"
@@ -1198,10 +1235,7 @@ function OrderFormModal(props: OrderFormModalProps) {
                     }
                   />
 
-                  <label className="order-field-full">
-                    <span className="order-field-label-text">Dzień produkcji</span>
-                    <input readOnly className="input-readonly" value={techniczneFormData.production_day} />
-                  </label>
+                  {renderProductionDayField(techniczneFormData.production_day, techniczneFormData.company, (v) => handleTechniczneFormChange('production_day', v))}
 
                   <SearchableConfigSelect
                     label="System"
@@ -1423,10 +1457,7 @@ function OrderFormModal(props: OrderFormModalProps) {
                     }
                   />
 
-                  <label className="order-field-full">
-                    <span className="order-field-label-text">Dzień produkcji</span>
-                    <input readOnly className="input-readonly" value={bastionFormData.production_day} />
-                  </label>
+                  {renderProductionDayField(bastionFormData.production_day, bastionFormData.company, (v) => handleBastionFormChange('production_day', v))}
 
                   <SearchableConfigSelect
                     label="Kolekcja"
