@@ -25,7 +25,8 @@ import {
   buildAluTasks,
   mergeAluPositionEvent,
 } from '../../lib/aluStation'
-import { aluStageDone } from '../../lib/alu'
+import { aluStageDone, aluSztukaKomunikat } from '../../lib/alu'
+import { markLocalStageWrite } from '../../lib/stageWrites'
 import { aluDoneSeen, aluMarkErrorText, rpcMarkAluStage, rpcUndoAluStage } from '../../lib/aluStageRpc'
 import { aluMarkWithPin } from '../../lib/aluStation'
 import { useMobilePinAsk } from './useMobilePinAsk'
@@ -376,12 +377,7 @@ export default function MobileStationView({ userId }: Props) {
       }
       const stages = (data ?? {}) as AluPositionStages
       setAluPositions((prev) => applyAluPositionStages(prev, info.positionId, stages))
-      const doneNow = aluStageDone(stages, task.stageKey, info.quantity)
-      flash(
-        doneNow >= info.quantity
-          ? `${task.stageHeader}: pozycja ${info.posNo} gotowa (${doneNow}/${info.quantity} szt.) ✓`
-          : `${task.stageHeader}: sztuka ${doneNow}/${info.quantity} pozycji ${info.posNo} ✓`,
-      )
+      flash(`${aluSztukaKomunikat(task.stageHeader, info.posNo, info.quantity, stages, task.stageKey)} ✓`)
       setLastDone({ task, initials: mark })
       setConfirmTask(null)
     } catch (e) {
@@ -497,6 +493,8 @@ export default function MobileStationView({ userId }: Props) {
       // zapis całego obiektu kasował etapy innych stanowisk. Inicjały: osoba
       // z kafelka (wspólny telefon stanowiska) albo zalogowany.
       const mark = (opts?.markInitials ?? myInitials).trim() || 'T'
+      // D51: jak komputer — świeży lokalny zapis chroni etap przed starym stanem z realtime (okno wyścigu)
+      markLocalStageWrite(task.order.id, actualKey)
       const { error } = await zLimitemCzasu(supabase.rpc('update_order_stage', {
         p_order_id: task.order.id!,
         p_stage_key: actualKey,
@@ -508,6 +506,7 @@ export default function MobileStationView({ userId }: Props) {
       // 3) Mirror u partnera (Disting Plus / Titan) — jak tabela i Moje stanowisko
       const mirrorKey = mirrorStageKey(task.order.category, actualKey)
       if (mirrorKey && task.order.linked_order_id != null) {
+        markLocalStageWrite(task.order.linked_order_id, mirrorKey)
         const { error: mErr } = await zLimitemCzasu(supabase.rpc('update_order_stage', {
           p_order_id: task.order.linked_order_id,
           p_stage_key: mirrorKey,

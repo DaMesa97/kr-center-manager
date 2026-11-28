@@ -41,6 +41,24 @@ export function aluStageDone(stages: AluPositionStages | null | undefined, stage
   return Math.max(0, Math.min(quantity, Number.isFinite(done) ? done : 0))
 }
 
+/**
+ * D51 (28.11): komunikat po oznaczeniu sztuki — wspólny dla komputera i telefonu. Liczba sztuk z WYNIKU bazy
+ * (production_stages zwrócone przez RPC), nie zgadywana (komputer liczył min(ilość, zrobione + 1), co przy
+ * równoległym kliknięciu z innego stanowiska pokazywało złą sztukę).
+ */
+export function aluSztukaKomunikat(
+  stageHeader: string,
+  posNo: string | number,
+  quantity: number,
+  stages: AluPositionStages | null | undefined,
+  stageKey: string,
+): string {
+  const doneNow = aluStageDone(stages, stageKey, quantity)
+  return doneNow >= quantity
+    ? `${stageHeader}: pozycja ${posNo} gotowa (${doneNow}/${quantity} szt.)`
+    : `${stageHeader}: sztuka ${doneNow}/${quantity} pozycji ${posNo}`
+}
+
 export function aluStageComplete(stages: AluPositionStages | null | undefined, stageKey: string, quantity: number): boolean {
   return quantity > 0 && aluStageDone(stages, stageKey, quantity) >= quantity
 }

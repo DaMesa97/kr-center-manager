@@ -5,6 +5,7 @@ import { markLocalStageWrite } from '../lib/stageWrites'
 import { clearStageLocally, stationUndoMessage, undoStationTask } from '../lib/stationUndo'
 import { ALL_STATION_CATEGORIES, fetchAluPositionsByOrder, fetchStationOrders } from '../lib/stationFetch'
 import { applyAluPositionStages, mergeAluPositionEvent } from '../lib/aluStation'
+import { aluSztukaKomunikat } from '../lib/alu'
 import { aluDoneSeen, aluMarkErrorText, appPinPrompt, rpcMarkAluStageSigned, rpcUndoAluStage } from '../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../constants'
 import { releaseErrorText, releaseFailureMessage } from '../lib/stockReleaseFailure'
@@ -352,14 +353,10 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
         pushToast(aluMarkErrorText(error), 'error')
         return false
       }
-      setAluPositionsByOrder((prev) => applyAluPositionStages(prev, info.positionId, (data ?? {}) as AluPositionStages))
-      const doneNow = Math.min(info.quantity, info.done + 1)
-      pushToast(
-        doneNow >= info.quantity
-          ? `${task.stageHeader}: pozycja ${info.posNo} gotowa (${doneNow}/${info.quantity} szt.)`
-          : `${task.stageHeader}: sztuka ${doneNow}/${info.quantity} pozycji ${info.posNo}`,
-        'success',
-      )
+      const stages = (data ?? {}) as AluPositionStages
+      setAluPositionsByOrder((prev) => applyAluPositionStages(prev, info.positionId, stages))
+      // D51: licznik sztuk z wyniku bazy (jak telefon), nie min(ilość, zrobione + 1)
+      pushToast(aluSztukaKomunikat(task.stageHeader, info.posNo, info.quantity, stages, task.stageKey), 'success')
       return true
     },
     [pushToast, currentUser?.initials, aluPositionsByOrder],
