@@ -15,6 +15,7 @@ import { buildPreviewPayload } from '../lib/stockPreview'
 import { getOrderStageDefinitions } from '../utils'
 import { cancelledReason, isOrderCancelled } from '../lib/optimaRo'
 import { dzienZKartotekiFirmy, opcjeDniaProdukcji } from '../lib/dzienProdukcji'
+import { pokazZakresOscieznicy, typOscieznicyZZakresem } from '../lib/bastionZakres'
 
 // Ostrzeżenie + dopasowanie niedopasowanej firmy (gł. zamówienia z BOT-a).
 // Auto-podpowiedź (najlepsze dopasowanie) ORAZ ręczny wybór z pełnej listy kontrahentów.
@@ -157,9 +158,9 @@ function OrderFormModal(props: OrderFormModalProps) {
     )
   }
 
-  const isFrameRegulated =
-    bastionFormData?.frame_type?.toUpperCase().includes('REGULOWANA') ||
-    bastionFormData?.frame_type?.toUpperCase().includes('REGULOWAN')
+  // D33 (28.11): zakres ościeżnicy także przy zabudowie (i zawsze, gdy już jest wpisany)
+  const isFrameRegulated = typOscieznicyZZakresem(bastionFormData?.frame_type)
+  const showFrameRange = pokazZakresOscieznicy(bastionFormData?.frame_type, bastionFormData?.frame_range)
 
   // runda 5 (recenzent): efekt odpalał się przy KAŻDYM otwarciu okna i czyścił zakres przy zabudowie
   // (ZAB.OŚC.METAL. 160 itp.) — od f550afa to wyczyszczenie trafiało do bazy. Czyścimy tylko, gdy człowiek ZMIENIŁ typ.
@@ -1541,7 +1542,7 @@ function OrderFormModal(props: OrderFormModalProps) {
                     }
                   />
 
-                  {isFrameRegulated && (
+                  {showFrameRange && (
                     <SearchableConfigSelect
                       label="Zakres ościeżnicy"
                       value={bastionFormData.frame_range}
