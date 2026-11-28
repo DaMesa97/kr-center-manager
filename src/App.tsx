@@ -95,7 +95,7 @@ import { useBastionExtras } from './hooks/useBastionExtras'
 import InternalDoorOrdersTable from './components/InternalDoorOrdersTable'
 import InternalDoorFiltersBar from './components/InternalDoorFiltersBar'
 import { useOrderPicks } from './hooks/useOrderPicks'
-import { canPick } from './lib/orderPicks'
+import { canPick, canPickIntDoor } from './lib/orderPicks'
 import { INT_DOOR_FILTER_DEFAULT, canMapOptimaCodes, isOptimaClosed, isOrderCancelled, matchesIntDoorFilter, summarizeItems, type IntDoorFilter, type ItemsSummary } from './lib/optimaRo'
 import { isOptimaImportedComponent } from './lib/internalWarehouse'
 import AluOrdersTable from './components/AluOrdersTable'
@@ -1748,6 +1748,11 @@ function App() {
   const intDoorPickOrderIds = useMemo(() => [...new Set(internalDoorItems.map((it) => it.order_id))], [internalDoorItems])
   const { picks: intDoorPicks, toggle: toggleIntDoorPick } = useOrderPicks(intDoorPickOrderIds, activeTab === 'DrzwiWewnetrzne', pushToast)
   const userCanPick = canPick({ role: String(currentUser?.role ?? ''), department: currentUser?.department ?? null }, isManager)
+  // D62: odhaczanie drzwi wewnętrznych — kierownik działu tylko z kategorią DrzwiWewnetrzne (jak baza po 20261128034000)
+  const userCanPickIntDoor = canPickIntDoor(
+    { role: String(currentUser?.role ?? ''), department: currentUser?.department ?? null, categories: currentUser?.categories ?? null },
+    isManager,
+  )
 
   // RO zrealizowane / zamknięte w Optimie na liście (licznik przy „Pokaż zrealizowane”)
   const intDoorClosedOrders = useMemo(
@@ -3123,7 +3128,7 @@ function App() {
           canMapCodes={canMapOptimaCodes(currentUser?.role)}
           picks={intDoorPicks.get(internalDoorDetailsModal.order.id ?? -1)}
           onTogglePick={
-            userCanPick && internalDoorDetailsModal.order.id != null
+            userCanPickIntDoor && internalDoorDetailsModal.order.id != null
               ? (keys, picked, sigs) => void toggleIntDoorPick(internalDoorDetailsModal.order!.id!, keys, picked, currentUser?.initials ?? '', sigs)
               : undefined
           }

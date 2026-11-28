@@ -6,10 +6,8 @@ import type { Order } from '../../types'
 import { isOptimaClosed } from '../../lib/optimaRo'
 import { groupPicks, pickProgress, type OrderPick } from '../../lib/orderPicks'
 import MobileIntDoorPicking from './MobileIntDoorPicking'
-import { CAT_COLORS, CAT_LABEL } from './mobileKategorie'
+import { CAT_COLORS, CAT_LABEL, MOBILE_CATEGORIES } from './mobileKategorie'
 import { humanizeAndLog } from '../../lib/friendlyError'
-
-const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'] as const
 
 
 type Field = { label: string; value: string }
@@ -87,6 +85,8 @@ type Props = {
   /** Wewn.: odznaczanie pozycji przygotowanych do pakowania (kierownik, magazyn) */
   canPickItems?: boolean
   initials?: string
+  /** D62: kategorie widoczne dla zalogowanego (kategorieNaTelefon) — domyślnie wszystkie */
+  kategorie?: readonly string[]
 }
 
 type PickProg = { done: number; total: number; complete: boolean }
@@ -118,8 +118,10 @@ async function loadPickProgress(orderIds: number[]): Promise<Map<number, PickPro
   return out
 }
 
-export default function MobileOrdersView({ canPickItems = false, initials = '' }: Props = {}) {
-  const [category, setCategory] = useState<string>('STA')
+export default function MobileOrdersView({ canPickItems = false, initials = '', kategorie = MOBILE_CATEGORIES }: Props = {}) {
+  const [wybrana, setCategory] = useState<string>(kategorie[0] ?? '')
+  // D62: wybrana kategoria zawsze z listy dozwolonych (zmiana profilu / pusta lista)
+  const category = kategorie.includes(wybrana) ? wybrana : (kategorie[0] ?? '')
   const [query, setQuery] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
@@ -186,7 +188,7 @@ export default function MobileOrdersView({ canPickItems = false, initials = '' }
 
   useEffect(() => {
     mountedRef.current = true
-    void load(category)
+    if (category) void load(category)
     return () => { mountedRef.current = false }
   }, [category, load])
 
@@ -248,10 +250,18 @@ export default function MobileOrdersView({ canPickItems = false, initials = '' }
     )
   }
 
+  if (kategorie.length === 0) {
+    return (
+      <div className="morders">
+        <div className="morders-count">Nie masz przypisanych kategorii — poproś kierownika o ich ustawienie w profilu.</div>
+      </div>
+    )
+  }
+
   return (
     <div className="morders">
       <div className="morders-cats">
-        {CATEGORIES.map((c) => (
+        {kategorie.map((c) => (
           <button
             key={c}
             type="button"
@@ -263,7 +273,7 @@ export default function MobileOrdersView({ canPickItems = false, initials = '' }
             }}
             onClick={() => { setCategory(c); setQuery('') }}
           >
-            {CAT_LABEL[c]}
+            {CAT_LABEL[c] ?? c}
           </button>
         ))}
       </div>

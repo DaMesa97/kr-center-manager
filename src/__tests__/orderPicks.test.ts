@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canPick, groupPicks, isPicked, pickChanged, pickKey, pickProgress, pickSig, type OrderPick } from '../lib/orderPicks'
+import { canPick, canPickIntDoor, groupPicks, isPicked, pickChanged, pickKey, pickProgress, pickSig, type OrderPick } from '../lib/orderPicks'
 
 const pick = (order_id: number, line_key: string): OrderPick => ({ order_id, line_key, picked_at: '2026-11-26T15:00:00Z', picked_by: null, picked_initials: 'TW' })
 
@@ -38,6 +38,20 @@ describe('przygotowanie do pakowania', () => {
     expect(canPick({ role: 'worker', department: 'stalowe' }, false)).toBe(false)
     expect(canPick({ role: 'sprzedawca' }, false)).toBe(false)
     expect(canPick({ role: 'kierownik_magazynu' }, true)).toBe(true)
+  })
+
+  it('D62: drzwi wewn. odhacza kierownik, magazynier i kierownik działu tylko z kategorią DrzwiWewnetrzne', () => {
+    expect(canPickIntDoor({ role: 'kierownik_dzialu', categories: ['STA'] }, true)).toBe(false)
+    expect(canPickIntDoor({ role: 'kierownik_dzialu', categories: [] }, true)).toBe(false)
+    expect(canPickIntDoor({ role: 'kierownik_dzialu' }, true)).toBe(false)
+    expect(canPickIntDoor({ role: 'kierownik_dzialu', categories: ['STA', 'DrzwiWewnetrzne'] }, true)).toBe(true)
+    expect(canPickIntDoor({ role: 'kierownik_magazynu', categories: [] }, true)).toBe(true)
+    expect(canPickIntDoor({ role: 'admin', categories: [] }, true)).toBe(true)
+    expect(canPickIntDoor({ role: 'magazynier' }, false)).toBe(true)
+    expect(canPickIntDoor({ role: 'pracownik_produkcji', categories: ['DrzwiWewnetrzne'] }, false)).toBe(false)
+    expect(canPickIntDoor({ role: 'obsluga_klienta' }, false)).toBe(false)
+    // „trzymamy na magazynie” bez zmian — kierownik działu dalej może
+    expect(canPick({ role: 'kierownik_dzialu' }, true)).toBe(true)
   })
 })
 

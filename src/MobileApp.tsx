@@ -6,7 +6,8 @@ import MobileStationView from './components/mobile/MobileStationView'
 import MobileOrdersView from './components/mobile/MobileOrdersView'
 import MobileShippingView from './components/mobile/MobileShippingView'
 import { can, isManagerRole } from './lib/permissions'
-import { canPick } from './lib/orderPicks'
+import { canPickIntDoor } from './lib/orderPicks'
+import { filtrKategoriiNaTelefon, kategorieNaTelefon } from './components/mobile/mobileKategorie'
 
 type SessionUser = { id: string; initials: string; role: string; department: string; categories: string[] }
 
@@ -211,11 +212,15 @@ export default function MobileApp() {
 
       <main className="mshell-content">
         {activeView === 'packing' ? (
-          <MobilePackingView userInitials={user.initials} userId={user.id} />
+          <MobilePackingView userInitials={user.initials} userId={user.id} kategorie={filtrKategoriiNaTelefon(user.role, user.categories)} />
         ) : activeView === 'station' ? (
           <MobileStationView userId={user.id} />
         ) : activeView === 'orders' ? (
-          <MobileOrdersView canPickItems={canPick({ role: user.role, department: user.department }, isManagerRole(user.role))} initials={user.initials} />
+          <MobileOrdersView
+            canPickItems={canPickIntDoor({ role: user.role, department: user.department, categories: user.categories }, isManagerRole(user.role))}
+            initials={user.initials}
+            kategorie={kategorieNaTelefon(user.role, user.categories)}
+          />
         ) : (
           <MobileShippingView role={user.role} categories={user.categories} />
         )}

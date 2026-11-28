@@ -79,6 +79,19 @@ export function canPick(user: { role: string; department?: string | null }, isMa
   return isManager || user.role === 'magazynier' || (user.role === 'worker' && user.department === 'magazyn')
 }
 
+/**
+ * D62 (28.11): kto odhacza pozycje DRZWI WEWNĘTRZNYCH (jak current_user_can_pick w bazie po migracji
+ * 20261128034000): kierownicy, magazynier — a kierownik działu tylko z kategorią DrzwiWewnetrzne w profilu.
+ * canPick (bez kategorii) zostaje dla „trzymamy na magazynie” (set_components_stocked).
+ */
+export function canPickIntDoor(
+  user: { role: string; department?: string | null; categories?: string[] | null },
+  isManager: boolean,
+): boolean {
+  if (user.role === 'kierownik_dzialu') return (user.categories ?? []).includes('DrzwiWewnetrzne')
+  return canPick(user, isManager)
+}
+
 const CHUNK = 150
 
 export async function fetchPicks(orderIds: number[]): Promise<OrderPick[]> {

@@ -27,9 +27,13 @@ const BUCKET = 'order-photos'
 type Props = {
   userInitials: string
   userId: string
+  /** D62: null = wszystkie kategorie; tablica = tylko zlecenia tych kategorii (role zawężone) */
+  kategorie?: string[] | null
 }
 
-export default function MobilePackingView({ userInitials, userId }: Props) {
+export default function MobilePackingView({ userInitials, userId, kategorie = null }: Props) {
+  // klucz zamiast tablicy w zależnościach — nowa tablica z rodzica przy każdym renderze nie psuje wyszukiwania
+  const kategorieKlucz = kategorie ? kategorie.join('|') : null
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -70,17 +74,27 @@ export default function MobilePackingView({ userInitials, userId }: Props) {
     // backslashem, a przecinek/nawias w nazwie firmy wywalał zapytanie
     const escaped = trimmed.replace(/["\\]/g, '')
     const pattern = `"%${escaped}%"`
-    const { data, error } = await supabase
+    // D62: role zawężone (kierownik działu, pracownik produkcji) szukają tylko w swoich kategoriach
+    const dozwolone = kategorieKlucz == null ? null : kategorieKlucz.split('|').filter(Boolean)
+    if (dozwolone && dozwolone.length === 0) {
+      setSearching(false)
+      setResults([])
+      flash('Nie masz przypisanych kategorii — poproś kierownika o ich ustawienie w profilu', true)
+      return
+    }
+    let zapytanie = supabase
       .from('orders')
       .select('id, order_number, category, company, model, release_date')
       .or(`order_number.ilike.${pattern},company.ilike.${pattern},client_order_number.ilike.${pattern}`)
+    if (dozwolone) zapytanie = zapytanie.in('category', dozwolone)
+    const { data, error } = await zapytanie
       .order('order_date', { ascending: false })
       .limit(20)
     if (version !== searchVersionRef.current || !mountedRef.current) return
     setSearching(false)
     if (error) { flash('Błąd wyszukiwania'); return }
     setResults((data ?? []) as SearchResult[])
-  }, [])
+  }, [kategorieKlucz])
 
   const onQueryChange = (v: string) => {
     setQuery(v)
