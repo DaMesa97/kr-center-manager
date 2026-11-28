@@ -15,27 +15,31 @@ import type { Complaint, Order } from '../../types'
 import { isReleaseDateEmpty } from '../../utils'
 import {
   companyKey,
-  companyNames,
   computeCompanyStats,
   dataWydaniaSzacunkowa,
   daysBetween,
   resolveCompanyGroups,
   suspectedCompanyClusters,
   type CompanyAliases,
+  type CompanyGroup,
   type CompanyPeriodMonths,
   type SuspectedCluster,
 } from '../../lib/companyStats'
 import type { CompanyAliasRow } from '../../hooks/useCompanyAliases'
+import type { PobierzZleceniaFirm } from '../../hooks/useStats'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 
 // Statystyki → Firmy (#118, Tymek 6.11): jedna firma pod lupą — ile zamawia,
-// ile reklamuje, jak szybko dostaje, co zamawia. Liczone z danych w pamięci.
+// ile reklamuje, jak szybko dostaje, co zamawia. D47 (28.11): lista firm z liczników policzonych w bazie, a zlecenia
+// wybranej firmy dociągane osobno (rpc stat_zlecenia_firm; na starej bazie — z pamięci); karta liczona jak dotąd.
 // 20.11: warianty pisowni liczone razem (companyKey + aliasy), panel „Porządek nazw firm”,
 // rekordy łączone (Titan, Disting Plus) liczone raz.
 
 type Props = {
-  orders: Order[]
+  /** grupy firm (pisownie sklejone + aliasy) z liczników zleceń */
+  groups: CompanyGroup[]
+  pobierzZleceniaFirm: PobierzZleceniaFirm
   complaints: Complaint[]
   loading: boolean
   aliases: CompanyAliases
@@ -97,7 +101,7 @@ const recentColumns: DataTableColumn<Order>[] = [
   { key: 'source', label: 'Źródło', sortValue: (o) => o.source ?? '', render: (o) => SOURCE_LABEL[String(o.source ?? '')] ?? '—' },
 ]
 
-export default function CompanyStatsView({ orders, complaints, loading, aliases, aliasRows, isManager, onMerge, onRemoveAlias }: Props) {
+export default function CompanyStatsView({ groups, pobierzZleceniaFirm, complaints, loading, aliases, aliasRows, isManager, onMerge, onRemoveAlias }: Props) {
   const [query, setQuery] = useState(() => readStored(QUERY_KEY, ''))
   const [months, setMonths] = useState<CompanyPeriodMonths>(() => {
     const v = Number(readStored(PERIOD_KEY, '12'))
@@ -118,11 +122,32 @@ export default function CompanyStatsView({ orders, complaints, loading, aliases,
     }
   }, [query, months])
 
-  const groups = useMemo(() => companyNames(orders, aliases), [orders, aliases])
   const matched = useMemo(() => resolveCompanyGroups(query, groups), [query, groups])
+  // D47: zlecenia tylko wybranych pisowni (wszystkie warianty dopasowanych grup) — nie cała tabela
+  const nazwy = useMemo(() => matched.flatMap((g) => g.variants.map((v) => v.name)), [matched])
+  const kluczNazw = nazwy.join('\u0001')
+  const [zleceniaFirmy, setZleceniaFirmy] = useState<{ klucz: string; data: Order[]; error: string | null } | null>(null)
+  useEffect(() => {
+    if (!kluczNazw) return
+    let alive = true
+    // pisanie w polu firmy: zapytanie dopiero po chwili bez zmian
+    const t = setTimeout(() => {
+      void pobierzZleceniaFirm(kluczNazw.split('\u0001')).then((res) => {
+        if (alive) setZleceniaFirmy({ klucz: kluczNazw, ...res })
+      })
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [kluczNazw, pobierzZleceniaFirm])
+  const zleceniaGotowe = zleceniaFirmy != null && zleceniaFirmy.klucz === kluczNazw
   const stats = useMemo(
-    () => (matched.length ? computeCompanyStats(orders, complaints, matched.map((g) => g.name), months, new Date(), aliases) : null),
-    [orders, complaints, matched, months, aliases],
+    () =>
+      matched.length && zleceniaFirmy && zleceniaFirmy.klucz === kluczNazw && !zleceniaFirmy.error
+        ? computeCompanyStats(zleceniaFirmy.data, complaints, matched.map((g) => g.name), months, new Date(), aliases)
+        : null,
+    [zleceniaFirmy, kluczNazw, complaints, matched, months, aliases],
   )
   const clusters = useMemo(() => suspectedCompanyClusters(groups), [groups])
   const aliasesByCanonical = useMemo(() => {
@@ -206,6 +231,10 @@ export default function CompanyStatsView({ orders, complaints, loading, aliases,
             <p style={{ color: '#6b7280', padding: '16px 0 0' }}>
               Wybierz firmę, żeby zobaczyć, ile zamawia, ile reklamuje, jak szybko realizujemy jej zlecenia i co zamawia. Lista podpowiada firmy od najczęściej zamawiających.
             </p>
+          )}
+          {matched.length > 0 && !zleceniaGotowe && <div style={{ padding: '16px 0 0' }}><Spinner label="Wczytywanie zleceń firmy…" /></div>}
+          {matched.length > 0 && zleceniaGotowe && zleceniaFirmy?.error && (
+            <p role="alert" style={{ color: '#b91c1c', padding: '16px 0 0' }}>Nie udało się wczytać zleceń firmy ({zleceniaFirmy.error}).</p>
           )}
           {stats && (
             <div className="stats-kpi-row" style={{ marginTop: 16 }}>

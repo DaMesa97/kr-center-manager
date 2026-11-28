@@ -17,14 +17,13 @@ import {
   type LabelProps,
   type PieLabelRenderProps,
 } from 'recharts'
-import type { Order } from '../../types'
-import { isReleaseDateEmpty } from '../../utils'
-import { isOptimaClosed } from '../../lib/optimaRo'
+import { widokKategorii, type PodsumowanieKategorii } from '../../lib/statsZlecenia'
 import Spinner from '../Spinner'
 
 type Props = {
   category: string
-  orders: Order[]
+  /** D47: gotowe zestawienia kategorii (z bazy — stat_zlecenia_podsumowanie — albo policzone ze zleceń na starej bazie) */
+  podsumowanie: PodsumowanieKategorii | undefined
   loading: boolean
   /** nazwa firmy → nazwa grupy (warianty pisowni razem), z StatsView */
   canon?: (name: unknown) => string
@@ -35,228 +34,18 @@ type Props = {
   tylkoZlecenia?: boolean
 }
 
-function isCancelled(o: Order): boolean {
-  const extra = o.extra_fields as Record<string, unknown> | null | undefined
-  return extra?.cancelled === true
-}
-
-/** Zlecenie zrealizowane: ma datę wydania albo jest zrealizowane / zamknięte w Optimie (RO bez wydania w programie). */
-function zrealizowane(o: Order): boolean {
-  return !isReleaseDateEmpty(o.release_date) || isOptimaClosed(o)
-}
-
-export default function CategoryStatsDashboard({ category, orders, loading, canon, etykieta, tylkoZlecenia = false }: Props) {
+// D47 (28.11): liczby liczy baza (albo podsumujZlecenia na starej bazie) — reguły jak dotąd, opisane w lib/statsZlecenia.ts:
+// zrealizowane = data wydania albo RO zamknięte w Optimie; czasy realizacji i produkcja bez dat „szacunkowych” z excel-sync
+// (testy 27.11, runda 3); produkcja wg miesiąca WYDANIA; top firm po scaleniu pisowni (canon).
+export default function CategoryStatsDashboard({ category, podsumowanie, loading, canon, etykieta, tylkoZlecenia = false }: Props) {
   const nazwa = etykieta ?? category
-  const filteredOrdersNonCancelled = useMemo(() => {
-    return orders.filter((o) => {
-      if (o.category !== category) return false
-      if (isCancelled(o)) return false
-      return true
-    })
-  }, [orders, category])
-
-  const completedCategoryOrders = useMemo(
-    () =>
-      orders.filter(
-        (o) =>
-          o.category === category && !isCancelled(o) && !isReleaseDateEmpty(o.release_date),
-      ),
-    [orders, category],
-  )
-
   const [rangeMonths, setRangeMonths] = useState(12)
-  // testy 27.11 (runda 3): excel-sync przy znaczniku „X” bez daty wpisuje datę synchronizacji i flagę release_date_szacunkowa
-  // (ST 1046 z 1047, Bastion 3220 z 3271 — wszystkie 06.11). Takie daty fałszowały czas realizacji („ST 64 dni”)
-  // i wykres produkcji (cały rok w jednym miesiącu) — pomijamy je i mówimy, ile pominięto
-  const bezPrawdziwejDaty = useMemo(
-    () => completedCategoryOrders.filter((o) => (o.extra_fields as Record<string, unknown> | null)?.release_date_szacunkowa === true).length,
-    [completedCategoryOrders],
-  )
-
-  const productionData = useMemo(() => {
-    const now = new Date()
-    const map = new Map<string, number>()
-
-    for (let i = rangeMonths - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      map.set(key, 0)
-    }
-
-    for (const o of completedCategoryOrders) {
-      if ((o.extra_fields as Record<string, unknown> | null)?.release_date_szacunkowa === true) continue
-      // Produkcja = miesiąc WYDANIA (release_date to kolumna date 'YYYY-MM-DD'),
-      // nie zamówienia — po order_date wykres pokazywał napływ, nie produkcję
-      const key = String(o.release_date ?? '').slice(0, 7)
-      if (map.has(key)) {
-        map.set(key, (map.get(key) ?? 0) + (Number(o.quantity) || 0))
-      }
-    }
-
-    return Array.from(map.entries()).map(([month, qty]) => ({ month, qty }))
-  }, [completedCategoryOrders, rangeMonths])
-
-  const systemData = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const o of completedCategoryOrders) {
-      const sys = (o.system || '').trim() || '(brak)'
-      map.set(sys, (map.get(sys) ?? 0) + (Number(o.quantity) || 0))
-    }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-  }, [completedCategoryOrders])
-
-  const statusData = useMemo(() => {
-    const allInCategory = orders.filter((o) => o.category === category)
-    let done = 0
-    let cancelled = 0
-    let inProgress = 0
-    for (const o of allInCategory) {
-      const extra = o.extra_fields as Record<string, unknown> | null | undefined
-      const q = Number(o.quantity) || 0
-      if (extra?.cancelled === true) {
-        cancelled += q
-      } else if (zrealizowane(o)) {
-        done += q
-      } else {
-        inProgress += q
-      }
-    }
-    return [
-      { name: 'Zrealizowane', value: done, color: '#10b981' },
-      { name: 'W produkcji', value: inProgress, color: '#3b82f6' },
-      { name: 'Anulowane', value: cancelled, color: '#ef4444' },
-    ]
-  }, [orders, category])
-
-  const topCompaniesData = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const o of filteredOrdersNonCancelled) {
-      const company = (canon ? canon(o.company) : (o.company || '').trim()) || '(brak)'
-      map.set(company, (map.get(company) ?? 0) + (Number(o.quantity) || 0))
-    }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10)
-  }, [filteredOrdersNonCancelled, canon])
-
-  const realizationTimes = useMemo(() => {
-    const times: Array<{ order: Order; days: number; releaseMonth: string }> = []
-
-    for (const o of filteredOrdersNonCancelled) {
-      if (!o.release_date || isReleaseDateEmpty(o.release_date)) continue
-      if ((o.extra_fields as Record<string, unknown> | null)?.release_date_szacunkowa === true) continue
-
-      const createdStr = o.order_date || (o as { created_at?: string }).created_at
-      if (!createdStr) continue
-
-      const created = new Date(createdStr)
-      const released = new Date(o.release_date)
-      const diffMs = released.getTime() - created.getTime()
-      const days = Math.round(diffMs / (1000 * 60 * 60 * 24))
-
-      if (days < 0) continue
-
-      const releaseMonth = `${released.getFullYear()}-${String(released.getMonth() + 1).padStart(2, '0')}`
-      times.push({ order: o, days, releaseMonth })
-    }
-
-    return times
-  }, [filteredOrdersNonCancelled])
-
-  const avgRealizationDays = useMemo(() => {
-    if (realizationTimes.length === 0) return null
-    const sum = realizationTimes.reduce((s, t) => s + t.days, 0)
-    return Math.round(sum / realizationTimes.length)
-  }, [realizationTimes])
-
-  const minRealizationDays = useMemo(() => {
-    if (realizationTimes.length === 0) return null
-    return Math.min(...realizationTimes.map((t) => t.days))
-  }, [realizationTimes])
-
-  const maxRealizationDays = useMemo(() => {
-    if (realizationTimes.length === 0) return null
-    return Math.max(...realizationTimes.map((t) => t.days))
-  }, [realizationTimes])
-
-  const avgRealizationByMonth = useMemo(() => {
-    const now = new Date()
-    const map = new Map<string, { sum: number; count: number }>()
-
-    for (let i = rangeMonths - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      map.set(key, { sum: 0, count: 0 })
-    }
-
-    for (const t of realizationTimes) {
-      const existing = map.get(t.releaseMonth)
-      if (existing) {
-        existing.sum += t.days
-        existing.count += 1
-      }
-    }
-
-    return Array.from(map.entries()).map(([month, { sum, count }]) => ({
-      month,
-      avg: count > 0 ? Math.round(sum / count) : 0,
-    }))
-  }, [realizationTimes, rangeMonths])
-
-  const byWeekday = useMemo(() => {
-    const POLISH_WEEKDAYS = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota']
-    const counts = [0, 0, 0, 0, 0, 0, 0]
-
-    for (const o of filteredOrdersNonCancelled) {
-      const createdStr = o.order_date || (o as { created_at?: string }).created_at
-      if (!createdStr) continue
-      const d = new Date(createdStr)
-      const dayOfWeek = d.getDay()
-      counts[dayOfWeek] += Number(o.quantity) || 1
-    }
-
-    const reordered = [
-      { name: 'Pon', value: counts[1] },
-      { name: 'Wt', value: counts[2] },
-      { name: 'Śr', value: counts[3] },
-      { name: 'Czw', value: counts[4] },
-      { name: 'Pt', value: counts[5] },
-      { name: 'Sob', value: counts[6] },
-      { name: 'Ndz', value: counts[0] },
-    ]
-
-    // POLISH_WEEKDAYS: indeks zgodny z Date#getDay() (0 = Niedziela … 6 = Sobota)
-    void POLISH_WEEKDAYS
-
-    return reordered
-  }, [filteredOrdersNonCancelled])
-
-  const byModel = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const o of filteredOrdersNonCancelled) {
-      const model = o.model?.trim() || '(brak)'
-      map.set(model, (map.get(model) ?? 0) + (Number(o.quantity) || 1))
-    }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 15)
-  }, [filteredOrdersNonCancelled])
-
-  const byWingColor = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const o of filteredOrdersNonCancelled) {
-      const color = o.wing_color?.trim() || '(brak)'
-      map.set(color, (map.get(color) ?? 0) + (Number(o.quantity) || 1))
-    }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 15)
-  }, [filteredOrdersNonCancelled])
+  const widok = useMemo(() => widokKategorii(podsumowanie, rangeMonths, new Date(), canon), [podsumowanie, rangeMonths, canon])
+  const { bezPrawdziwejDaty, productionData, systemData, statusData, topCompaniesData, avgRealizationByMonth, byWeekday, byModel, byWingColor } = widok
+  const avgRealizationDays = widok.realizacja?.avg ?? null
+  const minRealizationDays = widok.realizacja?.min ?? null
+  const maxRealizationDays = widok.realizacja?.max ?? null
+  const liczbaZCzasem = widok.realizacja?.count ?? 0
 
   if (loading) {
     return <div className="stats-dashboard"><Spinner center label="Ładowanie…" /></div>
@@ -291,7 +80,7 @@ export default function CategoryStatsDashboard({ category, orders, loading, cano
                   <div className="stats-kpi-label">maksimum</div>
                 </div>
                 <div className="stats-kpi">
-                  <div className="stats-kpi-value">{realizationTimes.length}</div>
+                  <div className="stats-kpi-value">{liczbaZCzasem}</div>
                   <div className="stats-kpi-label">zamówień</div>
                 </div>
               </div>

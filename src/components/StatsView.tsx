@@ -1,6 +1,6 @@
 import { STATS_SUB_TABS } from '../constants'
 import { CATEGORY_LABELS } from '../constants'
-import type { Complaint, Order, StatsSubTab } from '../types'
+import type { Complaint, StatsSubTab } from '../types'
 import CategoryStatsDashboard from './stats/CategoryStatsDashboard'
 import CategoryTrendShortages from './stats/CategoryTrendShortages'
 import ComplaintsStatsDashboard from './stats/ComplaintsStatsDashboard'
@@ -12,10 +12,15 @@ import ConfiguratorShareView from './stats/ConfiguratorShareView'
 import MonthlyConsumptionView from './warehouse/MonthlyConsumptionView'
 import { useMemo, type ComponentProps } from 'react'
 import { useCompanyAliases } from '../hooks/useCompanyAliases'
-import { companyCanonizer } from '../lib/companyStats'
+import { companyCanonizerFromGroups, companyNamesFromCounts } from '../lib/companyStats'
+import type { PodsumowanieZlecen } from '../lib/statsZlecenia'
+import type { PobierzZleceniaFirm } from '../hooks/useStats'
 
 type StatsViewProps = {
-  orders: Order[]
+  /** D47: gotowe zestawienia zleceń (null = jeszcze nie wczytane) */
+  summary: PodsumowanieZlecen | null
+  /** zlecenia wybranych pisowni firmy (Statystyki → Firmy) — z bazy albo z pamięci (stara baza) */
+  pobierzZleceniaFirm: PobierzZleceniaFirm
   complaints: Complaint[]
   loading: boolean
   /** błąd pobierania danych statystyk (null = OK) */
@@ -33,7 +38,8 @@ type StatsViewProps = {
 const PRODUCTION_SUB_TABS = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion']
 
 function StatsView({
-  orders,
+  summary,
+  pobierzZleceniaFirm,
   complaints,
   loading,
   error = null,
@@ -46,11 +52,13 @@ function StatsView({
 }: StatsViewProps) {
   // Warianty pisowni firm liczone razem (companyKey + company_aliases) — we wszystkich sekcjach z „top firm”
   const { rows: aliasRows, aliases, merge, remove } = useCompanyAliases()
-  const canonCompany = useMemo(() => companyCanonizer(orders, aliases), [orders, aliases])
+  const firmy = summary?.firmy
+  const groups = useMemo(() => companyNamesFromCounts(firmy ?? [], aliases), [firmy, aliases])
+  const canonCompany = useMemo(() => companyCanonizerFromGroups(groups, aliases), [groups, aliases])
   return (
     <div
       className="warehouse-view warehouse-view--readonly"
-      aria-label={`Statystyki: ${orders.length} zamówień, ${complaints.length} reklamacji`}
+      aria-label={`Statystyki: ${summary?.liczba ?? 0} zamówień, ${complaints.length} reklamacji`}
     >
       <div className="subtab-bar" role="tablist" aria-label="Statystyki — sekcje">
         {STATS_SUB_TABS.map((tab) => (
@@ -75,7 +83,7 @@ function StatsView({
       )}
       {PRODUCTION_SUB_TABS.includes(activeSubTab) && (
         <>
-          <CategoryStatsDashboard category={activeSubTab} orders={orders} loading={loading} canon={canonCompany} />
+          <CategoryStatsDashboard category={activeSubTab} podsumowanie={summary?.kategorie[activeSubTab]} loading={loading} canon={canonCompany} />
           {/* Etap 25: trend (systemy / modele / kolory) i braki materiałowe z czasem oczekiwania — liczone w bazie */}
           <div className="stats-dashboard">
             <CategoryTrendShortages category={activeSubTab} />
@@ -87,7 +95,8 @@ function StatsView({
       )}
       {activeSubTab === 'Firmy' && (
         <CompanyStatsView
-          orders={orders}
+          groups={groups}
+          pobierzZleceniaFirm={pobierzZleceniaFirm}
           complaints={complaints}
           loading={loading}
           aliases={aliases}
@@ -101,7 +110,7 @@ function StatsView({
         <>
           {/* 27.11 (Tymek: „zniknęło top 10 firm i stare statystyki”): sekcje ze zleceń — czas realizacji, produkcja w czasie,
               status, top 10 firm, dzień tygodnia — wróciły nad statystyki sprzedaży; modele / kolory / rozmiary liczy niżej baza */}
-          <CategoryStatsDashboard category="DrzwiWewnetrzne" etykieta="Drzwi wewnętrzne" tylkoZlecenia orders={orders} loading={loading} canon={canonCompany} />
+          <CategoryStatsDashboard category="DrzwiWewnetrzne" etykieta="Drzwi wewnętrzne" tylkoZlecenia podsumowanie={summary?.kategorie.DrzwiWewnetrzne} loading={loading} canon={canonCompany} />
           <InternalDoorStatsDashboard isManager={isManager} />
         </>
       )}

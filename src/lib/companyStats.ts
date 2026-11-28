@@ -1,6 +1,7 @@
 // Statystyki per firma (#118, Tymek 6.11): czysta logika dla zakładki
-// Statystyki → Firmy. Liczy na zleceniach i reklamacjach trzymanych w pamięci
-// (Statystyki ładują wszystkie wiersze), bez zapytań do bazy.
+// Statystyki → Firmy. Liczy na zleceniach i reklamacjach podanych z zewnątrz, bez zapytań do bazy.
+// D47 (28.11): lista firm z liczników pisowni policzonych w bazie (companyNamesFromCounts), karta firmy
+// z samych zleceń wybranej firmy (rpc stat_zlecenia_firm).
 //
 // Porządek nazw (Tymek 20.11): jedna firma bywa zapisana na kilka sposobów.
 //  * companyKey skleja automatycznie różnice wielkości liter, ogonków, „#”, interpunkcji
@@ -104,11 +105,30 @@ export function dataWydaniaSzacunkowa(o: Pick<Order, 'extra_fields'>): boolean {
   return (o.extra_fields as Record<string, unknown> | null | undefined)?.release_date_szacunkowa === true
 }
 
-export function companyNames(orders: Order[], aliases?: CompanyAliases): CompanyGroup[] {
-  const groups = new Map<string, Map<string, number>>()
+/** Pisownia firmy (po trim) i liczba jej zleceń — bez anulowanych i nóg rekordów łączonych; kolejność = pierwsze wystąpienie. */
+export type CompanyNameCount = { name: string; count: number }
+
+/** D47: to samo liczy baza (`stat_zlecenia_podsumowanie` → `firmy`), żeby nie ładować zleceń do przeglądarki. */
+export function companyNameCounts(orders: Order[]): CompanyNameCount[] {
+  const counts = new Map<string, number>()
   for (const o of orders) {
     if (isCancelledOrder(o) || isLinkedSecondary(o)) continue
     const name = String(o.company ?? '').trim()
+    if (!name) continue
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  return Array.from(counts.entries()).map(([name, count]) => ({ name, count }))
+}
+
+export function companyNames(orders: Order[], aliases?: CompanyAliases): CompanyGroup[] {
+  return companyNamesFromCounts(companyNameCounts(orders), aliases)
+}
+
+/** Grupy firm z gotowych liczników pisowni (z bazy albo z companyNameCounts). */
+export function companyNamesFromCounts(counts: CompanyNameCount[], aliases?: CompanyAliases): CompanyGroup[] {
+  const groups = new Map<string, Map<string, number>>()
+  for (const { name: raw, count: n } of counts) {
+    const name = String(raw ?? '').trim()
     if (!name) continue
     const gk = companyGroupKey(name, aliases)
     let m = groups.get(gk)
@@ -116,7 +136,7 @@ export function companyNames(orders: Order[], aliases?: CompanyAliases): Company
       m = new Map()
       groups.set(gk, m)
     }
-    m.set(name, (m.get(name) ?? 0) + 1)
+    m.set(name, (m.get(name) ?? 0) + (Number(n) || 0))
   }
   const canonByGroup = new Map<string, string>()
   if (aliases) for (const canon of aliases.values()) canonByGroup.set(companyKey(canon), canon)
@@ -173,8 +193,13 @@ export function suspectedCompanyClusters(groups: CompanyGroup[]): SuspectedClust
 
 /** Funkcja nazwa → nazwa wyświetlana grupy (do „top firm” w innych statystykach). */
 export function companyCanonizer(orders: Order[], aliases?: CompanyAliases): (name: unknown) => string {
+  return companyCanonizerFromGroups(companyNames(orders, aliases), aliases)
+}
+
+/** Jak companyCanonizer, z gotowych grup (D47: grupy z liczników policzonych w bazie). */
+export function companyCanonizerFromGroups(groups: CompanyGroup[], aliases?: CompanyAliases): (name: unknown) => string {
   const display = new Map<string, string>()
-  for (const g of companyNames(orders, aliases)) display.set(g.key, g.name)
+  for (const g of groups) display.set(g.key, g.name)
   return (name: unknown) => {
     const raw = String(name ?? '').trim()
     if (!raw) return ''

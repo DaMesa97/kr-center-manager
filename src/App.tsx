@@ -941,11 +941,12 @@ function App() {
   const {
     activeStatsSubTab,
     setActiveStatsSubTab,
-    statsOrders,
+    statsSummary,
     statsComplaints,
     statsLoading,
     statsError,
     fetchStatsData,
+    pobierzZleceniaFirm,
   } = useStats({ touchSession })
 
   const {
@@ -3741,7 +3742,8 @@ function App() {
           />
         ) : isStatsTab && isManager ? (
           <StatsView
-            orders={statsOrders}
+            summary={statsSummary}
+            pobierzZleceniaFirm={pobierzZleceniaFirm}
             complaints={statsComplaints}
             loading={statsLoading}
             error={statsError}

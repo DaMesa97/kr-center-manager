@@ -16,6 +16,8 @@ describe('Statystyki: lista kolumn zleceń', () => {
       ...readdirSync(new URL('../components/stats/', import.meta.url)).filter((f) => f.endsWith('.tsx')).map((f) => `../components/stats/${f}`),
       '../components/StatsView.tsx',
       '../lib/companyStats.ts',
+      // D47: ścieżka zapasowa (stara baza) liczy zestawienia ze zleceń tu
+      '../lib/statsZlecenia.ts',
       '../lib/salesStats.ts',
       '../lib/optimaRo.ts',
     ]
