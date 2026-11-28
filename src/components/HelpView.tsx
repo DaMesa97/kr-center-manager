@@ -33,6 +33,13 @@ const SECTIONS: Section[] = [
           <li><b>CRM</b>: mail z poczty do klienta z zadaniem „Zapytaj o decyzję” planuje kolejne za 5 dni roboczych (klient nie znika z „Do zrobienia”). Oferta bez cen albo bez produktu nie zmienia się sama na „wysłana” po zwykłym mailu. Lista „Poproś o zmianę” pokazuje każdy wynik przy właściwej prośbie. Poprawiony NIP czyści dane poprzedniej firmy. Klient, który zamówił w sklepie bez montażu, nie widzi „Przygotuj umowę na montaż”.</li>
           <li><b>WZ reklamacyjne</b>: „Anuluj” działa w aplikacji na komputerze. Wydanie większej ilości niż stan pyta „Wydać mimo to?”. Zmiana magazynu czyści wybrane pozycje.</li>
           <li><b>Magazyn → Stany / Inwentaryzacja „Jak w Excelu”</b>: ościeżnice bez poziomych pasków — kafelek jest tak szeroki, żeby było widać wszystkie kolumny.</li>
+          <li><b>Magazyn i rezerwacje</b> (noc 27/28.11): „Przywróć” nie podwaja rezerwacji, anulowane zlecenie zwalnia rezerwacje i nie da się go wydać ani wysłać, wydane zlecenie nie dostaje nowych rezerwacji, wydanie na etap wstrzymany jest blokowane, prognozy liczą pełne miesiące, eksport CSV jest bezpieczny dla Excela.</li>
+          <li><b>Excel → program</b>: „ANULOWANE” wpisane w kolumnie etapu trafia do „Anulowane w Excelu” w Weryfikacji; literówka w dacie (np. „31.11”) nie wywraca już całej synchronizacji, a takie wiersze widać w Weryfikacji jako „złe daty w Excelu”.</li>
+          <li><b>Telefon</b>: błąd wczytania pokazuje komunikat zamiast pustej listy, „było już wydane”, gdy wydał ktoś inny, powrót do aplikacji nie gubi profilu, aluminium: ponowne kliknięcie po zerwanym internecie nie odlicza drugiej sztuki.</li>
+          <li><b>Uprawnienia i bezpieczeństwo</b>: kierownik działu zmienia tylko zlecenia swoich kategorii; role i konta z dostępem do CRM zmienia tylko superadmin; podgląd i druk etykiet nie uruchamia skryptów z szablonu; zamknięcie programu w trakcie zapisu pyta o potwierdzenie.</li>
+          <li><b>Powiadomienia i komentarze</b>: wzmianka trafia tylko do osób oznaczonych @Imię, superadmin dostaje powiadomienia kierowników, „Oznacz wszystkie” oznacza naprawdę wszystkie; przywrócenie z archiwum odtwarza zdjęcia.</li>
+          <li><b>ZKP (aluminium 75EI)</b>: teczka widzi zlecenie produkcyjne po uruchomieniu produkcji, protokół liczy ocenę pomiarów od nowa, okucia i wypełnienia karty dopiero po potwierdzeniu zakresu.</li>
+          <li><b>CRM</b>: Bastion P-110 (i inne P-, N-, T-, L-, LUX-, STD-) trafia do wyceny; numery umów, ofert i reklamacji nie powtórzą się po setnej w roku; „około 150” w polu m² działa.</li>
         </ul>
         <h4>Wersja 1.1.7: Wysyłki kurierem — tylko zamówienia z kurierem w BaseLinkerze</h4>
         <ul>
