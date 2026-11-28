@@ -23,6 +23,7 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import { kartaPomiarowa, umowa, protokolOdbioru, type KartaDane, type UmowaDane, type ProtokolDane } from './dokumenty.ts'
 import { fmt, type Czcionki, type Logo } from './rysuj.ts'
 import { usun, sprzatnijPliki, BladUsuwania } from './usuwanie.ts'
+import { nadpisujPlik, sciezkaProtokolu, sciezkaUmowy } from './sciezki.ts'
 
 const JSON_H = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
 const CORS_H = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-ingest-key' }
@@ -202,7 +203,7 @@ async function dokument(db: SupabaseClient, body: Record<string, unknown>, userI
     migawka = { ...um, oferta_id: ofertaId }
     // testy 27.11 (runda 3): każda wygenerowana umowa ma własny plik (znacznik czasu w nazwie) — wcześniej druga umowa
     // z tym samym numerem nadpisywała PDF istniejącej (także podpisanej), a dwa wiersze wskazywały ten sam plik
-    sciezka = `${leadId}/umowa-${numer.replace(/\//g, '-')}-${znacznikCzasu()}.pdf`
+    sciezka = sciezkaUmowy(leadId, numer)
     opis = `Umowa nr ${numer}: ${zl(brutto)} brutto (VAT ${um.stawka_vat}), zaliczka ${zl(zaliczka)}, po odbiorze ${zl(pozostalo)}; załącznik: oferta ${o.numer}`
     status = 'projekt'
   } else {
@@ -228,13 +229,14 @@ async function dokument(db: SupabaseClient, body: Record<string, unknown>, userI
     pdf = await protokolOdbioru(pr, czcionki, logo, u)
     migawka = { ...pr, umowa_id: um.id }
     numer = um.numer; ofertaId = um.oferta_id ?? null
-    sciezka = `${leadId}/protokol-${(numer ?? '').replace(/\//g, '-')}.pdf`
+    // D23 (28.11): każdy protokół we własnym pliku — nie nadpisuje protokołu innej umowy o tym samym numerze
+    sciezka = sciezkaProtokolu(leadId, numer)
     opis = `Protokół odbioru do umowy nr ${numer}: do zapłaty po odbiorze ${zl(pr.pozostalo)}`
     status = 'blankiet'
   }
 
-  // testy 27.11 (runda 3): umowa nigdy nie nadpisuje istniejącego pliku (upsert tylko dla blankietów karty/protokołu)
-  const { error: eU } = await db.storage.from(BUCKET).upload(sciezka, pdf, { contentType: 'application/pdf', upsert: rodzaj !== 'umowa' })
+  // testy 27.11 (runda 3): umowa nigdy nie nadpisuje istniejącego pliku; D23 (28.11): protokół też nie (upsert tylko karta)
+  const { error: eU } = await db.storage.from(BUCKET).upload(sciezka, pdf, { contentType: 'application/pdf', upsert: nadpisujPlik(rodzaj) })
   if (eU) throw new Error('Nie zapisano PDF w buckecie: ' + eU.message)
   let dokumentId = dokId
   if (dokId) {
@@ -280,10 +282,7 @@ async function zaladujLogo(db: SupabaseClient): Promise<Logo> {
   return null
 }
 
-/** Znacznik do nazwy pliku: 20261127-213045-123 (UTC, z milisekundami — dwie umowy w tej samej sekundzie też się nie zderzą). testy 27.11 (runda 3) */
-function znacznikCzasu(): string {
-  return new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').replace('.', '-').replace('Z', '')
-}
+// znacznik czasu do nazw plików (umowa, protokół): sciezki.ts (znacznikCzasu)
 
 /** NIP do druku: 7740001454 → 774-000-14-54; pusty → null */
 function nipDoDruku(v: string): string | null {
