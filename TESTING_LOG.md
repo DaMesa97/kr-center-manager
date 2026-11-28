@@ -355,8 +355,8 @@ Stan: na produkcji 4 zlecenia alu, 0 kart / protokołów / deklaracji ZKP, nikt 
 ### ZKP i aluminium
 | Waga | Problem | Stan |
 |---|---|---|
-| KRYTYCZNY | zlecenia ZKP (AS 75EI) nie da się nigdy wydać — pozycja teczki „Zlecenie produkcyjne” zawsze „brak” (`alu_dossier_status` bez gałęzi) | w toku (tor bazy r8) |
-| KRYTYCZNY | protokół zamykany jako ZWOLNIONY na starej ocenie pomiarów po zmianie karty | w toku (tor bazy r8) |
+| KRYTYCZNY | zlecenia ZKP (AS 75EI) nie da się nigdy wydać — pozycja teczki „Zlecenie produkcyjne” zawsze „brak” (`alu_dossier_status` bez gałęzi) | **poprawione** 1a544bc (`20261128000000`; pełny cykl w transakcji: wydanie przechodzi) |
+| KRYTYCZNY | protokół zamykany jako ZWOLNIONY na starej ocenie pomiarów po zmianie karty | **poprawione** e4dbf3c (`20261128000100`; ocena liczona od nowa, „karta zmieniona po zapisaniu protokołu”) |
 | WYSOKI | każdy kierownik może wyłączyć ZKP na zleceniu 75EI | **D52** |
 | WYSOKI | „Nadpisz” nowej LP anuluje zwolnioną konstrukcję z deklaracją i gubi etapy | **D55** |
 | WYSOKI | podpis etapu ZKP inicjałami innej osoby | **D53** |
@@ -366,7 +366,7 @@ Stan: na produkcji 4 zlecenia alu, 0 kart / protokołów / deklaracji ZKP, nikt 
 | ŚREDNI | przyjęcie partii niezgodnej jako PRZYJĘTO, dostawca po terminie oceny „kwalifikowany” | **D58** |
 | ŚREDNI | eksport teczki (ZIP) bez kart, protokołów i deklaracji (generatory są w programie) | do zrobienia |
 | ŚREDNI | etykiety alu: wieczne „wczytuję” przy błędzie drukarek, błąd szablonów jak „brak szablonów”, druk ZKP bez numeru konstrukcji | **poprawione** 9974476 |
-| NISKI | okucia i wypełnienia w karcie przed potwierdzeniem zakresu | w toku (tor bazy r8) |
+| NISKI | okucia i wypełnienia w karcie przed potwierdzeniem zakresu | **poprawione** 5273ae0 (`20261128000200`) + zakładki w oknie karty |
 
 ### Ustawienia, druk, powiadomienia, archiwum, komentarze, zdjęcia
 | Waga | Problem | Stan |
@@ -471,6 +471,9 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 31. ⏳ `supabase/migrations/20261127234500_konta_crm_tylko_superadmin.sql`
 32. ⏳ `supabase/migrations/20261127235000_wydane_zlecenie_bez_nowych_rezerwacji.sql`
 33. ⏳ `supabase/migrations/20261127235100_nd_na_anulowanym_bez_przywracania.sql` — po 233000 (gdyby 233000 poszło później — puścić 235100 jeszcze raz)
+34. ⏳ `supabase/migrations/20261128000000_teczka_zkp_zlecenie_produkcyjne.sql` — **KRYTYCZNE dla ZKP**
+35. ⏳ `supabase/migrations/20261128000100_zkp_protokol_ocena_od_nowa.sql` — **KRYTYCZNE dla ZKP**
+36. ⏳ `supabase/migrations/20261128000200_zkp_okucia_wypelnienia_po_potwierdzeniu.sql`
 Po wgraniu: `scripts/kontrola-po-wdrozeniu.sql` (pusty wynik = OK). Próba generalna (runda 5): pliki do 233500 przechodzą razem w kolejności nazw, w jednej transakcji. Twarde zależności: 232000+232200 przed 232300; 232100 po 232000; 233100 po 233000; 233300 po 233200; 234400 po 233000.
 Pliki 225000, 232200 i 232700 zmienione w rundzie 4 (nadal niewgrane). 232000 + 232200 + 232300 wgrywać razem.
 Pliki 3–7 zostały w rundzie 3 poprawione (nadal niewgrane). Funkcje Edge 8–10 mają w rundzie 3 kolejne zmiany w repo — wgrywać najnowszą wersję z repo.
