@@ -7,6 +7,8 @@ import { ALL_STATION_CATEGORIES, fetchAluPositionsByOrder, fetchStationOrders } 
 import { applyAluPositionStages, mergeAluPositionEvent } from '../lib/aluStation'
 import { aluDoneSeen, aluMarkErrorText, appPinPrompt, rpcMarkAluStageSigned, rpcUndoAluStage } from '../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../constants'
+import { releaseErrorText, releaseFailureMessage } from '../lib/stockReleaseFailure'
+import { reportStockReleaseFailure } from '../lib/stockReleaseFailureRpc'
 import { parseProductionStages } from '../utils'
 import type { AluPosition, AluPositionStages, Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
 import type { ToastVariant } from '../types'
@@ -181,6 +183,8 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       // Błąd RPC NIE blokuje oznaczenia — produkcja jest ważniejsza niż magazyn.
       let releasedCount = 0
       let forcedCount = 0
+      // D41: błąd zdjęcia → po zapisie etapu wpis do Weryfikacji + „etap zapisany, magazyn do sprawdzenia”
+      let releaseFailed: string | null = null
       try {
         const { data, error: relError } = await supabase.rpc('release_stock_for_stage', {
           p_order_id: order.id!,
@@ -189,7 +193,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
         })
         if (relError) {
           console.error('release_stock_for_stage error:', relError)
-          pushToast(`Ostrzeżenie: wydanie z magazynu nie powiodło się: ${relError.message}`, 'error')
+          releaseFailed = releaseErrorText(relError)
         } else {
           const rows = (data ?? []) as StockReleaseRow[]
           const shortages = rows.filter((r) => r.r_status === 'insufficient')
@@ -201,7 +205,7 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
         }
       } catch (err) {
         console.error('release_stock_for_stage error:', err)
-        pushToast('Ostrzeżenie: wydanie z magazynu nie powiodło się', 'error')
+        releaseFailed = releaseErrorText(err)
       }
 
       // Zapisujemy INICJAŁY pracownika (spójnie z resztą apki), nie 'T'.
@@ -248,7 +252,16 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       )
 
       const who = ` · ${mark}`
-      if (forcedCount > 0) {
+      if (releaseFailed) {
+        const zgloszone = await reportStockReleaseFailure({
+          orderId: order.id!,
+          kind: 'etap',
+          stageKey: actualKey,
+          error: releaseFailed,
+          source: 'komputer: moje stanowisko',
+        })
+        pushToast(`${order.order_number}${who}: ${releaseFailureMessage(zgloszone, 'etap', releaseFailed)}`, 'error')
+      } else if (forcedCount > 0) {
         pushToast(`Zapisano: ${order.order_number}${who}. Uwaga: ${forcedCount} części brakowało w magazynie — kierownik ma to w historii.`, 'info')
       } else if (releasedCount > 0) {
         pushToast(`Zapisano: ${order.order_number}${who} (z magazynu zeszło ${releasedCount} poz.)`, 'success')

@@ -7,6 +7,7 @@ import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
 import ExcelSyncReviewSection from './ExcelSyncReviewSection'
 import OptimaRoFailuresSection from './OptimaRoFailuresSection'
+import StockReleaseFailuresSection from './StockReleaseFailuresSection'
 import type { ExcelSyncState } from '../hooks/useExcelSync'
 
 /** sekcja, do której przewinąć po wejściu z kafelka Pulpitu (#115) */
@@ -299,6 +300,9 @@ export default function OrdersNeedingReviewView({
         onCancelOrder={onCancelOrderById}
         sectionRef={excelRef}
       />
+
+      {/* D41: etap zapisany, zdjęcie z magazynu nie poszło (bez migracji 20261128030100 — ukryte) */}
+      <StockReleaseFailuresSection onOpenOrder={onOpenErpOrder} />
 
       <div className="orders-review-header" style={{ marginTop: 32 }} ref={erpRef} id="review-erp">
         <h2>🧾 Błędy ERP (Optima)</h2>

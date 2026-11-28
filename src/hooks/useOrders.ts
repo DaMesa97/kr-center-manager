@@ -78,6 +78,8 @@ import type React from 'react'
 import { zarejestrujNiezapisane } from '../lib/useUnsavedGuard'
 import type { StockReleaseRow } from './useMyStation'
 import { isOptimaClosed, isOrderCancelled } from '../lib/optimaRo'
+import { releaseErrorText, releaseFailureMessage } from '../lib/stockReleaseFailure'
+import { reportStockReleaseFailure } from '../lib/stockReleaseFailureRpc'
 
 /** Dialog braków przy wydaniu z tabeli zamówień / oznaczeniu wydania */
 export type StageReleaseShortageState = {
@@ -387,12 +389,14 @@ export function useOrders({
   // stageKey=null → release_remaining_for_order (wszystko co zostało).
   // Braki bez force → { shortage } (UI pokazuje dialog "Wydaj mimo braku").
   // Błąd RPC nie blokuje operacji — produkcja ważniejsza niż magazyn.
+  // D41 (28.11): błąd → { status: 'ok', failed } — wołający PO udanym zapisie etapu / daty zgłasza
+  // zlecenie do Weryfikacji (reportReleaseFailure) i pokazuje „etap zapisany, magazyn do sprawdzenia”.
   const runStockRelease = useCallback(
     async (
       orderId: number,
       stageKey: string | null,
       force: boolean,
-    ): Promise<{ status: 'ok' } | { status: 'shortage'; shortages: StockReleaseRow[] }> => {
+    ): Promise<{ status: 'ok'; failed?: string } | { status: 'shortage'; shortages: StockReleaseRow[] }> => {
       try {
         const { data, error } = stageKey === null
           ? await supabase.rpc('release_remaining_for_order', {
@@ -406,8 +410,7 @@ export function useOrders({
             })
         if (error) {
           console.error('stock release error:', error)
-          pushToast(`Ostrzeżenie: wydanie z magazynu nie powiodło się: ${error.message}`, 'error')
-          return { status: 'ok' }
+          return { status: 'ok', failed: releaseErrorText(error) }
         }
         const rows = (data ?? []) as StockReleaseRow[]
         const shortages = rows.filter((r) => r.r_status === 'insufficient')
@@ -425,8 +428,23 @@ export function useOrders({
         return { status: 'ok' }
       } catch (err) {
         console.error('stock release error:', err)
-        return { status: 'ok' }
+        return { status: 'ok', failed: releaseErrorText(err) }
       }
+    },
+    [pushToast],
+  )
+
+  // D41: po zapisanym etapie / dacie wydania — wpis do Weryfikacji + komunikat
+  const reportReleaseFailure = useCallback(
+    async (orderId: number, stageKey: string | null, failed: string) => {
+      const zgloszone = await reportStockReleaseFailure({
+        orderId,
+        kind: stageKey === null ? 'wydanie' : 'etap',
+        stageKey,
+        error: failed,
+        source: stageKey === null ? 'komputer: wydanie' : 'komputer: tabela',
+      })
+      pushToast(releaseFailureMessage(zgloszone, stageKey === null ? 'wydanie' : 'etap', failed), 'error')
     },
     [pushToast],
   )
@@ -435,7 +453,7 @@ export function useOrders({
   const cancelStageRelease = useCallback(() => setStageReleaseShortage(null), [])
 
   const applyReleaseDateCore = useCallback(
-    async (orderId: number, value: string | null) => {
+    async (orderId: number, value: string | null): Promise<boolean> => {
       setReleaseDateUpdating(orderId)
       // runda 4: anulowanego zlecenia nie wydajemy (wyczyszczenie daty — wolno)
       let zapytanie = supabase.from('orders').update({ release_date: value }).eq('id', orderId)
@@ -444,13 +462,13 @@ export function useOrders({
       if (error) {
         pushToast(`Wystąpił błąd: ${error.message}`, 'error')
         setReleaseDateUpdating(null)
-        return
+        return false
       }
       // RLS odrzuca update bez błędu (0 wierszy) — bez tego UI pokazałby wydanie
       if (!data || data.length === 0) {
         pushToast('Nie zapisano daty wydania — zlecenie jest anulowane albo brak uprawnień (odśwież listę)', 'error')
         setReleaseDateUpdating(null)
-        return
+        return false
       }
       setOrders((prev) =>
         prev.map((o) =>
@@ -458,6 +476,7 @@ export function useOrders({
         ),
       )
       setReleaseDateUpdating(null)
+      return true
     },
     [pushToast],
   )
@@ -476,6 +495,7 @@ export function useOrders({
       const marking =
         value != null && String(value).trim() !== '' &&
         (!order || isReleaseDateEmpty(order.release_date))
+      let failed: string | undefined
       if (marking) {
         const rel = await runStockRelease(orderId, null, false)
         if (rel.status === 'shortage') {
@@ -490,10 +510,12 @@ export function useOrders({
           })
           return
         }
+        failed = rel.failed
       }
-      await applyReleaseDateCore(orderId, value)
+      const saved = await applyReleaseDateCore(orderId, value)
+      if (saved && failed) await reportReleaseFailure(orderId, null, failed)
     },
-    [isManager, pushToast, orders, runStockRelease, applyReleaseDateCore],
+    [isManager, pushToast, orders, runStockRelease, applyReleaseDateCore, reportReleaseFailure],
   )
 
   // Ręczny znacznik odbioru ościeżnicy na Marklowickiej (Disting Plus) — niezależny od etapów.
@@ -764,6 +786,7 @@ export function useOrders({
         // dzieje się na zamówieniu źródłowym).
         const current = parseProductionStages(order.production_stages, order.category)
         const wasEmpty = !isStageDone(current[stageKey])
+        let failed: string | undefined
         if (wasEmpty) {
           const rel = await runStockRelease(orderId, stageKey, false)
           if (rel.status === 'shortage') {
@@ -778,10 +801,12 @@ export function useOrders({
             })
             return
           }
+          failed = rel.failed
         }
 
-        await applyProductionStagesUpdate(orderId, stageKey, initials)
+        const saved = await applyProductionStagesUpdate(orderId, stageKey, initials)
         await syncMirrorStagesToLinkedOrder(order, stageKey, initials)
+        if (saved && failed) await reportReleaseFailure(orderId, stageKey, failed)
         // Pracownik hali patrzy na tabelę, nie na róg ekranu — krótkie „zapisano"
         // z numerem i inicjałami (kierownik ma zieloną komórkę i tyle)
         if (!isManager) {
@@ -792,7 +817,7 @@ export function useOrders({
         setProductionStageUpdating(null)
       }
     },
-    [currentUser?.initials, isManager, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast, runStockRelease],
+    [currentUser?.initials, isManager, orders, applyProductionStagesUpdate, syncMirrorStagesToLinkedOrder, pushToast, runStockRelease, reportReleaseFailure],
   )
 
   // Stan specjalny etapu (kierownik, menu na komórce): '#ND' nie dotyczy,
@@ -829,14 +854,17 @@ export function useOrders({
     const t = stageReleaseShortage
     if (!t) return
     setStageReleaseShortage(null)
-    await runStockRelease(t.orderId, t.kind === 'stage' ? t.stageKey : null, true)
+    const rel = await runStockRelease(t.orderId, t.kind === 'stage' ? t.stageKey : null, true)
+    const failed = rel.status === 'ok' ? rel.failed : undefined
     if (t.kind === 'stage') {
       const order = orders.find((o) => o.id === t.orderId)
       const initials = (t.markInitials ?? currentUser?.initials ?? '').trim() || 'X'
-      await applyProductionStagesUpdate(t.orderId, t.stageKey, initials)
+      const saved = await applyProductionStagesUpdate(t.orderId, t.stageKey, initials)
       if (order) await syncMirrorStagesToLinkedOrder(order, t.stageKey, initials)
+      if (saved && failed) await reportReleaseFailure(t.orderId, t.stageKey, failed)
     } else {
-      await applyReleaseDateCore(t.orderId, t.pendingValue ?? null)
+      const saved = await applyReleaseDateCore(t.orderId, t.pendingValue ?? null)
+      if (saved && failed) await reportReleaseFailure(t.orderId, null, failed)
     }
   }, [
     stageReleaseShortage,
@@ -846,6 +874,7 @@ export function useOrders({
     applyProductionStagesUpdate,
     syncMirrorStagesToLinkedOrder,
     applyReleaseDateCore,
+    reportReleaseFailure,
   ])
 
   const handleFormChange = (field: keyof NewOrderFormData, value: string) => {

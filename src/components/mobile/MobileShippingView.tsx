@@ -13,6 +13,8 @@ import {
   type CompanyShippingInfo,
 } from '../../lib/companyMatch'
 import type { Order } from '../../types'
+import { releaseErrorText, releaseFailureMessage } from '../../lib/stockReleaseFailure'
+import { reportStockReleaseFailure } from '../../lib/stockReleaseFailureRpc'
 import { CAT_COLORS, CAT_LABEL } from './mobileKategorie'
 import { czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
 
@@ -229,7 +231,8 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
       // (zamówienie fizycznie wyjeżdża), błąd RPC nie cofa daty, ale krzyczy.
       // 27.11 (testy): drzwi wewnętrzne nie mają rezerwacji — schodzą z Magazynu 1 / 2 przez
       // issue_internal_door_stock (jak „Wydane” na komputerze); wcześniej telefon nic nie zdejmował.
-      let warned = false
+      // D41: błąd → wpis do Weryfikacji („magazyn do sprawdzenia”), data wydania już zapisana
+      let releaseFailed: string | null = null
       let wzBezOdpowiedzi = false
       try {
         const { error: relErr } = order.category === 'DrzwiWewnetrzne'
@@ -237,19 +240,30 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
           : await zLimitemCzasu(supabase.rpc('release_remaining_for_order', { p_order_id: order.id!, p_force: true }))
         if (relErr) {
           console.error('[wydanie z telefonu] WZ error:', relErr)
-          warned = true
+          releaseFailed = releaseErrorText(relErr)
         }
       } catch (err) {
         console.error('[wydanie z telefonu] WZ error:', err)
-        // D66: brak odpowiedzi — WZ mogła zejść albo nie; nie mówimy „NIE zeszła”
-        if (czyLimitCzasu(err)) wzBezOdpowiedzi = true
-        else warned = true
+        // D66: brak odpowiedzi — WZ mogła zejść albo nie; nie mówimy „NIE zeszła”, ale zgłaszamy do sprawdzenia (D41)
+        if (czyLimitCzasu(err)) {
+          wzBezOdpowiedzi = true
+          releaseFailed = 'brak odpowiedzi serwera (limit czasu) — WZ mogła zejść albo nie'
+        } else releaseFailed = releaseErrorText(err)
+      }
+      let zgloszone = false
+      if (releaseFailed) {
+        zgloszone = await reportStockReleaseFailure({
+          orderId: order.id!,
+          kind: order.category === 'DrzwiWewnetrzne' ? 'drzwi_wew' : 'wydanie',
+          error: releaseFailed,
+          source: 'telefon: wydanie',
+        })
       }
       if (!mountedRef.current) return
       setOrders((prev) => prev.filter((o) => o.id !== order.id))
       // ostrzeżenie zostaje na ekranie — sukces by je nadpisał
-      if (warned) flash('Wydane, ale WZ z magazynu NIE zeszła — zgłoś kierownikowi', true)
-      else if (wzBezOdpowiedzi) flash('Wydane, ale zdjęcie z magazynu (WZ) bez odpowiedzi serwera — mogło zejść; zgłoś kierownikowi do sprawdzenia', true)
+      if (wzBezOdpowiedzi) flash(`Wydane, ale zdjęcie z magazynu (WZ) bez odpowiedzi serwera — mogło zejść; ${zgloszone ? 'wpisane do Weryfikacji „Magazyn do sprawdzenia”' : 'zgłoś kierownikowi do sprawdzenia'}`, true)
+      else if (releaseFailed) flash(releaseFailureMessage(zgloszone, 'wydanie', releaseFailed), true)
       else if (wydaneWczesniej) flash(`Zlecenie było już wydane (${wydaneWczesniej}) — sprawdzono zdjęcie z magazynu ✓`)
       else flash('Oznaczono jako wydane ✓')
       setConfirm(null)

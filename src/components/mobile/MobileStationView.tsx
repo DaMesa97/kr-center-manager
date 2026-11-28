@@ -31,6 +31,8 @@ import { aluMarkWithPin } from '../../lib/aluStation'
 import { useMobilePinAsk } from './useMobilePinAsk'
 import { ALU_CATEGORY } from '../../constants'
 import { czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
+import { releaseErrorText, releaseFailureMessage } from '../../lib/stockReleaseFailure'
+import { reportStockReleaseFailure } from '../../lib/stockReleaseFailureRpc'
 import type { AluPosition, AluPositionStages, Complaint, Order, WorkerStage } from '../../types'
 import { CAT_COLORS } from './mobileKategorie'
 
@@ -460,7 +462,9 @@ export default function MobileStationView({ userId }: Props) {
     setSaving(true)
     try {
       // 1) Wydanie z magazynu (WZ) jak na desktopie — braki pokazujemy do
-      // decyzji, błąd RPC nie blokuje oznaczenia (produkcja > magazyn)
+      // decyzji, błąd RPC nie blokuje oznaczenia (produkcja > magazyn).
+      // D41: błąd → po zapisie etapu wpis do Weryfikacji + „etap zapisany, magazyn do sprawdzenia”
+      let releaseFailed: string | null = null
       try {
         const { data: relData, error: relError } = await zLimitemCzasu(supabase.rpc('release_stock_for_stage', {
           p_order_id: task.order.id!,
@@ -471,7 +475,7 @@ export default function MobileStationView({ userId }: Props) {
         if (relError) {
           console.error('release_stock_for_stage error:', relError)
           // runda 11: treść błędu (np. „etap wstrzymany — nic nie wydano”) zamiast samego „nie powiodło się”
-          flash(`Ostrzeżenie: wydanie z magazynu nie powiodło się — ${relError.message}`)
+          releaseFailed = releaseErrorText(relError)
         } else {
           const rows = (relData ?? []) as ShortageRow[]
           const shortages = rows.filter((r) => r.r_status === 'insufficient')
@@ -485,6 +489,7 @@ export default function MobileStationView({ userId }: Props) {
         // D66: przy limicie czasu nie wiemy, czy wydano i czy były braki — nie oznaczamy etapu w ciemno
         if (czyLimitCzasu(err)) throw err
         console.error('release_stock_for_stage error:', err)
+        releaseFailed = releaseErrorText(err)
       }
 
       // 2) Oznaczenie etapu: RPC dokleja JEDEN klucz po stronie bazy —
@@ -523,7 +528,20 @@ export default function MobileStationView({ userId }: Props) {
           return o
         }),
       )
-      flash('Etap oznaczony ✓')
+      if (releaseFailed) {
+        const zgloszone = await reportStockReleaseFailure({
+          orderId: task.order.id!,
+          kind: 'etap',
+          stageKey: actualKey,
+          error: releaseFailed,
+          source: 'telefon: stanowisko',
+        })
+        if (!mountedRef.current) return
+        // zostaje na ekranie — sukces by je nadpisał
+        flash(releaseFailureMessage(zgloszone, 'etap', releaseFailed), true)
+      } else {
+        flash('Etap oznaczony ✓')
+      }
       setLastDone({ task, initials: mark })
       setConfirmTask(null)
       setShortageConfirm(null)
