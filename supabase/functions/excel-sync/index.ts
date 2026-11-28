@@ -283,6 +283,16 @@ Deno.serve(async (req) => {
         }
       }
     }
+    // D22/D64 (28.11): zlecenia z etapem cofniętym w programie (tabela excel_cofniete_etapy). Ich wiersze idą do
+    // sync_stages_from_excel także bez wartości etapów — SQL zapamiętuje wtedy, że komórka w Excelu była pusta
+    // (wpisanie inicjałów później to „zmiana w Excelu” i etap się uzupełni). Brak tabeli (migracja niewgrana) = pusty zbiór.
+    let cofnieteIds = new Set<number>();
+    if (etapyMode !== "off") {
+      try {
+        const { data: cof, error: cofErr } = await supabase.from("excel_cofniete_etapy").select("obiekt_id").eq("rodzaj", "zlecenie");
+        if (!cofErr) cofnieteIds = new Set(((cof ?? []) as Array<{ obiekt_id: number }>).map((c) => Number(c.obiekt_id)));
+      } catch { /* bez wpisów — jak przed D22 */ }
+    }
     const parsed = readSheets(bytes, allSheets, headers);
     const cutoff = Date.now() - 365 * 24 * 3600 * 1000;
     const results: unknown[] = [];
@@ -302,6 +312,7 @@ Deno.serve(async (req) => {
       const zleDaty: Record<string, unknown>[] = [];   // runda 10 (28.11): literówki dat do raportu przebiegu
       // etapy per wiersz arkusza: klucz = to, co RPC zwraca w items.excel_row (`${sheet} ${nr}`)
       const etapyByRow: Record<string, { stages: Record<string, string>; nietypowe: Array<{ etap: string; wartosc: string }> }> = {};
+      const wierszeZEtapami = new Set<string>();   // D22/D64: wiersze arkuszy z kolumnami etapów (także puste)
       const stageColsMissing: string[] = [];
       for (const [sheetName, sheet] of Object.entries(part.sheets)) {
         const p = parsed[sheetName];
@@ -346,6 +357,7 @@ Deno.serve(async (req) => {
             if (dv != null && String(dv).trim() !== "" && String(dv).trim() !== "-") { wyd = today; szac = true; }
           }
           if (cols.length) {
+            wierszeZEtapami.add(`${sheet} ${String(nr).trim()}`);
             const stages: Record<string, string> = {};
             const nietypowe: Array<{ etap: string; wartosc: string }> = [];
             for (const c of cols) {
@@ -379,8 +391,10 @@ Deno.serve(async (req) => {
       if (etapyMode !== "off") {
         try {
           const items = ((result.items ?? []) as Array<Record<string, unknown>>)
-            .filter((i) => i.status !== "duplikat" && i.status !== "anulowane_w_excelu" && etapyByRow[String(i.excel_row)])
-            .map((i) => ({ id: i.id, order_number: i.order_number, excel_row: i.excel_row, ...etapyByRow[String(i.excel_row)] }));
+            .filter((i) => i.status !== "duplikat" && i.status !== "anulowane_w_excelu" && (etapyByRow[String(i.excel_row)]
+              || (cofnieteIds.has(Number(i.id)) && wierszeZEtapami.has(String(i.excel_row)))))
+            .map((i) => ({ id: i.id, order_number: i.order_number, excel_row: i.excel_row,
+              ...(etapyByRow[String(i.excel_row)] ?? { stages: {}, nietypowe: [] }) }));
           const { data: eres, error: eerr } = await supabase.rpc("sync_stages_from_excel", {
             p_items: items, p_dry_run: dryRun || etapyMode !== "on", p_run_id: result.run_id, p_category: part.category,
           });
