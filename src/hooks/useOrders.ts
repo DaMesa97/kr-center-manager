@@ -78,6 +78,7 @@ import type React from 'react'
 import { zarejestrujNiezapisane } from '../lib/useUnsavedGuard'
 import type { StockReleaseRow } from './useMyStation'
 import { isOptimaClosed, isOrderCancelled } from '../lib/optimaRo'
+import { komunikatKonfliktuEdycji, wykryjKonfliktEdycji } from '../lib/konfliktEdycji'
 import { releaseErrorText, releaseFailureMessage } from '../lib/stockReleaseFailure'
 import { reportStockReleaseFailure } from '../lib/stockReleaseFailureRpc'
 import { ORDER_LIST_COLUMNS, brakKolumnyWLiscie, orderSelect } from '../lib/orderColumns'
@@ -1472,9 +1473,10 @@ export function useOrders({
     // rezerwacji po edycji zakładało mu nowe rezerwacje. Świeży odczyt z bazy:
     // łapie też anulowanie przez kogoś innego w trakcie edycji.
     if (isEditing) {
+      // D29: cały wiersz (z updated_at, gdy migracja 20261128053100 jest wgrana) — do wykrycia zmiany w międzyczasie
       const { data: fresh, error: freshErr } = await supabase
         .from('orders')
-        .select('extra_fields')
+        .select('*')
         .eq('id', editId)
         .maybeSingle()
       if (freshErr || !fresh) {
@@ -1494,6 +1496,22 @@ export function useOrders({
         )
         setIsSaving(false)
         return
+      }
+      // D29: ktoś zmienił zlecenie po otwarciu formularza (przed migracją brak updated_at → bez porównania)
+      const konflikt = wykryjKonfliktEdycji(
+        editingOrderBaseline as unknown as Record<string, unknown>,
+        fresh as Record<string, unknown>,
+      )
+      if (konflikt.konflikt) {
+        const mimoTo = await appConfirm(komunikatKonfliktuEdycji(konflikt.pola), {
+          title: 'Zlecenie zmienione w międzyczasie',
+          confirmLabel: 'Zapisz mimo to',
+        })
+        if (!mimoTo) {
+          void fetchOrders()
+          setIsSaving(false)
+          return
+        }
       }
     }
 
