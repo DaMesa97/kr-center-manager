@@ -26,6 +26,7 @@ import {
 import type { ConfigOptionRecord, Order } from '../types'
 import { bastionFrameOptionForOrder, isReleaseDateEmpty, parseProductionStages } from '../utils'
 import { isOrderCancelled } from '../lib/orderCancelled'
+import { titanGroupId } from '../lib/titanGroup'
 
 // Titan w Bastionie: mapowanie etapów OKU/MONT/PAK na 3 sąsiednie kolumny tabeli.
 // Pozostałe kolumny Bastiona są dla Titana zablokowane.
@@ -53,10 +54,7 @@ type BastionOrdersTableViewProps = OrderTableCtx & {
   batchNoByOrderId?: Map<number, number>
 }
 
-const titanGroupOf = (o: Order) => {
-  const g = Number((o.extra_fields as Record<string, unknown> | null)?.titan_group)
-  return Number.isFinite(g) && g > 0 ? g : null
-}
+const titanGroupOf = (o: Order) => titanGroupId(o)
 
 /** Pole edytowane w komórce: zapis na blur (Enter = blur), tylko gdy wartość się zmieniła. */
 function inlineInput(value: string, onCommit: (v: string) => void, disabled?: boolean) {

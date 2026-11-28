@@ -12,6 +12,7 @@
 //  - „Po terminie” — bez Technicznych.
 // =====================================================================
 import { countCompletedStages, getOrderAgeStatus } from '../utils'
+import { titanGroupValue } from './titanGroup'
 import type { LeadTimeRule, Order } from '../types'
 
 export type DashboardRow = {
@@ -35,7 +36,8 @@ export const TECHNICZNE = 'Techniczne'
 
 /** Klucz zlecenia „logicznego": trójka Titana (titan_group) i para Disting Plus (linked_order_id) = 1 */
 export function logicalOrderKey(o: Pick<DashboardRow, 'id' | 'linked_order_id' | 'titan_group'>): string {
-  if (o.titan_group) return `t:${o.titan_group}`
+  const g = titanGroupValue(o.titan_group)
+  if (g != null) return `t:${g}`
   if (o.linked_order_id != null) return `p:${Math.min(o.id, o.linked_order_id)}`
   return `o:${o.id}`
 }

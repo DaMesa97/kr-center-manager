@@ -175,6 +175,7 @@ import type {
   WarehouseSubTab,
 } from './types'
 import { isExtraCancelled } from './lib/orderCancelled'
+import { titanGroupId } from './lib/titanGroup'
 
 function LoginScreen({
   username,
@@ -1713,8 +1714,7 @@ function App() {
 
   // Titan w Bastionie: noga z titan_group albo model G- (Guard / Core)
   const isTitanOrderRow = (order: Order): boolean => {
-    const g = Number((order.extra_fields as Record<string, unknown> | null)?.titan_group)
-    return (Number.isFinite(g) && g > 0) || /^G-/i.test(String(order.model ?? '').trim())
+    return titanGroupId(order) != null || /^G-/i.test(String(order.model ?? '').trim())
   }
   const bastionTitanCount = useMemo(
     () => (activeTab === 'Bastion' ? categoryFilteredOrders.filter(isTitanOrderRow).length : 0),

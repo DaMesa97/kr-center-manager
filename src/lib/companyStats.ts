@@ -13,6 +13,7 @@
 import type { Complaint, Order } from '../types'
 import { isReleaseDateEmpty } from '../utils'
 import { isExtraCancelled } from './orderCancelled'
+import { titanGroupValue } from './titanGroup'
 
 /** Kategorie, których konfigurator nie wysyła (Tymek 26.11) — poza udziałem „z konfiguratora” */
 export const KONFIGURATOR_POZA = ['Techniczne', 'DrzwiWewnetrzne'] as const
@@ -83,7 +84,7 @@ export function isCancelledComplaint(c: Complaint): boolean {
  */
 export function isLinkedSecondary(o: Order): boolean {
   const ef = o.extra_fields as Record<string, unknown> | null | undefined
-  if (ef?.titan_group != null && o.category !== 'Bastion') return true
+  if (titanGroupValue(ef?.titan_group) != null && o.category !== 'Bastion') return true
   if (o.linked_order_id != null && o.category === 'STA' && /DISTING\s*PLUS/i.test(String(o.system ?? ''))) return true
   return false
 }

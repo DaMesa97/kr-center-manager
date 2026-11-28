@@ -79,6 +79,7 @@ import { zarejestrujNiezapisane } from '../lib/useUnsavedGuard'
 import type { StockReleaseRow } from './useMyStation'
 import { DRZWI_WEW_TYLKO_Z_OPTIMY, isOptimaClosed, isOrderCancelled, moznaEdytowacDrzwiWew } from '../lib/optimaRo'
 import { komunikatKonfliktuEdycji, wykryjKonfliktEdycji } from '../lib/konfliktEdycji'
+import { titanGroupId } from '../lib/titanGroup'
 import { releaseErrorText, releaseFailureMessage } from '../lib/stockReleaseFailure'
 import { reportStockReleaseFailure } from '../lib/stockReleaseFailureRpc'
 import { ORDER_LIST_COLUMNS, brakKolumnyWLiscie, orderSelect } from '../lib/orderColumns'
@@ -1280,8 +1281,8 @@ export function useOrders({
     baseline: Order,
     newIntarsja: unknown,
   ): Promise<void> => {
-    const group = Number((baseline.extra_fields as Record<string, unknown> | null)?.titan_group)
-    if (!group || !Number.isFinite(group)) return
+    const group = titanGroupId(baseline)
+    if (group == null) return
     const next = String(newIntarsja ?? '')
     if (String(baseline.intarsja ?? '') === next) return
     const { error } = await supabase
@@ -1296,8 +1297,7 @@ export function useOrders({
     }
     setOrders((prev) =>
       prev.map((o) => {
-        const g = Number((o.extra_fields as Record<string, unknown> | null)?.titan_group)
-        return g === group ? { ...o, intarsja: next } : o
+        return titanGroupId(o) === group ? { ...o, intarsja: next } : o
       }),
     )
   }
@@ -1326,8 +1326,8 @@ export function useOrders({
     baseline: Order,
     mapped: Record<string, unknown>,
   ): Promise<void> => {
-    const group = (baseline.extra_fields as Record<string, unknown> | null)?.titan_group
-    if (group == null || String(group).trim() === '') return
+    const group = titanGroupId(baseline)
+    if (group == null) return
     const payload = buildPartnerSyncPayload(mapped)
     if (Object.keys(payload).length === 0) return
     const skip = new Set([baseline.id, baseline.linked_order_id].filter((id) => id != null))
@@ -2735,8 +2735,9 @@ export function useOrders({
   // Noga Bastion Titana jest spięta tylko extra_fields.titan_group (bez
   // linked_order_id) — anulowanie/przywracanie pary STA↔ST musi ją objąć osobno.
   const findTitanBastionLegIds = useCallback(async (order: Order): Promise<number[]> => {
-    const group = (order.extra_fields as Record<string, unknown> | null)?.titan_group
-    if (group == null) return []
+    // D51: tylko poprawna grupa (dodatnia liczba); zapytanie z oryginalną wartością (liczba / tekst jak w bazie)
+    if (titanGroupId(order) == null) return []
+    const group = (order.extra_fields as Record<string, unknown>).titan_group
     const { data, error } = await supabase
       .from('orders')
       .select('id')
@@ -2841,7 +2842,7 @@ export function useOrders({
     // czy tylko Bastion (jak dotąd).
     if (!opts?.tylkoNogaBastion && isTitanBastionOrder(order)) {
       // titan_group = id bazowego STA (sprawdzone na produkcji: 71/71 zestawów)
-      const bazaId = Number((order.extra_fields as Record<string, unknown> | null)?.titan_group)
+      const bazaId = titanGroupId(order)
       void (async () => {
         const { data: bazaRow } = await supabase.from('orders').select('*').eq('id', bazaId).maybeSingle()
         const baza = bazaRow as Order | null

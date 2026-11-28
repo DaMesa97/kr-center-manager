@@ -39,6 +39,7 @@ import type {
   WhatComplained,
 } from './types'
 import { isExtraCancelled } from './lib/orderCancelled'
+import { titanGroupId } from './lib/titanGroup'
 
 export function normalizeProfileDepartment(role: string, raw: unknown): ProfileDepartment {
   if (role === 'manager') return 'all'
@@ -424,8 +425,7 @@ export function allProductionStageKeysForCategory(category: string): string[] {
 // Czy rekord Bastion to "noga" Titana (powstał z STA Titan, ma titan_group)
 export function isTitanBastionOrder(order: Order): boolean {
   if (order.category !== 'Bastion') return false
-  const g = (order.extra_fields as Record<string, unknown> | null)?.titan_group
-  return g != null && Number(g) > 0
+  return titanGroupId(order) != null
 }
 
 export function getTableStageDefinitions(category: string): StageDef[] {
@@ -1009,8 +1009,8 @@ export function orderSetCompleteness(order: Order, allOrders: Order[]): SetCompl
   const byId = (id: number | null | undefined) =>
     id == null ? undefined : allOrders.find((o) => o.id === id)
 
-  const ef = order.extra_fields as Record<string, unknown> | null
-  const titanGroup = ef?.titan_group != null ? String(ef.titan_group) : null
+  const titanGroupNr = titanGroupId(order)
+  const titanGroup = titanGroupNr != null ? String(titanGroupNr) : null
   const titan =
     titanGroup != null ||
     isStaTitanLinked(order, allOrders) ||
