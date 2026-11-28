@@ -25,6 +25,10 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.14: CRM — nieodebrane połączenia</h4>
+        <ul>
+          <li><b>CRM</b>: nieodebrane połączenie z nowego numeru nie zakłada już klienta — widać je w Klienci → „Bez potencjału sprzedaży” (powód „Nieodebrana z nowego numeru”). Gdy ten numer zadzwoni później w sprawie zakupu, wcześniejsze nieodebrane dopną się do nowego klienta same.</li>
+        </ul>
         <h4>Wersja 1.1.13: CRM — klienci tylko z potencjałem sprzedaży</h4>
         <ul>
           <li><b>CRM</b>: rozmowa albo mail z nowego numeru / adresu, w którym nie ma potencjału sprzedaży (klient zrezygnował, nie zostawił danych, pomyłka, towar, którego nie sprzedajemy), nie zakłada już klienta. Takie kontakty są w Klienci → „Bez potencjału sprzedaży” z powodem i przyciskiem „Utwórz klienta”, gdyby system się pomylił.</li>
