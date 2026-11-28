@@ -488,7 +488,8 @@ export function zdarzenieLabel(typ: string, dane: Record<string, unknown> | null
     const p = typeof dane?.powod === 'string' ? CRM_WYNIK_POWOD[dane.powod] ?? dane.powod : null
     return `Przegrany${p ? `: ${p}` : ''}${typeof dane?.notatka === 'string' && dane.notatka ? ` — ${dane.notatka}` : ''}`
   }
-  if (typ === 'wygrany') return 'Zamówił'
+  // D17 (28.11): klient z potwierdzonym zamówieniem w Baselinkerze oznaczany automatycznie
+  if (typ === 'wygrany') return zrodlo === 'baselinker' ? 'Zamówił (zamówienie w sklepie, automatycznie)' : 'Zamówił'
   // przywrócenie: ręcznie albo samo (klient zadzwonił / napisał / wysłano ofertę), z poprzednim powodem
   if (typ === 'przywrocony') {
     const skad = typeof dane?.zrodlo === 'string' && dane.zrodlo ? dane.zrodlo : null

@@ -24,3 +24,10 @@ describe('D19: odstąpienie od podpisanej umowy', () => {
     expect(zdarzenieLabel('umowa_odstapienie', {})).toBe('Odstąpienie od umowy')
   })
 })
+
+describe('D17: „Zamówił” z Baselinkera w historii', () => {
+  it('zdarzenie wygrany ze źródłem baselinker jest opisane jako automatyczne', () => {
+    expect(zdarzenieLabel('wygrany', { zrodlo: 'baselinker', bl_id: 57582221 })).toBe('Zamówił (zamówienie w sklepie, automatycznie)')
+    expect(zdarzenieLabel('wygrany', { oferta_id: null })).toBe('Zamówił')
+  })
+})
