@@ -7,8 +7,9 @@
 -- Teraz:
 --  1) public.try_date(text) — rzutowanie na date, a przy błędzie null (te same formaty co ::date);
 --  2) sync_complaints_from_excel: zła data reklamacji → wiersz pominięty (jak brak daty), policzony w podsumowaniu
---     jako „zla_data” (także w „pominiete”) i wypisany w details (nr, wiersz, wartość); zła data w WYDANIE → jak
---     tekst „X” (wydane bez daty — dzisiejsza, szacunkowa), też policzona w „zla_data”;
+--     jako „zla_data” (także w „pominiete”) i wypisany w details (nr, wiersz, wartość); zła data w WYDANIE →
+--     reklamacja NIE jest oznaczana jako wydana (runda 11: „jak X” zapisywało dzisiejszą datę na stałe,
+--     poprawka w arkuszu już nie docierała), też policzona w „zla_data”;
 --  3) sync_releases_from_excel__impl: niemożliwa data wydania → status „inne” (lista do wyjaśnienia w Weryfikacji,
 --     jak każdy nierozpoznany tekst), bez zamykania zlecenia.
 -- Druga połowa poprawki w Edge (supabase/functions/excel-sync, anyToIso sprawdza istnienie daty, raport zle_daty).
@@ -64,8 +65,7 @@ declare
 ',
       '      if r.wydanie ~ ''^\d{4}-\d{2}-\d{2}'' then
         v_release := public.try_date(r.wydanie);
-        if v_release is null then  -- niemożliwa data = wydane bez daty, jak „X”
-          v_release := v_today;
+        if v_release is null then  -- niemożliwa data: NIE wydane (runda 11), wiersz w raporcie; po poprawce w arkuszu przyjdzie data
           v_bad := v_bad + 1;
           if jsonb_array_length(v_bad_rows) < 100 then
             v_bad_rows := v_bad_rows || jsonb_build_object(''nr'', r.nr, ''wiersz'', r.wiersz, ''kolumna'', ''WYDANIE'', ''wartosc'', r.wydanie);

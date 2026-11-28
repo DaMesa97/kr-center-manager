@@ -195,6 +195,18 @@ const anyToIso = (v: unknown): string | null => {
 const isBadDateText = (v: unknown): boolean =>
   typeof v === "string" && /^(\d{4}-\d{2}-\d{2}|\d{1,2}[./]\d{1,2}[./]\d{4})/.test(v.trim()) && anyToIso(v) === null;
 
+// runda 11 (28.11): niemożliwą datę wysyłamy do SQL jako „RRRR-MM-DD” bez sprawdzania — try_date ją odrzuci
+// i policzy w podsumowaniu przebiegu (excel_sync_runs), które widać w bazie; sama odpowiedź dla Make ginęła
+const rawIsoGuess = (v: unknown): string | null => {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = /^(\d{1,2})[./](\d{1,2})[./](\d{4})/.exec(t);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return null;
+};
+
 const str = (v: unknown): string => (v == null ? "" : String(v).trim());
 
 Deno.serve(async (req) => {
@@ -405,13 +417,19 @@ Deno.serve(async (req) => {
               const nr = str(g("nr"));
               if (!nr) continue;
               const data = anyToIso(g("data"));
-              // runda 10 (28.11): niemożliwa data (np. „31.11.2026”) — wiersz pominięty, numer wiersza w raporcie
-              if (!data && isBadDateText(g("data"))) zleDatyRekl.push({ wiersz: rowNo, nr, kolumna: "DATA", wartosc: str(g("data")) });
-              if (!data || Date.parse(data) < cutoff) continue;
+              // runda 10 (28.11): niemożliwa data (np. „31.11.2026”) — numer wiersza w raporcie
+              const zlaData = !data && isBadDateText(g("data"));
+              if (zlaData) zleDatyRekl.push({ wiersz: rowNo, nr, kolumna: "DATA", wartosc: str(g("data")) });
+              // runda 11: wiersz ze złą datą idzie do SQL (pominięty tam i policzony jako „zla_data”)
+              if (!zlaData && (!data || Date.parse(data) < cutoff)) continue;
               const wydRaw = g("wydanie");
-              const wydanie = wydRaw == null ? "" : (serialToIso(wydRaw) ?? str(wydRaw));
+              // runda 11 (recenzent): WYDANIE jak DATA — „15.11.2026” jako tekst to data, nie „X” (wydane dziś);
+              // niemożliwa data idzie surowo, SQL zostawia reklamację niewydaną i zgłasza wiersz
+              const wydIso = anyToIso(wydRaw);
+              if (!wydIso && isBadDateText(wydRaw)) zleDatyRekl.push({ wiersz: rowNo, nr, kolumna: "WYDANIE", wartosc: str(wydRaw) });
+              const wydanie = wydRaw == null ? "" : (wydIso ?? (isBadDateText(wydRaw) ? rawIsoGuess(wydRaw) ?? str(wydRaw) : str(wydRaw)));
               crow.push({
-                nr, data, wyk: str(g("wyk")), nr_zlecenia: str(g("nr_zlecenia")), firma: str(g("firma")), co: str(g("co")),
+                nr, data: data ?? rawIsoGuess(g("data")), wyk: str(g("wyk")), nr_zlecenia: str(g("nr_zlecenia")), firma: str(g("firma")), co: str(g("co")),
                 system: str(g("system")), model: str(g("model")), kolor: str(g("kolor")), kolor_osc: str(g("kolor_osc")),
                 szer: str(g("szer")), kierunek: str(g("kierunek")), otwieranie: str(g("otwieranie")), wysokosc: str(g("wysokosc")),
                 ilosc: str(g("ilosc")), powod: str(g("powod")), info: str(g("info")), wpisal: str(g("wpisal")),

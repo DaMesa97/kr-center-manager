@@ -14,12 +14,13 @@ const wytnij = (nazwa: string): string => {
   return zrodlo.slice(start, koniec)
 }
 const js = transformSync(
-  ['serialToIso', 'isoIfReal', 'anyToIso', 'isBadDateText'].map(wytnij).join('\n') + '\nreturn { anyToIso, isBadDateText };',
+  ['serialToIso', 'isoIfReal', 'anyToIso', 'isBadDateText', 'rawIsoGuess'].map(wytnij).join('\n') + '\nreturn { anyToIso, isBadDateText, rawIsoGuess };',
   { loader: 'ts' },
 ).code
-const { anyToIso, isBadDateText } = new Function(js)() as {
+const { anyToIso, isBadDateText, rawIsoGuess } = new Function(js)() as {
   anyToIso: (v: unknown) => string | null
   isBadDateText: (v: unknown) => boolean
+  rawIsoGuess: (v: unknown) => string | null
 }
 
 describe('excel-sync anyToIso — data musi istnieć', () => {
@@ -47,5 +48,16 @@ describe('excel-sync anyToIso — data musi istnieć', () => {
     expect(isBadDateText('ANULOWANE')).toBe(false)
     expect(isBadDateText(46346)).toBe(false)
     expect(isBadDateText('')).toBe(false)
+  })
+})
+
+// runda 11: niemożliwa data idzie do SQL jako „RRRR-MM-DD” (try_date ją odrzuci i policzy w raporcie przebiegu)
+describe('excel-sync rawIsoGuess', () => {
+  it('zamienia zapis na RRRR-MM-DD bez sprawdzania kalendarza', () => {
+    expect(rawIsoGuess('31.11.2026')).toBe('2026-11-31')
+    expect(rawIsoGuess('2026-11-31')).toBe('2026-11-31')
+    expect(rawIsoGuess('1.2.2026')).toBe('2026-02-01')
+    expect(rawIsoGuess('X')).toBeNull()
+    expect(rawIsoGuess(46000)).toBeNull()
   })
 })
