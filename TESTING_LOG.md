@@ -518,7 +518,15 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 - Funkcje Edge: `excel-sync` v16 → **v17** (repo HEAD; serwer v16 = repo z 24.11, różnica = poprawki nocne). Pierwszy przebieg Make dopiero w poniedziałek (ostatni piątek 20:00) — sprawdzić `excel_sync_runs`. `crm-oferta` v29 → **v30** (D39, Bastion P-110; po wdrożeniu 6 plików identycznych z repo). W ofercie, która dawała „nie jest na liście kandydatów”, kliknąć „Policz od nowa”.
 - Aplikacja: **1.1.8 OPUBLIKOWANA** (gałąź `clean` przewinięta do nocnej i wypchnięta, tag v1.1.8 = 3da636b, `min_app_version` = 1.1.8 — wymuszona aktualizacja).
 
-## Decyzje właściciela 28.11 — przygotowane do wdrożenia (NIE wgrane)
+## Decyzje właściciela 28.11 — WGRANE 28.11 ok. 13:10 („Tak, wgrywaj 1.1.9”)
+- Kopia przed: `C:/KRCenter-Backups/krcenter-2026-11-28-12-04-14.dump`. 28 plików (232800 + 030000…036102 bez 036001 i 036200) jedną transakcją (psql), na końcu ponownie 234000. `scripts/kontrola-decyzje-28-11.sql`: pusto. `select run_all_forecasts()` (3155). Kontrola nocna: zostają tylko znaczniki 233000/235100 (wstrzymane do poprawy receptury ramy ST).
+- **D8 `036200` WGRANY** po potwierdzeniu właściciela 28.11 („Części skrzydła Disting Plus schodzą z magazynu Marklowicka. Tak jak część skrzydła Titan”). Zaległość 595 rezerwacji (STA wydane bez e3/e4) — bez pliku, pytanie otwarte.
+- D25 zmienione przed wdrożeniem (właściciel: data = zrobione, materiał schodzi): data w kolumnie etapu ST / Bastion → znacznik „XLS” (jak inicjały, wydanie z wymuszeniem), „X” bez daty nadal #ND (a646a16).
+- Edge: excel-sync v17→**v18**, crm-dokumenty v7→**v8** (D20 + nocne poprawki umów), optima-ro-import v13→**v14** (D10 + cab1bcf); po wdrożeniu pliki = repo.
+- Aplikacja **1.1.9 OPUBLIKOWANA** (clean = tag v1.1.9 = d8877bc, min_app_version 1.1.9).
+- Nadal czeka: `036001` (D68 drop tabel po sprawdzeniu kopii), `233000` + `235100` (po poprawie receptury). Po wdrożeniu crm-dokumenty: raz `{akcja:'sprzatnij_pliki'}` (podgląd), potem z `usun:true` (8 plików po usuniętych klientach) — do zrobienia z poziomu aplikacji / na polecenie.
+
+### Lista plików (dla porządku)
 Próba generalna 28.11 po południu: 28 plików poniżej (bez 036001 i 036200) razem w transakcji cofniętej na produkcji (już z pakietem z południa) — 0 błędów. Kontrola po wgraniu: `scripts/kontrola-decyzje-28-11.sql` (każde zapytanie: pusty wynik = OK).
 Kolejność = kolejność nazw:
 1. `20261127232800_prognozy_pelne_miesiace.sql` (D7, poprawiony) — po wgraniu `select public.run_all_forecasts();`

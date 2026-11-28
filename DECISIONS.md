@@ -12,7 +12,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 - **D63** — do ustalenia, telefonów na hali jeszcze nie ma.
 - **D8** — doprecyzowanie: „tylko rezerwacja na Disting Plus skrzydła musi je ściągać z magazynu Marklowicka” → w toku (interpretacja do potwierdzenia przed wgraniem).
 - **Fakty**: D12 TAK (ceny tajne dla hali i magazynu) · D57 TAK (zlecenia mieszane się zdarzają → ZKP na poziomie pozycji) · D31 NIE (magazynier nie planuje tras) · D32 NIE („90E” to inny wymiar niż „90” — nie ujednolicać) · D25 TAK (data zamiast „X” w Excelu) · D34 NIE (Techniczne: stare zamykamy ręcznie, wydanie nie z Excela) · D68 TAK (tabele migracja_* do usunięcia po kopii) · D36 TAK (właściciel uzupełni adres webhooka „Ponów do Optimy”).
-- **Wybory TAK — ZROBIONE w repo 28.11 (gałąź nocna, niewgrane; lista i kolejność: TESTING_LOG „Decyzje właściciela 28.11”)**; D9 tylko plan; D8 czeka na potwierdzenie interpretacji: D7, D9, D10, D11, D13, D14, D15, D16, D17, D18, D19, D20, D21, D22+D64, D26, D30, D41, D43, D52, D53, D54, D58, D59, D62, D66.
+- **Wybory TAK — WGRANE 28.11 ok. 13:10 razem z aplikacją 1.1.9** (TESTING_LOG „Decyzje właściciela 28.11”); D9 tylko plan; D8 potwierdzone i wgrane; D25: data = zrobione z wydaniem materiału (potwierdzone): D7, D9, D10, D11, D13, D14, D15, D16, D17, D18, D19, D20, D21, D22+D64, D26, D30, D41, D43, D52, D53, D54, D58, D59, D62, D66.
 - **Bez odpowiedzi (właściciel jeszcze myśli)**: D23, D24, D27, D28, D29, D33, D35, D37, D38, D40, D45, D46, D47, D48, D49, D50, D51, D55, D56, D60, D61, D65, D67, D69.
 
 ## Podsumowanie (5 minut przy kawie)
