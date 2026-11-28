@@ -1,3 +1,4 @@
+-- 28.11.2026: WGRANE na polecenie właściciela („działaj, usuwaj śmieci”) razem z 20261128060000.
 -- 28.11.2026 — PROPOZYCJA, NIE WGRYWAĆ bez decyzji właściciela (zgłoszenie: „takie zapytanie nie powinno się w ogóle
 -- zapisywać jako Klienci”). Po decyzji TAK: skopiować do supabase/migrations/20261128060100_crm_porzadek_klienci_bez_potencjalu.sql
 -- (z nagłówkiem decyzji) i wgrać PO 20261128060000 (lista „Bez klienta” i „Utwórz klienta” muszą już działać).
