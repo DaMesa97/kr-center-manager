@@ -1,5 +1,5 @@
 -- Kontrola po wdrożeniu migracji z 27.11.2026 (testy 27.11, runda 3).
--- Tylko odczyt. Uruchom w SQL Editor po wgraniu WSZYSTKICH migracji 20261127221000…20261127235100.
+-- Tylko odczyt. Uruchom w SQL Editor po wgraniu WSZYSTKICH migracji 20261127221000…20261127235100 oraz 20261128000000… (runda 8, ZKP).
 -- Wynik: lista braków. PUSTY wynik = wszystko na miejscu.
 -- (Znaczniki funkcji z próby generalnej r5 + znaczniki z plików 20261127234000…235100.)
 with znaczniki(fn, marker, minimum) as (
@@ -58,7 +58,9 @@ with znaczniki(fn, marker, minimum) as (
     ('public.restore_order_reservations__impl(bigint)', 'testy 27.11 (runda 6), wydane', 1),
     -- 20261127235100: #ND na anulowanym (runda 6) — gdyby 233000 poszło PO 235100, tu wyjdzie brak
     ('public.restore_stage_reservations__impl(bigint,text)', 'testy 27.11 (runda 6), anulowane', 1),
-    ('public.cancel_stage_reservations__impl(bigint,text)', 'testy 27.11 (runda 6), anulowane', 1)
+    ('public.cancel_stage_reservations__impl(bigint,text)', 'testy 27.11 (runda 6), anulowane', 1),
+    -- 20261128000000: teczka ZKP — zlecenie produkcyjne „jest” po etapie C (runda 8)
+    ('public.alu_dossier_status(bigint)', 'zlecenie produkcyjne = uruchomienie do produkcji', 1)
 ),
 funkcje as (
   select z.fn, z.marker, z.minimum, to_regprocedure(z.fn) as foid from znaczniki z
