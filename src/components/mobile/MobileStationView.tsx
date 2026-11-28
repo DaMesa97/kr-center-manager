@@ -28,6 +28,7 @@ import {
 import { aluStageDone } from '../../lib/alu'
 import { ALU_CATEGORY } from '../../constants'
 import type { AluPosition, AluPositionStages, Complaint, Order, WorkerStage } from '../../types'
+import { CAT_COLORS } from './mobileKategorie'
 
 type ShortageRow = {
   r_component_name: string
@@ -40,11 +41,6 @@ type Props = {
   userId: string
 }
 
-const CAT_COLORS: Record<string, string> = {
-  STA: '#005faf', Disting: '#4f46e5', ST: '#1d6d45',
-  Techniczne: '#854d0e', Bastion: '#b3261e', DrzwiWewnetrzne: '#0369a1',
-  Aluminium: '#475569',
-}
 // Skrót kategorii na plakietce karty (plakietka ma ~52 px)
 const catShort = (category: string): string =>
   category === 'DrzwiWewnetrzne' ? 'Wewn.' : category === ALU_CATEGORY ? 'Alu' : category

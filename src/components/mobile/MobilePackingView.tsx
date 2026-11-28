@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Search, ArrowLeft, Camera, Trash2 } from 'lucide-react'
 import { supabase } from '../../supabaseClient'
 import { humanizeAndLog } from '../../lib/friendlyError'
+import { CAT_COLORS } from './mobileKategorie'
 
 type SearchResult = {
   id: number
@@ -21,10 +22,6 @@ type Photo = {
 
 const BUCKET = 'order-photos'
 
-const CAT_COLORS: Record<string, string> = {
-  STA: '#005faf', Disting: '#4f46e5', ST: '#1d6d45',
-  Techniczne: '#854d0e', Bastion: '#b3261e', DrzwiWewnetrzne: '#0369a1', Aluminium: '#475569',
-}
 
 type Props = {
   userInitials: string

@@ -13,14 +13,8 @@ import {
   type CompanyShippingInfo,
 } from '../../lib/companyMatch'
 import type { Order } from '../../types'
+import { CAT_COLORS, CAT_LABEL } from './mobileKategorie'
 
-const CAT_COLORS: Record<string, string> = {
-  STA: '#005faf', Disting: '#4f46e5', ST: '#1d6d45',
-  Techniczne: '#854d0e', Bastion: '#b3261e', DrzwiWewnetrzne: '#0369a1', Aluminium: '#475569',
-}
-const CAT_LABEL: Record<string, string> = {
-  STA: 'STA', Disting: 'Disting', ST: 'ST', Techniczne: 'Techn.', Bastion: 'Bastion', DrzwiWewnetrzne: 'Wewn.', Aluminium: 'Alu',
-}
 
 // Tylko kolumny potrzebne do karty, postępu etapów (countCompletedStages) i trasy —
 // select('*') ciągnął kilka tysięcy pełnych wierszy na telefon

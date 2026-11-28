@@ -6,16 +6,10 @@ import type { Order } from '../../types'
 import { isOptimaClosed } from '../../lib/optimaRo'
 import { groupPicks, pickProgress, type OrderPick } from '../../lib/orderPicks'
 import MobileIntDoorPicking from './MobileIntDoorPicking'
+import { CAT_COLORS, CAT_LABEL } from './mobileKategorie'
 
 const CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'] as const
 
-const CAT_COLORS: Record<string, string> = {
-  STA: '#005faf', Disting: '#4f46e5', ST: '#1d6d45',
-  Techniczne: '#854d0e', Bastion: '#b3261e', DrzwiWewnetrzne: '#0369a1', Aluminium: '#475569',
-}
-const CAT_LABEL: Record<string, string> = {
-  STA: 'STA', Disting: 'Disting', ST: 'ST', Techniczne: 'Techn.', Bastion: 'Bastion', DrzwiWewnetrzne: 'Wewn.', Aluminium: 'Alu',
-}
 
 type Field = { label: string; value: string }
 
