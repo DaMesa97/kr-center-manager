@@ -10,7 +10,7 @@ const KOLUMNY_TECHNICZNE = new Set([
   'stage1', 'stage2_1', 'stage2_2', 'stage3', 'stage4', 'stage5', 'release', 'release_date',
   'erp_ro_number', 'erp_status', 'erp_error', 'erp_updated_at',
   'shipped_at', 'shipped_route', 'glass_order_date', 'glass_received', 'glass_received_date',
-  'sequence', 'label', 'bastion_completed',
+  'sequence', 'label',
 ])
 
 /** Klucze extra_fields pomijane przy porównaniu (hala, Weryfikacja, magazyn, trasy). */
