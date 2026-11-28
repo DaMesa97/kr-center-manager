@@ -612,18 +612,27 @@ serve(async (req) => {
             })
             continue
           }
-          // inny towar pod tym numerem — nadajemy nowy numer
-          // z RPC i wstawiamy z flagą do weryfikacji, zamiast cicho wyrzucać
+          // inny towar pod tym numerem — nadajemy nowy numer z RPC, zamiast cicho wyrzucać
           const newNumber = await nextOrderNumber(supabase, category)
           payload.order_number = newNumber
-          payload.extra_fields = {
-            ...((payload.extra_fields as Record<string, unknown>) ?? {}),
-            needs_review: true,
-            warnings: [
-              `Numer ${orderNumber} z arkusza był już zajęty (${norm(ex.model) || 'inne zamówienie'}) — nadano numer ${newNumber}`,
-            ],
-            sheet_number_conflict: orderNumber,
-          }
+          // D35 (28.11, przegląd reguł Weryfikacji): numer zajęty przez zlecenie INNEJ firmy to zwykła kolizja puli
+          // numerów (bot i arkusz numerują w tej samej puli) — 78% wpisów Weryfikacji (325 z 418 otwartych, ok. 150
+          // tygodniowo). Taki wiersz wchodzi bez flagi; numer z arkusza zostaje w sheet_number_conflict (plakietka
+          // „ark. N” przy zleceniu). Do Weryfikacji idzie tylko kolizja z tą samą firmą (możliwa poprawka / dubel).
+          const tejSamejFirmy = companiesMatch(ex.company, payload.company)
+          payload.extra_fields = tejSamejFirmy
+            ? {
+                ...((payload.extra_fields as Record<string, unknown>) ?? {}),
+                needs_review: true,
+                warnings: [
+                  `Numer ${orderNumber} z arkusza był już zajęty przez zlecenie tej samej firmy (${norm(ex.model) || 'inne zamówienie'}) — nadano numer ${newNumber}; sprawdź, czy to nie poprawka albo dubel`,
+                ],
+                sheet_number_conflict: orderNumber,
+              }
+            : {
+                ...((payload.extra_fields as Record<string, unknown>) ?? {}),
+                sheet_number_conflict: orderNumber,
+              }
         }
       }
 

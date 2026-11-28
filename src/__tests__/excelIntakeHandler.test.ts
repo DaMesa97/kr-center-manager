@@ -160,7 +160,7 @@ describe('orders-excel-intake — handler HTTP', () => {
     expect(calls.inserted).toHaveLength(0)
   })
 
-  it('kolizja numeru z INNYM zamówieniem → nowy numer z RPC + flaga do weryfikacji (nie gubimy wiersza)', async () => {
+  it('kolizja numeru z zamówieniem INNEJ firmy → nowy numer z RPC, bez flagi Weryfikacji, numer arkusza zostaje (D35)', async () => {
     const base = { id: 21, order_number: '999', category: 'Bastion', system: 'BASIC LOCK PLUS', extra_fields: {}, linked_order_id: null }
     const { supabase, calls } = makeFakeSupabase(
       [
@@ -183,8 +183,37 @@ describe('orders-excel-intake — handler HTTP', () => {
     const payload = calls.inserted[0][0] as Record<string, unknown>
     expect(payload.order_number).toBe('999')
     const ef = payload.extra_fields as Record<string, unknown>
+    expect(ef.needs_review).toBeUndefined()
+    expect(ef.warnings).toBeUndefined()
+    expect(ef.sheet_number_conflict).toBe('4145')
+  })
+
+  it('kolizja numeru z innym zamówieniem TEJ SAMEJ firmy → nowy numer + flaga do weryfikacji (D35)', async () => {
+    const base = { id: 21, order_number: '999', category: 'Bastion', system: 'BASIC LOCK PLUS', extra_fields: {}, linked_order_id: null }
+    const { supabase, calls } = makeFakeSupabase(
+      [
+        // dedup: numer zajęty przez INNE zamówienie (inny model/firma)
+        { data: [{ id: 1, model: 'TORINO 13B', width: '90', company: 'ADAM KOŚCIELNY', client_order_number: 'X/1' }], error: null },
+        { data: [], error: null }, // findExcelTwin: brak identycznego wiersza z ostatnich godzin
+        { data: [], error: null }, // findBotTwin po treści (numer klienta pusty/'-'): brak botów
+        { data: base, error: null }, // insert
+        { data: base, error: null }, // partner check (stop)
+        { data: base, error: null }, // titan check (stop — BASIC nie jest Titanem)
+      ],
+      { ...VALID_KEY_RPCS, get_next_order_number: { data: '999', error: null } },
+    )
+    __setSupabaseClient(supabase)
+
+    const res = await handler()(post([BASTION_ROW]))
+    const body = (await res.json()) as { results: Array<{ status: string }> }
+    expect(body.results[0].status).toBe('created')
+    expect(calls.inserted).toHaveLength(1)
+    const payload = calls.inserted[0][0] as Record<string, unknown>
+    expect(payload.order_number).toBe('999')
+    const ef = payload.extra_fields as Record<string, unknown>
     expect(ef.needs_review).toBe(true)
     expect(ef.sheet_number_conflict).toBe('4145')
+    expect(String((ef.warnings as string[])[0])).toContain('tej samej firmy')
   })
 
   it('kolizja numeru W CHWILI ZAPISU (równoległy wiersz) → ponowienie z nowym numerem + flaga (19.10 gubiło)', async () => {

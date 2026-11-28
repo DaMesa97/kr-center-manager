@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ErpErrorRow, Order, OrderNeedingReview } from '../types'
 import { fmtErpDate } from '../lib/erpStatus'
 import type { DuplicateCandidate, DuplicateGroup } from '../lib/duplicateDetect'
@@ -9,6 +9,15 @@ import ExcelSyncReviewSection from './ExcelSyncReviewSection'
 import OptimaRoFailuresSection from './OptimaRoFailuresSection'
 import StockReleaseFailuresSection from './StockReleaseFailuresSection'
 import type { ExcelSyncState } from '../hooks/useExcelSync'
+import {
+  DNI_DO_UKRYCIA,
+  ETYKIETA_PRIORYTETU,
+  podzielWeryfikacje,
+  priorytetWeryfikacji,
+  sortujWeryfikacje,
+} from '../lib/weryfikacjaPriorytet'
+
+const KLASA_PRIORYTETU = { wysoki: 'badge badge-danger', normalny: 'badge badge-warning', niski: 'badge badge-neutral' } as const
 
 /** sekcja, do której przewinąć po wejściu z kafelka Pulpitu (#115) */
 export type ReviewFocus = 'review' | 'excel' | 'erp' | 'duplicates'
@@ -82,6 +91,13 @@ export default function OrdersNeedingReviewView({
   const excelRef = useRef<HTMLDivElement>(null)
   const erpRef = useRef<HTMLDivElement>(null)
   const duplicatesRef = useRef<HTMLDivElement>(null)
+  // D35 (a): priorytety + ukrywanie starych (pilnych nie chowamy)
+  const [pokazStare, setPokazStare] = useState(false)
+  const { aktualne, stare } = useMemo(() => podzielWeryfikacje(sortujWeryfikacje(orders)), [orders])
+  const widoczne = useMemo(
+    () => (pokazStare ? sortujWeryfikacje([...aktualne, ...stare]) : aktualne),
+    [pokazStare, aktualne, stare],
+  )
 
   // #115: kafelek na Pulpicie prowadził na górę Weryfikacji — teraz przewija do sekcji
   useEffect(() => {
@@ -102,6 +118,15 @@ export default function OrdersNeedingReviewView({
   const reviewColumns = useMemo<DataTableColumn<OrderNeedingReview>[]>(
     () => [
       { key: 'idx', label: '#', render: (_o, index) => index + 1 },
+      {
+        key: 'priority',
+        label: 'Priorytet',
+        sortValue: (o) => ({ wysoki: 0, normalny: 1, niski: 2 })[priorytetWeryfikacji(o.warnings)],
+        render: (o) => {
+          const p = priorytetWeryfikacji(o.warnings)
+          return <span className={KLASA_PRIORYTETU[p]}>{ETYKIETA_PRIORYTETU[p]}</span>
+        },
+      },
       {
         key: 'number',
         label: 'Numer ZD',
@@ -275,18 +300,32 @@ export default function OrdersNeedingReviewView({
         <h2>⚠️ Zamówienia wymagające weryfikacji</h2>
         <p>
           Zamówienia z konfiguratora (BOT) i z arkuszy Excel, które wymagają ręcznej weryfikacji przed wysłaniem do produkcji.
-          Sortowane FIFO — najstarsze na górze.
+          Najpierw pilne (możliwe duble), potem zwykłe, na końcu informacyjne; w każdej grupie najstarsze na górze.
         </p>
-        <div className="orders-review-count">{orders.length} zamówień do sprawdzenia</div>
+        <div className="orders-review-count">
+          {orders.length} zamówień do sprawdzenia
+          {stare.length > 0 && (
+            <>
+              {' '}
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setPokazStare((v) => !v)}>
+                {pokazStare
+                  ? `Ukryj starsze niż ${DNI_DO_UKRYCIA} dni (${stare.length})`
+                  : `Pokaż starsze niż ${DNI_DO_UKRYCIA} dni (${stare.length} ukrytych)`}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {loading ? (
         <Spinner center label="Ładowanie listy weryfikacji…" />
       ) : orders.length === 0 ? (
         <p className="no-results">🎉 Brak zamówień do weryfikacji! Wszystko czyste.</p>
+      ) : widoczne.length === 0 ? (
+        <p className="no-results">Brak świeżych pozycji — {stare.length} starszych ukrytych (przycisk wyżej).</p>
       ) : (
         <DataTable
-          rows={orders}
+          rows={widoczne}
           rowKey={(o) => o.id}
           columns={reviewColumns}
           className="orders-review-table"
