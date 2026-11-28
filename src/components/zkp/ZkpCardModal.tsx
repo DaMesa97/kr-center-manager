@@ -144,8 +144,9 @@ export default function ZkpCardModal({ target, zkp, roles, isManager, onClose, o
       <div className="subtab-bar" role="tablist" aria-label="Części karty">
         {tab('ab', 'A–B. Identyfikacja i zakres')}
         {tab('c', 'C. Etapy i partie', !confirmed)}
-        {tab('d', 'D. Okucia', !card)}
-        {tab('e', 'E. Wypełnienia', !card)}
+        {/* noc 28.11: baza przyjmuje okucia i wypełnienia dopiero po potwierdzeniu zakresu (migracja 20261128000200) */}
+        {tab('d', 'D. Okucia', !confirmed)}
+        {tab('e', 'E. Wypełnienia', !confirmed)}
         {tab('g', `G. Protokół 6.17.5${(api.data?.protocols.length ?? 0) ? ` (${api.data?.protocols.length})` : ''}`, !confirmed)}
         {tab('f', 'F. Zwolnienie', !card)}
       </div>
