@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 import { fetchAllPages } from '../../lib/fetchPaged'
 import { PRODUCT_CATEGORY_LABELS } from '../../constants'
-import { isOptimaClosed } from '../../lib/optimaRo'
+import { isMrProfilOrder, isOptimaClosed } from '../../lib/optimaRo'
 import {
   DOOR_FILTER_EMPTY,
   distinctValues,
@@ -80,10 +80,11 @@ export default function InternalStockView({ components, onShowHistory, pushToast
 
       // otwarte = niewydane i nieanulowane zlecenia drzwi wewnętrznych (ręczne i z Optimy)
       // RO zrealizowane / zamknięte w Optimie (stan 3–4) nie rezerwują — tylko otwarte
-      const ord = await fetchAllPages<{ id: number; extra_fields: Record<string, unknown> | null; source: string | null; optima_state: string | null }>((from, to) =>
+      // D10 (28.11): zlecenia z RO MR Profil schodzą z osobnego magazynu MR_WEW — nie rezerwują stanu KR
+      const ord = await fetchAllPages<{ id: number; extra_fields: Record<string, unknown> | null; source: string | null; optima_state: string | null; optima_key: string | null }>((from, to) =>
         supabase
           .from('orders')
-          .select('id, extra_fields, source, optima_state:source_metadata->>state')
+          .select('id, extra_fields, source, optima_state:source_metadata->>state, optima_key:source_metadata->>optima_key')
           .eq('category', 'DrzwiWewnetrzne')
           .is('release_date', null)
           .order('id')
@@ -92,6 +93,7 @@ export default function InternalStockView({ components, onShowHistory, pushToast
       if (ord.error) throw new Error(ord.error.message)
       const ids = ord.data
         .filter((o) => o.extra_fields?.cancelled !== true)
+        .filter((o) => !isMrProfilOrder(o))
         .filter((o) => !isOptimaClosed({ source: o.source ?? undefined, source_metadata: { state: o.optima_state } } as Parameters<typeof isOptimaClosed>[0]))
         .map((o) => o.id)
 

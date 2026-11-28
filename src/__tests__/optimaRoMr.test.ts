@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('../supabaseClient', () => ({ supabase: {} }))
 
 import { failureLabel, failureStatus, isMissingRelation, OPTIMA_RO_MAX_AUTO } from '../lib/optimaRoFailures'
+import { isMrProfilOrder } from '../lib/optimaRo'
+import { isInternalWarehouseCode } from '../utils'
 
 const zrodlo = readFileSync(new URL('../../supabase/functions/optima-ro-import/index.ts', import.meta.url), 'utf-8').replace(/\r\n/g, '\n')
 
@@ -52,5 +54,21 @@ describe('nieudane RO w Weryfikacji (D10)', () => {
     expect(isMissingRelation({ code: '42P01', message: 'relation does not exist' })).toBe(true)
     expect(isMissingRelation({ code: '42501', message: 'permission denied' })).toBe(false)
     expect(isMissingRelation(null)).toBe(false)
+  })
+})
+
+describe('magazyn MR Profil (D10)', () => {
+  it('zlecenie MR rozpoznane po optima_key (kolumna albo source_metadata), tylko z importu RO', () => {
+    expect(isMrProfilOrder({ source: 'optima_ro', optima_key: 'MR:123' })).toBe(true)
+    expect(isMrProfilOrder({ source: 'optima_ro', source_metadata: { optima_key: 'MR:5' } })).toBe(true)
+    expect(isMrProfilOrder({ source: 'optima_ro', optima_key: 'KR:123' })).toBe(false)
+    expect(isMrProfilOrder({ source: 'manual', optima_key: 'MR:1' })).toBe(false)
+    expect(isMrProfilOrder({ source: 'optima_ro' })).toBe(false)
+  })
+  it('MR_WEW to magazyn drzwi wewnętrznych (nie surowców), ale nie pasuje do wzorca KR WEW%', () => {
+    expect(isInternalWarehouseCode('MR_WEW')).toBe(true)
+    expect(isInternalWarehouseCode('mr_wew')).toBe(true)
+    expect(isInternalWarehouseCode('MARKLOWICKA')).toBe(false)
+    expect('MR_WEW'.startsWith('WEW')).toBe(false)
   })
 })

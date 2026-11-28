@@ -22,6 +22,14 @@ export const OPTIMA_BAZA_LABEL: Record<OptimaBaza, string> = {
   MR: 'MR Profil',
 }
 
+/** D10 (28.11): zlecenie z RO bazy MR Profil (source_metadata.optima_key = 'MR:<id>') — numer z „MR/”,
+ *  wydanie z magazynu MR_WEW, poza statystykami i rezerwacjami KR. */
+export function isMrProfilOrder(o: { source?: string | null; optima_key?: string | null; source_metadata?: unknown }): boolean {
+  if (o.source !== OPTIMA_SOURCE) return false
+  const key = o.optima_key ?? ((o.source_metadata as { optima_key?: unknown } | null | undefined)?.optima_key as string | undefined)
+  return String(key ?? '').startsWith('MR:')
+}
+
 /** Pola zlecenia, które import nadpisuje — w aplikacji tylko do odczytu. */
 export const OPTIMA_OWNED_FIELDS = [
   'order_number', 'erp_ro_number', 'erp_status', 'company', 'client_order_number',

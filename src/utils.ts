@@ -48,9 +48,13 @@ export function normalizeProfileDepartment(role: string, raw: unknown): ProfileD
   return 'all'
 }
 
-// Magazyn wewnętrznych drzwi — rozpoznajemy po prefiksie kodu (WEWNETRZNE, WEW1, WEW2…)
+// Magazyn wewnętrznych drzwi — rozpoznajemy po prefiksie kodu (WEWNETRZNE, WEW1, WEW2…).
+// D10 (28.11): MR_WEW „Magazyn MR Profil” to też magazyn drzwi wewnętrznych (nie surowców), ale celowo bez
+// prefiksu WEW — stany i rezerwacje KR (wzorzec 'WEW%') go nie sumują.
+export const MR_INTERNAL_WAREHOUSE_CODE = 'MR_WEW'
 export function isInternalWarehouseCode(code: string | null | undefined): boolean {
-  return String(code ?? '').trim().toUpperCase().startsWith('WEW')
+  const c = String(code ?? '').trim().toUpperCase()
+  return c.startsWith('WEW') || c === MR_INTERNAL_WAREHOUSE_CODE
 }
 
 export const ROLE_LABELS: Record<string, string> = {
