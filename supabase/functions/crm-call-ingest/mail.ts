@@ -1,11 +1,13 @@
 // Analiza maila przychodzącego (crm.maile, kierunek 'przychodzacy', status 'nowy'/'blad') tym samym schematem AI,
 // co rozmowy, i te same decyzje: lead (po adresie e-mail), zadanie na leadzie, oferta w statusie 'przelicz'.
 // Wołane przez trigger w bazie (crm.zlec_analize_maila → akcja 'mail') oraz przez ponawianie błędów (ponow_bledy).
+// 28.11 (właściciel): nowy adres z analizą „bez potencjału” (potencjal = nie) → mail bez klienta (potencjal.ts).
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { normalizujTelefon, OPISY_AKCJI, etykietyZAnalizy, telefonKomorkowyPL } from './normalizacja.ts'
 import { SCHEMA_ANALIZA, systemAnalizyMaila, userAnalizyMaila, cenaOrientacyjna, type Analiza, type KontekstMaila } from './prompt.ts'
 import { claudeJson } from './ai.ts'
+import { decyzjaLeada, podsumowanieBezPotencjalu, potencjalZAnalizy } from './potencjal.ts'
 import { terminZBazy, znajdzLeadaZBazy } from './termin.ts'
 import { rozpoznajZamowienie, systemAnalizyZamowienia, userAnalizyZamowienia, SCHEMA_ZAMOWIENIE, type Zamowienie, type AnalizaZamowienia } from './zamowienie.ts'
 
@@ -121,14 +123,17 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
   let leadId = lead?.id ?? null
   let ofertaId: string | null = null
   const sprzedazowa = a.typ === 'zapytanie' || a.typ === 'klient'
-  if (sprzedazowa || a.typ === 'reklamacja') {
+  // 28.11 (właściciel): nowy adres bez potencjału sprzedażowego nie zakłada klienta (potencjal.ts); dopasowanie po
+  // numerze z podpisu (niżej) liczy się jak istniejący klient — wtedy jak dotąd
+  let decyzja = decyzjaLeada(a, !!lead)
+  let lPoTel: Lead | null = null
+  if (decyzja === 'istniejacy' || decyzja === 'nowy' || decyzja === 'bez_potencjalu') {
     // testy 27.11 (2. seria, KRYTYCZNY): nieznany adres, ale numer z podpisu maila należy do klienta, który już dzwonił —
     // mail trafia do tego klienta, zamiast zakładać drugiego (3 takie pary w 7 dni)
     // testy 27.11 (runda 3): (a) nie dla maili z naszych domen (nasz podpis = nasz numer, jak w crm.znajdz_leada);
     // (b) adresu nie dopisujemy trwale do inne_kontakty — samo dopasowanie po numerze jest niepewne, zostaje zdarzenie
     // „dopasowano … — sprawdź”; (c) klientowi wygranemu/przegranemu nie nadpisujemy podsumowania ani zadania
     // D24 (28.11, właściciel): (d) tylko numer komórkowy — centrala firmy w podpisie łączyła maile kilku osób w jednego klienta
-    let lPoTel: Lead | null = null
     const domenaNadawcy = email.split('@')[1] ?? ''
     if (!lead && !WLASNE_DOMENY.includes(domenaNadawcy)) {
       const telPodpis = telefonKomorkowyPL(a.telefon) ? normalizujTelefon(a.telefon) : null
@@ -143,6 +148,9 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
         }
       }
     }
+    decyzja = decyzjaLeada(a, !!lead || !!lPoTel)
+  }
+  if (decyzja === 'istniejacy' || decyzja === 'nowy') {
     const l = lead ?? lPoTel ?? await nowyLead(db, email, a.nazwa || mail.od_nazwa, mail.id, mail.kanal === 'formularz' ? 'formularz' : 'mail')
     leadId = l.id
     const akcja = a.typ === 'reklamacja' ? 'reklamacja' : (a.nastepna_akcja === 'brak' ? null : a.nastepna_akcja)
@@ -206,13 +214,20 @@ async function analizujMail(db: SupabaseClient, mail: MailWiersz) {
         opis: `Klient odpisał na ofertę v${kontekst.oferta.wersja}: ${a.podsumowanie}`.slice(0, 500) })
     }
     await zdarzenie(db, { lead_id: l.id, mail_id: mail.id, oferta_id: ofertaId, typ: 'analiza', opis: `mail, ${typMaila}: ${a.podsumowanie}`.slice(0, 500), dane: { akcja, koszt_usd: ai.koszt_usd } })
+  } else if (decyzja === 'bez_potencjalu') {
+    // bez leada (lead_id null), status 'przetworzony'; widać go w „Maile” (bez klienta) i w Klienci → „Bez klienta”
+    const podsumowanie = podsumowanieBezPotencjalu(a.podsumowanie, a.powod_braku_potencjalu)
+    const { error: eBp } = await db.from('maile').update({ podsumowanie, nastepna_akcja: 'brak', lead_id: null }).eq('id', mail.id)
+    if (eBp) throw new Error('Zapis maila bez potencjału: ' + eBp.message)
+    await zdarzenie(db, { lead_id: null, mail_id: mail.id, typ: 'analiza', opis: `mail, ${typMaila}: ${podsumowanie}`.slice(0, 500),
+      dane: { koszt_usd: ai.koszt_usd, potencjal: 'nie', powod: a.powod_braku_potencjalu ?? null, bez_klienta: true } })
   } else {
     if (lead) await db.from('leady').update({ ostatnia_rozmowa_at: mail.data ?? new Date().toISOString() }).eq('id', lead.id)
     await zdarzenie(db, { lead_id: leadId, mail_id: mail.id, typ: 'analiza', opis: `mail, ${a.typ}: ${a.podsumowanie}`.slice(0, 500), dane: { koszt_usd: ai.koszt_usd } })
   }
 
   await db.from('maile').update({ status_przetwarzania: 'przetworzony', blad: null }).eq('id', mail.id)
-  return { typ: typMaila, akcja: a.nastepna_akcja, lead_id: leadId, oferta_id: ofertaId, koszt_usd: Number(ai.koszt_usd.toFixed(4)) }
+  return { typ: typMaila, akcja: decyzja === 'bez_potencjalu' ? 'brak' : a.nastepna_akcja, potencjal: potencjalZAnalizy(a), decyzja, lead_id: leadId, oferta_id: ofertaId, koszt_usd: Number(ai.koszt_usd.toFixed(4)) }
 }
 
 // --------------------------------------------------------------------------------------------

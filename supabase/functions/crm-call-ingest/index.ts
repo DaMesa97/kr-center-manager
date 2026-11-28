@@ -6,7 +6,9 @@
 //   3. nieodebrana przychodząca → lead + wpis w historii, BEZ zadania (Tymek 24.11: CRM nie prowadzi zadań „oddzwoń”), bez AI,
 //   4. odebrana < 20 s albo numer zastrzeżony → tylko zapis,
 //   5. odebrana → nagranie → ElevenLabs → Claude (analiza wg schematu z prototypu) → lead, zadanie,
-//      a przy akcji „przygotuj_oferte” wiersz w crm.oferty ze statusem 'przelicz' (liczy go osobna funkcja),
+//      a przy akcji „przygotuj_oferte” wiersz w crm.oferty ze statusem 'przelicz' (liczy go osobna funkcja);
+//      28.11 (właściciel): nowy numer z analizą „bez potencjału” (potencjal = nie) → rozmowa bez klienta (potencjal.ts),
+//      podsumowanie z dopiskiem „Bez potencjału: …”; klienta można założyć ręcznie w aplikacji (crm.utworz_klienta_z_kontaktu),
 //   6. odebrana rozmowa wychodząca do leada z zadaniem „oddzwoń” zamyka to zadanie (zdarzenie zadanie_zrobione),
 //   7. każdy błąd ląduje w crm.rozmowy.blad + crm.zdarzenia (typ 'blad'); żadna rozmowa nie ginie po cichu,
 //   8. { "akcja": "mail", "mail_id": "<uuid>" } – analiza maila przychodzącego z crm.maile (mail.ts): ten sam schemat AI
@@ -31,6 +33,7 @@ import { normalizujPayload, numerKlienta, zdecyduj, OPISY_AKCJI, etykietyZAnaliz
 import { terminZBazy, znajdzLeadaZBazy } from './termin.ts'
 import { SCHEMA_ANALIZA, systemAnalizy, userAnalizy, cenaOrientacyjna, type Analiza, type KontekstRozmowy } from './prompt.ts'
 import { claudeJson } from './ai.ts'
+import { decyzjaLeada, podsumowanieBezPotencjalu, potencjalZAnalizy } from './potencjal.ts'
 import { pobierzNagranie, transkrybuj } from './stt.ts'
 import { przetworzMailAkcja, ponowMaile } from './mail.ts'
 import { przetworzNotatke, przetworzNotatkeAudio } from './notatka.ts'
@@ -242,16 +245,20 @@ async function analizuj(db: SupabaseClient, r: Rozmowa, rozmowaId: string, lead:
   // AI
   const ai = await claudeJson<Analiza>(systemAnalizy(), userAnalizy(transkrypcja, kontekst), SCHEMA_ANALIZA, 'high')
   const a = ai.dane
+  // 28.11 (właściciel): nowy kontakt bez potencjału sprzedażowego nie zakłada klienta — rozmowa zostaje „bez klienta”
+  const decyzja = decyzjaLeada(a, !!lead, !!telefon)
+  const bezPotencjalu = decyzja === 'bez_potencjalu'
   await db.from('rozmowy').update({
-    analiza: a, typ: a.typ, kategoria: a.kategoria === 'nieznana' ? null : a.kategoria, podsumowanie: a.podsumowanie,
-    nastepna_akcja: a.nastepna_akcja, koszt_ai_usd: ai.koszt_usd, zuzycie_tokenow: ai.zuzycie,
+    analiza: a, typ: a.typ, kategoria: a.kategoria === 'nieznana' ? null : a.kategoria,
+    podsumowanie: bezPotencjalu ? podsumowanieBezPotencjalu(a.podsumowanie, a.powod_braku_potencjalu) : a.podsumowanie,
+    nastepna_akcja: bezPotencjalu ? 'brak' : a.nastepna_akcja, koszt_ai_usd: ai.koszt_usd, zuzycie_tokenow: ai.zuzycie,
   }).eq('id', rozmowaId)
 
   // routing
   let leadId = lead?.id ?? null
   let ofertaId: string | null = null
   const sprzedazowa = a.typ === 'zapytanie' || a.typ === 'klient'
-  if ((sprzedazowa || a.typ === 'reklamacja') && (telefon || lead)) {
+  if (decyzja === 'istniejacy' || decyzja === 'nowy') {
     const l = lead ?? await nowyLead(db, telefon!, r)
     leadId = l.id
     // Tymek 24.11: bez zadań „oddzwoń” — gdy model chce kontaktu z klientem, to zadanie „dopytaj”
@@ -303,6 +310,11 @@ async function analizuj(db: SupabaseClient, r: Rozmowa, rozmowaId: string, lead:
         opis: ostatnia ? `Nowa wersja oferty (${(ostatnia.wersja ?? 0) + 1}) po kolejnej rozmowie, czeka na przeliczenie.` : 'Oferta czeka na przeliczenie (status przelicz).' })
     }
     await zdarzenie(db, { lead_id: l.id, rozmowa_id: rozmowaId, typ: 'analiza', opis: `${a.typ}: ${a.podsumowanie}`.slice(0, 500), dane: { akcja, koszt_usd: ai.koszt_usd } })
+  } else if (bezPotencjalu) {
+    // bez leada (lead_id null), status 'przetworzona'; widać ją w aplikacji: Klienci → „Bez klienta” (tam „Utwórz klienta”)
+    await zdarzenie(db, { lead_id: null, rozmowa_id: rozmowaId, typ: 'analiza',
+      opis: `${a.typ}: ${podsumowanieBezPotencjalu(a.podsumowanie, a.powod_braku_potencjalu)}`.slice(0, 500),
+      dane: { koszt_usd: ai.koszt_usd, potencjal: 'nie', powod: a.powod_braku_potencjalu ?? null, bez_klienta: true } })
   } else {
     if (lead) {
       await zapiszLeada(db, lead.id, { ostatnia_rozmowa_at: r.data_rozmowy })
@@ -313,7 +325,7 @@ async function analizuj(db: SupabaseClient, r: Rozmowa, rozmowaId: string, lead:
   }
 
   await db.from('rozmowy').update({ status_przetwarzania: 'przetworzona', blad: null }).eq('id', rozmowaId)
-  return { typ: a.typ, akcja: a.nastepna_akcja, lead_id: leadId, oferta_id: ofertaId, koszt_usd: Number(ai.koszt_usd.toFixed(4)) }
+  return { typ: a.typ, akcja: bezPotencjalu ? 'brak' : a.nastepna_akcja, potencjal: potencjalZAnalizy(a), decyzja, lead_id: leadId, oferta_id: ofertaId, koszt_usd: Number(ai.koszt_usd.toFixed(4)) }
 }
 
 // --------------------------------------------------------------------------------------------
