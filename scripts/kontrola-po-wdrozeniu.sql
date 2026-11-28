@@ -111,7 +111,12 @@ with znaczniki(fn, marker, minimum) as (
     ('public.try_date(text)', 'runda 10 (28.11), zła data', 1),
     ('public.sync_complaints_from_excel(jsonb,text,text,boolean)', 'runda 10 (28.11), zła data', 1),
     ('public.sync_complaints_from_excel(jsonb,text,text,boolean)', 'public.try_date(', 2),
-    ('public.sync_releases_from_excel__impl(jsonb,boolean,text,text)', 'public.try_date(x.wyd)', 2)
+    ('public.sync_releases_from_excel__impl(jsonb,boolean,text,text)', 'public.try_date(x.wyd)', 2),
+    -- 20261128021600: numeracja bez obcinania (lpad)
+    ('crm.nastepny_numer_umowy()', 'runda 10 (28.11), numer ponad', 1),
+    ('crm.nastepny_numer_oferty(date)', 'runda 10 (28.11), numer ponad', 1),
+    ('public.get_next_complaint_number()', 'runda 10 (28.11), numer ponad', 1),
+    ('public.generate_zd_number(bigint)', 'runda 10 (28.11), numer ponad', 1)
 ),
 funkcje as (
   select z.fn, z.marker, z.minimum, to_regprocedure(z.fn) as foid from znaczniki z

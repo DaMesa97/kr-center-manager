@@ -308,8 +308,9 @@ export function getComplaintBlockedStages(
 }
 
 export async function generateComplaintNumber(): Promise<string> {
-  // RPC w SQL — numerycznie i bez wyścigów. Stare tekstowe sortowanie z
-  // limit 1 po RK/{rok}/999 dawałoby każdej kolejnej reklamacji numer 1000.
+  // RPC w SQL — maksimum liczone liczbowo (stare tekstowe sortowanie z limit 1
+  // po RK/{rok}/999 dawałoby każdej kolejnej reklamacji numer 1000). Od rundy 10
+  // (28.11) zera tylko dopełniają — wcześniej lpad(…, 3) obcinał 1000 do „100”.
   const { data, error } = await supabase.rpc('get_next_complaint_number')
   if (error || !data) {
     console.error(error)
