@@ -102,7 +102,9 @@ with znaczniki(fn, marker, minimum) as (
     ('public.archive_old_orders__impl(integer)', '''uploaded_by'', ph.uploaded_by', 1),
     -- runda 10 (28.11), tor r10-baza
     -- 20261128021000: wydanie na etap wstrzymany / „#…” odmawia pracownikowi
-    ('public.release_stock_for_stage(bigint,text,boolean)', 'runda 10 (28.11), wstrzymane', 1)
+    ('public.release_stock_for_stage(bigint,text,boolean)', 'runda 10 (28.11), wstrzymane', 1),
+    -- 20261128021200: deklaracja ZKP blokuje karty
+    ('public.zkp_issue_declaration(bigint,bigint[],jsonb)', 'runda 10 (28.11), blokada kart', 1)
 ),
 funkcje as (
   select z.fn, z.marker, z.minimum, to_regprocedure(z.fn) as foid from znaczniki z
