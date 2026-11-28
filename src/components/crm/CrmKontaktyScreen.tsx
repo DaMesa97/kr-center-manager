@@ -23,6 +23,8 @@ type Props = {
   pushToast: (message: string, variant: ToastVariant) => void
   onOpenLead: (id: string) => void
   onOpenOferta: (id: string) => void
+  /** 28.11: rozmowy i maile, z których system nie założył klienta (bez potencjału) */
+  onOpenBezKlienta?: () => void
 }
 
 /** termin zadania względem dziś (jak w „Do zrobienia”) */
@@ -49,7 +51,7 @@ const leadName = (l: CrmKontaktRow) => (l.nazwa || l.telefon || l.email || l.pro
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 const aktywnosc = (l: CrmKontaktRow) => (l.ostatnia_rozmowa_at && l.ostatnia_rozmowa_at > l.updated_at ? l.ostatnia_rozmowa_at : l.updated_at) || l.created_at
 
-export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, onOpenOferta }: Props) {
+export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, onOpenOferta, onOpenBezKlienta }: Props) {
   // 21.11 (test UX): „Dodaj klienta” także tutaj — w „Klientach” go szukano, a był tylko w „Do zrobienia”
   const [nowyKlient, setNowyKlient] = useState(false)
   const [rows, setRows] = useState<CrmKontaktRow[]>([])
@@ -303,6 +305,11 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
           <span className="crm-head-sub">Wszyscy, także bez zadania · {filtered.length === rows.length ? ileOdm(rows.length, 'klient', 'klientów', 'klientów') : `${filtered.length} z ${rows.length}`}</span>
         </div>
         <div className="crm-head-akcje">
+          {onOpenBezKlienta && (
+            <button type="button" className="btn btn-secondary" onClick={onOpenBezKlienta} title="Rozmowy i maile z 60 dni, z których system nie założył klienta (np. bez potencjału sprzedażowego) — tu można go założyć ręcznie">
+              Bez klienta
+            </button>
+          )}
           <button type="button" className="btn btn-primary" onClick={() => setNowyKlient((v) => !v)} aria-expanded={nowyKlient} title="Klient, którego system nie złapał sam: wizyta, komórka, polecenie, Facebook">Dodaj klienta</button>
         </div>
       </div>

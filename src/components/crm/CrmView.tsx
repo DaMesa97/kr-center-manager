@@ -108,6 +108,7 @@ import CrmPomocScreen from './CrmPomocScreen'
 import CrmUstawieniaScreen from './CrmUstawieniaScreen'
 import CrmNagrajNotatke, { type Nagranie } from './CrmNagrajNotatke'
 import CrmKontaktyScreen from './CrmKontaktyScreen'
+import CrmBezKlientaScreen from './CrmBezKlientaScreen'
 import CrmStatystykiScreen from './CrmStatystykiScreen'
 import CrmZamowieniaScreen from './CrmZamowieniaScreen'
 import CrmKorespondencja from './CrmKorespondencja'
@@ -154,6 +155,7 @@ type Screen =
   | { kind: 'pomoc' }
   | { kind: 'ustawienia' }
   | { kind: 'kontakty' }
+  | { kind: 'bez_klienta' }
   | { kind: 'statystyki' }
   | { kind: 'zamowienia' }
   | { kind: 'oferta'; id: string }
@@ -3097,6 +3099,8 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny', onOpen
   const zastapOferte = useCallback((id: string) => setScreen({ kind: 'oferta', id }), [])
   const openLead = useCallback((id: string) => go({ kind: 'lead', id }), [go])
   const openMail = useCallback((id: string) => go({ kind: 'mail', id }), [go])
+  // 28.11 (właściciel): rozmowy i maile, z których system nie założył klienta (bez potencjału) — wejście z „Klienci”
+  const openBezKlienta = useCallback(() => go({ kind: 'bez_klienta' }), [go])
   const goTop = (kind: 'zadania' | 'oferty' | 'maile' | 'poczta' | 'pomoc' | 'ustawienia' | 'kontakty' | 'statystyki' | 'zamowienia') => {
     remember()
     setStack([])
@@ -3132,7 +3136,9 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny', onOpen
       ? screen.kind
       : screen.kind === 'mail'
         ? 'maile'
-        : 'zadania'
+        : screen.kind === 'bez_klienta'
+          ? 'kontakty'
+          : 'zadania'
 
   const renderScreen = (s: Screen): ReactNode => {
     switch (s.kind) {
@@ -3145,7 +3151,9 @@ export default function CrmView({ currentUser, pushToast, mode = 'pelny', onOpen
       case 'zamowienia':
         return <CrmZamowieniaScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOrder={onOpenOrder} />
       case 'kontakty':
-        return <CrmKontaktyScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} />
+        return <CrmKontaktyScreen currentUser={currentUser} pushToast={pushToast} onOpenLead={openLead} onOpenOferta={openOferta} onOpenBezKlienta={openBezKlienta} />
+      case 'bez_klienta':
+        return <CrmBezKlientaScreen mode={mode} pushToast={pushToast} onBack={back} onOpenLead={openLead} onOpenMail={openMail} />
       case 'maile':
         return <CrmMaileScreen mode={mode} onOpenMail={openMail} onOpenLead={openLead} onOpenOferta={openOferta} />
       case 'mail':

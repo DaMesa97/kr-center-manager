@@ -913,6 +913,43 @@ export async function fetchMaile(opts: { kierunek?: 'przychodzacy' | 'wychodzacy
   return { data: (data ?? []) as unknown as CrmMail[], error: crmErrorFrom(error) }
 }
 
+// ---- Klienci → „Bez klienta” (zgłoszenie właściciela 28.11) ----
+
+/**
+ * Rozmowy i maile przychodzące z ostatnich `dni` dni przeanalizowane przez AI, które nie założyły klienta
+ * (nowy kontakt „bez potencjału”, dostawca, spam, status…). Zwykłe selecty (RLS crm) — działa na obecnej bazie.
+ */
+export async function fetchBezKlienta(dni = 60): Promise<Result<{ rozmowy: CrmRozmowa[]; maile: CrmMail[] }>> {
+  const od = new Date(Date.now() - dni * 86_400_000).toISOString()
+  const [roz, mai] = await Promise.all([
+    crm().from('rozmowy')
+      .select('id, ringostat_call_id, lead_id, kierunek, odebrana, czas_s, ivr, typ, link_nagrania, transkrypcja, podsumowanie, data_rozmowy, created_at, status_przetwarzania, blad, kategoria, nastepna_akcja, analiza, oferta_id, numer_dzwoniacego, numer_docelowy, koszt_ai_usd')
+      .is('lead_id', null).eq('status_przetwarzania', 'przetworzona').gte('data_rozmowy', od)
+      .order('data_rozmowy', { ascending: false }).limit(300),
+    crm().from('maile')
+      .select(`${MAIL_LIST_COLS}, kanal, analiza`)
+      .is('lead_id', null).eq('kierunek', 'przychodzacy').eq('status_przetwarzania', 'przetworzony').gte('data', od)
+      .order('data', { ascending: false }).limit(400),
+  ])
+  return {
+    data: { rozmowy: (roz.data ?? []) as unknown as CrmRozmowa[], maile: (mai.data ?? []) as unknown as CrmMail[] },
+    error: crmErrorFrom(roz.error ?? mai.error),
+  }
+}
+
+/**
+ * „Utwórz klienta” z rozmowy / maila bez klienta: rpc crm.utworz_klienta_z_kontaktu (migracja 20261128060000) zakłada
+ * klienta z numeru / adresu (albo znajduje istniejącego) i przypina kontakt. Przed migracją (PGRST202) — komunikat.
+ */
+export async function utworzKlientaZKontaktu(k: { rozmowaId?: string; mailId?: string }): Promise<Result<{ leadId: string; nowy: boolean } | null>> {
+  const { data, error } = await crm().rpc('utworz_klienta_z_kontaktu', { p_rozmowa_id: k.rozmowaId ?? null, p_mail_id: k.mailId ?? null })
+  if (error && error.code === 'PGRST202') return { data: null, error: { kind: 'other', message: 'Ta funkcja czeka jeszcze na aktualizację bazy CRM — spróbuj za chwilę.' } }
+  if (error) return { data: null, error: error.code === '42501' ? { kind: 'no_access', message: 'Brak dostępu do CRM Po Drzwi.' } : { kind: 'other', message: error.message || 'Nie udało się utworzyć klienta' } }
+  const d = (data ?? {}) as { lead_id?: string; nowy?: boolean }
+  if (!d.lead_id) return { data: null, error: { kind: 'other', message: 'Serwer nie zwrócił klienta' } }
+  return { data: { leadId: d.lead_id, nowy: !!d.nowy }, error: null }
+}
+
 export async function fetchMail(id: string): Promise<Result<CrmMail | null>> {
   const { data, error } = await crm().from('maile').select(`*, ${MAIL_LEAD_EMBED}`).eq('id', id).maybeSingle()
   return { data: (data ?? null) as unknown as CrmMail | null, error: crmErrorFrom(error) }
