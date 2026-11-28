@@ -25,7 +25,7 @@ import {
 import { INTERNAL_WAREHOUSE_CODE_PATTERN, internalShortages, sumInternalStock, type Shortage } from '../lib/internalWarehouse'
 import { isPicked, pickChanged, pickKey, pickProgress, sigsOf, type OrderPick } from '../lib/orderPicks'
 import type { InternalDoorItem, Order, ToastVariant, WarehouseComponent } from '../types'
-import { isOrderCancelled } from '../lib/orderCancelled'
+import { isOrderCancelled, stanSwiezegoOdczytu } from '../lib/orderCancelled'
 import { anulujPotemZwroc } from '../lib/orderCancel'
 
 type DetailsUser = {
@@ -219,11 +219,17 @@ function InternalDoorOrderDetailsModal({
       run: async () => {
         // runda 4: zlecenie mogło zostać anulowane, gdy okno było otwarte — świeży odczyt przed zdjęciem z magazynu
         const { data: swieze, error: blSwieze } = await supabase.from('orders').select('extra_fields').eq('id', order.id!).maybeSingle()
-        if (blSwieze) {
-          pushToast(`Nie wydano: nie udało się sprawdzić w bazie, czy zlecenie nie jest anulowane (${blSwieze.message}) — spróbuj ponownie`, 'error')
+        // D51: brak zlecenia w bazie blokuje wydanie tak samo jak anulowanie
+        const stan = stanSwiezegoOdczytu(swieze, blSwieze)
+        if (stan === 'blad') {
+          pushToast(`Nie wydano: nie udało się sprawdzić w bazie, czy zlecenie nie jest anulowane (${blSwieze?.message}) — spróbuj ponownie`, 'error')
           return
         }
-        if (isOrderCancelled(swieze)) {
+        if (stan === 'brak') {
+          pushToast('Zlecenia nie ma już w bazie (usunięte albo w archiwum) — nie wydano (odśwież listę)', 'error')
+          return
+        }
+        if (stan === 'anulowane') {
           pushToast('Zlecenie zostało anulowane — nie wydano (odśwież listę)', 'error')
           return
         }

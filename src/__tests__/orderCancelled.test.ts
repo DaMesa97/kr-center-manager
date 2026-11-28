@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isExtraCancelled, isOrderCancelled } from '../lib/orderCancelled'
+import { isExtraCancelled, isOrderCancelled, stanSwiezegoOdczytu } from '../lib/orderCancelled'
 import { isOrderCancelled as zOptimy } from '../lib/optimaRo'
 import { parseOrderExtraFields } from '../utils'
 
@@ -26,5 +26,15 @@ describe('D50: jedno znaczenie „zlecenie anulowane”', () => {
     expect(parseOrderExtraFields({ cancelled: 'false' }).cancelled).toBe(false)
     expect(parseOrderExtraFields({ cancelled: 1 }).cancelled).toBe(false)
     expect(parseOrderExtraFields({ cancelled: true }).cancelled).toBe(true)
+  })
+})
+
+describe('D51: świeży odczyt przed zapisem — brak wiersza blokuje', () => {
+  it('stan z odczytu', () => {
+    expect(stanSwiezegoOdczytu({ extra_fields: {} }, null)).toBe('aktywne')
+    expect(stanSwiezegoOdczytu({ extra_fields: { cancelled: true } }, null)).toBe('anulowane')
+    expect(stanSwiezegoOdczytu(null, null)).toBe('brak')
+    expect(stanSwiezegoOdczytu(undefined, null)).toBe('brak')
+    expect(stanSwiezegoOdczytu({ extra_fields: {} }, { message: 'x' })).toBe('blad')
   })
 })

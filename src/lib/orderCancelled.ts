@@ -12,3 +12,18 @@ export function isExtraCancelled(extra: unknown): boolean {
 export function isOrderCancelled(o: { extra_fields?: unknown } | null | undefined): boolean {
   return isExtraCancelled(o?.extra_fields)
 }
+
+/**
+ * D51 (28.11): świeży odczyt „czy anulowane” przed zapisem / wydaniem — jedna reguła: brak wiersza w bazie
+ * (usunięte, zarchiwizowane) BLOKUJE tak samo jak anulowanie (wcześniej raz blokował, raz przepuszczał).
+ */
+export type StanSwiezegoOdczytu = 'aktywne' | 'anulowane' | 'brak' | 'blad'
+
+export function stanSwiezegoOdczytu(
+  data: { extra_fields?: unknown } | null | undefined,
+  error: { message?: string } | null | undefined,
+): StanSwiezegoOdczytu {
+  if (error) return 'blad'
+  if (!data) return 'brak'
+  return isOrderCancelled(data) ? 'anulowane' : 'aktywne'
+}

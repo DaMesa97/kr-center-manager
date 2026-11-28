@@ -80,6 +80,7 @@ import type { StockReleaseRow } from './useMyStation'
 import { DRZWI_WEW_TYLKO_Z_OPTIMY, isOptimaClosed, isOrderCancelled, moznaEdytowacDrzwiWew } from '../lib/optimaRo'
 import { komunikatKonfliktuEdycji, wykryjKonfliktEdycji } from '../lib/konfliktEdycji'
 import { titanGroupId } from '../lib/titanGroup'
+import { stanSwiezegoOdczytu } from '../lib/orderCancelled'
 import { releaseErrorText, releaseFailureMessage } from '../lib/stockReleaseFailure'
 import { reportStockReleaseFailure } from '../lib/stockReleaseFailureRpc'
 import { ORDER_LIST_COLUMNS, brakKolumnyWLiscie, orderSelect } from '../lib/orderColumns'
@@ -1359,11 +1360,13 @@ export function useOrders({
     if (partnerId == null) return
     const { data, error: blPartner } = await supabase.from('orders').select('extra_fields').eq('id', partnerId).maybeSingle()
     // runda 6: bez pewności, że partner nie jest anulowany, nie przeliczamy mu rezerwacji
-    if (blPartner) {
-      pushToast(`Nie przeliczono rezerwacji powiązanego zlecenia (${blPartner.message}) — otwórz je i zapisz ponownie`, 'error')
+    // D51: brak partnera w bazie (usunięty / w archiwum) też nie przelicza (wcześniej przepuszczało)
+    const stan = stanSwiezegoOdczytu(data as Pick<Order, 'extra_fields'> | null, blPartner)
+    if (stan === 'blad') {
+      pushToast(`Nie przeliczono rezerwacji powiązanego zlecenia (${blPartner?.message}) — otwórz je i zapisz ponownie`, 'error')
       return
     }
-    if (isOrderCancelled(data as Pick<Order, 'extra_fields'> | null)) return
+    if (stan !== 'aktywne') return
     await syncWarehouseStockAfterOrderEdit(partnerId, baseline, newData)
   }
 
