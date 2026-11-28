@@ -147,6 +147,27 @@ export default function ExcelSyncReviewSection({ data, onOpenOrder, onCancelOrde
               {' '}· pliki: {data.runs.map((r) => r.kategoria).join(', ')}
             </span>
           )}
+          {(() => {
+            // runda 11: niemożliwe daty z arkusza (np. „31.11.2026”) — wiersze pominięte przez synchronizację;
+            // wcześniej widać je było tylko w bazie / odpowiedzi dla Make
+            const zle = data.runs.flatMap((r) =>
+              Array.isArray(r.summary.zle_daty)
+                ? (r.summary.zle_daty as Array<Record<string, unknown>>).map((z): Record<string, unknown> => ({ ...z, kat: r.kategoria }))
+                : [],
+            )
+            if (zle.length === 0) return null
+            return (
+              <span
+                className="badge badge-warning"
+                style={{ marginLeft: 8 }}
+                title={zle
+                  .map((z) => `${z.kat}, wiersz ${String(z.wiersz ?? '?')} (nr ${String(z.nr ?? '?')}): ${String(z.kolumna ?? '')} „${String(z.wartosc ?? '')}”`)
+                  .join('\n')}
+              >
+                złe daty w Excelu: {zle.length} — popraw w arkuszu
+              </span>
+            )
+          })()}
           <button type="button" className="btn btn-sm btn-secondary" style={{ marginLeft: 8 }} onClick={() => void data.refresh()} disabled={data.loading}>
             Odśwież
           </button>
