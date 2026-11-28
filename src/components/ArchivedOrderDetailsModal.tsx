@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { hasComplaints } from '../constants'
 import type { ArchivedOrder } from '../types'
+import { fetchHiddenConfiguratorValue, isEmptyPrice, shownConfiguratorValue } from '../lib/cenyKonfiguratora'
 
 type Props = {
   open: boolean
@@ -80,7 +82,27 @@ function renderSection(title: string, fields: FieldDef[], order: ArchivedOrder) 
 }
 
 export default function ArchivedOrderDetailsModal({ open, order, onClose, onCreateComplaint }: Props) {
+  // D12: po migracji cena jest w ceny_konfiguratora (tylko kierownik), kolumna archiwum pusta
+  const [hiddenPrice, setHiddenPrice] = useState<{ id: number; value: string | null } | null>(null)
+  const orderId = order?.id
+  const ownPrice = order?.configurator_value
+  useEffect(() => {
+    if (!open || orderId == null || !isEmptyPrice(ownPrice)) return
+    let alive = true
+    void fetchHiddenConfiguratorValue('orders', Number(orderId)).then((value) => {
+      if (alive) setHiddenPrice({ id: Number(orderId), value })
+    })
+    return () => {
+      alive = false
+    }
+  }, [open, orderId, ownPrice])
+
   if (!open || !order) return null
+  const shownOrder: ArchivedOrder = {
+    ...order,
+    configurator_value:
+      shownConfiguratorValue(order.configurator_value, hiddenPrice?.id === Number(order.id) ? hiddenPrice.value : null) ?? '',
+  }
 
   return createPortal(
     <div className="modal-overlay" role="presentation" onClick={onClose}>
@@ -93,9 +115,9 @@ export default function ArchivedOrderDetailsModal({ open, order, onClose, onCrea
         </div>
 
         <div className="stats-grid">
-          {renderSection('Podstawowe', BASIC_FIELDS, order)}
-          {renderSection('Konfiguracja', CONFIG_FIELDS, order)}
-          {renderSection('Dodatkowe', EXTRA_FIELDS, order)}
+          {renderSection('Podstawowe', BASIC_FIELDS, shownOrder)}
+          {renderSection('Konfiguracja', CONFIG_FIELDS, shownOrder)}
+          {renderSection('Dodatkowe', EXTRA_FIELDS, shownOrder)}
         </div>
 
         <div className="order-form-actions">
