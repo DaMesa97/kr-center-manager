@@ -82,6 +82,16 @@ const STOCK_ACTION_LABELS: Record<string, string> = {
   release_final: 'Wydanie końcowe z magazynu',
   cancel_reservations: 'Zwolnienie rezerwacji (anulowanie)',
   restore_reservations: 'Przywrócenie rezerwacji',
+  stage_not_applicable: 'Etap „nie dotyczy” — zwolnienie rezerwacji etapu',
+}
+
+/** runda 8: wpisy zbiorcze (bez changed_fields) — nazwa akcji zamiast „Brak listy zmienionych pól” */
+const BULK_ACTION_LABELS: Record<string, string> = {
+  bastion_height_from_excel: 'Wysokość Bastion uzupełniona z Excela (operacja zbiorcza)',
+  bastion_rules_backfill: 'Reguły Bastion zastosowane wstecz (operacja zbiorcza)',
+  bulk_cancel_legacy: 'Zbiorcze anulowanie starych zleceń',
+  bulk_close_legacy: 'Zbiorcze zamknięcie starych zleceń',
+  erp_test_cleared: 'Wyczyszczony testowy status Optimy',
 }
 
 function renderStockEntry(newData: Record<string, unknown> | null): string {
@@ -259,7 +269,12 @@ export default function OrderHistoryModal({ open, orderId, orderNumber, onClose 
                     <div className="order-history-changes">
                       <div>Zmienione pola:</div>
                       {changedFields.length === 0 ? (
-                        <div className="order-history-change-item">Brak listy zmienionych pól</div>
+                        <div className="order-history-change-item">
+                          {(() => {
+                            const akcja = String((newData as Record<string, unknown> | null)?.action ?? '')
+                            return akcja ? (BULK_ACTION_LABELS[akcja] ?? `Operacja: ${akcja}`) : 'Brak listy zmienionych pól'
+                          })()}
+                        </div>
                       ) : (
                         changedFields.map((field) => (
                           <div key={field} className="order-history-change-item">
