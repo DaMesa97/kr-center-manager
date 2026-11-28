@@ -395,6 +395,50 @@ Próba generalna: wszystkie 37 plików `20261127223000` … `20261128010500` w k
 
 Sprawdzone bez błędu: podgląd z `sandbox=""` (QR, style, nic nie czyta iframe'ów); `labelRender` jedno przejście = stary kod (216 porównań na 6 szablonach i 12 prawdziwych zleceniach, 0 różnic); `config_option_usage` śr. 13,5 ms / maks. 95 ms; polityki storage nie psują wgrywania zdjęć i załączników; przywracanie z archiwum (0 powiadomień, zdjęcia wracają); audyt 010500 zapisuje 3 wpisy z autorem; ZKP 000000–000200 (bez dublowania pozycji teczki, ponowny protokół zdejmuje blokadę); refaktory znak w znak, nic osieroconego.
 
+## Runda 10 (28.11 w nocy) — równoczesna praca, dane brzegowe i eksporty, telefon / sesja / sieć
+3 testerów (tylko odczyt, symulacje w cofanych transakcjach) + tor naprawczy bazy (`r10-baza`).
+
+### Równoczesna praca kilku osób
+| Waga | Problem | Stan |
+|---|---|---|
+| WYSOKI | etap wstrzymany (#WS) w trakcie oznaczania: WZ schodzi, etap zostaje wstrzymany | w toku (tor bazy r10) |
+| WYSOKI | okno ZD pokazuje status z chwili otwarcia, a baza pozwala zmieniać pozycje każdej ZD | okno: **poprawione** d6bc055; baza: w toku (tor bazy r10) |
+| ŚREDNI | etap cofnięty w programie wraca z Excela z ponownym WZ | **D64** |
+| ŚREDNI | szkice ZD nie liczą się „w drodze” — dwie osoby zamówią to samo | **D65** |
+| NISKI | anulowanie drzwi wewn. to dwa kroki, zwrot bez blokady zlecenia | do zrobienia (jedna funkcja SQL; okno ułamka sekundy) |
+| NISKI | „Zamów szybę” — dubel do szklarza przy dwóch kliknięciach | **poprawione** 777ca9a (świeży odczyt daty przed wysyłką) |
+| NISKI | deklaracja ZKP: dwie równoczesne na te same konstrukcje | w toku (tor bazy r10) |
+| NISKI | partia Bastion otwarta na zawsze przy równoczesnym skręceniu dwóch ostatnich | w toku (tor bazy r10) |
+| NISKI | numery partii / pozycji dodatkowych Bastion max+1 → surowy błąd „duplicate key” | do zrobienia (komunikat) |
+| NISKI | PZ / MM bez numeru dokumentu: numer z sekundą może się zdublować | do zrobienia |
+
+### Dane brzegowe, daty, eksporty
+| Waga | Problem | Stan |
+|---|---|---|
+| WYSOKI | niemożliwa data w Excelu („31.11”) wywraca całą synchronizację reklamacji kategorii (i wydań) | w toku (tor bazy r10: Edge `excel-sync` + SQL) |
+| WYSOKI | `lpad` obcina numery: setna umowa w roku = „10/MM/RRRR” (bez unikalności), oferty / RK / ZD od 1000 | w toku (tor bazy r10) |
+| ŚREDNI | ręczne wiązanie zlecenia Po Drzwi „nie znajduje” starszych (limit 60 wszystkich firm) | **poprawione** c02fc7b |
+| ŚREDNI | „Powierzchnia m²” („150 m2”, „ok. 150”) po cichu null — kontrola VAT 8% się nie odbywa | **poprawione** 07b04fb (+ test) |
+| NISKI | „dziś” i rok w numeracji w bazie liczone w UTC (0:00–2:00 = wczoraj / zeszły rok) | do zrobienia (`dzis_pl()`; dziś 0 przypadków) |
+| NISKI | „ostatni miesiąc / kwartał” skraca się na końcu miesiąca (31.03 → od 3.03) | **poprawione** 308a374 (`minusMonths` + test) |
+| NISKI | progi dni przez zmianę czasu (wysyłka „stare po 30 dniach”, wiek pozycji Bastion) | **poprawione** 7313234 (+ testy) |
+| NISKI | eksporty CSV magazynu bez ochrony przed formułami Excela | **poprawione** 695229f (`csvCell` + test; 2 kopie → 1) |
+
+### Telefon, utrata sesji i sieci, aktualizacje
+| Waga | Problem | Stan |
+|---|---|---|
+| WYSOKI | „Wydane” po zgubionej odpowiedzi: data zapisana, WZ nie poszła, ponowienie „już wydane” | **poprawione** 8a20b34 |
+| ŚREDNI | powrót do aplikacji czyta profil bez sprawdzania błędu → „??”, pusta rola, znika Wysyłka | **poprawione** 15473ad |
+| ŚREDNI | telefon pokazuje wszystkie kategorie; kierownik działu STA odhacza drzwi wewn. | **D62** |
+| ŚREDNI | aluminium: ponowienie po zgubionej odpowiedzi odlicza drugą sztukę | **poprawione** 6cedff0 (migracja `20261128020000`) + b6b83a1 (aplikacja; bez migracji działa jak dotąd) |
+| ŚREDNI | kanały „na żywo” bez przeładowania po przerwie (8 miejsc) | **R10** (refaktor do rozważenia) |
+| ŚREDNI | brak limitu czasu zapisów („Zapisywanie…” wisi) | **D66** |
+| ŚREDNI | zdjęcia: bez zmniejszania, limit 10 MB, HEIC, osierocone pliki | **D67** |
+| ŚREDNI | błąd odczytu = pusta lista („0 zleceń”, „Brak zdjęć”, brak „Spakowane x/y”) | **poprawione** e21162f |
+| ŚREDNI | wygasła sesja: zapytania jako anon, RLS zwraca puste wyniki bez błędu | baza: w toku (tor bazy r10: anon bez tabel) |
+| NISKI | ochrona niezapisanych zmian wyłączona w trakcie zapisu (X / aktualizacja) | **poprawione** df25e7c |
+| NISKI | telefon nigdy się sam nie wylogowuje (wspólne telefony) | **D63** |
+
 ## Upraszczanie kodu (DRY) — noc 28.11
 Analiza (tylko odczyt): `tsc` z `noUnusedLocals` — 0 nieużywanych importów, 0 osieroconych plików; ok. 20 martwych eksportów; 25 grup duplikatów; 15 miejsc, gdzie kopie RÓŻNIĄ SIĘ zachowaniem. Pełna lista refaktorów: `DECISIONS.md` → „Refaktory do rozważenia” (R1–R9), rozjazdy zachowania: D50, D51.
 
@@ -490,13 +534,9 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 40. ⏳ `supabase/migrations/20261128010300_przywracanie_z_archiwum_zdjecia_bez_powiadomien.sql`
 41. ⏳ `supabase/migrations/20261128010400_storage_zdjecia_zalaczniki_bez_listowania.sql`
 42. ⏳ `supabase/migrations/20261128010500_audyt_szablony_wykluczenia_wymiary.sql`
+43. ⏳ `supabase/migrations/20261128020000_alu_etap_oczekiwana_liczba_sztuk.sql` (przed albo razem z 1.1.8; aplikacja bez niej działa jak dotąd)
 Po wgraniu: `scripts/kontrola-po-wdrozeniu.sql` (pusty wynik = OK). Próba generalna (runda 5): pliki do 233500 przechodzą razem w kolejności nazw, w jednej transakcji. Twarde zależności: 232000+232200 przed 232300; 232100 po 232000; 233100 po 233000; 233300 po 233200; 234400 po 233000.
 Pliki 225000, 232200 i 232700 zmienione w rundzie 4 (nadal niewgrane). 232000 + 232200 + 232300 wgrywać razem.
 Pliki 3–7 zostały w rundzie 3 poprawione (nadal niewgrane). Funkcje Edge 8–10 mają w rundzie 3 kolejne zmiany w repo — wgrywać najnowszą wersję z repo.
 Kolejność dowolna (zmiany niezależne); 3–7 to podmiany pojedynczych funkcji z kontrolą „już poprawione”.
 (migracje z 27.11 przed sesją są wgrane, lista w `TESTY_AGENTOW_27-11.md`, część 7)
-
-## Runda 10 (28.11 w nocy) — równoczesna praca, dane brzegowe, telefon (PRZERWANA: limit)
-Poprawione: 8a20b34 (telefon: wydanie po zgubionej odpowiedzi dopina WZ), 15473ad (telefon: profil „??” po powrocie z tła), e21162f (telefon: błąd odczytu zamiast pustej listy), migracja `20261128020000_alu_etap_oczekiwana_liczba_sztuk.sql` (sprawdzona w cofanej transakcji; aplikacja jeszcze NIE przekazuje `p_expected_done` — do zrobienia: helper z ponowieniem przy PGRST202 w MobileStationView / useMyStation / useAluOrders).
-Gałąź `r10-baza` (worktree `C:\Users\mrpro\kr-wt-r10baza`): agent naprawczy bazy przerwany limitem — przejrzeć jego commity (`git log night-testing-2026-11-27..r10-baza`) przed cherry-pickiem; zadania: release_stock_for_stage vs etap „#WS” (WYSOKI), blokada pozycji ZD poza szkicem (WYSOKI), zła data z Excela zabija synchronizację reklamacji (WYSOKI), lpad w numerach umów/ofert/RK/ZD (WYSOKI dla umów), blokady w zkp_issue_declaration i bastion_batch_recalc, anon bez tabel.
-Niezrobione z raportów (do DECISIONS): kierownik działu odhacza drzwi wewn. / telefon pokazuje wszystkie kategorie; kanały realtime bez przeładowania po przerwie; brak timeoutu zapisów; zdjęcia bez zmniejszania / HEIC / sieroty; ochrona niezapisanych zmian w trakcie zapisu; telefon bez auto-wylogowania; okno ZD ze statusem z chwili otwarcia; cofnięty etap wraca z Excela (rozszerzenie D22); szkice ZD nie liczą się „w drodze”; anulowanie drzwi wewn. w dwóch krokach; „Zamów szybę” przed stemplem; numery partii Bastion / PZ z sekundą; wiązanie zleceń Po Drzwi (limit 60); powierzchnia m² znika; current_date w UTC; zakresy miesięcy na końcu miesiąca; progi dni przy zmianie czasu; CSV bez ochrony przed formułami.
