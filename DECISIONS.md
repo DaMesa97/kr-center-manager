@@ -17,7 +17,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 8. **D39 — Wdrożyć poprawkę CRM „Bastion P-110 nie jest na liście kandydatów”** (Twoje zgłoszenie z nocy): handlowiec nie wyceni żadnego Bastiona P-, N-, T-, L-, LUX-, STD- do czasu wdrożenia `crm-oferta`.
 
 ### Może poczekać (najważniejsze)
-D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy · D50 trzy znaczenia „anulowane” · D51 drobne rozjazdy kopii kodu · D52–D58 ZKP (przed pierwszym zleceniem ZKP: kto wyłącza ZKP, podpisy etapów, kolejność etapów, nowa wersja LP, konstrukcja niezgodna, zlecenia mieszane, przyjęcia).
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy · D50 trzy znaczenia „anulowane” · D51 drobne rozjazdy kopii kodu · D52–D58 ZKP (przed pierwszym zleceniem ZKP: kto wyłącza ZKP, podpisy etapów, kolejność etapów, nowa wersja LP, konstrukcja niezgodna, zlecenia mieszane, przyjęcia) · D59 kto edytuje szablony etykiet · D60 zmiana nazwy w słowniku.
 
 ---
 
@@ -101,8 +101,8 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Pilność**: może poczekać (do startu MR) · **Praca**: średni–duży
 
 ### D11. Kierownik działu a Weryfikacja innych kategorii
-- **Problem**: po poprawce uprawnień w bazie kierownik działu może zmieniać tylko swoje kategorie, a Weryfikacja pokazuje mu wszystkie (anulowanie spoza kategorii dostanie odmowę).
-- **Opcje**: (a) Weryfikacja filtrowana do kategorii kierownika; (b) kierownik działu widzi wszystko, ale bez akcji spoza kategorii.
+- **Problem**: po poprawce uprawnień w bazie kierownik działu może zmieniać tylko swoje kategorie, a Weryfikacja pokazuje mu wszystkie (anulowanie spoza kategorii dostanie odmowę). Runda 8: obaj kierownicy działu (STA) mają po 856 powiadomień „do weryfikacji”, z czego 742 (87%) dotyczy innych kategorii; reklamacje też idą do wszystkich.
+- **Opcje**: (a) Weryfikacja i powiadomienia filtrowane do kategorii kierownika; (b) kierownik działu widzi wszystko, ale bez akcji spoza kategorii.
 - **Rekomendacja**: (a).
 - **Pilność**: może poczekać (po D3) · **Praca**: mały
 
@@ -386,6 +386,18 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Opcje**: (a) niezgodność wymusza kwarantannę, przeterminowana ocena = brak kwalifikacji; (b) zostawić decyzję magazynowi.
 - **Rekomendacja**: (a) — decyzja Pełnomocnika.
 - **Pilność**: może poczekać (przed ZKP) · **Praca**: mały
+
+### D59. Kto edytuje szablony etykiet i dokumentów
+- **Problem**: zapis do `label_templates` ma każdy kierownik (także kierownik działu, dla wszystkich kategorii). Szablon to HTML — po poprawce z nocy podgląd jest izolowany, ale druk zbiorczy i wydruk nadal renderują ten HTML (okno druku w Electronie jest odizolowane, ale treść etykiety może zostać celowo popsuta).
+- **Opcje**: (a) edycja tylko dla admina / superadmina; (b) kierownik działu tylko swojej kategorii; (c) zostawić.
+- **Rekomendacja**: (a) + audyt zmian (plik w toku).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D60. Zmiana nazwy wartości w słowniku a wykluczenia i reguły
+- **Problem**: zmiana nazwy to zwykły UPDATE — wykluczenia (`config_exclusions`), reguły Bastion i receptury dalej wskazują starą nazwę. Dziś 90 martwych wykluczeń w STA (5 pochwytów po zmianie LINEA 170 → 160, 85 wysokości „1981 mm”…; słownik ma „1980 mm”, zlecenia z bota / Excela „2041 mm”). Zmiana nazwy ościeżnicy Bastion (np. REGULOWANA) odcięłaby flagę partii i mnożnik etykiet 117 otwartych zleceń. Brak unikalności (kategoria, typ, wartość).
+- **Opcje**: (a) przy zmianie nazwy pokazać, gdzie wartość jest użyta, i przenieść ją w wykluczeniach / regułach jedną funkcją bazy; (b) blokować zmianę nazwy używanej wartości (tylko dodaj nową + wyłącz starą).
+- **Rekomendacja**: (b) od razu (prosto), (a) później. Do przejrzenia z kierownikiem: 90 martwych wykluczeń i wysokości „…1 mm” vs „…0 mm”.
+- **Pilność**: może poczekać · **Praca**: mały (b), średni (a)
 
 ---
 
