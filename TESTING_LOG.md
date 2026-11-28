@@ -364,7 +364,7 @@ Stan: na produkcji 4 zlecenia alu, 0 kart / protokołów / deklaracji ZKP, nikt 
 | ŚREDNI | konstrukcja NIEZGODNA blokuje zlecenie na zawsze | **D56** |
 | ŚREDNI | zlecenie mieszane 75EI + AS75 w całości ZKP | **D57** |
 | ŚREDNI | przyjęcie partii niezgodnej jako PRZYJĘTO, dostawca po terminie oceny „kwalifikowany” | **D58** |
-| ŚREDNI | eksport teczki (ZIP) bez kart, protokołów i deklaracji (generatory są w programie) | do zrobienia |
+| ŚREDNI | eksport teczki (ZIP) bez kart, protokołów i deklaracji (generatory są w programie) | do zrobienia → **D61** |
 | ŚREDNI | etykiety alu: wieczne „wczytuję” przy błędzie drukarek, błąd szablonów jak „brak szablonów”, druk ZKP bez numeru konstrukcji | **poprawione** 9974476 |
 | NISKI | okucia i wypełnienia w karcie przed potwierdzeniem zakresu | **poprawione** 5273ae0 (`20261128000200`) + zakładki w oknie karty |
 
@@ -381,7 +381,7 @@ Stan: na produkcji 4 zlecenia alu, 0 kart / protokołów / deklaracji ZKP, nikt 
 | ŚREDNI | `{{ firma }}` / `{{Firma}}` drukowało „-”; dane z `{{…}}` podstawiane drugi raz | **poprawione** 80ce62b (2 testy) |
 | ŚREDNI | kierownik działu dostaje 87% powiadomień spoza swoich kategorii | **D11** (rozszerzone) |
 | NISKI | „Oznacz wszystkie” tylko 30 wczytanych (5038 nieprzeczytanych w bazie); brak ikony `stock_critical` | **poprawione** ee8b25f |
-| NISKI | 1507 pustych wpisów w historii zlecenia („Brak listy zmienionych pól”) | do zrobienia (kosmetyka) |
+| NISKI | 1507 pustych wpisów w historii zlecenia („Brak listy zmienionych pól”) | **poprawione** (nazwa operacji zbiorczej) |
 | NISKI | brak audytu na `label_templates`, `config_exclusions`, `dimension_map`; brak `check` wymiarów etykiety | w toku (tor bazy r8b) |
 | NISKI | błąd usuwania wymiaru i zdejmowania „domyślnego” szablonu ignorowany | **poprawione** 3f6592a |
 
