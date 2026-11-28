@@ -326,7 +326,7 @@ async function przetworzDokument(baza: string, tok: string, doc: any, stat: Reco
 // Otwarte wpisy bieżącej bazy (document_id) — żeby nie wołać rpc „rozwiązany” przy każdym udanym RO.
 const otwarteBledy = new Set<string>();
 
-async function zapiszBladRo(baza: string, doc: any, blad: string) {
+async function zapiszBladRo(baza: string, doc: { id?: unknown; fullNumber?: unknown } | null, blad: string) {
   try {
     const { error } = await sb.rpc("optima_ro_blad_zapisz", {
       p_baza: baza, p_document_id: Number(doc?.id), p_full_number: doc?.fullNumber ?? null, p_blad: blad.slice(0, 1000), p_doc: doc ?? null,
@@ -355,11 +355,11 @@ async function ponowNieudane(baza: string, tok: string, stat: Record<string, num
     .order("retry_requested_at", { ascending: true, nullsFirst: false }).order("last_failed_at", { ascending: true })
     .limit(PONOW_NARAZ);
   for (const w of lista ?? []) {
-    let doc: any = null;
+    let doc: Record<string, unknown> | null = null;
     try {
       // świeży stan RO z Optimy; gdy API nie odda dokumentu po id — zapisana kopia z chwili błędu
       const swieze = await apiGet(baza, tok, `/api/Documents/${w.document_id}`, { "documentFilter.type": "308" });
-      doc = swieze.find((d: any) => Number(d?.id) === Number(w.document_id)) ?? w.doc ?? null;
+      doc = swieze.find((d: { id?: unknown }) => Number(d?.id) === Number(w.document_id)) ?? w.doc ?? null;
       if (!doc) throw new Error("RO nie znalezione w Optimie i brak zapisanej kopii");
       await rozgrzejCache(baza, [doc]);
       await przetworzDokument(baza, tok, doc, stat);
