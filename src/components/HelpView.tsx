@@ -25,6 +25,19 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.9: decyzje właściciela z 28.11</h4>
+        <ul>
+          <li><b>Magazyn</b>: prognozy przy krótkiej historii pokazują średnią „orientacyjnie” (alerty nie gasną). Błąd zdjęcia z magazynu nie zatrzymuje etapu — zlecenie trafia do Weryfikacji „Magazyn do sprawdzenia” (Ponów / Sprawdzone). Przy otwieraniu spisu można wstrzymać PZ i MM na tym magazynie. MM pyta, czy przenieść też rezerwacje zleceń. Zmiana receptury przelicza tylko niezrobione etapy zleceń w produkcji. „Oznacz jako wydane” w Wysyłkach zdejmuje towar dla zleceń zamówionych od spisu 6.11.</li>
+          <li><b>Disting Plus</b>: części skrzydła (etapy E3 / E4) schodzą z magazynu Marklowicka, gdy na STA zostanie odhaczony etap skrzydła — tak jak przy Titanie.</li>
+          <li><b>Zlecenia</b>: wydanego zlecenia nie da się anulować, a anulowanie pary / Titana pomija wydane nogi. Archiwizacja liczy się od daty wydania, pary i Titany idą do archiwum w całości.</li>
+          <li><b>Uprawnienia</b>: kierownik działu widzi w Weryfikacji i powiadomieniach tylko swoje kategorie. Szablony etykiet i dokumentów edytuje tylko admin. Ceny z konfiguratora widzą tylko kierownicy. Magazynier nie przypina zleceń do tras.</li>
+          <li><b>Excel → program</b>: etap cofnięty w programie nie wraca z Excela (zlecenia i reklamacje), dopóki w Excelu nie zmieni się wartość. W kolumnach ST / Bastion można wpisać datę zamiast „X” — data to etap zrobiony tego dnia (materiał schodzi z magazynu), a w WYDANIE / ZREALIZOWANE data to prawdziwa data wydania.</li>
+          <li><b>Telefon</b>: każdy widzi tylko swoje kategorie; drzwi wewnętrzne odhacza kierownik, magazynier i kierownik działu drzwi wewnętrznych. Zapis, który nie dostał odpowiedzi w 30 s (zdjęcia 2 min), kończy się komunikatem „mógł się zapisać — odśwież”, zamiast wisieć.</li>
+          <li><b>CRM</b>: klient z potwierdzonym zamówieniem w sklepie jest automatycznie „Zamówił”. Odstąpienie od podpisanej umowy (z powodem w historii). „Przywróć do gry” przywraca oferty odrzucone przy przegranej. Usunięcie klienta usuwa też jego pliki PDF. „Zapytaj o decyzję” nie trafia do klientów „Zamówił”.</li>
+          <li><b>Aluminium ZKP (75EI)</b>: ZKP wyłącza tylko Pełnomocnik / Zastępca z powodem; etapy dopiero po „Uruchom do produkcji”, pakowanie po zwolnieniu karty; podpis etapu PIN-em (ustaw PIN: przycisk „PIN ZKP” w nagłówku); niezgodna partia idzie do kwarantanny; w zleceniu mieszanym ZKP dotyczy tylko pozycji 75EI.</li>
+          <li><b>MR Profil</b>: zlecenia z Optimy MR dostają numer „MR/…”, schodzą z osobnego magazynu MR, a statystyki drzwi wewnętrznych mają wybór firmy. Nieudane RO widać w Weryfikacji z przyciskiem „Ponów”.</li>
+          <li><b>Pulpit</b>: „Do wysłania” = zlecenia z odhaczonymi wszystkimi etapami; Techniczne mają osobny kafel. Słownik wymiarów rozróżnia „90E” i „90”.</li>
+        </ul>
         <h4>Wersja 1.1.8: poprawki po testach całej aplikacji</h4>
         <ul>
           <li><b>Wysyłki kurierem</b>: przesyłka, która nie założyła się w BaseLinkerze, po 3 minutach pokazuje błąd i „Ponów” (wcześniej mogła wisieć na „Zakładam przesyłkę…”). Dwa kliknięcia nie zakładają dwóch przesyłek. Druga wysyłka do tego samego zamówienia BL nie dolicza pobrania drugi raz (okno planowania o tym ostrzega). Numer BL rozpoznaje się też w zapisie „… (zamówienie 55204048/Nazwisko)”. „Anuluj” jest zablokowane, gdy przesyłka się zakłada; anulowana wysyłka z przesyłką SUUS zostaje widoczna, dopóki nie klikniesz „Usunięta w BaseLinkerze”. Data doręczenia liczy święta u każdego, data wysyłki nie może być w przeszłości, a weekend / święto daje ostrzeżenie.</li>

@@ -99,7 +99,7 @@ with znaczniki(fn, marker, minimum) as (
     ('public.notify_erp_error()', 'public.notify_muted()', 1),
     ('public.restore_from_archive__impl(bigint)', 'app.restoring', 2),
     -- 20261128020000 (runda 11, recenzent): bez niej aplikacja 1.1.8 wraca po cichu do starego wywołania
-    ('public.mark_alu_position_stage(bigint,text,text,integer)', 'p_expected_done', 2),
+    ('public.mark_alu_position_stage(bigint,text,text,integer,text)', 'p_expected_done', 2),  -- od 20261128035300 (D53) z p_pin
     -- 20261128022000 (runda 11)
     ('public.undo_alu_position_stage(bigint,text,integer)', 'p_expected_done', 2),
     ('public.restore_from_archive__impl(bigint)', 'insert into order_photos', 1),
