@@ -17,7 +17,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 8. **D39 — Wdrożyć poprawkę CRM „Bastion P-110 nie jest na liście kandydatów”** (Twoje zgłoszenie z nocy): handlowiec nie wyceni żadnego Bastiona P-, N-, T-, L-, LUX-, STD- do czasu wdrożenia `crm-oferta`.
 
 ### Może poczekać (najważniejsze)
-D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy · D50 trzy znaczenia „anulowane” · D51 drobne rozjazdy kopii kodu · D52–D58 ZKP (przed pierwszym zleceniem ZKP: kto wyłącza ZKP, podpisy etapów, kolejność etapów, nowa wersja LP, konstrukcja niezgodna, zlecenia mieszane, przyjęcia) · D59 kto edytuje szablony etykiet · D60 zmiana nazwy w słowniku · D61 eksport teczki ZKP bez kart i protokołów.
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy · D50 trzy znaczenia „anulowane” · D51 drobne rozjazdy kopii kodu · D52–D58 ZKP (przed pierwszym zleceniem ZKP: kto wyłącza ZKP, podpisy etapów, kolejność etapów, nowa wersja LP, konstrukcja niezgodna, zlecenia mieszane, przyjęcia) · D59 kto edytuje szablony etykiet · D60 zmiana nazwy w słowniku · D61 eksport teczki ZKP bez kart i protokołów · D62–D67 runda 10 (telefon: kategorie i wspólny telefon, cofnięty etap wraca z Excela, szkice ZD, limit czasu zapisów, zdjęcia).
 
 ---
 
@@ -405,6 +405,42 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Rekomendacja**: (a) przed pierwszym audytem ZKP. Bez decyzji biznesowej — tylko praca.
 - **Pilność**: może poczekać · **Praca**: średni
 
+### D62. Telefon: kategorie pracownika i odhaczanie drzwi wewnętrznych przez kierownika działu
+- **Problem**: zakładka Zlecenia na telefonie pokazuje wszystkie 7 kategorii (komputer pokazuje tylko kategorie pracownika). Kierownik działu z kategorią tylko STA może odhaczać pozycje drzwi wewnętrznych (`current_user_can_pick()` nie sprawdza kategorii; sprawdzone w cofniętej transakcji).
+- **Opcje**: (a) telefon pokazuje tylko kategorie użytkownika, odhaczanie drzwi wewn. tylko kierownik / magazynier / kierownik działu z kategorią DrzwiWewnetrzne; (b) zostawić — hala pomaga sobie nawzajem.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D63. Wspólny telefon na hali — kto jest „zalogowany”
+- **Problem**: komputer wylogowuje po 60 min bezczynności, telefon nigdy. Na wspólnym telefonie zdjęcia, odhaczenia drzwi wewn. i domyślne inicjały etapu idą na ostatnią zalogowaną osobę (por. D53 dla ZKP).
+- **Opcje**: (a) wylogowanie telefonu po bezczynności (np. 30 min); (b) wybór osoby (kafelek) przy zdjęciu i odhaczeniu; (c) zostawić — każdy ma własny telefon.
+- **Rekomendacja**: zależy, czy telefony są wspólne; jeśli tak — (b), bo nie wyrzuca z pracy w trakcie zmiany.
+- **Pilność**: może poczekać · **Praca**: mały (a), średni (b)
+
+### D64. Etap cofnięty w programie wraca z Excela (zlecenia — rozszerzenie D22)
+- **Problem**: po cofnięciu etapu (towar wraca ZWR) synchronizacja Excela widzi pusty etap i inicjały w arkuszu, wpisuje etap ponownie i znowu zdejmuje materiał. Dopóki komórka w Excelu jest wypełniona, cofnięcia nie da się utrzymać (sprawdzone: zlecenie STA 17634, etap e1). D22 opisuje to samo dla reklamacji.
+- **Opcje**: (a) zapamiętywać cofnięcia (`extra_fields.cofniete_etapy`) i nie uzupełniać ich z Excela, aż komórka w Excelu się zmieni; (b) cofnięcie w programie czyści też komórkę w Excelu (wymaga zapisu do arkusza); (c) zasada: cofamy tylko w Excelu.
+- **Rekomendacja**: (a), razem z D22 — jedna reguła dla zleceń i reklamacji.
+- **Pilność**: może poczekać (do czasu, aż etapy przestaną iść z Excela) · **Praca**: mały–średni
+
+### D65. Szkice ZD nie liczą się jako „w drodze”
+- **Problem**: Alerty liczą „w drodze” tylko z ZD wysłanych / częściowych. Osoba A generuje ZD (szkic), osoba B dalej widzi alert z „W drodze = 0” i zamawia drugi raz ten sam towar. Lista zakupów jest tylko w pamięci jednego komputera.
+- **Opcje**: (a) osobna kolumna „w szkicu” w Alertach i ostrzeżenie przy dodawaniu do listy; (b) liczyć szkice jako „w drodze”.
+- **Rekomendacja**: (a) — szkic to jeszcze nie zamówienie. Łączy się z D9 (jedna reguła „ile zamówić”).
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D66. Limit czasu zapisów (wieczne „Zapisywanie…”)
+- **Problem**: zapisy do bazy nie mają limitu czasu — przy zerwanym WiFi napis „Zapisywanie…” / „Wysyłanie…” wisi, aż system sam zerwie połączenie (na telefonie bywa to kilka minut), a przyciski są zablokowane.
+- **Opcje**: (a) globalny limit w kliencie Supabase (np. 30 s dla bazy, 2 min dla plików) z komunikatem „mógł się zapisać — odśwież”; (b) limit tylko na telefonie; (c) zostawić.
+- **Rekomendacja**: (b) od razu (mniejsze ryzyko), (a) po obserwacji — długie operacje (importy, generowanie PDF) trzeba wyłączyć z limitu. Zmiana dotyczy całego programu, dlatego nie robiłem jej w nocy.
+- **Pilność**: może poczekać · **Praca**: mały
+
+### D67. Zdjęcia z telefonu: rozmiar, HEIC, osierocone pliki
+- **Problem**: telefon wysyła oryginał bez zmniejszania; bucket `order-photos` ma limit 10 MB i przyjmuje tylko jpeg / png / webp / gif — duże zdjęcie albo HEIC (iPhone) daje „zrób jeszcze raz”, a ponowienie nie pomoże. Gdy wpis w bazie się nie uda, pracownik nie może skasować pliku (kasuje tylko kierownik) — zostaje sierota. Dziś 0 zdjęć w bazie.
+- **Opcje**: (a) zmniejszanie przed wysłaniem (np. 1600 px, JPEG) — rozwiązuje rozmiar i HEIC; (b) podnieść limit bucketu i dopuścić HEIC; (c) sprzątanie sierot raz na dobę po stronie serwera.
+- **Rekomendacja**: (a) + (c).
+- **Pilność**: może poczekać (przed wdrożeniem zdjęć na hali) · **Praca**: mały–średni
+
 ---
 
 ## Refaktory do rozważenia
@@ -421,3 +457,4 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 | R7 | `MmView` / `PzView` (80% wspólne), 5 widoków tabel w `App.tsx` z tym samym zestawem ~20 propsów | widoki magazynu, `App.tsx` | ~175 l. | średnie | |
 | R8 | Końcówka zapisu edycji w `useOrders` (blok bota ×5, łatka zlecenia ×3), anulowanie / przywracanie | `useOrders.ts` | ~90 l. | średnie–wysokie | logika krytyczna — najpierw testy |
 | R9 | Oznaczanie etapu: komputer i telefon osobno (zlecenia, reklamacje, sztuki alu ×3) | `useMyStation`, `MobileStationView`, `useAluOrders` | ~70 l. | wysokie | najpierw ujednolicić zachowanie (D51) |
+| R10 | Kanały „na żywo” bez przeładowania po przerwie (8 miejsc: wysyłka, dzwonek, magazyn, Bastion, odhaczanie) | `useShipping`, `NotificationBell`, `useWarehouse`, `useBastion*`, `useOrderPicks`, `MobileIntDoorPicking` | ~60 l. | średnie | wspólna funkcja „subskrybuj i przeładuj po ponownym połączeniu” (wzór: `App.tsx`, `MobileStationView`); runda 10 #5 |
