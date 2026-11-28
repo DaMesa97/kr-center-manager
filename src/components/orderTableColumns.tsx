@@ -425,7 +425,7 @@ export function actionsCol(ctx: OrderTableCtx): DataTableColumn<Order> {
 }
 
 /** Pozycje menu „⋯" dla wiersza (#132 + #87). */
-function actionMenuItems(ctx: OrderTableCtx, o: Order): ActionsMenuItem[] {
+export function actionMenuItems(ctx: OrderTableCtx, o: Order): ActionsMenuItem[] {
   const items: ActionsMenuItem[] = []
   if (ctx.onShowHistory) {
     items.push({ key: 'history', label: 'Historia zmian', onClick: () => ctx.onShowHistory?.(o) })
@@ -459,6 +459,16 @@ function actionMenuItems(ctx: OrderTableCtx, o: Order): ActionsMenuItem[] {
   }
   if (cancelled) {
     items.push({ key: 'restore', label: 'Przywróć zlecenie', onClick: () => void ctx.onHandleRestoreOrder(o) })
+  } else if (!isReleaseDateEmpty(o.release_date)) {
+    // D43: wydanego zlecenia nie anulujemy z menu
+    items.push({
+      key: 'cancel',
+      label: 'Anuluj zlecenie',
+      danger: true,
+      disabled: true,
+      title: 'Zlecenie jest wydane — nie można go anulować',
+      onClick: () => {},
+    })
   } else {
     items.push({ key: 'cancel', label: 'Anuluj zlecenie', danger: true, onClick: () => ctx.onHandleCancelOrderClick(o) })
   }

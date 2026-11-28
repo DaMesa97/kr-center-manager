@@ -54,6 +54,7 @@ import {
   validateOrderForm,
 } from '../utils'
 import { isBotOrder } from '../utils/botOrder'
+import { isOrderReleased, RELEASED_CANCEL_MSG, splitCancellableLegs, type ReleaseInfo } from '../lib/orderCancel'
 import type {
   BastionOrderFormData,
   Company,
@@ -2771,6 +2772,11 @@ export function useOrders({
       pushToast('Brak identyfikatora zamówienia', 'error')
       return
     }
+    // D43: wydanego zlecenia nie anulujemy (menu chowa akcję; tu obrona dla innych wejść, np. Weryfikacja)
+    if (isOrderReleased(order)) {
+      pushToast(RELEASED_CANCEL_MSG, 'error')
+      return
+    }
     const linkedId = order.linked_order_id
     const isTitanLinked = isStaTitanLinked(order, [...orders, ...linkedOrders])
     const isDistingPlusLink =
@@ -2779,6 +2785,10 @@ export function useOrders({
 
     const isTitanLink =
       linkedId != null && (order.category === 'ST' || isTitanLinked)
+    // D43: wydany partner pary / Titana zostaje bez zmian (kaskada go pomija);
+    // tu stan z listy — do komunikatu; przed zapisem sprawdzamy jeszcze w bazie
+    const linkedLocal = linkedId != null ? [...orders, ...linkedOrders].find((o) => o.id === linkedId) : undefined
+    const linkedReleasedLocal = isOrderReleased(linkedLocal)
 
     const linkedTabLabel = order.category === 'Disting' ? 'STA' : 'Disting'
     const linkedOrderNr =
@@ -2791,7 +2801,10 @@ export function useOrders({
             : String(order.disting_sheet ?? '').trim()
     const linkedNrDisplay = linkedOrderNr || '—'
     const baseMsg = `Czy na pewno chcesz anulować zamówienie nr ${order.order_number}?`
-    const message = isDistingPlusLink
+    const linkedReleasedMsg = `To zamówienie jest powiązane z zamówieniem nr ${linkedNrDisplay}, które jest już wydane — powiązane zostaje bez zmian. ${baseMsg}`
+    const message = (isDistingPlusLink || isTitanLink) && linkedReleasedLocal
+      ? linkedReleasedMsg
+      : isDistingPlusLink
       ? `To zamówienie jest powiązane z zamówieniem nr ${linkedNrDisplay} w ${linkedTabLabel}. Zamówienie powiązane zostanie oznaczone jako anulowane. ${baseMsg}`
       : isTitanLink && order.category === 'STA'
         ? `To zamówienie jest powiązane z zamówieniem Titan nr ${linkedNrDisplay} w ST. Zamówienie powiązane zostanie oznaczone jako anulowane. ${baseMsg}`
@@ -2807,6 +2820,12 @@ export function useOrders({
       runDelete: async () => {
         const cancelledAt = new Date().toISOString()
         const cancelledBy = currentUser?.initials ?? ''
+        // D43: partner pary / Titana anulujemy tylko, gdy nie jest wydany (świeży stan z bazy)
+        let cascadeLinked = (isDistingPlusLink || isTitanLink) && linkedId != null
+        if (cascadeLinked && linkedId != null) {
+          const { data: linkedRow } = await supabase.from('orders').select('id, release_date').eq('id', linkedId).maybeSingle()
+          if (isOrderReleased((linkedRow as ReleaseInfo | null) ?? linkedLocal)) cascadeLinked = false
+        }
         // Merge po stronie bazy (RPC) — nie nadpisujemy całego extra_fields
         // lokalną kopią, żeby nie skasować zmian z innych stanowisk
         const { data: currentExtra, error } = await supabase.rpc('merge_order_extra_fields', {
@@ -2827,7 +2846,7 @@ export function useOrders({
           return
         }
 
-        if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
+        if (cascadeLinked && linkedId != null) {
           const { error: linkUpErr } = await supabase.rpc('merge_order_extra_fields', {
             p_order_id: linkedId,
             // noc 28.11 (analiza duplikacji): partner dostaje ten sam pełny znacznik (kto, kiedy) co zlecenie główne
@@ -2856,7 +2875,13 @@ export function useOrders({
         // Noga Bastion Titana (titan_group) — anulujemy razem z parą STA↔ST
         // (wcześniej Bastion zostawał w produkcji po anulowaniu Titana!)
         if (isTitanLink || isTitanLinked) {
-          const bastionIds = await findTitanBastionLegIds(order)
+          const bastionAll = await findTitanBastionLegIds(order)
+          // D43: wydane nogi Bastion zostają bez zmian
+          let bastionIds = bastionAll
+          if (bastionAll.length > 0) {
+            const { data: bRows, error: bRowsErr } = await supabase.from('orders').select('id, release_date').in('id', bastionAll)
+            if (!bRowsErr && bRows) bastionIds = splitCancellableLegs(bRows as ReleaseInfo[]).cancel
+          }
           for (const bid of bastionIds) {
             // noc 28.11 (analiza duplikacji): błędy nogi Bastion były ignorowane (try/catch nie łapie błędu RPC) —
             // noga mogła zostać w produkcji z rezerwacjami bez żadnego komunikatu
@@ -2883,7 +2908,7 @@ export function useOrders({
           console.error('cancel_order_reservations error:', err)
           pushToast('Ostrzeżenie: nie udało się zwolnić rezerwacji magazynowych', 'error')
         }
-        if ((isDistingPlusLink || isTitanLink) && linkedId != null) {
+        if (cascadeLinked && linkedId != null) {
           try {
             const { error: retErr2 } = await supabase.rpc('cancel_order_reservations', { p_order_id: linkedId })
             if (retErr2) {
@@ -2909,7 +2934,7 @@ export function useOrders({
                 stock_issues: null,
               }
             }
-            if (linkedId != null && o.id === linkedId && (isDistingPlusLink || isTitanLink)) {
+            if (linkedId != null && o.id === linkedId && cascadeLinked) {
               return {
                 ...o,
                 extra_fields: mergeOrderExtraFields(o.extra_fields, { cancelled: true }),
