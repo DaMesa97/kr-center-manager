@@ -190,3 +190,19 @@ export function isPendingForShipment(
   if (o.extra_fields?.cancelled === true || o.extra_fields?.cancelled === 'true') return false
   return !o.release_date || o.release_date.slice(0, 10) >= today
 }
+
+// D30 (28.11): „Oznacz jako wydane” — zlecenia zamówione od dnia spisu (6.11) baza rozchoduje z magazynu (WZ),
+// starsze tylko zamykają rezerwacje. Próg ustala baza (integration_settings.excel_sync_rozchod_od − 1 dzień);
+// tu tylko podpowiedź w oknie — o tym, co się stało naprawdę, mówi wynik funkcji (parseOznaczWydaneWynik).
+export const DZIEN_SPISU = '2026-11-06'
+export function rozchodPrzyOznaczeniu(orderDate: string | null | undefined): boolean {
+  return !!orderDate && orderDate.slice(0, 10) >= DZIEN_SPISU
+}
+
+/** Wynik rpc oznacz_wydane_wysylki: 'rozchod:N' albo 'zamkniete_rezerwacje:N' (stara baza — tylko to drugie). */
+export function parseOznaczWydaneWynik(raw: unknown): { rozchod: boolean; pozycji: number } | null {
+  if (typeof raw !== 'string') return null
+  const m = /^(rozchod|zamkniete_rezerwacje):(\d+)$/.exec(raw.trim())
+  if (!m) return null
+  return { rozchod: m[1] === 'rozchod', pozycji: Number(m[2]) }
+}

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { fetchAllPages } from '../lib/fetchPaged'
-import { blFromClientOrder, blOczekujeZaDlugo, blOrderId, clientFromClientOrder, isoDate, isPendingForShipment, pendingSection, rodzajDostawy, type PendingSection, type RodzajDostawy } from '../lib/shipments'
+import { blFromClientOrder, blOczekujeZaDlugo, blOrderId, clientFromClientOrder, isoDate, isPendingForShipment, parseOznaczWydaneWynik, pendingSection, rodzajDostawy, type PendingSection, type RodzajDostawy } from '../lib/shipments'
 import { isOptimaClosed } from '../lib/optimaRo'
 import { fetchPicks, groupPicks, pickProgress } from '../lib/orderPicks'
 import { countCompletedStages } from '../utils'
@@ -368,16 +368,26 @@ export function useShipments(pushToast: (msg: string, variant: ToastVariant) => 
     return m
   }, [])
 
-  /** „Oznacz jako wydane” starych zleceń: data wydania + zamknięcie rezerwacji, bez rozchodu (rpc oznacz_wydane_wysylki). */
+  /** „Oznacz jako wydane” starych zleceń: data wydania + (D30) rozchód dla zamówionych od spisu 6.11,
+   *  starsze tylko zamknięcie rezerwacji (rpc oznacz_wydane_wysylki; próg liczy baza). */
   const oznaczWydane = useCallback(async (lista: Array<{ id: number; data: string }>): Promise<boolean> => {
     let ok = 0
+    let zRozchodem = 0
     const bledy: string[] = []
     for (const x of lista) {
-      const { error } = await supabase.rpc('oznacz_wydane_wysylki', { p_order_id: x.id, p_date: x.data })
+      const { data, error } = await supabase.rpc('oznacz_wydane_wysylki', { p_order_id: x.id, p_date: x.data })
       if (error) bledy.push(error.message)
-      else ok++
+      else {
+        ok++
+        if (parseOznaczWydaneWynik(data)?.rozchod) zRozchodem++
+      }
     }
-    if (ok) pushToast(`Oznaczono jako wydane: ${ok} ${ok === 1 ? 'zlecenie' : 'zleceń'}`, 'success')
+    if (ok) {
+      const dopisek = zRozchodem > 0
+        ? ` (w tym ${zRozchodem} z rozchodem z magazynu)`
+        : ' (zamknięto rezerwacje, bez rozchodu z magazynu)'
+      pushToast(`Oznaczono jako wydane: ${ok} ${ok === 1 ? 'zlecenie' : 'zleceń'}${dopisek}`, 'success')
+    }
     if (bledy.length) pushToast(`Nie oznaczono ${bledy.length}: ${bledy[0]}`, 'error')
     await load()
     return bledy.length === 0

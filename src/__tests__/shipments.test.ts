@@ -10,6 +10,8 @@ import {
   groupByDate,
   isPendingForShipment,
   nextWorkingDay,
+  parseOznaczWydaneWynik,
+  rozchodPrzyOznaczeniu,
   isNonWorkingDay,
   blOczekujeZaDlugo,
 } from '../lib/shipments'
@@ -151,5 +153,21 @@ describe('poprawki po testach 27.11', () => {
     expect(blOczekujeZaDlugo({ bl_status: 'oczekuje', bl_requested_at: '2026-11-27T17:50:00Z' }, now)).toBe(true)
     expect(blOczekujeZaDlugo({ bl_status: 'oczekuje', bl_requested_at: null }, now)).toBe(true)
     expect(blOczekujeZaDlugo({ bl_status: 'utworzona', bl_requested_at: null }, now)).toBe(false)
+  })
+})
+
+describe('D30 — oznacz jako wydane: rozchód po spisie', () => {
+  it('podpowiedź: zamówione od 6.11 → rozchód, starsze i bez daty → tylko rezerwacje', () => {
+    expect(rozchodPrzyOznaczeniu('2026-11-06')).toBe(true)
+    expect(rozchodPrzyOznaczeniu('2026-11-20T10:00:00Z')).toBe(true)
+    expect(rozchodPrzyOznaczeniu('2026-11-05')).toBe(false)
+    expect(rozchodPrzyOznaczeniu(null)).toBe(false)
+  })
+
+  it('wynik funkcji bazy', () => {
+    expect(parseOznaczWydaneWynik('rozchod:17')).toEqual({ rozchod: true, pozycji: 17 })
+    expect(parseOznaczWydaneWynik('zamkniete_rezerwacje:8')).toEqual({ rozchod: false, pozycji: 8 })
+    expect(parseOznaczWydaneWynik(null)).toBeNull()
+    expect(parseOznaczWydaneWynik('cos')).toBeNull()
   })
 })

@@ -18,6 +18,7 @@ import {
   isNonWorkingDay,
   isoDate,
   nextWorkingDay,
+  rozchodPrzyOznaczeniu,
   type PendingSection,
 } from '../../lib/shipments'
 import { appConfirm } from '../../lib/appDialogs'
@@ -519,14 +520,18 @@ function WydaneModal({
         </div>
         <div className="shipments-modal-body">
           <p className="shipments-modal-orders">
-            Data wydania liczy się w statystykach do czasu realizacji — popraw ją, jeśli wiesz, kiedy towar pojechał. Program zamyka rezerwacje tych
-            zleceń, ale niczego nie zdejmuje ze stanu magazynu (stany po inwentaryzacji już tego nie mają).
+            Data wydania liczy się w statystykach do czasu realizacji — popraw ją, jeśli wiesz, kiedy towar pojechał. Zlecenia zamówione od spisu
+            (6.11) program rozchoduje z magazynu jak zwykłe wydanie; starszym tylko zamyka rezerwacje (stany po spisie mogą już nie mieć tego
+            towaru). Po zapisie zobaczysz, ile zleceń rozchodowano.
           </p>
           {pozycje.map((p) => (
             <div key={p.o.id} className="shipments-wydane-row">
               <div>
                 <strong>{p.o.order_number ?? `#${p.o.id}`}</strong> · {catLabel(p.o.category)}{p.o.client ? ` · ${p.o.client}` : ''}
-                <div className="muted shipments-counter-hint">zamówione {p.o.order_date ? dayLabel(p.o.order_date) : '—'} · podpowiedź: {p.zrodlo}</div>
+                <div className="muted shipments-counter-hint">
+                  zamówione {p.o.order_date ? dayLabel(p.o.order_date) : '—'} · podpowiedź: {p.zrodlo} ·{' '}
+                  {rozchodPrzyOznaczeniu(p.o.order_date) ? 'rozchód z magazynu' : 'tylko zamknięcie rezerwacji'}
+                </div>
               </div>
               <PoleDaty value={daty[p.o.id] ?? ''} onChange={(v) => setDaty((d) => ({ ...d, [p.o.id]: v }))} label={`Data wydania ${p.o.order_number ?? p.o.id}`} max={today} />
             </div>
