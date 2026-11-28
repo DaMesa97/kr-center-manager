@@ -428,3 +428,23 @@ export function zkpTypeCode(f: Pick<ZkpCardForm, 'product_type' | 'range_code' |
   const dir = zew ? `-${f.opening === 'do_wewnatrz' ? 'DW' : f.opening === 'na_zewnatrz' ? 'NZ' : '?'}` : ''
   return `AS75EI-${zew ? 'Z' : 'W'}-${cls}-${smoke}-${f.leaves}${dir}-${f.evacuation === 'nie' ? '–' : 'E'}`
 }
+
+// ── D56: anulowanie konstrukcji po niezgodności i nowy numer (zkp_cancel_construction) ──
+
+/** Kto i kiedy (lustro bazy): Pełnomocnik / Zastępca, karta nie ZWOLNIONA (deklaracje i wydanie sprawdza baza). */
+export function zkpCanCancelConstruction(roles: string[] | null | undefined, card: { decision: ZkpCardDecision | null } | null): boolean {
+  const ok = (roles ?? []).some((r) => r === 'pelnomocnik' || r === 'zastepca')
+  return ok && card?.decision !== 'zwolniony'
+}
+
+/** Podpowiedź nr rejestru 6.20: z ostatniego zamkniętego protokołu z odnośnikiem, inaczej z karty. */
+export function zkpCancelNcRef(
+  card: { nonconformity_ref?: string | null } | null,
+  protocols: Array<{ attempt: number; nonconformity_ref?: string | null }>,
+): string {
+  const fromProtocol = [...protocols]
+    .sort((a, b) => b.attempt - a.attempt)
+    .map((p) => (p.nonconformity_ref ?? '').trim())
+    .find((r) => r !== '')
+  return fromProtocol ?? (card?.nonconformity_ref ?? '').trim()
+}

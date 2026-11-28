@@ -16,6 +16,8 @@ import {
   lotsForStage,
   peopleWithCompetency,
   requiredFillingFields,
+  zkpCanCancelConstruction,
+  zkpCancelNcRef,
   zkpTypeCode,
   type ZkpCardForm,
   type ZkpFillingField,
@@ -75,6 +77,9 @@ export default function ZkpCardModal({ target, zkp, roles, isManager, onClose, o
   const canDecide = hasAny(roles, ['pelnomocnik', 'zastepca'])
   const confirmed = !!card?.range_confirmed_at
   const closed = !!card?.decision
+  // D56: anulowanie konstrukcji po niezgodności i nowy numer
+  const canCancel = zkpCanCancelConstruction(roles, card)
+  const [cancelOpen, setCancelOpen] = useState(false)
 
   // operator produkcji (konto hali) od razu na etapach, gdy zakres jest potwierdzony
   const operatorOnly = canRecord && !canFill
@@ -107,10 +112,21 @@ export default function ZkpCardModal({ target, zkp, roles, isManager, onClose, o
     <ZkpModal
       title={`Karta wyrobu ${target.constructionNo} — ${target.orderNumber}`}
       onClose={onClose}
-      busy={api.saving}
+      busy={api.saving || cancelOpen}
       width={1080}
       footer={
         <>
+          {canCancel && api.data && (
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={api.saving}
+              onClick={() => setCancelOpen(true)}
+              title="Niezgodność (rejestr 6.20): ta konstrukcja zostaje anulowana, sztuka dostaje nowy numer i nową kartę"
+            >
+              Anuluj konstrukcję / nowy numer…
+            </button>
+          )}
           {card && (
             <button
               type="button"
@@ -166,6 +182,71 @@ export default function ZkpCardModal({ target, zkp, roles, isManager, onClose, o
       ) : (
         <SectionF api={api} target={target} canDecide={canDecide && !closed} save={wrap(api.decide)} onGoProtocol={() => setSection('g')} />
       )}
+      {cancelOpen && (
+        <CancelConstructionModal
+          api={api}
+          target={target}
+          onClose={() => setCancelOpen(false)}
+          onDone={() => {
+            setCancelOpen(false)
+            onChanged?.()
+            onClose()
+          }}
+        />
+      )}
+    </ZkpModal>
+  )
+}
+
+// ── D56: anulowanie konstrukcji po niezgodności (rejestr 6.20) + nowy numer ─────────
+function CancelConstructionModal({ api, target, onClose, onDone }: {
+  api: ZkpCardApi; target: ZkpCardTarget; onClose: () => void; onDone: () => void
+}) {
+  const [ncRef, setNcRef] = useState(() => zkpCancelNcRef(api.data?.card ?? null, api.data?.protocols ?? []))
+  const [reason, setReason] = useState('')
+  const valid = ncRef.trim() !== '' && reason.trim().length >= 5
+
+  const save = async () => {
+    if (!valid) return
+    const ok = await appConfirm(
+      `Anulować konstrukcję ${target.constructionNo} (${target.orderNumber})? Numer nie wróci do puli, karta i protokoły zostają ` +
+        'w historii, a ta sztuka dostanie NOWY numer konstrukcji i nową kartę wyrobu.',
+      { title: 'Anulowanie konstrukcji po niezgodności', confirmLabel: 'Anuluj i nadaj nowy numer', tone: 'danger' },
+    )
+    if (!ok) return
+    if (await api.cancelConstruction(reason.trim(), ncRef.trim())) onDone()
+  }
+
+  return (
+    <ZkpModal
+      title={`Anuluj konstrukcję ${target.constructionNo} — nowy numer`}
+      onClose={onClose}
+      busy={api.saving}
+      width={560}
+      footer={
+        <>
+          <button type="button" className="btn btn-danger" disabled={api.saving || !valid} onClick={() => void save()}>
+            {api.saving ? 'Zapisuję…' : 'Anuluj konstrukcję'}
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={api.saving}>
+            Wróć
+          </button>
+        </>
+      }
+    >
+      <p className="zkp-hint">
+        Tylko Pełnomocnik ZKP / Zastępca. Nie dotyczy konstrukcji zwolnionych, z wydaną deklaracją ani zleceń wydanych.
+      </p>
+      <div className="order-form-grid zkp-form-grid">
+        <label>
+          <span className="order-field-label-text">Nr niezgodności w rejestrze 6.20 *</span>
+          <input value={ncRef} onChange={(e) => setNcRef(e.target.value)} autoFocus />
+        </label>
+        <label className="order-field-full">
+          <span className="order-field-label-text">Powód anulowania * (min. 5 znaków)</span>
+          <input value={reason} onChange={(e) => setReason(e.target.value)} />
+        </label>
+      </div>
     </ZkpModal>
   )
 }

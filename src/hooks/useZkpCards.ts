@@ -259,6 +259,35 @@ export function useZkpCard(constructionId: number, pushToast: Toast) {
           }),
         decision === 'zwolniony' ? 'Protokół zamknięty — konstrukcja ZWOLNIONA' : 'Protokół zamknięty — WSTRZYMANY',
       ),
+    // D56: anulowanie konstrukcji po niezgodności (rejestr 6.20) i nowy numer dla tej samej sztuki
+    cancelConstruction: async (reason: string, ncRef: string): Promise<{ cancelledNo: string; newId: number; newNo: string } | null> => {
+      setSaving(true)
+      try {
+        const { data: res, error } = await supabase.rpc('zkp_cancel_construction', {
+          p_construction_id: constructionId,
+          p_reason: reason,
+          p_nonconformity_ref: ncRef,
+        })
+        if (error) {
+          pushToast(
+            error.code === 'PGRST202'
+              ? 'Anulowanie konstrukcji wymaga aktualizacji bazy (D56) — poproś administratora o wgranie migracji'
+              : error.message,
+            'error',
+          )
+          return null
+        }
+        const row = (res as Array<{ r_cancelled_no: string; r_new_id: number; r_new_no: string }> | null)?.[0]
+        if (!row) {
+          pushToast('Baza nie zwróciła nowego numeru konstrukcji', 'error')
+          return null
+        }
+        pushToast(`Konstrukcja ${row.r_cancelled_no} anulowana — nowy numer ${row.r_new_no}`, 'success')
+        return { cancelledNo: row.r_cancelled_no, newId: row.r_new_id, newNo: row.r_new_no }
+      } finally {
+        if (mounted.current) setSaving(false)
+      }
+    },
   }
 }
 
