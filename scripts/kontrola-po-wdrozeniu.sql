@@ -194,6 +194,12 @@ braki_uprawnien as (
                     -- 20261128010000 / 010300 (runda 9, znalezisko 10)
                     'public.notify_user_active(uuid)', 'public.restore_from_archive__impl(bigint)']) f(n)
   where to_regprocedure(f.n) is not null and has_function_privilege('authenticated', to_regprocedure(f.n), 'execute')
+  union all
+  -- 20261128021400 (runda 10 (28.11)): anon bez uprawnień do tabel / widoków / sekwencji public
+  select 'uprawnienia', c.oid::regclass::text, 'anon ma uprawnienia do tabeli/sekwencji (puść ponownie 20261128021400)'
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f', 'S')
+    and exists (select 1 from aclexplode(c.relacl) a where a.grantee = 'anon'::regrole)
 )
 select * from braki_funkcji
 union all select * from braki_polityk
