@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { potwierdzInstalacjeMimoNiezapisanych } from '../lib/useUnsavedGuard'
+import { formatSpeed, getIpc, type IpcListener } from '../lib/updaterIpc'
 import { Download, RefreshCw, X, Zap, AlertTriangle } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -14,27 +15,6 @@ type UpdateState =
   | { status: 'downloaded'; version: string }
   | { status: 'error'; message: string }
 
-type IpcListener = (...args: unknown[]) => void
-
-type AppIpcRenderer = {
-  on: (channel: string, listener: IpcListener) => void
-  off: (channel: string, listener: IpcListener) => void
-  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
-}
-
-function getIpc(): AppIpcRenderer | undefined {
-  return (window as Window & { ipcRenderer?: AppIpcRenderer }).ipcRenderer
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatSpeed(bytesPerSecond: number): string {
-  if (bytesPerSecond >= 1024 * 1024) return `${(bytesPerSecond / 1024 / 1024).toFixed(1)} MB/s`
-  if (bytesPerSecond >= 1024) return `${(bytesPerSecond / 1024).toFixed(0)} KB/s`
-  return `${bytesPerSecond} B/s`
-}
 
 // ---------------------------------------------------------------------------
 // Component
