@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inventoryReview, parseCountInput } from '../lib/inventory'
+import { inventoryReview, isInventoryLockError, parseCountInput } from '../lib/inventory'
 import type { InventoryLine } from '../types'
 
 const line = (id: number, system: number, counted: number | null): InventoryLine => ({
@@ -47,5 +47,13 @@ describe('inventoryReview — różnice do zatwierdzenia z linii z bazy', () => 
     const r = inventoryReview([line(1, 4, 0)])
     expect(r.uncounted).toBe(0)
     expect(r.diffs[0].diff).toBe(-4)
+  })
+})
+
+describe('isInventoryLockError (D14 — blokada PZ / MM w trakcie spisu)', () => {
+  it('rozpoznaje odmowę P0423, reszta to zwykłe błędy', () => {
+    expect(isInventoryLockError({ code: 'P0423' })).toBe(true)
+    expect(isInventoryLockError({ code: 'P0001' })).toBe(false)
+    expect(isInventoryLockError(null)).toBe(false)
   })
 })

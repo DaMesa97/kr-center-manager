@@ -951,6 +951,8 @@ export type InventorySession = {
   created_at: string
   closed_by: string | null
   closed_at: string | null
+  /** D14: PZ / MM na tym magazynie wstrzymane do zamknięcia spisu (kolumna od migracji 20261128030200; brak = undefined) */
+  blokada_ruchow?: boolean
 }
 
 export type InventoryLine = {

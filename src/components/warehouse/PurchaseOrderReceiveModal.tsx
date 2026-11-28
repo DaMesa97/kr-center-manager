@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../supabaseClient'
-import { appConfirm } from '../../lib/appDialogs'
+import { appAlert, appConfirm } from '../../lib/appDialogs'
+import { isInventoryLockError } from '../../lib/inventory'
 import type { PurchaseOrder, PurchaseOrderItem, ToastVariant, Warehouse, WarehouseComponent } from '../../types'
 import DataTable from '../DataTable'
 
@@ -98,6 +99,11 @@ export default function PurchaseOrderReceiveModal({
     }
     setSaving(false)
     if (error) {
+      // D14: trwa spis z blokadą na tym magazynie — okno zamiast znikającego komunikatu
+      if (isInventoryLockError(error)) {
+        void appAlert(error.message)
+        return
+      }
       pushToast(`Błąd przyjęcia dostawy: ${error.message}`, 'error')
       if (/odśwież/i.test(error.message)) {
         // stan pozycji zmienił się na innym stanowisku — zamykamy, lista ZD się przeładuje

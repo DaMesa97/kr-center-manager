@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { appConfirm } from '../lib/appDialogs'
+import { appAlert, appConfirm } from '../lib/appDialogs'
+import { isInventoryLockError } from '../lib/inventory'
 import { fetchAllPages } from '../lib/fetchPaged'
 import { alertsBadgeThrottled, parseAlertsSummary } from '../lib/alertsBadge'
 import { normalizeStockLevelRow } from '../lib/stockLevels'
@@ -1612,7 +1613,9 @@ export function useWarehouse({
         p_notes: pzFormData.notes.trim() || null,
       })
       if (error) {
-        pushToast(`Błąd: ${error.message}`, 'error')
+        // D14: trwa spis z blokadą — okno zamiast znikającego komunikatu
+        if (isInventoryLockError(error)) void appAlert(error.message)
+        else pushToast(`Błąd: ${error.message}`, 'error')
         return
       }
       const rows = Array.isArray(data) ? data : data != null ? [data as Record<string, unknown>] : []
@@ -1741,7 +1744,9 @@ export function useWarehouse({
         p_notes: mmFormData.notes.trim() || null,
       })
       if (error) {
-        pushToast(`Błąd: ${error.message}`, 'error')
+        // D14: trwa spis z blokadą na magazynie źródłowym lub docelowym
+        if (isInventoryLockError(error)) void appAlert(error.message)
+        else pushToast(`Błąd: ${error.message}`, 'error')
         return
       }
       const rows = Array.isArray(data) ? data : data != null ? [data as Record<string, unknown>] : []

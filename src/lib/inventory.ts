@@ -32,3 +32,8 @@ export function inventoryReview(lines: InventoryLine[]): { diffs: InventoryDiff[
   }
   return { diffs, uncounted }
 }
+
+/** D14 (28.11): odmowa PZ / MM, bo na magazynie trwa spis z blokadą (baza: errcode P0423, migracja 20261128030200). */
+export function isInventoryLockError(err: { code?: string | null } | null | undefined): boolean {
+  return err?.code === 'P0423'
+}

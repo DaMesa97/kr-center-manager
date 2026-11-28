@@ -100,6 +100,9 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
   const [closing, setClosing] = useState<number | null>(null) // session_id zamykany / przygotowywany
   const [newNotes, setNewNotes] = useState<Record<number, string>>({})
   const [showOpenForm, setShowOpenForm] = useState<number | null>(null) // warehouse_id
+  // D14: przy otwieraniu spisu — od razu wstrzymać PZ / MM na tym magazynie (zalecane, gdy liczenie zaraz rusza)
+  const [lockOnOpen, setLockOnOpen] = useState(true)
+  const [lockBusy, setLockBusy] = useState<number | null>(null) // session_id
   const [draftCounts, setDraftCounts] = useState<Record<number, string>>({})
   const [saving, setSaving] = useState<Set<number>>(new Set())
   const [failed, setFailed] = useState<Set<number>>(new Set()) // pozycje, których zapis się NIE udał
@@ -286,15 +289,53 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
     return results.every(Boolean) && failedRef.current.size === 0
   }, [runSave])
 
+  // D14: włącz / zdejmij blokadę PZ i MM dla otwartego spisu (rpc ustaw_blokade_spisu; baza bez migracji → 'unsupported')
+  const setSessionLock = async (sessionId: number, on: boolean): Promise<'ok' | 'unsupported' | 'error'> => {
+    const { error } = await supabase.rpc('ustaw_blokade_spisu', { p_session_id: sessionId, p_blokada: on })
+    if (!error) return 'ok'
+    if (error.code === 'PGRST202') return 'unsupported'
+    console.error('ustaw_blokade_spisu', error)
+    return 'error'
+  }
+
+  const handleToggleLock = async (sd: SessionWithLines) => {
+    const on = !sd.session.blokada_ruchow
+    setLockBusy(sd.session.id)
+    try {
+      const res = await setSessionLock(sd.session.id, on)
+      if (res === 'ok') {
+        pushToast(on ? 'PZ i MM na tym magazynie wstrzymane do zamknięcia spisu' : 'Blokada PZ / MM zdjęta', 'success')
+        await fetchData()
+      } else {
+        pushToast(res === 'unsupported' ? 'Blokada PZ / MM będzie dostępna po aktualizacji bazy' : 'Nie zmieniono blokady — spróbuj jeszcze raz', 'error')
+      }
+    } finally {
+      setLockBusy(null)
+    }
+  }
+
   const handleOpenSession = async (warehouseId: number) => {
     setOpening(warehouseId)
     try {
-      const { error } = await supabase.rpc('open_inventory_session', {
+      const { data: newId, error } = await supabase.rpc('open_inventory_session', {
         p_notes: (newNotes[warehouseId] ?? '').trim() || null,
         p_warehouse_id: warehouseId,
       })
       if (error) { pushToast(`Błąd: ${error.message}`, 'error'); return }
-      pushToast('Sesja inwentaryzacyjna otwarta', 'success')
+      const sessionId = Number(newId)
+      if (lockOnOpen && Number.isFinite(sessionId) && sessionId > 0) {
+        const lock = await setSessionLock(sessionId, true)
+        pushToast(
+          lock === 'ok'
+            ? 'Sesja inwentaryzacyjna otwarta — PZ i MM na tym magazynie wstrzymane do zamknięcia spisu'
+            : lock === 'unsupported'
+              ? 'Sesja inwentaryzacyjna otwarta (blokada PZ / MM będzie dostępna po aktualizacji bazy)'
+              : 'Sesja otwarta, ale blokady PZ / MM nie włączono — spróbuj przełącznikiem przy sesji',
+          lock === 'error' ? 'error' : 'success',
+        )
+      } else {
+        pushToast('Sesja inwentaryzacyjna otwarta', 'success')
+      }
       setShowOpenForm(null)
       setNewNotes((prev) => ({ ...prev, [warehouseId]: '' }))
       await fetchData()
@@ -549,8 +590,24 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
                   <div className="inventory-header-info">
                     <strong>Data liczenia: {sd.session.counted_date}</strong>
                     {sd.session.notes && <span className="inventory-notes-text">{sd.session.notes}</span>}
+                    {sd.session.blokada_ruchow === true && (
+                      <span className="inventory-notes-text" style={{ color: '#b45309', fontWeight: 600 }}>
+                        PZ i MM na tym magazynie wstrzymane do zamknięcia spisu
+                      </span>
+                    )}
                   </div>
                   <div className="inventory-header-actions">
+                    {isManager && typeof sd.session.blokada_ruchow === 'boolean' && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={() => void handleToggleLock(sd)}
+                        disabled={lockBusy === sd.session.id}
+                        title="Liczysz teraz? Wstrzymaj przyjęcia i przesunięcia, żeby dostawa w trakcie liczenia nie zniknęła w korekcie spisu."
+                      >
+                        {lockBusy === sd.session.id ? 'Zapisywanie…' : sd.session.blokada_ruchow ? 'Zdejmij blokadę PZ / MM' : 'Wstrzymaj PZ i MM'}
+                      </button>
+                    )}
                     <button type="button" className="btn btn-sm btn-secondary" onClick={() => handleExportPdf(sd)}>
                       ↓ PDF (kartka do liczenia)
                     </button>
@@ -718,6 +775,10 @@ export default function InventoryView({ pushToast, currentUser, components = [] 
                         onChange={(e) => setNewNotes((prev) => ({ ...prev, [wh.id]: e.target.value }))}
                         placeholder={`np. Inwentaryzacja ${wh.name} czerwiec 2026`}
                       />
+                    </label>
+                    <label className="form-label" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input type="checkbox" checked={lockOnOpen} onChange={(e) => setLockOnOpen(e.target.checked)} />
+                      Wstrzymaj PZ i MM na tym magazynie do zamknięcia spisu (otwórz spis tuż PRZED liczeniem)
                     </label>
                     <div className="inventory-open-form-actions">
                       <button type="button" className="btn btn-sm btn-secondary" onClick={() => setShowOpenForm(null)}>
