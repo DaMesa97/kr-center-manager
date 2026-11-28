@@ -372,17 +372,17 @@ Stan: na produkcji 4 zlecenia alu, 0 kart / protokołów / deklaracji ZKP, nikt 
 | Waga | Problem | Stan |
 |---|---|---|
 | KRYTYCZNY | szablon etykiety mógł uruchomić skrypt w oknie programu (podgląd w iframe bez sandbox) i wykraść sesję każdego, kto otworzy podgląd; szablony edytuje też kierownik działu | **poprawione** 35f82b1 (sandbox na 4 podglądach; żaden szablon nie używa skryptów); kto edytuje szablony → **D59** |
-| WYSOKI | powiadomienia: superadmin nic nie dostaje od 13.11, konto zablokowane dostaje dalej | w toku (tor bazy r8b) |
-| WYSOKI | `notify_comment_mentions` z F12 zasypuje firmę (5 wywołań = 65 powiadomień) | w toku (tor bazy r8b) |
-| WYSOKI | bezpiecznik słownika nie widzi koloru ościeżnicy ani receptur (usunięto CZARNY mimo 82 zleceń) | w toku (tor bazy r8b) |
+| WYSOKI | powiadomienia: superadmin nic nie dostaje od 13.11, konto zablokowane dostaje dalej | **poprawione** 267ef27 (`20261128010000`) |
+| WYSOKI | `notify_comment_mentions` z F12 zasypuje firmę (5 wywołań = 65 powiadomień) | **poprawione** 492071f (`010100`: tylko `@Imię` z treści, raz na komentarz) |
+| WYSOKI | bezpiecznik słownika nie widzi koloru ościeżnicy ani receptur (usunięto CZARNY mimo 82 zleceń) | **poprawione** 3bbde09 (`010200`) + komunikat w aplikacji c9a2dc3; 136 z 708 wartości staje się nieusuwalnych (są używane) |
 | ŚREDNI | zmiana nazwy w słowniku zostawia martwe wykluczenia (90 w STA) | **D60** |
-| ŚREDNI | przywracanie z archiwum gubi zdjęcia i wysyła fałszywe „do weryfikacji” | w toku (tor bazy r8b) |
-| ŚREDNI | anon może wylistować pliki w `order-photos` / `feedback-attachments`; `order_photos_insert` bez kontroli autora | w toku (tor bazy r8b) |
+| ŚREDNI | przywracanie z archiwum gubi zdjęcia i wysyła fałszywe „do weryfikacji” | **poprawione** 63fef17 (`010300`) |
+| ŚREDNI | anon może wylistować pliki w `order-photos` / `feedback-attachments`; `order_photos_insert` bez kontroli autora | **poprawione** 85d6f6d (`010400`) |
 | ŚREDNI | `{{ firma }}` / `{{Firma}}` drukowało „-”; dane z `{{…}}` podstawiane drugi raz | **poprawione** 80ce62b (2 testy) |
 | ŚREDNI | kierownik działu dostaje 87% powiadomień spoza swoich kategorii | **D11** (rozszerzone) |
 | NISKI | „Oznacz wszystkie” tylko 30 wczytanych (5038 nieprzeczytanych w bazie); brak ikony `stock_critical` | **poprawione** ee8b25f |
 | NISKI | 1507 pustych wpisów w historii zlecenia („Brak listy zmienionych pól”) | **poprawione** (nazwa operacji zbiorczej) |
-| NISKI | brak audytu na `label_templates`, `config_exclusions`, `dimension_map`; brak `check` wymiarów etykiety | w toku (tor bazy r8b) |
+| NISKI | brak audytu na `label_templates`, `config_exclusions`, `dimension_map`; brak `check` wymiarów etykiety | **poprawione** fb4fa91 (`010500`) |
 | NISKI | błąd usuwania wymiaru i zdejmowania „domyślnego” szablonu ignorowany | **poprawione** 3f6592a |
 
 ## Upraszczanie kodu (DRY) — noc 28.11
@@ -474,6 +474,12 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 34. ⏳ `supabase/migrations/20261128000000_teczka_zkp_zlecenie_produkcyjne.sql` — **KRYTYCZNE dla ZKP**
 35. ⏳ `supabase/migrations/20261128000100_zkp_protokol_ocena_od_nowa.sql` — **KRYTYCZNE dla ZKP**
 36. ⏳ `supabase/migrations/20261128000200_zkp_okucia_wypelnienia_po_potwierdzeniu.sql`
+37. ⏳ `supabase/migrations/20261128010000_powiadomienia_superadmin_bez_zablokowanych.sql`
+38. ⏳ `supabase/migrations/20261128010100_wzmianki_tylko_oznaczeni_raz.sql` — po 37
+39. ⏳ `supabase/migrations/20261128010200_slownik_bezpiecznik_receptury_wykluczenia.sql`
+40. ⏳ `supabase/migrations/20261128010300_przywracanie_z_archiwum_zdjecia_bez_powiadomien.sql`
+41. ⏳ `supabase/migrations/20261128010400_storage_zdjecia_zalaczniki_bez_listowania.sql`
+42. ⏳ `supabase/migrations/20261128010500_audyt_szablony_wykluczenia_wymiary.sql`
 Po wgraniu: `scripts/kontrola-po-wdrozeniu.sql` (pusty wynik = OK). Próba generalna (runda 5): pliki do 233500 przechodzą razem w kolejności nazw, w jednej transakcji. Twarde zależności: 232000+232200 przed 232300; 232100 po 232000; 233100 po 233000; 233300 po 233200; 234400 po 233000.
 Pliki 225000, 232200 i 232700 zmienione w rundzie 4 (nadal niewgrane). 232000 + 232200 + 232300 wgrywać razem.
 Pliki 3–7 zostały w rundzie 3 poprawione (nadal niewgrane). Funkcje Edge 8–10 mają w rundzie 3 kolejne zmiany w repo — wgrywać najnowszą wersję z repo.
