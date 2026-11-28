@@ -19,6 +19,7 @@ import {
   aggregateStockLevels, buildStockRowsCsv, buildStockShortageCsv, compareByStockLevel, countStockLevels, isStockProblem, minSourceLabel,
   parseMinInput, stockLevelHint, stockLevelLabel, type AggregatedStockLevelRow,
 } from '../../lib/stockLevels'
+import { formatIlosc } from '../../lib/magazynFormat'
 
 type LevelFilter = StockLevel | 'problems' | null
 type SortMode = 'worst' | 'alpha'
@@ -51,7 +52,7 @@ function formatDatePl(d: string | null | undefined): string {
 }
 
 const orDash = (v: string | null | undefined) => (v?.trim() ? v : '—')
-const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3))))
+const fmtQty = formatIlosc
 
 const renderAvailableCell = (available: number) => (
   <strong style={available < 0 ? { color: '#c62828' } : undefined}>{fmtQty(available)}</strong>

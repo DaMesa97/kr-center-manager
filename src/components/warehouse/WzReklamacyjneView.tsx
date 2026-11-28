@@ -9,6 +9,7 @@ import { isInternalWarehouseCode } from '../../utils'
 import { generateWzReklamacyjnyPdf, type WzrPdfData } from '../../utils/wzReklamacyjnyPdf'
 import { appConfirm, appPrompt } from '../../lib/appDialogs'
 import type { ToastVariant, Warehouse, WarehouseComponent } from '../../types'
+import { formatIlosc } from '../../lib/magazynFormat'
 
 type Props = {
   warehouses: Warehouse[]
@@ -49,7 +50,7 @@ type Form = {
   items: Item[]
 }
 
-const fmt = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3))))
+const fmt = formatIlosc
 const dataPl = (iso: string) => new Date(iso).toLocaleDateString('pl-PL')
 const label = (c: WarehouseComponent) => `${c.code ? `${c.code} — ` : ''}${c.name}`
 

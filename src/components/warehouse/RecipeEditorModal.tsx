@@ -13,6 +13,7 @@ import { buildRecipeAutoName, getOrderStageDefinitions } from '../../utils'
 import FormInput from '../FormInput'
 import SearchableSelect from '../SearchableSelect'
 import DataTable from '../DataTable'
+import { componentOptionLabel } from '../../lib/magazynFormat'
 
 const RECIPE_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion'] as const
 
@@ -29,10 +30,6 @@ function optionsForCriterionField(fieldKey: string, byType: Record<string, strin
   return byType[def.dict ?? ''] ?? []
 }
 
-
-function componentOptionLabel(c: WarehouseComponent): string {
-  return `${c.code} — ${c.name} (${c.unit})`
-}
 
 type RecipeEditorModalProps = {
   open: boolean

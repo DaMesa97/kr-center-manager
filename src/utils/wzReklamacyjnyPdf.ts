@@ -1,6 +1,7 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import type { TDocumentDefinitions } from 'pdfmake/interfaces'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
+import { formatIlosc } from '../lib/magazynFormat'
 
 type PdfMakeRuntime = typeof pdfMake & {
   vfs?: Record<string, string>
@@ -26,7 +27,7 @@ export type WzrPdfData = {
 
 /** WZ reklamacyjny do podpisu: nagłówek, pozycje, Wydał / Odebrał. */
 export function generateWzReklamacyjnyPdf(d: WzrPdfData, companyName = 'KR Center'): void {
-  const fmt = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3))))
+  const fmt = formatIlosc
   const info = (label: string, value: string | null) =>
     value ? [{ text: label, color: '#64748b', fontSize: 8.5 }, { text: value, fontSize: 10, bold: true }] : null
   const pola = [

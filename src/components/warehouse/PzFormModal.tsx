@@ -5,6 +5,7 @@ import type { IncomingStockRow, PzFormState, PzItem, Supplier, Warehouse, Wareho
 import SearchableSelect from '../SearchableSelect'
 import DataTable from '../DataTable'
 import { isInternalWarehouseCode } from '../../utils'
+import { componentOptionLabel } from '../../lib/magazynFormat'
 
 type PzFormModalProps = {
   open: boolean
@@ -22,10 +23,6 @@ type PzFormModalProps = {
   saving: boolean
   /** Otwarte pozycje ZD ("w drodze") — do ostrzeżenia przed podwójnym liczeniem */
   incoming?: IncomingStockRow[]
-}
-
-function componentOptionLabel(c: WarehouseComponent): string {
-  return `${c.code} — ${c.name} (${c.unit})`
 }
 
 const COMPONENT_FILTERS = [

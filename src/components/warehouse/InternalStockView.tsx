@@ -18,6 +18,7 @@ import DoorStockGrid from './DoorStockGrid'
 import { buildDoorGrid } from '../../lib/doorStockGrid'
 import Spinner from '../Spinner'
 import type { ToastVariant, WarehouseComponent } from '../../types'
+import { formatIlosc } from '../../lib/magazynFormat'
 
 type Props = {
   components: WarehouseComponent[]
@@ -30,7 +31,7 @@ type Row = WarehouseComponent & { stock: number; byWh: Map<number, number>; rese
 type InternalWh = { id: number; code: string; name: string }
 
 const PAGE = 100
-const fmt = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3))))
+const fmt = formatIlosc
 const CHUNK = 150
 
 /**

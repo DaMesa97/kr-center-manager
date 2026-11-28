@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import type { MmFormState, MmItem, Warehouse, WarehouseComponent } from '../../types'
 import SearchableSelect from '../SearchableSelect'
 import DataTable, { type DataTableColumn } from '../DataTable'
+import { componentOptionLabel } from '../../lib/magazynFormat'
 
 type MmFormModalProps = {
   open: boolean
@@ -18,10 +19,6 @@ type MmFormModalProps = {
   onSave: () => Promise<void>
   onClose: () => void
   saving: boolean
-}
-
-function componentOptionLabel(c: WarehouseComponent): string {
-  return `${c.code} — ${c.name} (${c.unit})`
 }
 
 function MmFormModal({
