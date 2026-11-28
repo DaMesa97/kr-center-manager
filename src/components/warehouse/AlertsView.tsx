@@ -6,6 +6,7 @@ import type { AlertThresholds, StockAlert } from '../../types'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import { isDoorCategory } from '../../lib/internalWarehouse'
+import { ORIENTACYJNIE_TITLE } from '../../lib/forecastQuality'
 
 type Props = {
   isManager: boolean
@@ -58,6 +59,8 @@ function mapRpcRow(row: Record<string, unknown>): StockAlert {
     available: Number(row.r_available ?? row.r_current_stock ?? 0),
     incoming_qty: Number(row.r_incoming_qty ?? 0),
     earliest_eta: (row.r_earliest_eta as string | null) ?? null,
+    // D7 (b): kolumna od migracji 20261127232800 — bez niej false (jak dotąd)
+    forecast_indicative: row.r_forecast_indicative === true,
   }
 }
 
@@ -444,13 +447,35 @@ const alertColumns: DataTableColumn<StockAlert>[] = [
         '—'
       ),
   },
-  { key: 'daily', label: 'Zużycie dzienne', stackUnder: 'days', sortValue: (a) => a.daily_consumption, render: (a) => a.daily_consumption },
+  {
+    key: 'daily',
+    label: 'Zużycie dzienne',
+    stackUnder: 'days',
+    sortValue: (a) => a.daily_consumption,
+    render: (a) => (
+      <>
+        {a.daily_consumption}
+        {a.forecast_indicative && (
+          <div style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 600 }} title={ORIENTACYJNIE_TITLE}>
+            orientacyjnie
+          </div>
+        )}
+      </>
+    ),
+  },
   {
     key: 'days',
     label: 'Dni do wyczerpania',
     title: 'Symulacja: dostępne minus dzienne zużycie, dostawy wpadają w swoich terminach',
     sortValue: (a) => a.days_until_empty,
-    render: (a) => (a.days_until_empty === null ? '—' : `${a.days_until_empty} dni`),
+    render: (a) =>
+      a.days_until_empty === null ? (
+        '—'
+      ) : a.forecast_indicative ? (
+        <span title={ORIENTACYJNIE_TITLE}>≈ {a.days_until_empty} dni</span>
+      ) : (
+        `${a.days_until_empty} dni`
+      ),
   },
   {
     key: 'suggested',

@@ -899,6 +899,8 @@ export type StockAlert = {
   /** w drodze z otwartych ZD */
   incoming_qty: number
   earliest_eta: string | null
+  /** D7 (b): prognoza orientacyjna (< 3 pełnych miesięcy historii); brak kolumny w bazie = false */
+  forecast_indicative?: boolean
 }
 
 export type SmartRopRow = {

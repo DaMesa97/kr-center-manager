@@ -15,6 +15,7 @@ import SeasonalFactorsEditor from './SeasonalFactorsEditor'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import { isDoorCategory } from '../../lib/internalWarehouse'
+import { forecastDataLabel, forecastQuality, ORIENTACYJNIE_TITLE } from '../../lib/forecastQuality'
 
 type Props = {
   components: WarehouseComponent[]
@@ -31,7 +32,17 @@ const forecastColumns: DataTableColumn<ForecastPoint>[] = [
     sortValue: (f) => f.year * 100 + f.month,
     render: (f) => `${f.year}-${String(f.month).padStart(2, '0')}`,
   },
-  { key: 'qty', label: 'Prognoza (szt.)', sortValue: (f) => f.forecast_qty, render: (f) => f.forecast_qty },
+  {
+    key: 'qty',
+    label: 'Prognoza (szt.)',
+    sortValue: (f) => f.forecast_qty,
+    render: (f) =>
+      forecastQuality(f.insufficient_data, f.baseline) === 'indicative' ? (
+        <span title={ORIENTACYJNIE_TITLE}>≈ {f.forecast_qty} <small style={{ color: '#b45309' }}>orientacyjnie</small></span>
+      ) : (
+        f.forecast_qty
+      ),
+  },
   {
     key: 'factor',
     label: 'Mnożnik sezonowy',
@@ -193,6 +204,12 @@ export default function ForecastView({ components, suppliers = [], isManager }: 
     if (selectedComponentId == null) return
     void fetchComponentData(selectedComponentId)
   }, [selectedComponentId, fetchComponentData])
+
+  // D7 (b): < 3 pełnych miesięcy → średnia orientacyjna (po migracji 20261127232800), wcześniej 0 = brak danych
+  const forecastQ = forecastQuality(
+    Boolean(forecast?.forecast_json[0]?.insufficient_data),
+    forecast?.baseline_qty ?? 0,
+  )
 
   const chartData = useMemo(() => {
     const historyPoints = history.map((h) => ({
@@ -366,14 +383,17 @@ export default function ForecastView({ components, suppliers = [], isManager }: 
               <h3>{selectedComponent.name}</h3>
               <div className="forecast-meta">
                 <span>Stan bieżący: {forecast.current_stock_total}</span>
-                <span title="Średnie miesięczne zużycie z historii, od którego liczona jest prognoza">Średnie zużycie: {forecast.baseline_qty}/mies.</span>
-                <span>Miesięcy historii: {forecast.historical_months_used}</span>
-                <span>
-                  {forecast.forecast_json[0]?.insufficient_data
-                    ? 'Dane: za mało historii'
-                    : 'Dane: wystarczająca historia'}
+                <span title="Średnie miesięczne zużycie z historii, od którego liczona jest prognoza">
+                  Średnie zużycie: {forecast.baseline_qty}/mies.{forecastQ === 'indicative' ? ' (orientacyjnie)' : ''}
                 </span>
-                {forecast.forecast_json[0]?.insufficient_data && (
+                <span title="Pełne miesiące (bez bieżącego i bez niepełnego miesiąca pierwszego ruchu)">Pełnych miesięcy historii: {forecast.historical_months_used}</span>
+                <span>{forecastDataLabel(forecastQ)}</span>
+                {forecastQ === 'indicative' && (
+                  <span className="forecast-warning" title={ORIENTACYJNIE_TITLE}>
+                    ⚠ Średnia orientacyjna — mniej niż 3 pełne miesiące historii, prognoza mało pewna
+                  </span>
+                )}
+                {forecastQ === 'none' && (
                   <span className="forecast-warning">
                     ⚠ Zbyt mało danych historycznych — prognoza mało wiarygodna
                   </span>
