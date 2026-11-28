@@ -367,7 +367,11 @@ Błędy znalezione przy okazji i poprawione (jako `fix`, nie refaktor):
 | 841fe79 | martwe stałe i typy w 8 plikach | −49 |
 | f1f2014 | nieużywana kolumna PILNE i stara funkcja CRM | −50 |
 | 7349a64 | nieużywane parametry 3 hooków, scalone importy | −9 |
-| **Razem** | | **−187** |
+| 0bae609 | `x && !isReleaseDateEmpty(x)` → `!isReleaseDateEmpty(x)` (6 miejsc) | 0 (prostsze warunki) |
+| 38ae994 | `componentOptionLabel` i `formatIlosc` w `lib/magazynFormat` (7 kopii → 1, + test) | −5 kodu (+20 testu) |
+| 4d5829a | `CAT_COLORS` / `CAT_LABEL` w `mobile/mobileKategorie` (6 kopii → 1) | −10 |
+| 90ee4dd | `fmtDateTime` w `lib/crmFormat` (3 kopie → 1) | −6 |
+| **Razem** | | **−208 linii kodu aplikacji** (+20 linii testów) |
 Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian (83 = 66 ze startu + 17 w pliku z serwera).
 
 ## Do decyzji
