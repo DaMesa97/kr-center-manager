@@ -549,7 +549,7 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 
 - **1.1.12 WDROŻONA 28.11 ok. 15:45** (kopia przed: `C:/KRCenter-Backups/krcenter-2026-11-28-14-32-55.dump`): 20 migracji jedną transakcją (D69 przed wgraniem zmienione: cofnięcie ZD do szkicu tylko admin), indeksy D49 (`concurrently`, ważne), cron D67 (03:45). Kontrole: nocna i decyzji puste, nowe obiekty obecne, Weryfikacja < 200 otwartych, D17 zmienił wartość 6 klientów.
   - `20261128044000` WGRANY: 89 martwych wykluczeń STA przepisanych na obecne nazwy (właściciel: „przepisać”); id 1508 (PROFILE 120 CZARNY PATINA) pominięte.
-  - Edge: crm-dokumenty v9, crm-call-ingest v23 (z niewdrożonymi wcześniej poprawkami nocy), sprzatanie-zdjec v1 (nowa) — zgodne z repo. **orders-excel-intake (na serwerze `dynamic-handler` v28) NIE wgrany** — zabezpieczenie sesji zablokowało wdrożenie pod nazwą serwera; serwer = commit 1a8f469 (różnica: kolejność 2 nazwanych parametrów). Bez tego D35 działa tylko wstecz (migracja), nowe kolizje numerów z inną firmą nadal trafią do Weryfikacji.
+  - Edge: crm-dokumenty v9, crm-call-ingest v23 (z niewdrożonymi wcześniej poprawkami nocy), sprzatanie-zdjec v1 (nowa) — zgodne z repo. orders-excel-intake wgrany po zgodzie właściciela („Tak, wgraj”) jako **`dynamic-handler` v29** (pod tą nazwą woła go Make; serwer = repo HEAD).
   - Aplikacja **1.1.12 OPUBLIKOWANA** (clean = tag v1.1.12 = 9db1d9a, min_app_version 1.1.12).
   - Odpowiedzi właściciela: D17 nadpisywanie wartości — TAK (bez zmian); D69 tylko admin — TAK (zrobione); magazynier bez Zamawiania — NIE (bez zmian); wykluczenia — przepisać (zrobione); pytania ZKP — później.
 
