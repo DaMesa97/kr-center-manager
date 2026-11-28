@@ -6,7 +6,7 @@ import { supabase } from '../../supabaseClient'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import { fetchAllPages } from '../../lib/fetchPaged'
-import { localDateStr } from '../../lib/localDates'
+import { localDateStr, minusMonths } from '../../lib/localDates'
 import { daysBetween } from '../../lib/companyStats'
 
 const PROD_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne'] as const
@@ -37,13 +37,9 @@ function median(nums: number[]): number {
 }
 
 function presetFromDate(preset: Preset): string {
-  const now = new Date()
-  const d = new Date(now)
-  if (preset === 'month') d.setMonth(d.getMonth() - 1)
-  else if (preset === 'quarter') d.setMonth(d.getMonth() - 3)
-  else if (preset === 'halfyear') d.setMonth(d.getMonth() - 6)
-  else d.setFullYear(d.getFullYear() - 1)
-  return localDateStr(d)
+  // runda 10: minusMonths zamiast setMonth (31.03 − 1 mies. dawało 3.03)
+  const n = preset === 'month' ? 1 : preset === 'quarter' ? 3 : preset === 'halfyear' ? 6 : 12
+  return localDateStr(minusMonths(new Date(), n))
 }
 
 export default function LeadTimeStatsView() {

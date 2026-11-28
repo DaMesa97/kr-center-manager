@@ -33,3 +33,14 @@ export function localDayEndExclusiveIso(dateStr: string): string {
   d.setDate(d.getDate() + 1)
   return d.toISOString()
 }
+
+/**
+ * Data n miesięcy wstecz bez „przelewania” na koniec miesiąca (runda 10, 28.11):
+ * setMonth(-1) 31 marca dawało 3 marca (31 lutego nie istnieje); tu dostajemy 28/29 lutego.
+ */
+export function minusMonths(d: Date, n: number): Date {
+  const y = d.getFullYear()
+  const m = d.getMonth() - n
+  const lastDay = new Date(y, m + 1, 0).getDate()
+  return new Date(y, m, Math.min(d.getDate(), lastDay), d.getHours(), d.getMinutes(), d.getSeconds())
+}

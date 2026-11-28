@@ -4,7 +4,7 @@ import { supabase } from '../../supabaseClient'
 import Spinner from '../Spinner'
 import DataTable, { type DataTableColumn } from '../DataTable'
 import { fetchAllPages } from '../../lib/fetchPaged'
-import { localDateStr } from '../../lib/localDates'
+import { localDateStr, minusMonths } from '../../lib/localDates'
 import { appPrompt } from '../../lib/appDialogs'
 import {
   BRAK,
@@ -122,8 +122,7 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
 
   const loadSprzedaz = useCallback(async (m: number) => {
     setLoadingSprzedaz(true)
-    const from = new Date()
-    from.setMonth(from.getMonth() - m)
+    const from = minusMonths(new Date(), m) // runda 10: 31.05 − 3 mies. dawało 3.03
     const { data, error: err } = await fetchAllPages<Record<string, unknown>>((a, b) =>
       supabase
         .rpc('stat_wew_sprzedaz', { p_from: localDateStr(from), p_to: localDateStr(new Date()) })
