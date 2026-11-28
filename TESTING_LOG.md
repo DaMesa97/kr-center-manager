@@ -360,7 +360,15 @@ Błędy znalezione przy okazji i poprawione (jako `fix`, nie refaktor):
 | odmiana „22 zleceń” / „0 zlecenia” w 4 miejscach | 74ae676 |
 | zakładanie Titana: błąd oznaczenia grupy ignorowany | 01a3489 |
 
-**Licznik upraszczania:** ubyło 0 linii (refaktory czekają na wynik recenzji rundy 7 — przy otwartych błędach wysokich nie zaczynam).
+**Licznik upraszczania** (aktualizowany po każdym refaktorze):
+| Commit | Co | Linie |
+|---|---|---|
+| a977840 | martwe funkcje w `utils.ts` (isOrderOverdue, getOrderTargetProductionDate, formatTodayDDMMYYYY, staTitanMirror*, orderAddonAbsentForE22Lock) | −79 |
+| 841fe79 | martwe stałe i typy w 8 plikach | −49 |
+| f1f2014 | nieużywana kolumna PILNE i stara funkcja CRM | −50 |
+| 7349a64 | nieużywane parametry 3 hooków, scalone importy | −9 |
+| **Razem** | | **−187** |
+Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian (83 = 66 ze startu + 17 w pliku z serwera).
 
 ## Do decyzji
 > Od 28.11 w nocy pełna, uporządkowana lista jest w `DECISIONS.md` (format: problem / opcje / rekomendacja / pilność / praca). Poniżej historyczna lista z rund 1–4.
