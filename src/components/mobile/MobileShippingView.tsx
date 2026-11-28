@@ -195,6 +195,7 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
         .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.neq.true')
         .select('id')
       if (!mountedRef.current) return
+      let wydaneWczesniej: string | null = null
       if (error || !updated || updated.length === 0) {
         // runda 10 (tester telefonu): przy zgubionej odpowiedzi data mogła się zapisać, a WZ nie poszła —
         // ponowienie trafiało w „już wydane” i rezerwacje wisiały. Sprawdzamy stan w bazie: zlecenie wydane
@@ -209,6 +210,10 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
           !!teraz &&
           !isReleaseDateEmpty(teraz.release_date as string | null) &&
           (teraz.extra_fields as { cancelled?: unknown } | null)?.cancelled !== true
+        // runda 11 (recenzent): wydał ktoś inny (inny dzień) — nie mówimy „Oznaczono jako wydane”
+        if (juzWydane && String(teraz?.release_date ?? '').slice(0, 10) !== today) {
+          wydaneWczesniej = String(teraz?.release_date ?? '').slice(0, 10)
+        }
         if (!juzWydane) {
           flash(
             error
@@ -240,6 +245,7 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
       setOrders((prev) => prev.filter((o) => o.id !== order.id))
       // ostrzeżenie zostaje na ekranie — sukces by je nadpisał
       if (warned) flash('Wydane, ale WZ z magazynu NIE zeszła — zgłoś kierownikowi', true)
+      else if (wydaneWczesniej) flash(`Zlecenie było już wydane (${wydaneWczesniej}) — sprawdzono zdjęcie z magazynu ✓`)
       else flash('Oznaczono jako wydane ✓')
       setConfirm(null)
     } finally {
