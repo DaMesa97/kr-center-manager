@@ -518,6 +518,49 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
 - Funkcje Edge: `excel-sync` v16 → **v17** (repo HEAD; serwer v16 = repo z 24.11, różnica = poprawki nocne). Pierwszy przebieg Make dopiero w poniedziałek (ostatni piątek 20:00) — sprawdzić `excel_sync_runs`. `crm-oferta` v29 → **v30** (D39, Bastion P-110; po wdrożeniu 6 plików identycznych z repo). W ofercie, która dawała „nie jest na liście kandydatów”, kliknąć „Policz od nowa”.
 - Aplikacja: **1.1.8 OPUBLIKOWANA** (gałąź `clean` przewinięta do nocnej i wypchnięta, tag v1.1.8 = 3da636b, `min_app_version` = 1.1.8 — wymuszona aktualizacja).
 
+## Decyzje właściciela 28.11 — przygotowane do wdrożenia (NIE wgrane)
+Próba generalna 28.11 po południu: 28 plików poniżej (bez 036001 i 036200) razem w transakcji cofniętej na produkcji (już z pakietem z południa) — 0 błędów. Kontrola po wgraniu: `scripts/kontrola-decyzje-28-11.sql` (każde zapytanie: pusty wynik = OK).
+Kolejność = kolejność nazw:
+1. `20261127232800_prognozy_pelne_miesiace.sql` (D7, poprawiony) — po wgraniu `select public.run_all_forecasts();`
+2. `20261128030000` D30 · `030100` D41 · `030200` D14 · `030300` D16 (po 030200) · `030400` D15
+3. `20261128031000` D43 · `031100` D26 · `031200` D11 (oznaczy ~1336 zaległych powiadomień spoza zakresu jako przeczytane) · `031300` D59 · `031400` D12 (przenosi ceny do `ceny_konfiguratora`) · `031500` D31
+4. `20261128032000` D22/D64 · `032100` D25 (po 032000) — razem z Edge `excel-sync` v18 (nowy plik `daty.ts`)
+5. `20261128033000` D17 (oznaczy 10 klientów „Zamówił”) · `033100` D18 · `033200` D19 (zamiast zmiany wgranego 233500) · `033300` D21 (po 033100) — Edge `crm-dokumenty` (D20, nowy plik `usuwanie.ts`)
+6. `20261128034000` D62
+7. `20261128035000` D52 · `035100` D54 · `035200` D58 · `035300` D53 (PIN — RAZEM z nową wersją aplikacji; przed pierwszym zleceniem ZKP ustawić PIN-y) · `035400` D57
+8. `20261128036000` D68 (krok 1, do schematu `archiwum`) · `036100`, `036101`, `036102` D10 — Edge `optima-ro-import` po 036100
+9. **Czekają na potwierdzenie**: `036001` (D68 drop — po sprawdzeniu kopii), `036200` (D8 Disting Plus — interpretacja do potwierdzenia), `233000` + `235100` (po poprawie receptury ramy ST).
+
+| Waga | Decyzja | Stan |
+|---|---|---|
+| ŚREDNI | D7 prognoza orientacyjna przy < 3 pełnych mies. | 232800 + aplikacja |
+| ŚREDNI | D41 błąd zdjęcia z magazynu → etap zapisany, „Magazyn do sprawdzenia” w Weryfikacji | 030100 + aplikacja (desktop, telefon) |
+| ŚREDNI | D14 blokada PZ/MM/przyjęcia ZD w trakcie spisu (włączana przy spisie) | 030200 + aplikacja |
+| ŚREDNI | D16 MM pyta o przeniesienie rezerwacji | 030300 + aplikacja |
+| ŚREDNI | D15 receptura przelicza niezrobione etapy | 030400 + aplikacja; kolejka pg_cron do zrobienia |
+| NISKI | D30 „Oznacz jako wydane” robi rozchód od spisu | 030000 + aplikacja |
+| ❌ | D9 jedna funkcja „ile zamówić” | plan — pytanie o rezerwacje i target |
+| ŚREDNI | D43 wydanego nie da się anulować, kaskada pomija wydane | 031000 + aplikacja |
+| ŚREDNI | D26 archiwizacja po dacie wydania, pary/Titany w całości | 031100 (z zabezpieczeniem created_at > 12 mies.) |
+| NISKI | D11 kierownik działu: Weryfikacja i powiadomienia swoich kategorii | 031200 + aplikacja |
+| NISKI | D59 szablony druku tylko admin | 031300 + aplikacja |
+| ŚREDNI | D12 ceny konfiguratora tylko dla kierowników | 031400 + aplikacja |
+| NISKI | D31 magazynier bez tras | 031500 + aplikacja |
+| ŚREDNI | D22/D64 cofnięty etap nie wraca z Excela | 032000 + Edge |
+| ŚREDNI | D25 data zamiast „X” | 032100 + Edge |
+| NISKI | D32 „90E” ≠ „90” w słowniku wymiarów | aplikacja (getDimensions) |
+| ŚREDNI | D17 sklep potwierdzony → „Zamówił” | 033000 + aplikacja |
+| NISKI | D18 / D19 / D21 CRM | 033100 / 033200 / 033300 + aplikacja |
+| ŚREDNI | D20 RODO: PDF-y kasowane z klientem | Edge crm-dokumenty + aplikacja |
+| ŚREDNI | D66 limit czasu zapisów na telefonie | aplikacja |
+| ŚREDNI | D62 telefon: swoje kategorie; drzwi wewn. odhacza KD tylko z kategorią | 034000 + aplikacja |
+| WYSOKI | D52 / D54 / D53 ZKP (wyłączenie, kolejność etapów, PIN) | 035000 / 035100 / 035300 + aplikacja |
+| ŚREDNI | D58 / D57 ZKP (kwarantanna, ZKP na pozycji) | 035200 / 035400 + aplikacja |
+| NISKI | D68 migracja_* do archiwum | 036000 (036001 po kopii) |
+| NISKI | D13 Pulpit „Do wysłania”, Techniczne osobno | aplikacja |
+| ŚREDNI | D10 MR Profil (MR/, nieudane RO, MR_WEW, statystyki) | 036100–036102 + Edge optima-ro-import + aplikacja |
+| ŚREDNI | D8 Disting Plus e3/e4 z Marklowickiej | 036200 — czeka na potwierdzenie |
+
 ## Migracje do wdrożenia na produkcję
 1. ✅ już wgrane (regresja): `supabase/migrations/20261127221000_crm_bez_decyzji_po_wyniku_v2.sql`
 2. ✅ już wgrane (regresja): funkcja Edge `crm-mail-sent` v18 (kod w repo)
