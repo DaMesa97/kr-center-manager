@@ -25,6 +25,11 @@ const SECTIONS: Section[] = [
     keywords: 'nowości zmiany changelog wersja beta reklamacje stanowisko eksport csv druk offline przerwij cofanie',
     body: (
       <>
+        <h4>Wersja 1.1.10: nowy Pulpit</h4>
+        <ul>
+          <li><b>Pulpit</b> pokazuje stan produkcji KR Center: u góry cztery liczby (w produkcji, po terminie, do wysłania, stany poniżej progu), niżej „Wymaga uwagi” — kolejki do obsłużenia z przejściem jednym kliknięciem, obok „Synchronizacje” ze statusem Działa / Błąd (Excel, import RO z Optimy, wysyłka zamówień do Optimy), na dole tabela kategorii z liczbą zleceń po terminie. Bez spraw Po Drzwi i bez Technicznych.</li>
+          <li><b>Receptury ST</b>: ościeżnica schodzi z magazynu przy etapie „Montaż drzwi” (wcześniej była przypięta do etapu ościeżnicy, który w ST jest „nie dotyczy”).</li>
+        </ul>
         <h4>Wersja 1.1.9: decyzje właściciela z 28.11</h4>
         <ul>
           <li><b>Magazyn</b>: prognozy przy krótkiej historii pokazują średnią „orientacyjnie” (alerty nie gasną). Błąd zdjęcia z magazynu nie zatrzymuje etapu — zlecenie trafia do Weryfikacji „Magazyn do sprawdzenia” (Ponów / Sprawdzone). Przy otwieraniu spisu można wstrzymać PZ i MM na tym magazynie. MM pyta, czy przenieść też rezerwacje zleceń. Zmiana receptury przelicza tylko niezrobione etapy zleceń w produkcji. „Oznacz jako wydane” w Wysyłkach zdejmuje towar dla zleceń zamówionych od spisu 6.11.</li>
