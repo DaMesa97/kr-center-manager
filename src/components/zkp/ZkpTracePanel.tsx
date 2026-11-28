@@ -6,6 +6,7 @@ import { aluOrderExtra, aluStageDone, formatAluDims, formatAluGlass, formatAluNo
 import { formatProductionOrderNo } from '../../lib/aluConstructions'
 import { findTrace, loadAluOrderTrace, type AluOrderTrace, type TraceOrderChoice } from '../../lib/aluTraceData'
 import { describeTraceQuery, parseTraceQuery } from '../../lib/zkpTrace'
+import { aluPositionIsZkp } from '../../lib/zkp'
 import { isReleaseDateEmpty } from '../../utils'
 import DossierExportButton from '../DossierExportButton'
 import ZkpCardModal, { type ZkpCardTarget } from './ZkpCardModal'
@@ -217,7 +218,8 @@ function TraceResult({
           <h3 className="zkp-trace-h">
             Konstrukcja — poz. {construction.pos_no}, sztuka {construction.piece_index}
             {position ? ` z ${position.quantity}` : ''}
-            {trace.isZkp && construction.status === 'aktywna' && (
+            {/* D57: karta wyrobu tylko dla pozycji ZKP (zlecenia mieszane AS 75EI + AS75) */}
+            {trace.isZkp && construction.status === 'aktywna' && (!position || aluPositionIsZkp(position.system, trace.zkpOverride)) && (
               <button
                 type="button"
                 className="btn btn-sm btn-primary"

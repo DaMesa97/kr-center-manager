@@ -193,3 +193,12 @@ export function zkpScanPath(fileName: string, now = new Date()): string {
     .slice(0, 60) || 'dokument'
   return `przyjecia/${now.getFullYear()}/${now.getTime()}_${base}.${ext || 'pdf'}`
 }
+
+// D57: ZKP na poziomie pozycji (jak alu_position_is_zkp w bazie, migracja 20261128035400)
+/** System pozycji to AS 75EI (wyrób przeciwpożarowy). */
+export const isAs75EiSystem = (system: string | null | undefined) => /75\s*-?\s*EI/i.test(system ?? '')
+/** Pozycja podlega ZKP: ręczne oznaczenie zlecenia ma pierwszeństwo, inaczej system AS 75EI. */
+export function aluPositionIsZkp(system: string | null | undefined, orderOverride: boolean | null | undefined): boolean {
+  if (orderOverride === true || orderOverride === false) return orderOverride
+  return isAs75EiSystem(system)
+}

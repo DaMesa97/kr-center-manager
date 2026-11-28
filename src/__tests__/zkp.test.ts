@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   zkpCanDecide,
   zkpCanReceive,
+  aluPositionIsZkp,
+  isAs75EiSystem,
   zkpForcedQuarantineReasons,
   zkpScanPath,
   zkpSupplierState,
@@ -73,5 +75,21 @@ describe('D58: niezgodna partia i dostawca po terminie oceny', () => {
     expect(zkpSupplierState(qual, [assessment({ next_assessment_on: '2026-10-25' })], today).qualified).toBe(false)
     expect(zkpSupplierState(qual, [assessment({ next_assessment_on: '2026-10-26' })], today).qualified).toBe(true)
     expect(zkpSupplierState(qual, [assessment({ next_assessment_on: null })], today).qualified).toBe(true)
+  })
+})
+
+describe('D57: ZKP na poziomie pozycji (zlecenia mieszane)', () => {
+  it('system AS 75EI w różnych zapisach', () => {
+    expect(isAs75EiSystem('AS 75EI')).toBe(true)
+    expect(isAs75EiSystem('Aluprof AS 75 EI')).toBe(true)
+    expect(isAs75EiSystem('AS75-EI')).toBe(true)
+    expect(isAs75EiSystem('AS 75')).toBe(false)
+    expect(isAs75EiSystem(null)).toBe(false)
+  })
+  it('ręczne oznaczenie zlecenia ma pierwszeństwo', () => {
+    expect(aluPositionIsZkp('AS 75', null)).toBe(false)
+    expect(aluPositionIsZkp('AS 75EI', null)).toBe(true)
+    expect(aluPositionIsZkp('AS 75', true)).toBe(true)
+    expect(aluPositionIsZkp('AS 75EI', false)).toBe(false)
   })
 })

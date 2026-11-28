@@ -17,6 +17,8 @@ export type AluOrderTrace = {
   production: AluProductionOrder | null
   dossier: AluDossierItem[]
   isZkp: boolean
+  /** D57: ręczne oznaczenie ZKP zlecenia (null = automatycznie po systemie pozycji) */
+  zkpOverride: boolean | null
 }
 
 export type TraceHit = { orderId: number; constructionId: number | null }
@@ -80,7 +82,7 @@ export async function findTrace(q: TraceQuery): Promise<Res<TraceHit | TraceOrde
 
 /** Zlecenie, pozycje, konstrukcje, wszystkie wersje dokumentów, stan teczki. */
 export async function loadAluOrderTrace(orderId: number): Promise<Res<AluOrderTrace>> {
-  const [orderRes, posRes, conRes, docRes, prodRes, dossierRes, zkpRes] = await Promise.all([
+  const [orderRes, posRes, conRes, docRes, prodRes, dossierRes, zkpRes, ovRes] = await Promise.all([
     supabase.from('orders').select('*').eq('id', orderId).maybeSingle<Order>(),
     fetchAllPages<AluPosition>((from, to) =>
       supabase.from('order_alu_positions').select('*').eq('order_id', orderId).order('pos_no').order('id').range(from, to),
@@ -94,6 +96,7 @@ export async function loadAluOrderTrace(orderId: number): Promise<Res<AluOrderTr
     supabase.from('alu_production_orders').select('*').eq('order_id', orderId).maybeSingle<AluProductionOrder>(),
     supabase.rpc('alu_dossier_status', { p_order_id: orderId }),
     supabase.rpc('alu_order_is_zkp', { p_order_id: orderId }),
+    supabase.from('alu_zkp_override').select('is_zkp').eq('order_id', orderId).maybeSingle<{ is_zkp: boolean }>(),
   ])
   const err = orderRes.error ?? posRes.error ?? conRes.error ?? docRes.error ?? prodRes.error ?? dossierRes.error ?? zkpRes.error
   if (err) return { ok: false, error: err.message }
@@ -108,6 +111,8 @@ export async function loadAluOrderTrace(orderId: number): Promise<Res<AluOrderTr
       production: prodRes.data ?? null,
       dossier: (dossierRes.data ?? []) as AluDossierItem[],
       isZkp: zkpRes.data === true,
+      // błąd odczytu oznaczenia nie blokuje śledzenia (jak bez oznaczenia)
+      zkpOverride: ovRes.error ? null : (ovRes.data?.is_zkp ?? null),
     },
   }
 }
