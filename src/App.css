@@ -10665,3 +10665,62 @@ li.optima-item--kit-part { margin-left: 16px; }
 .crm-zal-blad { flex-basis: 100%; color: #b3261e; font-size: 0.8rem; }
 .shipments-link--inline { margin-top: 0; font-size: 13px; }
 .shipments-dostawa { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #fdf3dc; color: #7a4a06; font-size: 12px; font-weight: 600; }
+
+/* ── Pulpit KR Center (28.11, makieta właściciela): bez ikon, liczby tabelaryczne ─────────────── */
+.pulpit { --p-ink: #1A2230; --p-muted: #5A6372; --p-line: #E2E5EA; --p-line-soft: #EEF0F3; --p-red: #B42318; --p-amber: #9A5B00; --p-green: #1F6B3A; --p-link: #1E3A8A;
+  max-width: 1240px; padding: 28px 32px 56px; display: flex; flex-direction: column; gap: 24px; color: var(--p-ink); font-variant-numeric: tabular-nums; box-sizing: border-box; }
+.pulpit-naglowek { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.pulpit-tytul { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; color: var(--p-ink); }
+.pulpit-podtytul { margin: 6px 0 0; font-size: 14px; color: var(--p-muted); }
+.pulpit-przycisk { font: inherit; font-size: 13px; font-weight: 500; color: var(--p-ink); background: #fff; border: 1px solid #CDD2DA; border-radius: 6px; padding: 0 16px; height: 36px; cursor: pointer; }
+.pulpit-przycisk:hover:not(:disabled) { background: #F5F6F8; }
+.pulpit-przycisk:disabled { color: var(--p-muted); cursor: default; }
+.pulpit-blad { padding: 12px 16px; border: 1px solid #F1C4BE; background: #FDF3F2; color: var(--p-red); border-radius: 6px; font-size: 14px; }
+.pulpit-pasek { background: #fff; border: 1px solid var(--p-line); border-radius: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); overflow: hidden; }
+.pulpit-pasek-pole { font: inherit; text-align: left; background: #fff; border: 0; border-right: 1px solid var(--p-line); padding: 20px 24px; color: inherit; }
+.pulpit-pasek-pole:last-child { border-right: 0; }
+button.pulpit-pasek-pole { cursor: pointer; }
+button.pulpit-pasek-pole:hover { background: #F8F9FB; }
+.pulpit-etykieta { font-size: 12px; font-weight: 600; color: var(--p-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.pulpit-duza { margin-top: 8px; font-size: 32px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.pulpit-opis { margin-top: 2px; font-size: 13px; color: var(--p-muted); }
+.pulpit-kolumny { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.pulpit-panel { background: #fff; border: 1px solid var(--p-line); border-radius: 8px; min-width: 0; }
+.pulpit-panel--szeroki { flex: 999 1 520px; }
+.pulpit-panel--waski { flex: 1 1 300px; }
+.pulpit-panel-naglowek { padding: 14px 24px; border-bottom: 1px solid var(--p-line); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.pulpit-panel-naglowek h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--p-ink); }
+.pulpit-kolejka { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: center; gap: 20px; padding: 14px 24px; border-bottom: 1px solid var(--p-line-soft); }
+.pulpit-kolejka:last-child { border-bottom: 0; }
+.pulpit-kolejka-liczba { font-size: 24px; font-weight: 600; text-align: right; letter-spacing: -0.01em; }
+.pulpit-kolejka-tekst { min-width: 0; }
+.pulpit-kolejka-nazwa { font-size: 14px; font-weight: 600; }
+.pulpit-link { font: inherit; font-size: 13px; font-weight: 500; color: var(--p-link); background: none; border: 0; padding: 6px 0; cursor: pointer; white-space: nowrap; text-align: left; }
+.pulpit-link:hover { text-decoration: underline; }
+.pulpit-link--ciemny { font-size: 14px; color: var(--p-ink); }
+.pulpit-sync { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--p-line-soft); }
+.pulpit-sync-nazwa { font-size: 14px; font-weight: 500; }
+.pulpit-status { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; }
+.pulpit-przypis { margin: 0; padding: 12px 24px 16px; font-size: 12px; color: var(--p-muted); }
+.pulpit-tabela-ramka { overflow-x: auto; }
+.pulpit-tabela { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 14px; }
+.pulpit-tabela thead th { text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--p-muted); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--p-line); }
+.pulpit-tabela thead th:first-child, .pulpit-tabela tbody th { padding-left: 24px; }
+.pulpit-tabela tbody th { text-align: left; font-weight: 500; padding-top: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--p-line-soft); }
+.pulpit-tabela td { padding: 12px 16px; border-bottom: 1px solid var(--p-line-soft); }
+.pulpit-tabela tbody tr:last-child th, .pulpit-tabela tbody tr:last-child td { border-bottom: 0; }
+.pulpit-kol-pasek { width: 32%; padding-right: 24px !important; }
+.pulpit-pasek-tlo { height: 6px; background: var(--p-line-soft); border-radius: 3px; overflow: hidden; }
+.pulpit-pasek-wypelnienie { height: 6px; background: #3B4A63; border-radius: 3px; }
+.pulpit-prawo { text-align: right; }
+.pulpit-pogrubione { font-weight: 600; }
+.pulpit-czerwony { color: var(--p-red); }
+.pulpit-bursztyn { color: var(--p-amber); }
+.pulpit-zielony { color: var(--p-green); }
+.pulpit-szary { color: var(--p-muted); }
+@media (max-width: 640px) {
+  .pulpit { padding: 20px 16px 40px; }
+  .pulpit-kolejka { grid-template-columns: 56px minmax(0, 1fr); }
+  .pulpit-kolejka > :last-child { grid-column: 2; }
+  .pulpit-pasek-pole { border-right: 0; border-bottom: 1px solid var(--p-line); }
+}
