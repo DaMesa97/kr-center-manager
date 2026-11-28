@@ -515,7 +515,7 @@ Zachowanie bez zmian: po każdym kroku `tsc` OK, 720 testów OK, lint bez zmian 
   - `20261127232800` (prognozy) — przerabiany wg D7 (wariant „orientacyjnie”).
 - Kontrola po wdrożeniu (`scripts/kontrola-po-wdrozeniu.sql`): 10 wierszy — wyłącznie znaczniki trzech wstrzymanych plików (cancel/restore/return_remaining, release_remaining, forecast, consumption_history). Oczekiwane.
 - Sprawdzenie D1: anon nie wykona `cancel_stage_reservations__impl`, nie czyta `orders`; authenticated wykonuje `update_order_stage` jak dotąd.
-- Funkcje Edge: `excel-sync` v16 → **v17** (repo HEAD; serwer v16 = repo z 24.11, różnica = poprawki nocne). Pierwszy przebieg Make dopiero w poniedziałek (ostatni piątek 20:00) — sprawdzić `excel_sync_runs`. `crm-oferta` — w toku (D39).
+- Funkcje Edge: `excel-sync` v16 → **v17** (repo HEAD; serwer v16 = repo z 24.11, różnica = poprawki nocne). Pierwszy przebieg Make dopiero w poniedziałek (ostatni piątek 20:00) — sprawdzić `excel_sync_runs`. `crm-oferta` v29 → **v30** (D39, Bastion P-110; po wdrożeniu 6 plików identycznych z repo). W ofercie, która dawała „nie jest na liście kandydatów”, kliknąć „Policz od nowa”.
 - Aplikacja: **1.1.8 OPUBLIKOWANA** (gałąź `clean` przewinięta do nocnej i wypchnięta, tag v1.1.8 = 3da636b, `min_app_version` = 1.1.8 — wymuszona aktualizacja).
 
 ## Migracje do wdrożenia na produkcję
