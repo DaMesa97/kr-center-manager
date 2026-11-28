@@ -1080,6 +1080,23 @@ export function useOrders({
         client_order_number: order.client_order_number,
       }
 
+      // runda 10 (tester równoczesnej pracy): druga osoba / druga zakładka pary klikała „Zamów” zanim doszło
+      // odświeżenie na żywo i szklarz dostawał dubel — przed wysyłką sprawdzamy datę w bazie
+      const { data: swiezy, error: swiezyErr } = await supabase
+        .from('orders')
+        .select('glass_order_date')
+        .eq('id', order.id)
+        .maybeSingle()
+      if (swiezyErr) {
+        pushToast(`Nie wysłano zamówienia szyby — nie udało się sprawdzić zlecenia: ${swiezyErr.message}`, 'error')
+        return
+      }
+      if (swiezy?.glass_order_date) {
+        pushToast(`Szyba do zlecenia ${order.order_number ?? ''} jest już zamówiona (${swiezy.glass_order_date}) — nie wysłano drugi raz`, 'error')
+        void fetchOrders()
+        return
+      }
+
       try {
         // Webhook Make idzie przez edge function glass-order-webhook — URL
         // webhooka nie siedzi już w kliencie, a wysyłka wymaga zalogowania.
