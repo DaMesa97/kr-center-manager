@@ -48,4 +48,4 @@ Wszystko, czego tu nie ma, to punkty, w których wystarczy zgoda na moją rekome
 36. **D58** Niezgodna partia materiału → obowiązkowa kwarantanna; dostawca po terminie oceny = niekwalifikowany (decyzja Pełnomocnika). — TAK / NIE
 
 ## 4. Zgoda hurtem na moje rekomendacje (bez pytań)
-D8, D9, D13, D15, D16, D18, D20, D21, D23, D24, D27, D28, D29, D33, D35, D37, D38, D40, D45, D46, D47, D48, D49, D50, D51, D55, D56, D60, D61, D65, D67, D69 — w każdym jest rekomendacja w `DECISIONS.md`. Wystarczy „zgoda na resztę” albo numery, których NIE chcesz.
+D8, D9, D10, D13, D15, D16, D18, D20, D21, D23, D24, D27, D28, D29, D33, D35, D37, D38, D40, D45, D46, D47, D48, D49, D50, D51, D55, D56, D60, D61, D65, D67, D69 — w każdym jest rekomendacja w `DECISIONS.md`. Wystarczy „zgoda na resztę” albo numery, których NIE chcesz.
