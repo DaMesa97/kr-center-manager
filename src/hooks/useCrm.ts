@@ -33,6 +33,7 @@ import { isoLocal } from '../utils/crmTermin'
 import { fetchAllPages } from '../lib/fetchPaged'
 import type { Order } from '../types'
 import type { BlStatus, Powiazanie, ReklamacjaKr, ZamowienieSklep } from '../lib/crmZamowienia'
+import { parsePowierzchnia } from '../lib/crmWynik'
 
 const crm = () => supabase.schema('crm')
 
@@ -561,7 +562,12 @@ export async function zlecOferteOficjalna(leadId: string, f: OfertaOficjalnaForm
   }
   const tekst = f.konfiguracja_tekst.trim() || null
   if (!sciezki.length && !tekst) return { data: null, error: { kind: 'other', message: 'Dodaj plik z konfiguratora albo wklej treść konfiguracji.' } }
-  const m2 = f.powierzchnia_m2.trim() ? Number(f.powierzchnia_m2.replace(',', '.')) : null
+  // runda 10: „150 m2” / „ok. 150” dawały NaN i do bazy szedł null bez słowa (pole steruje kontrolą VAT 8%)
+  const m2 = parsePowierzchnia(f.powierzchnia_m2)
+  if (m2 != null && Number.isNaN(m2)) {
+    if (sciezki.length) await supabase.storage.from(CRM_DOKUMENTY_BUCKET).remove(sciezki)
+    return { data: null, error: { kind: 'other', message: `Nie rozumiem powierzchni „${f.powierzchnia_m2.trim()}” — wpisz samą liczbę m², np. 150 albo 82,5.` } }
+  }
   const { data, error } = await crm().rpc('zlec_oferte_oficjalna', {
     p_lead_id: leadId,
     p_konfiguracja_plik: sciezki[0] ?? null,
@@ -571,7 +577,7 @@ export async function zlecOferteOficjalna(leadId: string, f: OfertaOficjalnaForm
     p_z_montazem: f.z_montazem,
     p_lokal_mieszkalny: f.lokal_mieszkalny,
     p_rodzaj_lokalu: f.rodzaj_lokalu || null,
-    p_powierzchnia_m2: m2 != null && Number.isFinite(m2) ? m2 : null,
+    p_powierzchnia_m2: m2,
     p_producent: f.producent.trim() || null,
     p_konfiguracja_pliki: sciezki,
   })

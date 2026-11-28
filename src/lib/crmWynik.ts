@@ -191,3 +191,17 @@ export function tytulOferty(o: { nazwa?: string | null; produkt?: string | null;
   if (s) return s.length > 60 ? `${s.slice(0, 59).trimEnd()}…` : s
   return o.rodzaj === 'oficjalna' ? `Oferta z montażem${o.numer ? ` nr ${o.numer}` : ''}` : 'Oferta ze sklepu'
 }
+
+/**
+ * Powierzchnia lokalu z pola tekstowego (runda 10, 28.11): „150 m2”, „ok. 150”, „1 200”, „82,5 m²”.
+ * Puste → null; nie da się odczytać → NaN (formularz pokazuje błąd zamiast wysłać null po cichu —
+ * pole decyduje o kontroli stawki VAT 8%).
+ */
+export function parsePowierzchnia(text: string): number | null {
+  let t = text.toLowerCase().replace(/m2|m²|mkw|ok\.?|około|~|ca\.?/g, '').replace(/[\s\u00a0]/g, '')
+  if (!t) return null
+  t = t.replace(',', '.')
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return NaN
+  const n = Number(t)
+  return n > 0 && n < 100_000 ? n : NaN
+}
