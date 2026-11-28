@@ -458,7 +458,8 @@ export default function MobileStationView({ userId }: Props) {
         if (!mountedRef.current) return
         if (relError) {
           console.error('release_stock_for_stage error:', relError)
-          flash('Ostrzeżenie: wydanie z magazynu nie powiodło się')
+          // runda 11: treść błędu (np. „etap wstrzymany — nic nie wydano”) zamiast samego „nie powiodło się”
+          flash(`Ostrzeżenie: wydanie z magazynu nie powiodło się — ${relError.message}`)
         } else {
           const rows = (relData ?? []) as ShortageRow[]
           const shortages = rows.filter((r) => r.r_status === 'insufficient')
