@@ -5,7 +5,7 @@ import { humanizeAndLog } from '../../lib/friendlyError'
 import { groupPicks, pickProgress, type OrderPick } from '../../lib/orderPicks'
 import type { InternalDoorItem } from '../../types'
 import { countCompletedStages, isReleaseDateEmpty, isRushOrderSequence } from '../../utils'
-import { can, isCategoryScoped } from '../../lib/permissions'
+import { can } from '../../lib/permissions'
 import {
   cleanCompanyValue,
   createCompanyResolver,
@@ -15,7 +15,7 @@ import {
 import type { Order } from '../../types'
 import { releaseErrorText, releaseFailureMessage } from '../../lib/stockReleaseFailure'
 import { reportStockReleaseFailure } from '../../lib/stockReleaseFailureRpc'
-import { CAT_COLORS, CAT_LABEL } from './mobileKategorie'
+import { CAT_COLORS, CAT_LABEL, filtrKategoriiNaTelefon } from './mobileKategorie'
 import { czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
 
 
@@ -44,7 +44,9 @@ type Props = {
 
 export default function MobileShippingView({ role, categories = [] }: Props) {
   const canRelease = can(role, 'orders.release')
-  const scoped = isCategoryScoped(role)
+  // D62: null = wszystkie kategorie, tablica = tylko te (role zawężone albo profil z kategoriami)
+  const filtrKat = filtrKategoriiNaTelefon(role, categories)
+  const filtrKatKlucz = filtrKat ? filtrKat.join('|') : null
   const [orders, setOrders] = useState<Order[]>([])
   const [companiesMap, setCompaniesMap] = useState<Map<string, CompanyShippingInfo>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -121,12 +123,12 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
     if (!mountedRef.current) return
     setLoading(false)
     if (ordersRes.error) { flash('Błąd ładowania'); return }
-    const allowed = new Set(categories)
+    const allowed = filtrKatKlucz == null ? null : new Set(filtrKatKlucz.split('|').filter(Boolean))
     const active = (ordersRes.data ?? []).filter((o: Order) => {
       const extra = o.extra_fields as Record<string, unknown> | null
       if (extra?.cancelled === true) return false
-      // role zawężone (kierownik działu) widzą tylko przypisane kategorie
-      if (scoped && !allowed.has(o.category ?? '')) return false
+      // D62: tylko kategorie z filtra (role zawężone / profil z kategoriami)
+      if (allowed && !allowed.has(o.category ?? '')) return false
       return true
     }) as Order[]
     setOrders(active)
@@ -139,7 +141,7 @@ export default function MobileShippingView({ role, categories = [] }: Props) {
     }
     setCompaniesMap(m)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scoped, categories.join('|')])
+  }, [filtrKatKlucz])
 
   useEffect(() => {
     mountedRef.current = true

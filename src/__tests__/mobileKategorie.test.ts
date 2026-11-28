@@ -18,4 +18,14 @@ describe('kategorie na telefonie (D62)', () => {
     expect(filtrKategoriiNaTelefon('kierownik_dzialu', ['STA'])).toEqual(['STA'])
     expect(filtrKategoriiNaTelefon('pracownik_produkcji', [])).toEqual([])
   })
+  it('odpowiedź właściciela 28.11: magazynier / obsługa / inne role z kategoriami w profilu — tylko te', () => {
+    expect(kategorieNaTelefon('magazynier', ['DrzwiWewnetrzne', 'STA'])).toEqual(['STA', 'DrzwiWewnetrzne'])
+    expect(kategorieNaTelefon('obsluga_klienta', ['Bastion'])).toEqual(['Bastion'])
+    expect(filtrKategoriiNaTelefon('magazynier', ['STA'])).toEqual(['STA'])
+    // nieznane kategorie w profilu = jak pusty profil (wszystkie)
+    expect(kategorieNaTelefon('magazynier', ['Nieznana'])).toEqual([...MOBILE_CATEGORIES])
+    expect(filtrKategoriiNaTelefon('obsluga_klienta', ['Nieznana'])).toBeNull()
+    // komplet kategorii = bez filtra
+    expect(filtrKategoriiNaTelefon('magazynier', [...MOBILE_CATEGORIES])).toBeNull()
+  })
 })

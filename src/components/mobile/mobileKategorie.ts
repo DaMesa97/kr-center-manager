@@ -14,16 +14,20 @@ export const CAT_LABEL: Record<string, string> = {
 export const MOBILE_CATEGORIES = ['STA', 'Disting', 'ST', 'Techniczne', 'Bastion', 'DrzwiWewnetrzne', 'Aluminium'] as const
 
 /**
- * D62 (28.11): kategorie widoczne na telefonie — jak zakładki na komputerze (utils.ts): role zawężone
- * (kierownik działu, pracownik produkcji) tylko swoje z profilu, pozostałe wszystkie.
+ * D62 (28.11): kategorie widoczne na telefonie.
+ *  - role zawężone (kierownik działu, pracownik produkcji) — tylko swoje z profilu (pusty profil = nic, jak na komputerze);
+ *  - pozostałe role (magazynier, obsługa klienta, kierownicy, admin) — odpowiedź właściciela 28.11: gdy profil ma
+ *    kategorie, też tylko one; gdy pusty — wszystkie (jak dotąd).
  */
 export function kategorieNaTelefon(role: string | null | undefined, categories: string[] | null | undefined): string[] {
-  if (!isCategoryScoped(role)) return [...MOBILE_CATEGORIES]
   const moje = new Set(categories ?? [])
-  return MOBILE_CATEGORIES.filter((c) => moje.has(c))
+  const zProfilu = MOBILE_CATEGORIES.filter((c) => moje.has(c))
+  if (isCategoryScoped(role)) return zProfilu
+  return zProfilu.length > 0 ? zProfilu : [...MOBILE_CATEGORIES]
 }
 
 /** null = bez filtra (wszystkie kategorie), tablica = tylko te kategorie. */
 export function filtrKategoriiNaTelefon(role: string | null | undefined, categories: string[] | null | undefined): string[] | null {
-  return isCategoryScoped(role) ? kategorieNaTelefon(role, categories) : null
+  const k = kategorieNaTelefon(role, categories)
+  return !isCategoryScoped(role) && k.length === MOBILE_CATEGORIES.length ? null : k
 }
