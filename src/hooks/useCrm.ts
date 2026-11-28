@@ -1291,7 +1291,11 @@ export async function szukajZlecenPoDrzwi(fraza: string): Promise<Result<Order[]
   const q = fraza.trim().replace(/[%,()]/g, ' ').trim()
   if (q.length < 2) return { data: [], error: null }
   const { data, error } = await supabase.from('orders').select('*')
-    .or(`order_number.eq."${q}",client_order_number.ilike."%${q}%"`).order('id', { ascending: false }).limit(60)
+    .or(`order_number.eq."${q}",client_order_number.ilike."%${q}%"`)
+    // runda 10: firma w samym zapytaniu (drugie .or = AND) — wcześniej 60 najnowszych zleceń WSZYSTKICH firm,
+    // a starsze zlecenie Po Drzwi przy częstym nazwisku wypadało poza limit (2,5% nie do znalezienia)
+    .or(PO_DRZWI_OR)
+    .order('id', { ascending: false }).limit(60)
   const poDrzwi = ((data ?? []) as Order[]).filter((o) => /PO\s*DRZWI|PODRZWI/i.test(o.company ?? '')).slice(0, 20)
   return { data: poDrzwi, error: crmErrorFrom(error) }
 }
