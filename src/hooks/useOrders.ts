@@ -80,6 +80,7 @@ import type { StockReleaseRow } from './useMyStation'
 import { isOptimaClosed, isOrderCancelled } from '../lib/optimaRo'
 import { releaseErrorText, releaseFailureMessage } from '../lib/stockReleaseFailure'
 import { reportStockReleaseFailure } from '../lib/stockReleaseFailureRpc'
+import { ORDER_LIST_COLUMNS, brakKolumnyWLiscie, orderSelect } from '../lib/orderColumns'
 
 /** Dialog braków przy wydaniu z tabeli zamówień / oznaczeniu wydania */
 export type StageReleaseShortageState = {
@@ -678,15 +679,18 @@ export function useOrders({
     const PAGE = 1000 // maksimum PostgREST — otwarte zlecenia kategorii mieszczą się w 1 porcji
     let fetchError = null
     let firstPaint = true
-    for (;;) {
-      let pageQuery = supabase.from('orders').select('*').eq('category', fetchTab)
+    // D48: lista kolumn zamiast * (bez starych, nieczytanych pól); przy 42703 ponowienie z *
+    const pobierzPorcje = (od: number) => {
+      let pageQuery = supabase.from('orders').select(orderSelect(ORDER_LIST_COLUMNS)).eq('category', fetchTab)
       if (onlyOpen) pageQuery = pageQuery.is('release_date', null)
-      const { data, error: pageError } = await pageQuery
-        .order('id', { ascending: false })
-        .range(from, from + PAGE - 1)
+      return pageQuery.order('id', { ascending: false }).range(od, od + PAGE - 1)
+    }
+    for (;;) {
+      let { data, error: pageError } = await pobierzPorcje(from)
+      if (pageError && brakKolumnyWLiscie(pageError)) ({ data, error: pageError } = await pobierzPorcje(from))
       if (pageError) { fetchError = pageError; break }
       if (!data || data.length === 0) break
-      allOrders.push(...(data as Order[]))
+      allOrders.push(...(data as unknown as Order[]))
       // Jeśli user przełączył kategorię w trakcie — porzuć (nie nadpisuj)
       if (latestFetchTabRef.current !== fetchTab) return
       // Pokaż to co już mamy (po pierwszej partii zdejmij spinner)
@@ -720,8 +724,11 @@ export function useOrders({
           // runda 6 (wydajność): porcje po 150 — przy ok. 1000+ powiązanych adres zapytania przekroczyłby limit (414)
           const linkedData: Order[] = []
           for (let i = 0; i < linkedIds.length; i += 150) {
-            const { data } = await supabase.from('orders').select('*').in('id', linkedIds.slice(i, i + 150))
-            linkedData.push(...((data || []) as Order[]))
+            const czesc = linkedIds.slice(i, i + 150)
+            const pobierz = () => supabase.from('orders').select(orderSelect(ORDER_LIST_COLUMNS)).in('id', czesc)
+            let res = await pobierz()
+            if (res.error && brakKolumnyWLiscie(res.error)) res = await pobierz()
+            linkedData.push(...((res.data || []) as unknown as Order[]))
           }
           setLinkedOrders(linkedData)
         } else {

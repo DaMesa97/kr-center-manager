@@ -140,6 +140,7 @@ import PrintLabelModal from './components/PrintLabelModal'
 import BatchPrintComboModal from './components/BatchPrintComboModal'
 import { can, canEditPrintTemplates, canManageUsers, isAdminRole, isCategoryScoped, isManagerRole, isSuperadminRole, scopeByCategory, usersScopeFor } from './lib/permissions'
 import { findCompanyInfo } from './lib/companyMatch'
+import { ORDER_LIST_COLUMNS, brakKolumnyWLiscie, orderSelect } from './lib/orderColumns'
 import { mergeIncomingStages } from './lib/stageWrites'
 import InternalDoorOrderModal from './components/InternalDoorOrderModal'
 import InternalDoorOrderDetailsModal from './components/InternalDoorOrderDetailsModal'
@@ -1815,9 +1816,12 @@ function App() {
       const found: Order[] = []
       for (let i = 0; i < missing.length; i += 150) {
         const czesc = missing.slice(i, i + 150)
-        const { data, error } = await supabase.from('orders').select('*').in('id', czesc)
-        if (error) { for (const id of czesc) bastionProbowaneRef.current.delete(id); continue }
-        found.push(...((data ?? []) as Order[]))
+        // D48: te same kolumny co lista zakładki (przy 42703 ponowienie z *)
+        const pobierz = () => supabase.from('orders').select(orderSelect(ORDER_LIST_COLUMNS)).in('id', czesc)
+        let res = await pobierz()
+        if (res.error && brakKolumnyWLiscie(res.error)) res = await pobierz()
+        if (res.error) { for (const id of czesc) bastionProbowaneRef.current.delete(id); continue }
+        found.push(...((res.data ?? []) as unknown as Order[]))
       }
       if (found.length) setBastionBatchExtra((prev) => [...prev.filter((o) => !found.some((f) => f.id === o.id)), ...found])
     })()

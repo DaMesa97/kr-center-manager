@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { isReleaseDateEmpty, orderRouteMark } from '../utils'
 import { cleanCompanyValue } from '../lib/companyMatch'
 import { fetchAllPages } from '../lib/fetchPaged'
+import { SHIPPING_ORDER_COLUMNS, brakKolumnyWLiscie, orderSelect } from '../lib/orderColumns'
 import { ileOdm } from '../utils/odmiana'
 import type { Order, ToastVariant } from '../types'
 import type React from 'react'
@@ -71,40 +72,52 @@ export function useShipping({
     // zamówień jest kilka tysięcy: stary .limit(2000) pokazywał ~1000 i przez
     // sortowanie alfabetyczne po kategorii znikały Techniczne i ogon STA.
     // Anulowane odfiltrowane po stronie serwera (nie zjadają stron).
-    const fetchAllOpen = async (): Promise<{ data: Order[]; error: { message: string } | null }> => {
+    // D48: lista kolumn używanych przez Wysyłkę (bez starych pól i pól samych formularzy edycji) zamiast *;
+    // przy 42703 (kolumny z listy nie ma w bazie) ponowienie z *
+    const fetchAllOpen = async (): Promise<{ data: Order[]; error: { message: string; code?: string } | null }> => {
       const all: Order[] = []
       let from = 0
       const PAGE = 1000
-      for (;;) {
-        const { data, error } = await supabase
+      const pobierzPorcje = (od: number) =>
+        supabase
           .from('orders')
-          .select('*')
+          .select(orderSelect(SHIPPING_ORDER_COLUMNS))
           .is('release_date', null)
           .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.eq.false')
           .order('id', { ascending: false })
-          .range(from, from + PAGE - 1)
+          .range(od, od + PAGE - 1)
+      for (;;) {
+        let { data, error } = await pobierzPorcje(from)
+        if (error && brakKolumnyWLiscie(error)) ({ data, error } = await pobierzPorcje(from))
         if (error) return { data: all, error }
         if (!data || data.length === 0) break
-        all.push(...(data as Order[]))
+        all.push(...(data as unknown as Order[]))
         if (data.length < PAGE) break
         from += PAGE
       }
       return { data: all, error: null }
     }
-    const [ordersRes, releasedRes, companiesRes] = await Promise.all([
-      fetchAllOpen(),
-      // 26.11: wydanych w 14 dni jest już >1000 (w tym 637 RO drzwi wewnętrznych zamkniętych w Optimie) —
-      // .limit(1000) ucinał listę; stronicowanie, anulowane odfiltrowane po stronie serwera
-      fetchAllPages<Order>((from, to) =>
-        supabase
+    // 26.11: wydanych w 14 dni jest już >1000 (w tym 637 RO drzwi wewnętrznych zamkniętych w Optimie) —
+    // .limit(1000) ucinał listę; stronicowanie, anulowane odfiltrowane po stronie serwera
+    const fetchReleased = () =>
+      fetchAllPages<Order>(async (from, to) => {
+        const res = await supabase
           .from('orders')
-          .select('*')
+          .select(orderSelect(SHIPPING_ORDER_COLUMNS))
           .gte('release_date', releasedCutoff)
           .or('extra_fields->>cancelled.is.null,extra_fields->>cancelled.eq.false')
           .order('release_date', { ascending: false })
           .order('id', { ascending: false })
-          .range(from, to),
-      ),
+          .range(from, to)
+        return { data: res.data as unknown as Order[] | null, error: res.error }
+      })
+    const fetchAllReleased = async () => {
+      const res = await fetchReleased()
+      return res.error && brakKolumnyWLiscie(res.error) ? fetchReleased() : res
+    }
+    const [ordersRes, releasedRes, companiesRes] = await Promise.all([
+      fetchAllOpen(),
+      fetchAllReleased(),
       supabase.from('companies').select('name, production_day, route_day'),
     ])
 
