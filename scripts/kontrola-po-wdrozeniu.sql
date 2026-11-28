@@ -98,6 +98,8 @@ with znaczniki(fn, marker, minimum) as (
     ('public.notify_managers_new_review()', 'public.notify_muted()', 1),
     ('public.notify_erp_error()', 'public.notify_muted()', 1),
     ('public.restore_from_archive__impl(bigint)', 'app.restoring', 2),
+    -- 20261128020000 (runda 11, recenzent): bez niej aplikacja 1.1.8 wraca po cichu do starego wywołania
+    ('public.mark_alu_position_stage(bigint,text,text,integer)', 'p_expected_done', 2),
     ('public.restore_from_archive__impl(bigint)', 'insert into order_photos', 1),
     ('public.archive_old_orders__impl(integer)', '''uploaded_by'', ph.uploaded_by', 1),
     -- runda 10 (28.11), tor r10-baza
