@@ -138,7 +138,8 @@ export function pendingSection(o: { order_date: string | null; ready: boolean },
   const od = String(o.order_date ?? '').slice(0, 10)
   if (od && today) {
     const ms = Date.parse(`${today}T12:00:00`) - Date.parse(`${od}T12:00:00`)
-    if (Number.isFinite(ms) && ms > STARE_PO_DNIACH * 86_400_000) return 'stare'
+    // runda 10: pełne dni kalendarzowe (zmiana czasu w październiku dokładała godzinę i 30 dni dawało „stare”)
+    if (Number.isFinite(ms) && Math.round(ms / 86_400_000) > STARE_PO_DNIACH) return 'stare'
   }
   return o.ready ? 'gotowe' : 'produkcja'
 }

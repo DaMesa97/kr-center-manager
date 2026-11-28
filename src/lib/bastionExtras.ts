@@ -128,5 +128,7 @@ export function bastionExtraAgeDays(e: Pick<BastionExtra, 'order_date' | 'releas
   if (e.released_at) return null
   const d = new Date(e.order_date + 'T00:00:00')
   if (Number.isNaN(d.getTime())) return null
-  return Math.floor((today.getTime() - d.getTime()) / 86_400_000)
+  // runda 10: dni kalendarzowe — po wiosennej zmianie czasu między 0:00 a 1:00 wychodził dzień za mało
+  const dzis = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  return Math.round((dzis.getTime() - d.getTime()) / 86_400_000)
 }
