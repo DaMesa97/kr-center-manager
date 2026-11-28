@@ -439,6 +439,20 @@ Sprawdzone bez błędu: podgląd z `sandbox=""` (QR, style, nic nie czyta iframe
 | NISKI | ochrona niezapisanych zmian wyłączona w trakcie zapisu (X / aktualizacja) | **poprawione** df25e7c |
 | NISKI | telefon nigdy się sam nie wylogowuje (wspólne telefony) | **D63** |
 
+## Runda 11 (28.11 rano) — recenzja rundy 10 i próba generalna wdrożenia
+Próba generalna: wszystkie 45 plików `20261127223000` … `20261128021600` w kolejności nazw, w jednej cofniętej transakcji, potem `scripts/kontrola-po-wdrozeniu.sql` → **żaden plik nie padł, kontrola pusta**; po próbie w bazie nic nie zostało. Poprawki rundy 10 zrobiły to, co obiecywały (ZD, anon, wstrzymany etap, numeracja — dzisiejsze numery bez zmian, aplikacja).
+
+| Waga | Problem | Stan |
+|---|---|---|
+| ŚREDNI | reklamacje: tekst / niemożliwa data w WYDANIE zapisywała „wydane dziś” na stałe | **poprawione** 43216fb (Edge `excel-sync` + plik `021500` poprawiony w miejscu: zła data = niewydane + raport) |
+| ŚREDNI | raport złych dat nie docierał do człowieka, wiersz ze złą DATĄ znikał po cichu | **poprawione** 43216fb (wiersz idzie do SQL i do `excel_sync_runs`) + b1f7be2 (plakietka w Weryfikacji) |
+| NISKI | ZD wysłaną bez przyjęć da się skasować w całości | dopisane do **D69** |
+| NISKI | „Cofnij sztukę” w aluminium cofa drugą sztukę przy ponowieniu | **poprawione** 0e3f54f (migracja `20261128022000` + aplikacja) |
+| NISKI | kontrola po wdrożeniu nie widzi migracji `020000` | **poprawione** 784aaec |
+| NISKI | telefon: „Oznaczono jako wydane”, gdy wydał już ktoś inny | **poprawione** 9d2d7c6 |
+| NISKI | „około 150” w polu m² dawało błąd | **poprawione** 4c52488 (+ test) |
+| NISKI | telefon, stanowisko: brak treści błędu przy wstrzymanym etapie | **poprawione** aa46adf |
+
 ## Upraszczanie kodu (DRY) — noc 28.11
 Analiza (tylko odczyt): `tsc` z `noUnusedLocals` — 0 nieużywanych importów, 0 osieroconych plików; ok. 20 martwych eksportów; 25 grup duplikatów; 15 miejsc, gdzie kopie RÓŻNIĄ SIĘ zachowaniem. Pełna lista refaktorów: `DECISIONS.md` → „Refaktory do rozważenia” (R1–R9), rozjazdy zachowania: D50, D51.
 

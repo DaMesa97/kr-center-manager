@@ -448,8 +448,8 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Pilność**: może poczekać · **Praca**: mały
 
 ### D69. Status całej ZD zmieniany z pominięciem obiegu
-- **Problem**: polityka `po_modify` pozwala zmienić status ZD dowolnie (np. wysłana → szkic → edycja pozycji → z powrotem wysłana). Strażnik pozycji z rundy 10 (`20261128021100`) tego nie łapie.
-- **Opcje**: (a) trigger na `purchase_orders`: dozwolone przejścia (szkic → wysłana → częściowa → zakończona, anulowanie), cofnięcie do szkicu tylko bez przyjęć i z wpisem w audycie; (b) zostawić — robią to tylko kierownicy.
+- **Problem**: (runda 11: także skasowanie całej wysłanej ZD bez przyjęć — kaskada pozycji przechodzi) polityka `po_modify` pozwala zmienić status ZD dowolnie (np. wysłana → szkic → edycja pozycji → z powrotem wysłana). Strażnik pozycji z rundy 10 (`20261128021100`) tego nie łapie.
+- **Opcje**: (a) trigger na `purchase_orders`: kasować wolno tylko szkic; dozwolone przejścia (szkic → wysłana → częściowa → zakończona, anulowanie), cofnięcie do szkicu tylko bez przyjęć i z wpisem w audycie; (b) zostawić — robią to tylko kierownicy.
 - **Rekomendacja**: (a).
 - **Pilność**: może poczekać · **Praca**: mały
 
