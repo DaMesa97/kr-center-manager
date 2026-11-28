@@ -349,6 +349,25 @@ Brak KRYTYCZNYCH i WYSOKICH. Próba generalna: 28 plików 223000–235100 w kole
 
 Nie poprawione (NISKI): błąd etapów / reklamacji z excel-sync zapisany w historii, ale niewidoczny w aplikacji (`summary.blad`); orders-intake: błąd odczytu istniejących nóg Titana nadal tylko w logu + brak przycisku „dorób nogę” (decyzja); crm-call-ingest: ponowienie dubluje zdarzenie „oferta zlecona” z mylącym opisem.
 
+## Runda 8 (28.11 w nocy) — ZKP i pełny cykl aluminium; Ustawienia, etykiety, powiadomienia, archiwum
+Stan: na produkcji 4 zlecenia alu, 0 kart / protokołów / deklaracji ZKP, nikt nie ma roli Pełnomocnika — obieg ZKP nieużywany na żywo; testy przez symulację pełnego cyklu w transakcjach cofanych.
+
+### ZKP i aluminium
+| Waga | Problem | Stan |
+|---|---|---|
+| KRYTYCZNY | zlecenia ZKP (AS 75EI) nie da się nigdy wydać — pozycja teczki „Zlecenie produkcyjne” zawsze „brak” (`alu_dossier_status` bez gałęzi) | w toku (tor bazy r8) |
+| KRYTYCZNY | protokół zamykany jako ZWOLNIONY na starej ocenie pomiarów po zmianie karty | w toku (tor bazy r8) |
+| WYSOKI | każdy kierownik może wyłączyć ZKP na zleceniu 75EI | **D52** |
+| WYSOKI | „Nadpisz” nowej LP anuluje zwolnioną konstrukcję z deklaracją i gubi etapy | **D55** |
+| WYSOKI | podpis etapu ZKP inicjałami innej osoby | **D53** |
+| WYSOKI | etapy (z pakowaniem) przed „Uruchom do produkcji” i przed zwolnieniem | **D54** |
+| ŚREDNI | konstrukcja NIEZGODNA blokuje zlecenie na zawsze | **D56** |
+| ŚREDNI | zlecenie mieszane 75EI + AS75 w całości ZKP | **D57** |
+| ŚREDNI | przyjęcie partii niezgodnej jako PRZYJĘTO, dostawca po terminie oceny „kwalifikowany” | **D58** |
+| ŚREDNI | eksport teczki (ZIP) bez kart, protokołów i deklaracji (generatory są w programie) | do zrobienia |
+| ŚREDNI | etykiety alu: wieczne „wczytuję” przy błędzie drukarek, błąd szablonów jak „brak szablonów”, druk ZKP bez numeru konstrukcji | **poprawione** 9974476 |
+| NISKI | okucia i wypełnienia w karcie przed potwierdzeniem zakresu | w toku (tor bazy r8) |
+
 ## Upraszczanie kodu (DRY) — noc 28.11
 Analiza (tylko odczyt): `tsc` z `noUnusedLocals` — 0 nieużywanych importów, 0 osieroconych plików; ok. 20 martwych eksportów; 25 grup duplikatów; 15 miejsc, gdzie kopie RÓŻNIĄ SIĘ zachowaniem. Pełna lista refaktorów: `DECISIONS.md` → „Refaktory do rozważenia” (R1–R9), rozjazdy zachowania: D50, D51.
 

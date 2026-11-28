@@ -17,7 +17,7 @@ Wszystkie poprawki z sesji są na branchu `night-testing-2026-11-27` (lokalnie, 
 8. **D39 — Wdrożyć poprawkę CRM „Bastion P-110 nie jest na liście kandydatów”** (Twoje zgłoszenie z nocy): handlowiec nie wyceni żadnego Bastiona P-, N-, T-, L-, LUX-, STD- do czasu wdrożenia `crm-oferta`.
 
 ### Może poczekać (najważniejsze)
-D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy · D50 trzy znaczenia „anulowane” · D51 drobne rozjazdy kopii kodu.
+D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „ile zamówić” · D10 MR Profil (numery, magazyn, statystyki) · D11 kierownik działu a Weryfikacja innych kategorii · D12 ceny z konfiguratora widoczne w danych dla hali · D13 Pulpit: „Do wysłania” i Techniczne · D14 spis z kartki a PZ w trakcie · D15 zmiana receptury na zleceniach w produkcji · D16 MM towaru zarezerwowanego · D17 klient ze sklepu → wygrany · D18 klient wracający po przegranej · D19 odstąpienie od podpisanej umowy · D20 pliki PDF przy usuwaniu klienta (RODO) · D21 follow-up po ofercie dla klienta „Zamówił” · D22 reklamacje: poprawka w Excelu a program · D23 druga umowa z tej samej oferty · D24 numery central w podpisach maili · D25 czas realizacji ST/Bastion bez dat z Excela · D26 archiwizacja po 12 mies. · D27 pole „Kategoria” i dzień produkcji w formularzu · D28 anulowanie Titana z zakładki Bastion · D29 `orders.updated_at` · D30 „Oznacz jako wydane” w Wysyłkach a rozchód od 7.11 · D31 magazynier planuje trasy? · D32 szerokość „90” vs „90E” · D33 zakres ościeżnicy przy zabudowie · D34 Techniczne nigdy niewydawane · D35 Weryfikacja zalana · D36 „Ponów do Optimy” bez adresu webhooka · D37 funkcje CRM dla każdego zalogowanego · D38 wzrost dziennika zmian po audycie stanów · D40 edycja ręcznych drzwi wewn. bez transakcji · D41 wydanie przy błędzie zdjęcia z magazynu · D43 anulowanie wydanego zlecenia · D44 nogi Disting po anulowaniu STA · D45 limit 8 s przy ruchach magazynowych · D46 przeliczenie po recepturze · D47 Statystyki 67 MB · D48 `select *` w Wysyłce · D49 trzy indeksy · D50 trzy znaczenia „anulowane” · D51 drobne rozjazdy kopii kodu · D52–D58 ZKP (przed pierwszym zleceniem ZKP: kto wyłącza ZKP, podpisy etapów, kolejność etapów, nowa wersja LP, konstrukcja niezgodna, zlecenia mieszane, przyjęcia).
 
 ---
 
@@ -344,6 +344,48 @@ D8 Disting Plus — rezerwacje e3/e4 nigdy niewydawane · D9 jedna reguła „il
 - **Opcje**: (a) ujednolicić każdą do wersji poprawnej przy okazji (po jednej, z testem); (b) zostawić.
 - **Rekomendacja**: (a) — kolejność: licznik aluminium i oznaczanie etapu na telefonie, kolejność anulowania drzwi wewn., reszta kosmetyka. Rola magazynier — potwierdzić.
 - **Pilność**: może poczekać · **Praca**: mały (każda)
+
+### D52. ZKP: kto może wyłączyć ZKP na zleceniu AS 75EI
+- **Problem**: `set_alu_order_zkp` wpuszcza każdego kierownika (także bez roli ZKP); wyłączenie ZKP zdejmuje kontrolę kompetencji i blokadę wydania bez teczki (symulacja: kierownik działu wyłączył ZKP i wydał zlecenie 75EI). „Nie dotyczy” w teczce wymaga już roli Pełnomocnika / Zastępcy / Kierownika Produkcji.
+- **Opcje**: (a) tylko Pełnomocnik / Zastępca, z powodem; (b) dla systemu 75EI nie pozwalać wcale; (c) zostawić.
+- **Rekomendacja**: (a), a dla 75EI z obowiązkowym powodem w audycie.
+- **Pilność**: pilne przed pierwszym zleceniem ZKP · **Praca**: mały
+
+### D53. ZKP: podpis etapu inicjałami innej osoby
+- **Problem**: kompetencje sprawdzane są dla osoby, której inicjały podano, nie dla zalogowanej — pracownik bez kompetencji podpisał wszystkie etapy inicjałami kontrolera (na wspólnym telefonie wystarczy kliknąć cudzy kafelek).
+- **Opcje**: (a) zapisywać też `auth.uid()` (kto kliknął) i dla ZKP wymagać, żeby wybrana osoba była zalogowana; (b) potwierdzenie PIN-em osoby podpisującej; (c) zostawić (zaufanie na hali).
+- **Rekomendacja**: (b) dla zleceń ZKP — dokument ZKP musi wskazywać realnego wykonawcę.
+- **Pilność**: pilne przed pierwszym zleceniem ZKP · **Praca**: średni
+
+### D54. ZKP: etapy przed „Uruchom do produkcji” i pakowanie przed zwolnieniem
+- **Problem**: na zleceniu ZKP można przejść wszystkie etapy (z pakowaniem) przed uruchomieniem produkcji, przed potwierdzeniem zakresu karty i bez kontroli odbiorczej.
+- **Opcje**: (a) etapy dopiero po „Uruchom do produkcji”, pakowanie dopiero po zwolnieniu karty; (b) tylko pakowanie twardo blokowane, reszta ostrzeżenie.
+- **Rekomendacja**: (a).
+- **Pilność**: pilne przed pierwszym zleceniem ZKP · **Praca**: mały
+
+### D55. Nowa wersja LP po rozpoczętej produkcji (ZKP i zwykłe)
+- **Problem**: „Nadpisz” usuwa pozycje o zmienionym numerze razem z etapami, anuluje konstrukcję o najwyższym numerze (nawet zwolnioną, z wydaną deklaracją), a przycisk obiecuje „oznaczone etapy zostają”.
+- **Opcje**: (a) przed „Nadpisz” lista pozycji / konstrukcji, które znikną (z etapami, kartami, deklaracjami) i potwierdzenie; konstrukcji z deklaracją nie anulować bez wycofania deklaracji; (b) zakaz nadpisania zlecenia ze zwolnionymi kartami.
+- **Rekomendacja**: (a), a dla zwolnionych kart (b).
+- **Pilność**: może poczekać (pilne przed ZKP) · **Praca**: średni
+
+### D56. ZKP: konstrukcja NIEZGODNA blokuje zlecenie na zawsze
+- **Problem**: po protokole niezgodnym karta jest zamknięta, nowego protokołu nie da się zapisać, nie ma funkcji anulowania / zastąpienia jednej konstrukcji — teczka nigdy nie będzie kompletna.
+- **Opcje**: (a) funkcja „anuluj konstrukcję / nowy numer po niezgodności” dla Pełnomocnika z powodem i odnośnikiem do rejestru 6.20; (b) ponowne otwarcie karty z historią.
+- **Rekomendacja**: (a).
+- **Pilność**: może poczekać · **Praca**: średni
+
+### D57. ZKP: zlecenia mieszane (75EI + zwykłe AS75)
+- **Problem**: całe zlecenie staje się ZKP (kompetencje i teczka także dla okien, które nie są wyrobem przeciwpożarowym).
+- **Opcje**: (a) ZKP na poziomie pozycji; (b) zlecenia mieszane rozdzielać przy imporcie.
+- **Rekomendacja**: zależy, czy takie zlecenia się zdarzają; jeśli tak — (a).
+- **Pilność**: może poczekać · **Praca**: średni–duży
+
+### D58. ZKP: przyjęcia materiału i kwalifikacja dostawców
+- **Problem**: partię niezgodną z listą 6.10.5 / uszkodzoną / niezgodną z zamówieniem można przyjąć jako PRZYJĘTO (wystarczy uzasadnienie); dostawca po terminie oceny okresowej dalej „kwalifikowany”.
+- **Opcje**: (a) niezgodność wymusza kwarantannę, przeterminowana ocena = brak kwalifikacji; (b) zostawić decyzję magazynowi.
+- **Rekomendacja**: (a) — decyzja Pełnomocnika.
+- **Pilność**: może poczekać (przed ZKP) · **Praca**: mały
 
 ---
 
