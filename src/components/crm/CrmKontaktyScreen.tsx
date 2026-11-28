@@ -306,8 +306,8 @@ export default function CrmKontaktyScreen({ currentUser, pushToast, onOpenLead, 
         </div>
         <div className="crm-head-akcje">
           {onOpenBezKlienta && (
-            <button type="button" className="btn btn-secondary" onClick={onOpenBezKlienta} title="Rozmowy i maile z 60 dni, z których system nie założył klienta (np. bez potencjału sprzedażowego) — tu można go założyć ręcznie">
-              Bez klienta
+            <button type="button" className="btn btn-secondary" onClick={onOpenBezKlienta} title="Rozmowy i maile z 60 dni bez potencjału sprzedaży (system nie założył z nich klienta) — tu można go założyć ręcznie">
+              Bez potencjału sprzedaży
             </button>
           )}
           <button type="button" className="btn btn-primary" onClick={() => setNowyKlient((v) => !v)} aria-expanded={nowyKlient} title="Klient, którego system nie złapał sam: wizyta, komórka, polecenie, Facebook">Dodaj klienta</button>

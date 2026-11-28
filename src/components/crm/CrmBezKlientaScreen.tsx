@@ -92,9 +92,9 @@ export default function CrmBezKlientaScreen({
     <div className="crm-screen crm-bez-klienta">
       <div className="crm-head">
         <div className="crm-head-tekst">
-          <h2>Bez klienta</h2>
+          <h2>Bez potencjału sprzedaży</h2>
           <span className="crm-head-sub">
-            Rozmowy i maile z {BEZ_KLIENTA_DNI} dni, z których system nie założył klienta (np. bez potencjału sprzedażowego)
+            Rozmowy i maile z {BEZ_KLIENTA_DNI} dni, w których system nie widzi potencjału sprzedaży — nie zostały zapisane jako klienci
             {!loading ? ` · do przejrzenia: ${doPrzejrzeniaIle}` : ''}
           </span>
         </div>
@@ -121,7 +121,7 @@ export default function CrmBezKlientaScreen({
       {loading ? (
         <Spinner center label="Ładowanie…" />
       ) : pokazane.length === 0 ? (
-        <p className="crm-muted">{rows.length === 0 ? `Brak rozmów i maili bez klienta z ostatnich ${BEZ_KLIENTA_DNI} dni.` : 'Nic tu nie pasuje do filtra.'}</p>
+        <p className="crm-muted">{rows.length === 0 ? `Brak rozmów i maili bez potencjału sprzedaży z ostatnich ${BEZ_KLIENTA_DNI} dni.` : 'Nic tu nie pasuje do filtra.'}</p>
       ) : (
         <>
           <p className="crm-muted">{ileOdm(pokazane.length, 'kontakt', 'kontakty', 'kontaktów')}</p>
