@@ -114,20 +114,36 @@ export const zkpCanReceive = (roles?: string[] | null) => hasAny(roles, ['magazy
 /** Decyzja o partii z kwarantanny, wykaz dostawców, oceny, lista 6.10.5 */
 export const zkpCanDecide = (roles?: string[] | null) => hasAny(roles, ['pelnomocnik', 'zastepca'])
 
-/** Brak nr partii albo dokumentu jakości (nr lub skan) = baza wymusi kwarantannę (brief pkt 8). */
-export function zkpWillForceQuarantine(form: {
+/**
+ * Powody, dla których baza zapisze przyjęcie „przyjeto” jako KWARANTANNĘ: brak nr partii albo dokumentu
+ * jakości (brief pkt 8) oraz — D58 — każda niezgodność (zamówienie, lista 6.10.5, stan / opakowanie).
+ */
+export function zkpForcedQuarantineReasons(form: {
   decision: ZkpLotDecision
   lot_no: string
   quality_doc_no: string
   hasScan: boolean
-}): boolean {
-  if (form.decision !== 'przyjeto') return false
-  return !form.lot_no.trim() || (!form.quality_doc_no.trim() && !form.hasScan)
+  conforms_to_order?: boolean
+  conforms_to_list_6105?: boolean
+  condition_ok?: boolean
+}): string[] {
+  if (form.decision !== 'przyjeto') return []
+  const why: string[] = []
+  if (!form.lot_no.trim() || (!form.quality_doc_no.trim() && !form.hasScan)) why.push('brak nr partii lub dokumentu jakości')
+  if (form.conforms_to_order === false) why.push('niezgodne z zamówieniem')
+  if (form.conforms_to_list_6105 === false) why.push('niezgodne z listą 6.10.5')
+  if (form.condition_ok === false) why.push('uwagi do stanu / opakowania')
+  return why
+}
+
+/** Baza wymusi kwarantannę (patrz zkpForcedQuarantineReasons). */
+export function zkpWillForceQuarantine(form: Parameters<typeof zkpForcedQuarantineReasons>[0]): boolean {
+  return zkpForcedQuarantineReasons(form).length > 0
 }
 
 export type ZkpSupplierState = {
   onList: boolean
-  /** na wykazie i ostatnia ocena pozytywna/warunkowa — jak zkp_supplier_is_qualified */
+  /** na wykazie, ostatnia ocena pozytywna/warunkowa i termin kolejnej oceny nie minął (D58) — jak zkp_supplier_is_qualified */
   qualified: boolean
   last: ZkpSupplierAssessment | null
   nextDue: string | null
@@ -145,13 +161,15 @@ export function zkpSupplierState(
   const sorted = [...assessments].sort((a, b) => b.assessed_on.localeCompare(a.assessed_on) || b.id - a.id)
   const last = sorted[0] ?? null
   const onList = !!qualification
-  const qualified = onList && !!last && (last.result === 'pozytywna' || last.result === 'warunkowa')
   const nextDue = last?.next_assessment_on ?? null
   let dueStatus: ZkpSupplierState['dueStatus'] = 'none'
   if (nextDue) {
     const soon = addDays(today, soonDays)
     dueStatus = nextDue < today ? 'overdue' : nextDue <= soon ? 'soon' : 'ok'
   }
+  // D58: po terminie oceny okresowej = niekwalifikowany
+  const qualified =
+    onList && !!last && (last.result === 'pozytywna' || last.result === 'warunkowa') && dueStatus !== 'overdue'
   return { onList, qualified, last, nextDue, dueStatus }
 }
 

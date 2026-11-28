@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   zkpCanDecide,
   zkpCanReceive,
+  zkpForcedQuarantineReasons,
   zkpScanPath,
   zkpSupplierState,
   zkpWillForceQuarantine,
@@ -52,5 +53,25 @@ describe('ZKP etap F — reguły widoku (lustro funkcji bazy)', () => {
   it('ścieżka skanu bez polskich znaków i spacji', () => {
     const p = zkpScanPath('Świadectwo 3.1 – łożyska.PDF', new Date(2026, 9, 26, 12))
     expect(p).toMatch(/^przyjecia\/2026\/\d+_Swiadectwo_3_1_lozyska\.pdf$/)
+  })
+})
+
+describe('D58: niezgodna partia i dostawca po terminie oceny', () => {
+  const base = { decision: 'przyjeto' as const, lot_no: 'P1', quality_doc_no: 'DWU/1', hasScan: false }
+  it('każda niezgodność wymusza kwarantannę przy „przyjęto”', () => {
+    expect(zkpForcedQuarantineReasons({ ...base, conforms_to_order: true, conforms_to_list_6105: true, condition_ok: true })).toEqual([])
+    expect(zkpForcedQuarantineReasons({ ...base, conforms_to_order: false })).toEqual(['niezgodne z zamówieniem'])
+    expect(zkpForcedQuarantineReasons({ ...base, conforms_to_list_6105: false, condition_ok: false })).toEqual([
+      'niezgodne z listą 6.10.5',
+      'uwagi do stanu / opakowania',
+    ])
+    expect(zkpWillForceQuarantine({ ...base, condition_ok: false })).toBe(true)
+    expect(zkpWillForceQuarantine({ ...base, decision: 'zwrot', condition_ok: false })).toBe(false)
+  })
+  it('po terminie oceny okresowej dostawca niekwalifikowany', () => {
+    const today = '2026-10-26'
+    expect(zkpSupplierState(qual, [assessment({ next_assessment_on: '2026-10-25' })], today).qualified).toBe(false)
+    expect(zkpSupplierState(qual, [assessment({ next_assessment_on: '2026-10-26' })], today).qualified).toBe(true)
+    expect(zkpSupplierState(qual, [assessment({ next_assessment_on: null })], today).qualified).toBe(true)
   })
 })

@@ -193,7 +193,7 @@ export function useZkp(pushToast: (message: string, variant: ToastVariant) => vo
       if (res === false) return false
       const row = (res as Array<{ r_decision: string; r_forced_quarantine: boolean }> | null)?.[0]
       if (row?.r_forced_quarantine) {
-        pushToast('Przyjęcie zapisane jako KWARANTANNA — brak nr partii lub dokumentu jakości (zał. 6.24)', 'info')
+        pushToast('Przyjęcie zapisane jako KWARANTANNA — brak nr partii / dokumentu jakości albo niezgodność (zał. 6.24); decyzję podejmie Pełnomocnik / Zastępca', 'info')
       } else {
         pushToast(`Przyjęcie zapisane (${row?.r_decision ?? 'zapisano'})`, 'success')
       }

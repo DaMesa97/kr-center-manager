@@ -8,7 +8,7 @@ import {
   ZKP_LOT_DECISION_LABELS,
   ZKP_QUALITY_DOC_KINDS,
   zkpSupplierState,
-  zkpWillForceQuarantine,
+  zkpForcedQuarantineReasons,
   type ZkpLotDecision,
   type ZkpMaterialLot,
 } from '../../lib/zkp'
@@ -263,7 +263,16 @@ function ReceiptModal({ zkp, onClose, onGoTo }: { zkp: ZkpData; onClose: () => v
   const [scan, setScan] = useState<File | null>(null)
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((p) => ({ ...p, [k]: v }))
 
-  const forced = zkpWillForceQuarantine({ decision: f.decision, lot_no: f.lot_no, quality_doc_no: f.quality_doc_no, hasScan: !!scan })
+  const forcedWhy = zkpForcedQuarantineReasons({
+    decision: f.decision,
+    lot_no: f.lot_no,
+    quality_doc_no: f.quality_doc_no,
+    hasScan: !!scan,
+    conforms_to_order: f.conforms_to_order,
+    conforms_to_list_6105: f.conforms_to_list_6105,
+    condition_ok: f.condition_ok,
+  })
+  const forced = forcedWhy.length > 0
   const qty = Number(String(f.quantity).replace(',', '.'))
   const problems = [
     !f.supplier_id && 'Wybierz dostawcę z wykazu kwalifikowanych.',
@@ -360,7 +369,7 @@ function ReceiptModal({ zkp, onClose, onGoTo }: { zkp: ZkpData; onClose: () => v
             {supplierOptions.map((s) => (
               <option key={s.id} value={s.id} disabled={!s.qualified}>
                 {s.name}
-                {s.qualified ? '' : ' — niekwalifikowany (ocena negatywna / brak oceny)'}
+                {s.qualified ? '' : ' — niekwalifikowany (ocena negatywna / brak oceny / po terminie oceny)'}
               </option>
             ))}
           </select>
@@ -448,8 +457,8 @@ function ReceiptModal({ zkp, onClose, onGoTo }: { zkp: ZkpData; onClose: () => v
 
       {forced && (
         <div className="zkp-warnbox">
-          Brak nr partii albo dokumentu jakości (numer lub skan) — przyjęcie zostanie zapisane jako <b>KWARANTANNA</b>. Partię zwolni
-          Pełnomocnik / Zastępca po uzupełnieniu.
+          {forcedWhy.join(', ')} — przyjęcie zostanie zapisane jako <b>KWARANTANNA</b> (niezgodnej partii nie można przyjąć
+          od razu). Partię zwolni albo zwróci Pełnomocnik / Zastępca.
         </div>
       )}
       {problems.length > 0 && <div className="zkp-problems">{problems.join(' ')}</div>}

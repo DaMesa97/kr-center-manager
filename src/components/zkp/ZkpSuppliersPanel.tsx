@@ -71,7 +71,7 @@ export default function ZkpSuppliersPanel({ zkp, canEdit }: { zkp: ZkpData; canE
           r.state.qualified ? (
             <span className="zkp-decision zkp-decision--przyjeto">Kwalifikowany</span>
           ) : r.state.onList ? (
-            <span className="zkp-decision zkp-decision--zwrot" title="Ostatnia ocena negatywna albo brak oceny">
+            <span className="zkp-decision zkp-decision--zwrot" title="Ostatnia ocena negatywna, brak oceny albo minął termin kolejnej oceny">
               Niekwalifikowany
             </span>
           ) : (
