@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient'
 import { fetchAllPages } from '../lib/fetchPaged'
 import { ALU_STAGE_DEFS, ORDER_DOCUMENTS_BUCKET } from '../constants'
 import { applyAluPositionStages } from '../lib/aluStation'
-import { aluDoneSeen, aluMarkErrorText, rpcMarkAluStage, rpcUndoAluStage } from '../lib/aluStageRpc'
+import { aluDoneSeen, aluMarkErrorText, appPinPrompt, rpcMarkAluStageSigned, rpcUndoAluStage } from '../lib/aluStageRpc'
 import type { AluMaterialListParseResult } from '../lib/aluMaterialListParser'
 import type {
   AluPositionStages,
@@ -564,10 +564,9 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
     async (orderId: number, value: boolean | null, reason?: string): Promise<boolean> => {
       touchSession()
       const base = { p_order_id: orderId, p_is_zkp: value }
-      let { error } = await supabase.rpc('set_alu_order_zkp', reason ? { ...base, p_reason: reason } : base)
-      if (error?.code === 'PGRST202' && reason) {
-        ;({ error } = await supabase.rpc('set_alu_order_zkp', base))
-      }
+      const first = await supabase.rpc('set_alu_order_zkp', reason ? { ...base, p_reason: reason } : base)
+      const { error } =
+        first.error?.code === 'PGRST202' && reason ? await supabase.rpc('set_alu_order_zkp', base) : first
       if (error) {
         pushToast(`Nie udało się zmienić oznaczenia ZKP: ${error.message}`, 'error')
         return false
@@ -652,11 +651,12 @@ export function useAluOrders({ pushToast, touchSession }: UseAluOrdersParams) {
       setAluStageBusyOrderId(orderId)
       try {
         const pos = orderId != null ? (aluPositionsByOrder[orderId] ?? []).find((p) => p.id === positionId) : undefined
-        const { data, error } = await rpcMarkAluStage(
+        const { data, error } = await rpcMarkAluStageSigned(
           positionId,
           stageKey,
           (initials ?? '').trim() || 'T',
           pos ? aluDoneSeen(pos.production_stages, stageKey) : null,
+          appPinPrompt,
         )
         if (error) {
           pushToast(aluMarkErrorText(error), 'error')

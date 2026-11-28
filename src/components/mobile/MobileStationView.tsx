@@ -27,6 +27,8 @@ import {
 } from '../../lib/aluStation'
 import { aluStageDone } from '../../lib/alu'
 import { aluDoneSeen, aluMarkErrorText, rpcMarkAluStage, rpcUndoAluStage } from '../../lib/aluStageRpc'
+import { aluMarkWithPin } from '../../lib/aluStation'
+import { useMobilePinAsk } from './useMobilePinAsk'
 import { ALU_CATEGORY } from '../../constants'
 import { czyLimitCzasu, komunikatWyjatku, zLimitemCzasu } from '../../lib/zLimitemCzasu'
 import type { AluPosition, AluPositionStages, Complaint, Order, WorkerStage } from '../../types'
@@ -63,6 +65,7 @@ export default function MobileStationView({ userId }: Props) {
   const [loading, setLoading] = useState(true)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [confirmTask, setConfirmTask] = useState<MyTask | null>(null)
+  const [askPin, pinDialog] = useMobilePinAsk()
   const [shortageConfirm, setShortageConfirm] = useState<{
     task: MyTask
     shortages: ShortageRow[]
@@ -354,12 +357,15 @@ export default function MobileStationView({ userId }: Props) {
     setSaving(true)
     try {
       const mark = (markInitials ?? myInitials).trim() || 'T'
-      const { data, error } = await zLimitemCzasu(rpcMarkAluStage(
+      // D53: etap ZKP — baza poprosi o PIN osoby z kafelka (okienko PIN); D66: limit czasu na każde wywołanie bazy,
+      // nie na czas wpisywania PIN-u
+      const { data, error } = await aluMarkWithPin((pin) => zLimitemCzasu(rpcMarkAluStage(
         info.positionId,
         task.stageKey,
         mark,
         livePos ? aluDoneSeen(livePos.production_stages, task.stageKey) : info.done,
-      ))
+        pin,
+      )), (msg) => askPin(msg))
       if (!mountedRef.current) return
       if (error) {
         flash(aluMarkErrorText(error), true)
@@ -588,6 +594,7 @@ export default function MobileStationView({ userId }: Props) {
 
   return (
     <div className="mstation">
+      {pinDialog}
       <div className="mstation-summary">
         <span>Do zrobienia: <strong>{tasks.length}</strong></span>
         <span className="mstation-ready">Gotowe: <strong>{readyCount}</strong></span>

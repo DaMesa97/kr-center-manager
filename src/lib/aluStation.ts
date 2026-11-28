@@ -183,8 +183,59 @@ export function mergeAluPositionEvent(
 /** Kod błędu bazy dla blokad ZKP przy etapach (D54: przed uruchomieniem / pakowanie przed zwolnieniem karty). */
 export const ALU_ZKP_BLOCK_CODE = 'P0423'
 
-/** Tekst dla pracownika po nieudanym oznaczeniu sztuki — blokada ZKP wyraźnie nazwana. */
+// D53: podpis etapu ZKP PIN-em osoby podpisującej (migracja 20261128035300)
+/** baza: wpisz PIN (aplikacja pokazuje okienko PIN i ponawia) */
+export const ALU_PIN_REQUIRED_CODE = 'P0428'
+/** aplikacja: baza zwróciła {_zkp_pin_error} — błędny PIN (licznik prób zapisany w bazie) */
+export const ALU_PIN_WRONG_CODE = 'P0401'
+/** baza: osoba nie ma PIN-u */
+export const ALU_PIN_MISSING_CODE = 'P0424'
+/** baza: PIN zablokowany po 5 błędach */
+export const ALU_PIN_LOCKED_CODE = 'P0429'
+/** aplikacja: pracownik zamknął okienko PIN */
+export const ALU_PIN_CANCELLED_CODE = 'PIN_CANCELLED'
+
+/** Odpowiedź mark_alu_position_stage z błędnym PIN-em → komunikat; inaczej null. */
+export function aluPinErrorFromData(data: unknown): string | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  const msg = (data as Record<string, unknown>)._zkp_pin_error
+  return typeof msg === 'string' && msg ? msg : null
+}
+
+/** Tekst dla pracownika po nieudanym oznaczeniu sztuki — blokady i podpis ZKP wyraźnie nazwane. */
 export function aluMarkErrorText(error: { code?: string | null; message: string }): string {
   if (error.code === ALU_ZKP_BLOCK_CODE) return `Blokada ZKP — ${error.message}`
+  if (error.code === ALU_PIN_CANCELLED_CODE) return 'Nie podpisano — etap ZKP wymaga PIN-u osoby podpisującej'
+  if (
+    error.code === ALU_PIN_WRONG_CODE ||
+    error.code === ALU_PIN_MISSING_CODE ||
+    error.code === ALU_PIN_LOCKED_CODE ||
+    error.code === ALU_PIN_REQUIRED_CODE
+  ) {
+    return `Podpis ZKP — ${error.message}`
+  }
   return `Nie oznaczono sztuki: ${error.message}`
+}
+
+export type AluMarkResult = { data: unknown; error: { code?: string | null; message: string } | null }
+
+/**
+ * D53: oznaczenie z podpisem PIN-em. Najpierw bez PIN-u; gdy baza prosi o PIN (P0428) albo PIN był
+ * błędny (P0401) — okienko PIN z komunikatem bazy i ponowienie (najwyżej `maxAsks` razy; blokadę
+ * po 5 błędach pilnuje baza). Zamknięcie okienka = PIN_CANCELLED. Zwykłe zlecenia: jedno wywołanie.
+ */
+export async function aluMarkWithPin(
+  call: (pin: string | null) => Promise<AluMarkResult>,
+  askPin: (message: string) => Promise<string | null>,
+  maxAsks = 4,
+): Promise<AluMarkResult> {
+  let res = await call(null)
+  for (let i = 0; i < maxAsks; i++) {
+    const code = res.error?.code
+    if (code !== ALU_PIN_REQUIRED_CODE && code !== ALU_PIN_WRONG_CODE) break
+    const pin = (await askPin(res.error?.message ?? 'Wpisz PIN'))?.trim()
+    if (!pin) return { data: null, error: { code: ALU_PIN_CANCELLED_CODE, message: 'Anulowano podpis' } }
+    res = await call(pin)
+  }
+  return res
 }

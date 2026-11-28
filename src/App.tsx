@@ -3187,6 +3187,13 @@ function App() {
           canCreateOrder={isManager}
           onSignOut={() => void handleSignOut()}
           pushToast={pushToast}
+          showZkpPin={
+            isAdminRole(currentUser?.role) ||
+            currentUser?.role === 'manager' ||
+            (currentUser?.zkp_roles ?? []).length > 0 ||
+            (currentUser?.categories ?? []).includes('Aluminium')
+          }
+          currentUserIsAdmin={isAdminRole(currentUser?.role) || currentUser?.role === 'manager'}
         />
         <UpdateBanner />
         {minVersionRequired && (

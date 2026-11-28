@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DbProfileRow, ToastVariant } from '../types'
 import Spinner from './Spinner'
 import DataTable, { type DataTableColumn } from './DataTable'
-import { appConfirm, appPrompt } from '../lib/appDialogs'
+import { appAlert, appConfirm, appPrompt } from '../lib/appDialogs'
+import { zkpPinSetupFlow } from '../lib/zkpPin'
+import { setZkpPin } from '../lib/zkpPinRpc'
 import CrmAccessSection from './crm/CrmAccessSection'
 import { fetchAccountStatus, type AccountStatus } from '../hooks/useUsers'
 
@@ -172,6 +174,28 @@ export default function UsersView({
             >
               Hasło
             </button>
+            {/* D53: PIN podpisu etapów ZKP — administrator ustawia (pracownik potem zmienia sam: „PIN ZKP”) */}
+            {canDelete && (
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                title="Ustaw PIN do podpisu etapów ZKP (AS 75EI); pracownik może go potem zmienić sam"
+                onClick={() => {
+                  void zkpPinSetupFlow({
+                    needCurrent: false,
+                    whose: row.full_name || row.initials || 'pracownik',
+                    ask: (message, title) => appPrompt(message, { title, confirmLabel: 'Dalej', inputType: 'password' }),
+                    save: async (pin) => (await setZkpPin(row.id, pin)).error,
+                    notify: async (message, ok) => {
+                      if (ok) pushToast?.(`${message} — przekaż go pracownikowi; może go zmienić przyciskiem „PIN ZKP”`, 'success')
+                      else await appAlert(message)
+                    },
+                  })
+                }}
+              >
+                PIN ZKP
+              </button>
+            )}
             {/* Testy 27.11 (runda 3): okno obiecywało odblokowanie, a przycisk zawsze
                 blokował. Teraz: aktywne → „Dezaktywuj”, zablokowane → „Odblokuj”;
                 gdy statusu nie udało się pobrać — oba przyciski. */}
@@ -225,7 +249,7 @@ export default function UsersView({
         },
       },
     ]
-  }, [currentUserId, canDelete, isSuperadmin, status, runDeactivate, onEditUser, onDeleteUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel])
+  }, [currentUserId, canDelete, isSuperadmin, status, runDeactivate, onEditUser, onDeleteUser, onResetPassword, onManageWorkerStages, getRoleLabel, getDepartmentLabel, pushToast])
 
   const [legendOpen, setLegendOpen] = useState(false)
 

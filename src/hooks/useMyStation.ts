@@ -5,7 +5,7 @@ import { markLocalStageWrite } from '../lib/stageWrites'
 import { clearStageLocally, stationUndoMessage, undoStationTask } from '../lib/stationUndo'
 import { ALL_STATION_CATEGORIES, fetchAluPositionsByOrder, fetchStationOrders } from '../lib/stationFetch'
 import { applyAluPositionStages, mergeAluPositionEvent } from '../lib/aluStation'
-import { aluDoneSeen, aluMarkErrorText, rpcMarkAluStage, rpcUndoAluStage } from '../lib/aluStageRpc'
+import { aluDoneSeen, aluMarkErrorText, appPinPrompt, rpcMarkAluStageSigned, rpcUndoAluStage } from '../lib/aluStageRpc'
 import { ALU_CATEGORY } from '../constants'
 import { parseProductionStages } from '../utils'
 import type { AluPosition, AluPositionStages, Complaint, CurrentUser, Order, Profile, WorkerStage } from '../types'
@@ -327,11 +327,12 @@ export function useMyStation({ pushToast, currentUser }: UseMyStationParams) {
       if (!info) return false
       const mark = (markInitials ?? currentUser?.initials ?? '').trim() || 'T'
       const livePos = (aluPositionsByOrder[task.order.id ?? -1] ?? []).find((p) => p.id === info.positionId)
-      const { data, error } = await rpcMarkAluStage(
+      const { data, error } = await rpcMarkAluStageSigned(
         info.positionId,
         task.stageKey,
         mark,
         livePos ? aluDoneSeen(livePos.production_stages, task.stageKey) : info.done,
+        appPinPrompt,
       )
       if (error) {
         pushToast(aluMarkErrorText(error), 'error')

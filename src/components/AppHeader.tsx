@@ -4,6 +4,9 @@ import packageJson from '../../package.json'
 import NotificationBell from './NotificationBell'
 import ChangePasswordModal from './ChangePasswordModal'
 import type { ToastVariant } from '../types'
+import { appAlert, appPrompt } from '../lib/appDialogs'
+import { zkpPinSetupFlow } from '../lib/zkpPin'
+import { fetchZkpPinStatus, setZkpPin } from '../lib/zkpPinRpc'
 
 // ---------------------------------------------------------------------------
 // IPC helper (tylko do invoke — bez globalnego augmentowania Window)
@@ -214,6 +217,10 @@ type AppHeaderProps = {
   canCreateOrder: boolean
   onSignOut: () => void
   /** komunikaty (np. po zmianie hasła) */
+  /** D53: przycisk „PIN ZKP” (własny PIN podpisu etapów ZKP) */
+  showZkpPin?: boolean
+  /** administrator nie musi podawać obecnego PIN-u */
+  currentUserIsAdmin?: boolean
   pushToast?: (message: string, variant: ToastVariant) => void
 }
 
@@ -240,9 +247,31 @@ export default function AppHeader({
   canCreateOrder,
   onSignOut,
   pushToast,
+  showZkpPin = false,
+  currentUserIsAdmin = false,
 }: AppHeaderProps) {
   const [showAbout, setShowAbout] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
+
+  // D53: własny PIN podpisu etapów ZKP (zmiana istniejącego — z obecnym PIN-em)
+  const handleZkpPin = async () => {
+    const st = await fetchZkpPinStatus()
+    if (st.error) {
+      await appAlert(st.error)
+      return
+    }
+    const mine = st.rows?.find((r) => r.r_profile_id === currentUserId)
+    await zkpPinSetupFlow({
+      needCurrent: !!mine?.r_has_pin && !currentUserIsAdmin,
+      whose: currentUserFullName || 'mój',
+      ask: (message, title) => appPrompt(message, { title, confirmLabel: 'Dalej', inputType: 'password' }),
+      save: async (pin, current) => (await setZkpPin(currentUserId, pin, current)).error,
+      notify: async (message, ok) => {
+        if (ok) pushToast?.(message, 'success')
+        else await appAlert(message)
+      },
+    })
+  }
 
   const isNoActionTab =
     isConfigTab ||
@@ -334,6 +363,16 @@ export default function AppHeader({
             >
               Zmień hasło
             </button>
+            {showZkpPin && (
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={() => void handleZkpPin()}
+                title="Ustaw albo zmień swój PIN do podpisu etapów ZKP (AS 75EI)"
+              >
+                PIN ZKP
+              </button>
+            )}
             <button type="button" className="btn btn-sm btn-secondary" onClick={onSignOut}>
               Wyloguj
             </button>

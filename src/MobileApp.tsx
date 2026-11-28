@@ -8,6 +8,9 @@ import MobileShippingView from './components/mobile/MobileShippingView'
 import { can, isManagerRole } from './lib/permissions'
 import { canPickIntDoor } from './lib/orderPicks'
 import { filtrKategoriiNaTelefon, kategorieNaTelefon } from './components/mobile/mobileKategorie'
+import { useMobilePinAsk } from './components/mobile/useMobilePinAsk'
+import { zkpPinSetupFlow } from './lib/zkpPin'
+import { fetchZkpPinStatus, setZkpPin } from './lib/zkpPinRpc'
 
 type SessionUser = { id: string; initials: string; role: string; department: string; categories: string[] }
 
@@ -26,6 +29,28 @@ export default function MobileApp() {
   // runda 10 (tester telefonu): Supabase wysyła SIGNED_IN przy każdym powrocie z tła — jak na komputerze
   // (useAuth) profil wczytujemy tylko dla NOWEGO użytkownika, a błąd odczytu nie podmienia go na „??”
   const loadedUserIdRef = useRef<string | null>(null)
+  // D53: własny PIN podpisu etapów ZKP (przycisk „PIN” w nagłówku)
+  const [askPin, pinDialog] = useMobilePinAsk()
+  const [pinNote, setPinNote] = useState<{ text: string; ok: boolean } | null>(null)
+  const handleZkpPin = async () => {
+    if (!user) return
+    setPinNote(null)
+    const st = await fetchZkpPinStatus()
+    if (st.error) {
+      setPinNote({ text: st.error, ok: false })
+      return
+    }
+    const mine = st.rows?.find((r) => r.r_profile_id === user.id)
+    await zkpPinSetupFlow({
+      needCurrent: !!mine?.r_has_pin,
+      whose: user.initials || 'mój',
+      ask: (message, title) => askPin(message, { title, confirmLabel: 'Dalej' }),
+      save: async (pin, current) => (await setZkpPin(user.id, pin, current)).error,
+      notify: (text, ok) => {
+        if (mountedRef.current) setPinNote({ text, ok })
+      },
+    })
+  }
 
   const loadProfile = async (userId: string) => {
     const { data, error: profErr } = await supabase
@@ -205,11 +230,30 @@ export default function MobileApp() {
             : '🚛 Wysyłka'}
         </span>
         <span className="mpack-user">{user.initials}</span>
+        <button
+          type="button"
+          className="mpack-signout"
+          style={{ fontWeight: 700, fontSize: '0.8rem' }}
+          onClick={() => void handleZkpPin()}
+          title="Mój PIN do podpisu etapów ZKP"
+        >
+          PIN
+        </button>
         <button type="button" className="mpack-signout" onClick={() => void handleSignOut()} title="Wyloguj">
           <LogOut size={18} />
         </button>
       </header>
 
+      {pinDialog}
+      {pinNote && (
+        <div
+          className={pinNote.ok ? undefined : 'mlogin-error'}
+          style={{ margin: '0.5rem', padding: '0.6rem 0.8rem', borderRadius: 10, background: pinNote.ok ? '#dcfce7' : undefined }}
+          onClick={() => setPinNote(null)}
+        >
+          {pinNote.text}
+        </div>
+      )}
       <main className="mshell-content">
         {activeView === 'packing' ? (
           <MobilePackingView userInitials={user.initials} userId={user.id} kategorie={filtrKategoriiNaTelefon(user.role, user.categories)} />
