@@ -161,7 +161,8 @@ export default function ExcelSyncReviewSection({ data, onOpenOrder, onCancelOrde
                 className="badge badge-warning"
                 style={{ marginLeft: 8 }}
                 title={zle
-                  .map((z) => `${z.kat}, wiersz ${String(z.wiersz ?? '?')} (nr ${String(z.nr ?? '?')}): ${String(z.kolumna ?? '')} „${String(z.wartosc ?? '')}”`)
+                  // reklamacje mają numer wiersza, zlecenia (D25) — arkusz (Center / Profil / WZ)
+                  .map((z) => `${z.kat}, ${z.wiersz != null ? `wiersz ${String(z.wiersz)}` : `arkusz ${String(z.arkusz ?? '?')}`} (nr ${String(z.nr ?? '?')}): ${String(z.kolumna ?? '')} „${String(z.wartosc ?? '')}”`)
                   .join('\n')}
               >
                 złe daty w Excelu: {zle.length} — popraw w arkuszu

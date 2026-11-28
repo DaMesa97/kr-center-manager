@@ -8,8 +8,11 @@
 // sync_releases_from_excel) woła RPC sync_stages_from_excel: uzupełnia tylko puste etapy w programie.
 // Tryb: integration_settings.excel_sync_etapy = off | dry (podgląd) | on. Wynik w summary.etapy tego samego przebiegu.
 // Mapa inicjałów Excel → profil (per kategoria): integration_settings.excel_sync_inicjaly (JSON). „--” w komórce etapu = nie dotyczy.
+// 28.11.2026: D22/D64 — etap cofnięty w programie nie wraca z Excela (tabela excel_cofniete_etapy, SQL);
+// D25 — data zamiast „X” (daty.ts): w WYDANIE / „zrobione” = prawdziwa data wydania, w etapach ST / Bastion = data etapu.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { readSheets, inspectWorkbook } from "./parse.ts";
+import { czytajDateKomorki } from "./daty.ts";
 
 // done = zapasowa kolumna „zrobione” (gdy WYDANIE puste); doneOptional = arkusz może jej nie mieć (np. WZ TITAN)
 type Part = { category: string; sheets: Record<string, string>; nr: string; wyd: string; done?: string; doneOptional?: boolean };
@@ -88,6 +91,9 @@ const BASTION_RULES: StageRule[] = [
   { key: "magazyn_regulowana", re: /^MAGAZYN REGULOWANE/ },
   { key: "regulowana_do_zlozenia", re: /^REGULOWANA DO ZŁOŻENIA/ },
 ];
+// D25 (28.11): kategorie, w których data w kolumnie etapu = etap zrobiony tego dnia (ST / Bastion — decyzja właściciela);
+// w pozostałych data w kolumnie etapu zostaje „nietypowa” (raport, bez zapisu) jak dotąd
+const DATY_ETAPOW = new Set(["ST", "Techniczne", "ST_TITAN", "Bastion"]);
 const STAGE_RULES: Record<string, StageRule[]> = {
   STA: STA_RULES, STA_TITAN: STA_TITAN_RULES, Disting: DISTING_RULES, ST: ST_RULES, Techniczne: ST_RULES, ST_TITAN: ST_TITAN_RULES, Bastion: BASTION_RULES,
 };
@@ -311,7 +317,7 @@ Deno.serve(async (req) => {
       const perSheet: Record<string, number> = {};
       const zleDaty: Record<string, unknown>[] = [];   // runda 10 (28.11): literówki dat do raportu przebiegu
       // etapy per wiersz arkusza: klucz = to, co RPC zwraca w items.excel_row (`${sheet} ${nr}`)
-      const etapyByRow: Record<string, { stages: Record<string, string>; nietypowe: Array<{ etap: string; wartosc: string }> }> = {};
+      const etapyByRow: Record<string, { stages: Record<string, string>; nietypowe: Array<{ etap: string; wartosc: string }>; daty?: Record<string, string> }> = {};
       const wierszeZEtapami = new Set<string>();   // D22/D64: wiersze arkuszy z kolumnami etapów (także puste)
       const stageColsMissing: string[] = [];
       for (const [sheetName, sheet] of Object.entries(part.sheets)) {
@@ -333,13 +339,17 @@ Deno.serve(async (req) => {
           // brak wydania, ale zaznaczony etap MAGAZYN, KONTROLA ODBIORCZA -> wydane (szacunkowa)
           const w = x[part.wyd];
           let wyd: string | null = null, szac = false;
-          if (typeof w === "number") wyd = serialToIso(w);
-          else if (w != null && String(w).trim() !== "") {
-            const t = String(w).trim();
-            if (/^x+$/i.test(t)) { wyd = today; szac = true; } else wyd = t;
+          // D25 (28.11): data w dowolnym zapisie (seryjna, dd.mm, dd.mm.rrrr, ISO) → prawdziwa data wydania;
+          // wcześniej tekst „15.11.2026” szedł surowo i SQL dawał status „inne” (zlecenie się nie zamykało)
+          const kw = czytajDateKomorki(w, today);
+          if (kw.rodzaj === "data") wyd = kw.iso;
+          else if (kw.rodzaj === "x") { wyd = today; szac = true; }
+          else if (kw.rodzaj === "zla_data") {
             // runda 10 (28.11): niemożliwa data wydania — tekst idzie jak dotąd (SQL da status „inne”), plus wpis w raporcie
-            if (isBadDateText(t)) zleDaty.push({ arkusz: sheet, nr: String(nr).trim(), kolumna: "WYDANIE", wartosc: t });
+            wyd = kw.tekst;
+            zleDaty.push({ arkusz: sheet, nr: String(nr).trim(), kolumna: part.wyd, wartosc: typeof w === "number" ? kw.tekst : String(w).trim() });
           }
+          else if (kw.rodzaj === "inne" && typeof w !== "number") wyd = kw.tekst;   // np. „ANULOWANE” → SQL; liczba spoza dat — jak dotąd pomijana
           // testy 27.11 (2. seria, KRYTYCZNY): „ANULOWANE” wpisane w kolumnie etapu (CNC, ościeżnica…) zamiast w WYDANIE
           // zostawiało zlecenie otwarte z rezerwacjami (7 zleceń, 65 rezerwacji) — teraz idzie jak „ANUL…” w WYDANIE,
           // czyli na listę „Anulowane w Excelu” w Weryfikacji (anuluje człowiek, nie automat)
@@ -352,21 +362,47 @@ Deno.serve(async (req) => {
             const anul = anulCols.find((h) => (h === doneCol ? /^anul/i : /^anulowan/i).test(String(x[h] ?? "").trim()));
             if (anul) wyd = `ANULOWANE (kolumna ${anul})`;
           }
-          if (wyd === null && doneCol) {
+          // D25: także gdy WYDANIE ma samo „X” — data z kolumny „zrobione” jest lepsza niż dzień synchronizacji
+          if ((wyd === null || szac) && doneCol) {
             const dv = x[doneCol];
-            if (dv != null && String(dv).trim() !== "" && String(dv).trim() !== "-") { wyd = today; szac = true; }
+            if (dv != null && String(dv).trim() !== "" && String(dv).trim() !== "-") {
+              // D25 (28.11): data w kolumnie „zrobione” (MAGAZYN, KONTROLA ODBIORCZA) = prawdziwa data wydania;
+              // niemożliwa data → raport + (bez „X” w WYDANIE) status „inne”, bez zamykania z dzisiejszą datą;
+              // inne wpisy (inicjały, „X”) jak dotąd
+              const kd = czytajDateKomorki(dv, today);
+              if (kd.rodzaj === "data") { wyd = kd.iso; szac = false; }
+              else if (kd.rodzaj === "zla_data") {
+                if (wyd === null) wyd = kd.tekst;
+                zleDaty.push({ arkusz: sheet, nr: String(nr).trim(), kolumna: doneCol, wartosc: typeof dv === "number" ? kd.tekst : String(dv).trim() });
+              }
+              else if (wyd === null) { wyd = today; szac = true; }
+            }
           }
           if (cols.length) {
             wierszeZEtapami.add(`${sheet} ${String(nr).trim()}`);
             const stages: Record<string, string> = {};
+            const daty: Record<string, string> = {};   // D25: data wykonania etapu z komórki z datą
             const nietypowe: Array<{ etap: string; wartosc: string }> = [];
             for (const c of cols) {
+              // D25 (28.11): ST / Bastion — data w kolumnie etapu = etap zrobiony tego dnia. Zapis w etapie jak dla „X”
+              // (#ND: zrobione, bez osoby i bez wydania z magazynu), data osobno (extra_fields.etapy_daty_excel).
+              if (DATY_ETAPOW.has(part.category)) {
+                const ke = czytajDateKomorki(x[c.header], today);
+                if (ke.rodzaj === "data") { stages[c.key] = "#ND"; daty[c.key] = ke.iso; continue; }
+                if (ke.rodzaj === "zla_data") {
+                  // ta sama komórka mogła już trafić do raportu jako kolumna „zrobione”
+                  if (!zleDaty.some((z) => z.arkusz === sheet && z.nr === String(nr).trim() && z.kolumna === c.header))
+                    zleDaty.push({ arkusz: sheet, nr: String(nr).trim(), kolumna: c.header, wartosc: typeof x[c.header] === "number" ? ke.tekst : String(x[c.header]).trim() });
+                  continue;
+                }
+              }
               const sv = stageValue(x[c.header]);
               if (sv.v) stages[c.key] = mapujInicjaly(part.category, sv.v);
               else if (sv.nietypowe) nietypowe.push({ etap: c.key, wartosc: sv.nietypowe });
               if (sv.v && sv.info) nietypowe.push({ etap: c.key, wartosc: sv.info });   // zapisane, informacja w raporcie
             }
-            if (Object.keys(stages).length || nietypowe.length) etapyByRow[`${sheet} ${String(nr).trim()}`] = { stages, nietypowe };
+            if (Object.keys(stages).length || nietypowe.length)
+              etapyByRow[`${sheet} ${String(nr).trim()}`] = { stages, nietypowe, ...(Object.keys(daty).length ? { daty } : {}) };
           }
           rows.push({
             sheet, nr: String(nr).trim(),
@@ -386,7 +422,17 @@ Deno.serve(async (req) => {
       });
       if (error) { results.push({ category: part.category, error: error.message, perSheet }); continue; }
       const entry: Record<string, unknown> = { category: part.category, rows_sent: rows.length, perSheet, run_id: result.run_id, summary: result.summary };
-      if (zleDaty.length) entry.zle_daty = zleDaty;
+      if (zleDaty.length) {
+        entry.zle_daty = zleDaty;
+        // D25 (28.11): złe daty zleceń także w podsumowaniu przebiegu (excel_sync_runs) — Weryfikacja pokazuje
+        // plakietkę „złe daty w Excelu”; sama odpowiedź dla Make ginie. Błąd zapisu nie przerywa synchronizacji.
+        try {
+          const { error: zdErr } = await supabase.from("excel_sync_runs")
+            .update({ summary: { ...(result.summary ?? {}), zla_data: zleDaty.length, zle_daty: zleDaty.slice(0, 100) } })
+            .eq("id", result.run_id);
+          if (zdErr) console.error("excel_sync_runs (zle_daty):", zdErr.message);
+        } catch (e) { console.error("excel_sync_runs (zle_daty):", e); }
+      }
       // etapy: tylko wiersze dopasowane jednoznacznie (bez duplikatów i anulowanych); program ma pierwszeństwo (RPC uzupełnia puste)
       if (etapyMode !== "off") {
         try {
