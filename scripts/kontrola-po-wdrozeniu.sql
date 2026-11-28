@@ -1,5 +1,6 @@
 -- Kontrola po wdrożeniu migracji z 27.11.2026 (testy 27.11, runda 3).
--- Tylko odczyt. Uruchom w SQL Editor po wgraniu WSZYSTKICH migracji 20261127221000…20261127235100 oraz 20261128000000…20261128010500 (runda 8: ZKP, powiadomienia, słowniki).
+-- Tylko odczyt. Uruchom w SQL Editor po wgraniu WSZYSTKICH migracji 20261127221000…20261127235100 oraz 20261128000000…20261128010500 (runda 8: ZKP, powiadomienia, słowniki)
+-- oraz 20261128021000… (runda 10 (28.11), tor r10-baza).
 -- Wynik: lista braków. PUSTY wynik = wszystko na miejscu.
 -- (Znaczniki funkcji z próby generalnej r5 + znaczniki z plików 20261127234000…235100
 --  + 20261128010000…20261128010500 — noc 28.11, tor r8-baza.)
@@ -98,7 +99,10 @@ with znaczniki(fn, marker, minimum) as (
     ('public.notify_erp_error()', 'public.notify_muted()', 1),
     ('public.restore_from_archive__impl(bigint)', 'app.restoring', 2),
     ('public.restore_from_archive__impl(bigint)', 'insert into order_photos', 1),
-    ('public.archive_old_orders__impl(integer)', '''uploaded_by'', ph.uploaded_by', 1)
+    ('public.archive_old_orders__impl(integer)', '''uploaded_by'', ph.uploaded_by', 1),
+    -- runda 10 (28.11), tor r10-baza
+    -- 20261128021000: wydanie na etap wstrzymany / „#…” odmawia pracownikowi
+    ('public.release_stock_for_stage(bigint,text,boolean)', 'runda 10 (28.11), wstrzymane', 1)
 ),
 funkcje as (
   select z.fn, z.marker, z.minimum, to_regprocedure(z.fn) as foid from znaczniki z
