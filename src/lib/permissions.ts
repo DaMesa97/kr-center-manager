@@ -50,7 +50,7 @@ export type Permission =
   | 'stats.view'
   | 'audit.view'
   | 'labels.print'
-  | 'labels.manageTemplates'
+  | 'labels.manageTemplates' // D59: szablony etykiet / dokumentów druku — tylko admin (i stary manager)
   | 'admin.panel'          // użytkownicy / konfiguracja / kontrahenci / klucze API
   | 'users.manageProduction' // zakłada/edytuje konta pracowników produkcji w swoich kategoriach, resetuje hasła
   | 'categories.scoped'    // widzi/działa tylko w przypisanych kategoriach (nie wszystkich)
@@ -70,7 +70,7 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'orders.view', 'orders.create', 'orders.edit', 'orders.release', 'stages.markAny',
     'comments.write', 'shipping.view', 'shipping.routes', 'shipping.invoice', 'prices.view',
     'warehouse.movements', 'warehouse.manage', 'warehouse.ordering',
-    'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
+    'review.handle', 'stats.view', 'audit.view', 'labels.print',
     'categories.scoped', // KD widzi tylko przypisane kategorie
     'users.manageProduction', // zwiad #7 / decyzja 2.11.2026: KD sam zakłada konta i resetuje hasła
   ],
@@ -79,7 +79,7 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'orders.view', 'orders.create', 'orders.edit', 'orders.release', 'stages.markAny',
     'comments.write', 'shipping.view', 'shipping.routes', 'prices.view',
     'warehouse.movements', 'warehouse.manage', 'warehouse.ordering',
-    'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
+    'review.handle', 'stats.view', 'audit.view', 'labels.print',
   ],
 
   // KP = pełna firma poza panelem admina. KF scalony z KP (2026-10-21):
@@ -89,13 +89,13 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'orders.view', 'orders.create', 'orders.edit', 'orders.release', 'stages.markAny',
     'comments.write', 'shipping.view', 'shipping.routes', 'shipping.invoice', 'prices.view',
     'warehouse.movements', 'warehouse.manage', 'warehouse.ordering',
-    'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
+    'review.handle', 'stats.view', 'audit.view', 'labels.print',
   ],
   [R.KIER_FIRMOWY]: [
     'orders.view', 'orders.create', 'orders.edit', 'orders.release', 'stages.markAny',
     'comments.write', 'shipping.view', 'shipping.routes', 'shipping.invoice', 'prices.view',
     'warehouse.movements', 'warehouse.manage', 'warehouse.ordering',
-    'review.handle', 'stats.view', 'audit.view', 'labels.print', 'labels.manageTemplates',
+    'review.handle', 'stats.view', 'audit.view', 'labels.print',
   ],
 
   // Admin i superadmin obsłużone osobno (wszystko) — pusta lista nie ma znaczenia
@@ -153,8 +153,7 @@ export function usersScopeFor(role: string | null | undefined, categories?: stri
  * admin / superadmin (i stary 'manager' — jak current_user_is_admin() w bazie).
  */
 export function canEditPrintTemplates(role: string | null | undefined): boolean {
-  const r = String(role ?? '')
-  return isAdminRole(r) || LEGACY_MANAGER.has(r)
+  return can(role, 'labels.manageTemplates')
 }
 
 // Czy rola jest "zawężona" do przypisanych kategorii (PP, KD)?
