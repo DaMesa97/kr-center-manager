@@ -10,7 +10,7 @@ type PageResponse<T> = { data: T[] | null; error: { message: string; code?: stri
 export async function fetchAllPages<T>(
   page: (from: number, to: number) => PromiseLike<PageResponse<T>>,
   opts: { max?: number; pageSize?: number } = {},
-): Promise<{ data: T[]; error: { message: string } | null }> {
+): Promise<{ data: T[]; error: { message: string; code?: string } | null }> {
   const size = opts.pageSize ?? PG_PAGE
   const max = opts.max ?? Infinity
   const rows: T[] = []

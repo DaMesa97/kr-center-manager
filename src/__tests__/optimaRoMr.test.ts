@@ -9,6 +9,7 @@ vi.mock('../supabaseClient', () => ({ supabase: {} }))
 import { failureLabel, failureStatus, isMissingRelation, OPTIMA_RO_MAX_AUTO } from '../lib/optimaRoFailures'
 import { isMrProfilOrder } from '../lib/optimaRo'
 import { isInternalWarehouseCode } from '../utils'
+import { firmaArgs } from '../lib/wewFirma'
 
 const zrodlo = readFileSync(new URL('../../supabase/functions/optima-ro-import/index.ts', import.meta.url), 'utf-8').replace(/\r\n/g, '\n')
 
@@ -70,5 +71,12 @@ describe('magazyn MR Profil (D10)', () => {
     expect(isInternalWarehouseCode('mr_wew')).toBe(true)
     expect(isInternalWarehouseCode('MARKLOWICKA')).toBe(false)
     expect('MR_WEW'.startsWith('WEW')).toBe(false)
+  })
+})
+
+describe('statystyki drzwi wewnętrznych — filtr firmy (D10)', () => {
+  it('p_firma dokładany tylko, gdy baza go zna (po PGRST202 — bez)', () => {
+    expect(firmaArgs({ p_months: 13 }, 'MR', true)).toEqual({ p_months: 13, p_firma: 'MR' })
+    expect(firmaArgs({ p_months: 13 }, 'MR', false)).toEqual({ p_months: 13 })
   })
 })

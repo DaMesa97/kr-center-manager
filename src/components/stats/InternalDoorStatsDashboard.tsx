@@ -6,6 +6,7 @@ import DataTable, { type DataTableColumn } from '../DataTable'
 import { fetchAllPages } from '../../lib/fetchPaged'
 import { localDateStr, minusMonths } from '../../lib/localDates'
 import { appPrompt } from '../../lib/appDialogs'
+import { FIRMA_LABELS, firmaArgs, type FirmaStat } from '../../lib/wewFirma'
 import {
   BRAK,
   ITEM_TYPE_LABELS,
@@ -69,6 +70,7 @@ const LS = {
   wykonanie: 'stats.wew.wykonanie',
   okres: 'stats.wew.okres',
   trend: 'stats.wew.trend',
+  firma: 'stats.wew.firma',
 }
 
 function readLs<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
@@ -97,6 +99,10 @@ function shortName(s: string, max = 26): string {
 export default function InternalDoorStatsDashboard({ isManager = false }: Props) {
   const [itemFilter, setItemFilter] = useState<ItemFilter>(() => readLs(LS.typ, ITEM_FILTERS.map((f) => f.key), 'door_wing'))
   const [wykonanie, setWykonanie] = useState<Wykonanie>(() => readLs(LS.wykonanie, ['all', 'WEW', 'NSTD'] as const, 'all'))
+  // D10 (28.11): KR Center / MR Profil / obie — parametr p_firma funkcji stat_wew_* (migracja 20261128036102)
+  const [firma, setFirma] = useState<FirmaStat>(() => readLs(LS.firma, ['KR', 'MR', 'all'] as const, 'KR'))
+  /** baza bez p_firma (migracja niewgrana) — liczby jak dotąd, wszystkie zlecenia */
+  const [firmaNiedostepna, setFirmaNiedostepna] = useState(false)
   const [months, setMonths] = useState<number>(() => Number(readLs(LS.okres, ['3', '6', '12', '24'] as const, '12')))
   const [trendMode, setTrendMode] = useState<TrendMode>(() => readLs(LS.trend, ['1m', '3m', '6m'] as const, '3m'))
   const [zBiezacym, setZBiezacym] = useState(false)
@@ -119,16 +125,19 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
   useEffect(() => writeLs(LS.wykonanie, wykonanie), [wykonanie])
   useEffect(() => writeLs(LS.okres, String(months)), [months])
   useEffect(() => writeLs(LS.trend, trendMode), [trendMode])
+  useEffect(() => writeLs(LS.firma, firma), [firma])
 
   const loadSprzedaz = useCallback(async (m: number) => {
     setLoadingSprzedaz(true)
     const from = minusMonths(new Date(), m) // runda 10: 31.05 − 3 mies. dawało 3.03
-    const { data, error: err } = await fetchAllPages<Record<string, unknown>>((a, b) =>
+    const pobierz = (zFirma: boolean) => fetchAllPages<Record<string, unknown>>((a, b) =>
       supabase
-        .rpc('stat_wew_sprzedaz', { p_from: localDateStr(from), p_to: localDateStr(new Date()) })
+        .rpc('stat_wew_sprzedaz', firmaArgs({ p_from: localDateStr(from), p_to: localDateStr(new Date()) }, firma, zFirma))
         .order('item_type').order('grupa').order('model').order('linia').order('wykonanie').order('kolor').order('rozmiar')
         .range(a, b),
     )
+    let { data, error: err } = await pobierz(true)
+    if (err?.code === 'PGRST202') { setFirmaNiedostepna(true); ({ data, error: err } = await pobierz(false)) }
     setLoadingSprzedaz(false)
     if (err) {
       console.error('[Statystyki wewnętrzne] sprzedaż', err)
@@ -137,13 +146,15 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
       return
     }
     setSprzedaz((data ?? []).map(normalizeWewSprzedaz))
-  }, [])
+  }, [firma])
 
   const loadMiesiace = useCallback(async () => {
     setLoadingMiesiace(true)
-    const { data, error: err } = await fetchAllPages<Record<string, unknown>>((a, b) =>
-      supabase.rpc('stat_wew_miesiace', { p_months: 13 }).order('miesiac').order('item_type').order('grupa').order('wykonanie').range(a, b),
+    const pobierz = (zFirma: boolean) => fetchAllPages<Record<string, unknown>>((a, b) =>
+      supabase.rpc('stat_wew_miesiace', firmaArgs({ p_months: 13 }, firma, zFirma)).order('miesiac').order('item_type').order('grupa').order('wykonanie').range(a, b),
     )
+    let { data, error: err } = await pobierz(true)
+    if (err?.code === 'PGRST202') { setFirmaNiedostepna(true); ({ data, error: err } = await pobierz(false)) }
     setLoadingMiesiace(false)
     if (err) {
       console.error('[Statystyki wewnętrzne] miesiące', err)
@@ -152,13 +163,15 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
       return
     }
     setMiesiace((data ?? []).map(normalizeWewMiesiac))
-  }, [])
+  }, [firma])
 
   const loadBraki = useCallback(async (days: number, prog: number) => {
     setLoadingBraki(true)
-    const { data, error: err } = await fetchAllPages<Record<string, unknown>>((a, b) =>
-      supabase.rpc('stat_wew_braki', { p_days: days, p_prog: prog }).order('optima_code').range(a, b),
+    const pobierz = (zFirma: boolean) => fetchAllPages<Record<string, unknown>>((a, b) =>
+      supabase.rpc('stat_wew_braki', firmaArgs({ p_days: days, p_prog: prog }, firma, zFirma)).order('optima_code').range(a, b),
     )
+    let { data, error: err } = await pobierz(true)
+    if (err?.code === 'PGRST202') { setFirmaNiedostepna(true); ({ data, error: err } = await pobierz(false)) }
     setLoadingBraki(false)
     if (err) {
       console.error('[Statystyki wewnętrzne] braki', err)
@@ -167,7 +180,7 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
       return
     }
     setBraki((data ?? []).map(normalizeWewBrak))
-  }, [])
+  }, [firma])
 
   const loadNierozpoznane = useCallback(async () => {
     const { data, error: err } = await supabase
@@ -347,6 +360,15 @@ export default function InternalDoorStatsDashboard({ isManager = false }: Props)
             </button>
           ))}
         </div>
+        <select
+          className="day-filter"
+          value={firma}
+          onChange={(e) => setFirma(e.target.value as FirmaStat)}
+          disabled={firmaNiedostepna}
+          title={firmaNiedostepna ? 'Filtr firmy zadziała po aktualizacji bazy — teraz liczone są wszystkie zlecenia' : 'Zlecenia z RO bazy MR Profil liczą się osobno (numery „MR/…”)'}
+        >
+          {(Object.keys(FIRMA_LABELS) as FirmaStat[]).map((k) => <option key={k} value={k}>{FIRMA_LABELS[k]}</option>)}
+        </select>
         <select className="day-filter" value={wykonanie} onChange={(e) => setWykonanie(e.target.value as Wykonanie)} title="Skrzydła WEW trzymamy na półce, NSTD są na zamówienie">
           {(Object.keys(WYKONANIE_LABELS) as Wykonanie[]).map((k) => <option key={k} value={k}>{WYKONANIE_LABELS[k]}</option>)}
         </select>

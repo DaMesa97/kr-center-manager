@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import type { Complaint, Order, StatsSubTab } from '../types'
+import { isMrProfilOrder } from '../lib/optimaRo'
 
 type UseStatsParams = {
   touchSession: () => void
@@ -59,7 +60,8 @@ export function useStats({ touchSession }: UseStatsParams) {
     if (ordersRes.error) {
       console.error(ordersRes.error)
     } else {
-      setStatsOrders((ordersRes.data || []) as Order[])
+      // D10 (28.11): statystyki KR Center — bez zleceń z RO bazy MR Profil (te mają filtr firmy w Drzwi wewnętrzne)
+      setStatsOrders(((ordersRes.data || []) as Order[]).filter((o) => !isMrProfilOrder(o)))
     }
     if (complaintsRes.error) {
       console.error(complaintsRes.error)
