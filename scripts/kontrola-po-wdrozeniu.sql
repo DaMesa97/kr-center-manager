@@ -60,7 +60,11 @@ with znaczniki(fn, marker, minimum) as (
     ('public.restore_stage_reservations__impl(bigint,text)', 'testy 27.11 (runda 6), anulowane', 1),
     ('public.cancel_stage_reservations__impl(bigint,text)', 'testy 27.11 (runda 6), anulowane', 1),
     -- 20261128000000: teczka ZKP — zlecenie produkcyjne „jest” po etapie C (runda 8)
-    ('public.alu_dossier_status(bigint)', 'zlecenie produkcyjne = uruchomienie do produkcji', 1)
+    ('public.alu_dossier_status(bigint)', 'zlecenie produkcyjne = uruchomienie do produkcji', 1),
+    -- 20261128000100: protokół badań — ocena pomiarów od nowa przy zamykaniu (runda 8)
+    ('public.zkp_protocol_problems(bigint)', 'karta zmieniona po zapisaniu protokołu', 1),
+    ('public.zkp_protocol_problems(bigint)', 'zkp_protocol_eval(p.card_id, p.measurements)', 1),
+    ('public.zkp_close_test_protocol(bigint,text,text,text,text)', 'Ocena ZGODNY niemożliwa', 1)
 ),
 funkcje as (
   select z.fn, z.marker, z.minimum, to_regprocedure(z.fn) as foid from znaczniki z
