@@ -620,11 +620,21 @@ export function useConfig({
       pushToast(`Nie udało się sprawdzić, czy wartość jest używana: ${usageErr.message}`, 'error')
       return
     }
-    const u = (usage ?? {}) as { orders?: number; archive?: number; total?: number }
-    if ((u.total ?? 0) > 0) {
-      await appAlert(
-        `Wartość „${row.value}" jest użyta w ${u.total} zamówieniach (${u.orders ?? 0} aktywnych, ${u.archive ?? 0} w archiwum) — nie można jej usunąć.\n\nZmień nazwę wartości albo zostaw ją w słowniku.`,
-      )
+    // runda 8: baza liczy też receptury, wykluczenia i reguły Bastion (total_all, migracja 20261128010200);
+    // starsza baza zwraca tylko zamówienia (total) — wtedy jak dotąd
+    const u = (usage ?? {}) as {
+      orders?: number; archive?: number; total?: number
+      recipes?: number; recipe_names?: string[]; exclusions?: number; rules?: number; total_all?: number
+    }
+    if ((u.total_all ?? u.total ?? 0) > 0) {
+      const gdzie = [
+        (u.total ?? 0) > 0 ? `• zamówienia: ${u.total} (${u.orders ?? 0} aktywnych, ${u.archive ?? 0} w archiwum)` : '',
+        (u.recipes ?? 0) > 0 ? `• receptury magazynu: ${u.recipes}${u.recipe_names?.length ? ` (${u.recipe_names.slice(0, 3).join('; ')}${u.recipe_names.length > 3 ? '; …' : ''})` : ''}` : '',
+        (u.exclusions ?? 0) > 0 ? `• wykluczenia konfiguratora: ${u.exclusions}` : '',
+        (u.rules ?? 0) > 0 ? `• reguły Bastion: ${u.rules}` : '',
+      ].filter(Boolean).join('\n')
+      // noc 28.11 (D60): nie podpowiadamy już „zmień nazwę” — zmiana nazwy zrywa wykluczenia i reguły
+      await appAlert(`Wartość „${row.value}" jest używana — nie można jej usunąć.\n\n${gdzie}\n\nZostaw ją w słowniku.`)
       return
     }
     setDeleteConfirm({
