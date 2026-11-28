@@ -39,7 +39,7 @@ const SECTIONS: Section[] = [
           <li><b>Magazyn</b>: prognozy przy krótkiej historii pokazują średnią „orientacyjnie” (alerty nie gasną). Błąd zdjęcia z magazynu nie zatrzymuje etapu — zlecenie trafia do Weryfikacji „Magazyn do sprawdzenia” (Ponów / Sprawdzone). Przy otwieraniu spisu można wstrzymać PZ i MM na tym magazynie. MM pyta, czy przenieść też rezerwacje zleceń. Zmiana receptury przelicza tylko niezrobione etapy zleceń w produkcji. „Oznacz jako wydane” w Wysyłkach zdejmuje towar dla zleceń zamówionych od spisu 6.11.</li>
           <li><b>Disting Plus</b>: części skrzydła (etapy E3 / E4) schodzą z magazynu Marklowicka, gdy na STA zostanie odhaczony etap skrzydła — tak jak przy Titanie.</li>
           <li><b>Zlecenia</b>: wydanego zlecenia nie da się anulować, a anulowanie pary / Titana pomija wydane nogi. Archiwizacja liczy się od daty wydania, pary i Titany idą do archiwum w całości.</li>
-          <li><b>Uprawnienia</b>: kierownik działu widzi w Weryfikacji i powiadomieniach tylko swoje kategorie. Szablony etykiet i dokumentów edytuje tylko admin. Ceny z konfiguratora widzą tylko kierownicy. Magazynier nie przypina zleceń do tras.</li>
+          <li><b>Uprawnienia</b>: kierownik działu widzi w Weryfikacji i powiadomieniach tylko swoje kategorie. Szablony etykiet i dokumentów edytuje tylko admin. Ceny z konfiguratora widzą tylko kierownicy i obsługa klienta. Magazynier nie przypina zleceń do tras.</li>
           <li><b>Excel → program</b>: etap cofnięty w programie nie wraca z Excela (zlecenia i reklamacje), dopóki w Excelu nie zmieni się wartość. W kolumnach ST / Bastion można wpisać datę zamiast „X” — data to etap zrobiony tego dnia (materiał schodzi z magazynu), a w WYDANIE / ZREALIZOWANE data to prawdziwa data wydania.</li>
           <li><b>Telefon</b>: każdy widzi tylko swoje kategorie; drzwi wewnętrzne odhacza kierownik, magazynier i kierownik działu drzwi wewnętrznych. Zapis, który nie dostał odpowiedzi w 30 s (zdjęcia 2 min), kończy się komunikatem „mógł się zapisać — odśwież”, zamiast wisieć.</li>
           <li><b>CRM</b>: klient z potwierdzonym zamówieniem w sklepie jest automatycznie „Zamówił”. Odstąpienie od podpisanej umowy (z powodem w historii). „Przywróć do gry” przywraca oferty odrzucone przy przegranej. Usunięcie klienta usuwa też jego pliki PDF. „Zapytaj o decyzję” nie trafia do klientów „Zamówił”.</li>
@@ -523,10 +523,10 @@ const SECTIONS: Section[] = [
           <li><b>Kierownik działu</b> — jak kierownik, ale <b>zawężony do przypisanych kategorii</b> (np. tylko STA + Disting).</li>
           <li><b>Pracownik produkcji</b> — widzi przypisane kategorie, oznacza <b>tylko swoje przypisane etapy</b> (w „Moje stanowisko" i w tabelach), dodaje komentarze.</li>
           <li><b>Magazynier</b> — podgląd zleceń + wysyłka + ruchy magazynowe (PZ/MM); bez edycji komponentów i receptur.</li>
-          <li><b>Obsługa klienta</b> — podgląd wszystkich zleceń + komentarze + druk etykiet; bez edycji.</li>
+          <li><b>Obsługa klienta</b> — podgląd wszystkich zleceń + komentarze + druk etykiet + ceny z konfiguratora; bez edycji.</li>
         </ul>
         <p>
-          <b>Ceny</b> (wartość konfiguratora) widzą tylko kierownicy i administrator.
+          <b>Ceny</b> (wartość konfiguratora) widzą tylko kierownicy, administrator i obsługa klienta.
           Tworzenie, edycja, anulowanie zleceń, wydania i odbiory — tylko kierownicy.
         </p>
         <p className="help-note">

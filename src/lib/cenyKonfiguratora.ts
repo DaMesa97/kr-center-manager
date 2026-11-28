@@ -1,6 +1,6 @@
 // D12 (28.11.2026): ceny z konfiguratora nie są dostępne dla hali i magazynu. Po migracji
 // 20261128031400 kolumny orders.configurator_value / complaints.configurator_value są puste, a cena siedzi
-// w tabeli ceny_konfiguratora (RLS: tylko kierownicy). Przed migracją tabeli nie ma — wtedy zostaje wartość
+// w tabeli ceny_konfiguratora (RLS: kierownicy i obsługa klienta — D12, plik 20261128052000). Przed migracją tabeli nie ma — wtedy zostaje wartość
 // z kolumny (aplikacja działa przed i po wgraniu).
 import { supabase } from '../supabaseClient'
 
@@ -18,7 +18,7 @@ export function shownConfiguratorValue(own: unknown, hidden: string | null | und
 }
 
 /**
- * Cena z ceny_konfiguratora (tylko kierownik dostanie wiersz). Brak tabeli (przed migracją),
+ * Cena z ceny_konfiguratora (kierownik albo obsługa klienta dostanie wiersz). Brak tabeli (przed migracją),
  * brak uprawnień albo brak wiersza → null, bez komunikatu.
  */
 export async function fetchHiddenConfiguratorValue(tabela: CenaTabela, id: number): Promise<string | null> {

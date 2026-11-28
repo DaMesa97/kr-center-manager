@@ -59,7 +59,8 @@ const R = ROLES
 
 // Macierz: jakie uprawnienia ma dana rola. Admin = wszystko (obsłużone w can()).
 const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  [R.OBSLUGA]: ['orders.view', 'comments.write', 'labels.print'],
+  // D12 (28.11.2026, właściciel): obsługa klienta widzi ceny z konfiguratora (baza: current_user_can_see_prices)
+  [R.OBSLUGA]: ['orders.view', 'comments.write', 'labels.print', 'prices.view'],
 
   [R.PRODUKCJA]: ['orders.view', 'comments.write', 'labels.print', 'categories.scoped'],
   // (oznaczanie etapów dla PP jest ograniczone do PRZYPISANYCH etapów — patrz canMarkStage)

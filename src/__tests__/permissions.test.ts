@@ -54,12 +54,12 @@ describe('permissions — macierz ról', () => {
     expect(can('magazynier', 'prices.view')).toBe(false)
   })
 
-  it('obsługa klienta — podgląd + komentarze + druk etykiet, nic więcej', () => {
+  it('obsługa klienta — podgląd + komentarze + druk etykiet + ceny (D12), nic więcej', () => {
     expect(can('obsluga_klienta', 'orders.view')).toBe(true)
     expect(can('obsluga_klienta', 'comments.write')).toBe(true)
     expect(can('obsluga_klienta', 'labels.print')).toBe(true)
     expect(can('obsluga_klienta', 'orders.edit')).toBe(false)
-    expect(can('obsluga_klienta', 'prices.view')).toBe(false)
+    expect(can('obsluga_klienta', 'prices.view')).toBe(true)
     expect(can('obsluga_klienta', 'shipping.view')).toBe(false)
   })
 
