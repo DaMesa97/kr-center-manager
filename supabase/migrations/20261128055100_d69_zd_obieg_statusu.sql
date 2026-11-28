@@ -6,7 +6,7 @@
 --  - DELETE: tylko szkic ('draft'). Wysłaną / częściową ZD się anuluje (cancel_purchase_order), nie kasuje.
 --  - UPDATE status — dozwolone przejścia (ten sam status zawsze wolno):
 --      draft   → sent, cancelled
---      sent    → partial, completed, cancelled, draft (cofnięcie do szkicu — tylko bez przyjęć; czyści sent_at/sent_by)
+--      sent    → partial, completed, cancelled, draft (cofnięcie do szkicu — tylko admin i tylko bez przyjęć; czyści sent_at/sent_by)
 --      partial → completed, cancelled
 --      completed, cancelled → nic (stan końcowy)
 --    oraz zgodność z pozycjami:
@@ -69,6 +69,11 @@ begin
    where i.purchase_order_id = new.id;
 
   if new.status = 'draft' then
+    -- właściciel 28.11: cofnięcie wysłanej ZD do szkicu tylko admin / superadmin
+    if old.status <> 'draft' and not public.current_user_is_admin() then
+      raise exception 'Cofnięcie wysłanej ZD % do szkicu może zrobić tylko administrator.', old.zd_number
+        using errcode = 'P0420';
+    end if;
     if v_przyjete then
       raise exception 'ZD % ma już przyjęty towar — nie można jej cofnąć do szkicu.', old.zd_number
         using errcode = 'P0420';
